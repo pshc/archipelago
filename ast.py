@@ -13,6 +13,13 @@ def snd(t):
     (f, s) = t
     return s
 def concat(lists): return reduce(list.__add__, lists, [])
+def unzip(list):
+    first = []
+    second = []
+    for (f, s) in list:
+        first.append(f)
+        second.append(s)
+    return (first, second)
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
@@ -91,14 +98,21 @@ def conv_and(e):
     return (symref('and', [Int(len(exprs), [])]) + map(fst, exprs),
             ' and '.join(map(snd, exprs)))
 
-add_sym('call')
+map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
 @expr(CallFunc)
 def conv_callfunc(e):
     (fa, ft) = conv_expr(e.node)
-    exprs = map(conv_expr, e.args)
-    return (symref('call', [fa, Int(len(exprs), [])] + map(fst, exprs)),
-            '%s(%s)' % (ft, ', '.join(map(snd, exprs))))
-    # {,d}star_args
+    (argsa, argst) = unzip(map(conv_expr, e.args))
+    argsa = [fa, symref('args', [Int(len(argsa), [])] + argsa)]
+    if e.star_args:
+        (saa, sat) = conv_expr(e.star_args)
+        argsa.append(symref('starargs', [saa]))
+        argst.append('*' + sat)
+    if e.dstar_args:
+        (dsa, dst) = conv_expr(e.dstar_args)
+        argsa.append(symref('dstarargs', [dsa]))
+        argst.append('**' + sat)
+    return (symref('call', argsa), '%s(%s)' % (ft, ', '.join(argst)))
 
 map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
               'is', 'is not', 'in', 'not in'])
