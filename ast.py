@@ -12,7 +12,8 @@ def fst(t):
 def snd(t):
     (f, s) = t
     return s
-def concat(lists): return reduce(list.__add__, lists, [])
+def concat(lists):
+    return reduce(list.__add__, lists, [])
 def unzip(list):
     first = []
     second = []
@@ -32,10 +33,14 @@ boot_syms = [b_symbol, b_name]
 boot_sym_names = {'symbol': b_symbol, 'name': b_name}
 
 def add_sym(name):
-    assert name not in boot_sym_names
+    if name in boot_sym_names:
+        return
     node = Ref(b_symbol, boot_mod, [Ref(b_name, boot_mod, [Str(name, [])])])
     boot_syms.append(node)
     boot_sym_names[name] = node
+
+def int_len(list):
+    return Int(len(list), [])
 
 def symref(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
@@ -44,15 +49,18 @@ def symref(name, subs):
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     func = Ref(boot_sym_names[name], boot_mod, [])
-    return symref('call', [func, Int(len(subs), [])] + subs)
+    return symref('call', [func, int_len(subs)] + subs)
+
+def symident(name, subs):
+    return symref('ident', [Str(name, subs)])
 
 def unknown_stmt(node, context):
     context.out('??%s %s??', node.__class__,
-          ', '.join(filter(lambda x: not (x.startswith('_')), dir(node))))
+          ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
 
 def unknown_expr(node):
     return '%s?(%s)' % (str(node.__class__),
-          ', '.join(filter(lambda x: not (x.startswith('_')), dir(node))))
+          ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
 
 def make_grammar_decorator(default_dispatch):
     dispatch_index = {}
@@ -98,7 +106,7 @@ add_sym('and')
 @expr(And)
 def conv_and(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('and', [Int(len(exprsa), [])]) + exprsa,
+    return (symref('and', [int_len(exprsa)]) + exprsa,
             ' and '.join(exprst))
 
 map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
@@ -106,7 +114,7 @@ map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
 def conv_callfunc(e):
     (fa, ft) = conv_expr(e.node)
     (argsa, argst) = unzip(map(conv_expr, e.args))
-    argsa = [fa, symref('args', [Int(len(argsa), [])] + argsa)]
+    argsa = [fa, symref('args', [int_len(argsa)] + argsa)]
     if e.star_args:
         (saa, sat) = conv_expr(e.star_args)
         argsa.append(symref('starargs', [saa]))
@@ -129,6 +137,7 @@ def conv_compare(e):
 
 add_sym('intlit')
 add_sym('strlit')
+add_sym('null')
 @expr(Const)
 def conv_const(e):
     v = e.value
@@ -136,7 +145,9 @@ def conv_const(e):
         return (symref('intlit', [Int(v, [])]), str(v))
     elif isinstance(v, str):
         return (symref('strlit', [Str(v, [])]), repr(v))
-    assert False, 'Unknown literal type'
+    elif v is None:
+        return (symref('null', []), 'None')
+    assert False, 'Unknown literal %s' % (e,)
 
 add_sym('dictlit')
 @expr(Dict)
@@ -157,7 +168,7 @@ def conv_genexprinner(e):
     assert len(e.quals) == 1
     (ea, et) = conv_expr(e.expr)
     comp = e.quals[0]
-    (assa, asst) = (Str('TODO', []), conv_ass(comp.assign))
+    (assa, asst) = conv_ass(comp.assign)
     (lista, listt) = conv_expr(comp.iter if hasattr(comp, 'iter')
                                else comp.list)
     preds = []
@@ -166,7 +177,7 @@ def conv_genexprinner(e):
         (ifa, ift) = conv_expr(if_.test)
         preds.append(ifa)
         iftext += ' if %s' % (ift,)
-    return (symref('genexpr', [ea, assa, lista, Int(len(preds), [])] + preds),
+    return (symref('genexpr', [ea, assa, lista, int_len(preds)] + preds),
             '%s for %s in %s%s' % (et, asst, listt, iftext))
 
 add_sym('getattr')
@@ -174,7 +185,7 @@ add_sym('getattr')
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
-    return (symcall('getattr', [ea, Str(nm, [])]), '%s.%s' % (et, nm))
+    return (symref('getattr', [ea, Str(nm, [])]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
 @expr(Keyword)
@@ -232,14 +243,14 @@ add_sym('lambda')
 def conv_lambda(e):
     (argsa, argst) = extract_arglist(e)
     (codea, codet) = conv_expr(e.code)
-    return (symref('lambda', [Int(len(argsa), [])] + argsa + [codea]),
+    return (symref('lambda', [int_len(argsa)] + argsa + [codea]),
             'lambda %s: %s' % (', '.join(argst), codet))
 
 add_sym('listlit')
 @expr(List)
 def conv_list(e):
     (itemsa, itemst) = conv_exprs(e.nodes)
-    return (symref('listlit', [Int(len(itemsa), [])] + itemsa),
+    return (symref('listlit', [int_len(itemsa)] + itemsa),
             '[%s]' % ', '.join(itemst))
 
 @expr(ListComp)
@@ -250,13 +261,13 @@ def conv_listcomp(e):
 add_sym('ident')
 @expr(Name)
 def conv_name(e):
-    return (symref('ident', [Str(e.name, [])]), e.name)
+    return (symident(e.name, []), e.name)
 
 add_sym('or')
 @expr(Or)
 def conv_or(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('or', [Int(len(exprsa), [])] + exprsa),
+    return (symref('or', [int_len(exprsa)] + exprsa),
             ' or '.join(exprst))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
@@ -291,40 +302,58 @@ def conv_tuple(e):
         (fa, ft) = conv_expr(e.nodes[0])
         return (symref('tuplelit', [Int(1, []), fa]), '(%s,)' % (ft,))
     (itemsa, itemst) = conv_exprs(e.nodes)
-    return (symref('tuplelit', [Int(len(itemsa), [])] + itemsa),
+    return (symref('tuplelit', [int_len(itemsa)] + itemsa),
             '(%s)' % ', '.join(itemst))
 
 # STATEMENTS
 
-conv_expr_ = lambda e: snd(conv_expr(e))
-
+add_sym('assert')
 @stmt(Assert)
 def conv_assert(s, context):
-    context.out('assert %s%s', conv_expr_(s.test),
-                maybe('', lambda e: ', ' + conv_expr_(e), s.fail))
+    (testa, testt) = conv_expr(s.test)
+    (faila, failt) = maybe((symref('strlit', [Str('', [])]), None),
+                           conv_expr, s.fail)
+    context.out('assert %s%s', testt, ', ' + failt if failt else '')
+    return [symcall('assert', [testa, faila])]
 
+add_sym('=')
 @stmt(Assign)
 def conv_assign(s, context):
-    context.out('%s = %s', ' = '.join(map(conv_ass, s.nodes)),
-                conv_expr_(s.expr))
+    (expra, exprt) = conv_expr(s.expr)
+    (lefta, leftt) = unzip(map(conv_ass, s.nodes))
+    assa = []
+    for ass in lefta: # backwards
+        assa.append(symref('=', [ass, expra]))
+        expra = ass
+    context.out('%s = %s', ' = '.join(leftt), exprt)
+    return assa
 
 @stmt(AssList)
 def conv_asslist(s, context):
-    for node in s.nodes:
-        context.out('%s', conv_ass(s))
+    assert False, 'TODO: Unpack list'
+    # map(conv_ass, s.nodes)
 
+add_sym('del')
 @stmt(AssTuple)
 def conv_asstuple(s, context):
+    ata = []
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
             context.out('del %s', node.name)
+            ata.append(symref('del', [symident(node.name, [])]))
         else:
             assert False, 'Unknown AssTuple node: ' + repr(node)
+    return ata
 
+map(add_sym, ['+=', '-=', '*=', '/=', '%='])
 @stmt(AugAssign)
 def conv_augassign(s, context):
-    context.out('%s %s %s', conv_expr_(s.node), s.op, conv_expr_(s.expr))
+    (assa, asst) = conv_expr(s.node)
+    (ea, et) = conv_expr(s.expr)
+    context.out('%s %s %s', asst, s.op, et)
+    return [symref(s.op, [assa, ea])]
 
+add_sym('class')
 @stmt(Class)
 def conv_class(s, context):
     context.out('class %s%s:', s.name,
@@ -332,87 +361,138 @@ def conv_class(s, context):
     if s.doc:
         context.out('    ' + s.doc)
     conv_stmts(s.code, context)
+    return [symref('class', [])] # XXX: Will likely not support classes
 
+add_sym('exprstmt')
 @stmt(Discard)
 def conv_discard(s, context):
-    context.out('%s', conv_expr_(s.expr))
+    (ea, et) = conv_expr(s.expr)
+    context.out('%s', et)
+    return [symref('exprstmt', [ea])]
 
+add_sym('unpacktuple')
+add_sym('setattr')
 def conv_ass(s):
     if isinstance(s, AssName):
-        return s.name
+        return (symident(s.name, []), s.name)
     elif isinstance(s, AssTuple):
-        return '(%s)' % (', '.join(map(conv_ass, s.nodes)),)
+        (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
+        return (symref('unpacktuple', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
-        return '%s.%s' % (conv_expr_(s.expr), s.attrname)
+        (expra, exprt) = conv_expr(s.expr)
+        (attra, attrt) = (symident(s.attrname, []), s.attrname)
+        return (symref('setattr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
-        return conv_expr_(s)
+        return conv_expr(s)
 
+add_sym('for')
+add_sym('body')
 @stmt(For)
 def conv_for(s, context):
-    context.out('for %s in %s:', conv_ass(s.assign), conv_expr_(s.list))
-    conv_stmts(s.body, context)
+    (assa, asst) = conv_ass(s.assign)
+    (lista, listt) = conv_expr(s.list)
+    context.out('for %s in %s:', asst, listt)
+    stmts = conv_stmts(s.body, context)
+    fora = [assa, lista, symref('body', [int_len(stmts)] + stmts)]
     if s.else_:
-        conv_stmts(s.else_, context)
+        assert False
+    return [symref('for', fora)]
 
+# TODO
 @stmt(From)
 def conv_from(s, context):
     context.out('from %s import %s', s.modname,
             ', '.join(import_names(s.names)))
+    return []
 
+add_sym('func')
+add_sym('args')
+add_sym('body')
+add_sym('doc')
+add_sym('decors')
 @stmt(Function)
 def conv_function(s, context):
+    decs = []
     for decorator in s.decorators or []:
-        context.out('@%s', conv_expr_(decorator))
+        (deca, dect) = conv_expr(decorator)
+        context.out('@%s', dect)
+        decs.append(deca)
     (argsa, argst) = extract_arglist(s)
     context.out('def %s(%s):', s.name, ', '.join(argst))
     if s.doc:
         context.out(repr(s.doc), indent_offset=1)
-    conv_stmts(s.code, context)
+    stmts = conv_stmts(s.code, context)
+    funca = [symref('name', [Str(s.name, [])]),
+             symref('args', argsa),
+             symref('body', [int_len(stmts)] + stmts)]
+    if s.doc:
+        funca.append(symref('doc', [Str(s.doc)]))
+    if decs:
+        funca.append(symref('decors', decs))
+    return [symref('func', funca)]
 
+add_sym('cond')
+add_sym('case')
+add_sym('else')
 @stmt(If)
 def conv_if(s, context):
+    conds = []
     keyword = 'if'
     for (test, body) in s.tests:
-        context.out('%s %s:', keyword, conv_expr_(test))
-        conv_stmts(body, context)
+        (testa, testt) = conv_expr(test)
+        context.out('%s %s:', keyword, testt)
+        stmts = conv_stmts(body, context)
+        conds.append(symref('case', [testa, int_len(stmts)] + stmts))
         keyword = 'elif'
     if s.else_:
         context.out('else:')
-        conv_stmts(s.else_, context)
+        stmts = conv_stmts(s.else_, context)
+        conds.append(symref('case', [symref('else', []), int_len(stmts)]
+                                    + stmts))
+    return [symref('cond', conds)]
 
 def import_names(nms):
     return ['%s%s' % (m, maybe('', lambda a: ' as ' + a, n)) for (m, n) in nms]
 
+# TODO
 @stmt(Import)
 def conv_import(s, context):
     context.out('import %s', ', '.join(import_names(s.names)))
+    return []
 
 @stmt(Pass)
 def conv_pass(s, context):
     context.out('pass')
+    return []
 
+add_sym('print')
 @stmt(Print)
 def conv_print(s, context):
-    context.out('print %s%s,',
-            maybe('', lambda e: '>>' + conv_expr_(e) + ', ', s.dest),
-            ', '.join(map(conv_expr_, s.nodes)))
+    assert s.dest is None
+    (exprsa, exprst) = conv_exprs(s.nodes)
+    context.out('print %s,', ', '.join(exprst))
+    return [symcall('print', exprsa)]
 
+add_sym('printnl')
 @stmt(Printnl)
 def conv_printnl(s, context):
-    context.out('print %s%s',
-            maybe('', lambda e: '>>' + conv_expr_(e) + ', ', s.dest),
-            ', '.join(map(conv_expr_, s.nodes)))
+    assert s.dest is None
+    (exprsa, exprst) = conv_exprs(s.nodes)
+    context.out('print %s', ', '.join(exprst))
+    return [symcall('printnl', exprsa)]
 
+add_sym('return')
 @stmt(Return)
 def conv_return(s, context):
-    context.out('return %s', conv_expr_(s.value))
-
+    (vala, valt) = conv_expr(s.value)
+    context.out('return %s', valt)
+    return [symref('return', [vala])]
 
 def conv_stmts(stmts, context):
     context.indent += 1
     converted = [conv_stmt(stmt, context) for stmt in stmts]
     context.indent -= 1
-    return converted
+    return concat(converted)
 
 class ConvertContext:
     def __init__(self):
