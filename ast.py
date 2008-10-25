@@ -68,6 +68,9 @@ def make_grammar_decorator(default_dispatch):
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
 (expr, conv_expr) = make_grammar_decorator(unknown_expr)
 
+def conv_exprs(elist):
+    return unzip(map(conv_expr, elist))
+
 # EXPRESSIONS
 
 for (cls, op) in {Add: '+', Sub: '-', Mul: '*', Div: '/', FloorDiv: '//',
@@ -94,9 +97,9 @@ del cls, op
 add_sym('and')
 @expr(And)
 def conv_and(e):
-    exprs = map(conv_expr, e.nodes)
-    return (symref('and', [Int(len(exprs), [])]) + map(fst, exprs),
-            ' and '.join(map(snd, exprs)))
+    (exprsa, exprst) = conv_exprs(e.nodes)
+    return (symref('and', [Int(len(exprsa), [])]) + exprsa,
+            ' and '.join(exprst))
 
 map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
 @expr(CallFunc)
@@ -235,9 +238,9 @@ def conv_lambda(e):
 add_sym('listlit')
 @expr(List)
 def conv_list(e):
-    items = map(conv_expr, e.nodes)
-    return (symref('listlit', [Int(len(items), [])] + map(fst, items)),
-            '[%s]' % ', '.join(map(snd, items)))
+    (itemsa, itemst) = conv_exprs(e.nodes)
+    return (symref('listlit', [Int(len(itemsa), [])] + itemsa),
+            '[%s]' % ', '.join(itemst))
 
 @expr(ListComp)
 def conv_listcomp(e):
@@ -252,9 +255,9 @@ def conv_name(e):
 add_sym('or')
 @expr(Or)
 def conv_or(e):
-    exprs = map(conv_expr, e.nodes)
-    return (symref('or', [Int(len(exprs), [])] + map(fst, exprs)),
-            ' or '.join(map(snd, exprs)))
+    (exprsa, exprst) = conv_exprs(e.nodes)
+    return (symref('or', [Int(len(exprsa), [])] + exprsa),
+            ' or '.join(exprst))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
 @expr(Slice)
@@ -287,9 +290,9 @@ def conv_tuple(e):
     if len(e.nodes) == 1:
         (fa, ft) = conv_expr(e.nodes[0])
         return (symref('tuplelit', [Int(1, []), fa]), '(%s,)' % (ft,))
-    items = map(conv_expr, e.nodes)
-    return (symref('tuplelit', [Int(len(items), [])] + map(fst, items)),
-            '(%s)' % ', '.join(map(snd, items)))
+    (itemsa, itemst) = conv_exprs(e.nodes)
+    return (symref('tuplelit', [Int(len(itemsa), [])] + itemsa),
+            '(%s)' % ', '.join(itemst))
 
 # STATEMENTS
 
