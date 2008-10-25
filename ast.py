@@ -282,7 +282,8 @@ def conv_assert(s, context):
 
 @stmt(Assign)
 def conv_assign(s, context):
-    context.out('%s = %s', conv_ass(s.nodes[0]), conv_expr_(s.expr))
+    context.out('%s = %s', ' = '.join(map(conv_ass, s.nodes)),
+                conv_expr_(s.expr))
 
 @stmt(AssList)
 def conv_asslist(s, context):
