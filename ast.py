@@ -6,15 +6,18 @@ def maybe(default, func, expr):
     return default if expr is None else func(expr)
 
 # Avoid tuples in args for simplicity
-def fst(t): (f, s) = t; return f
+def fst(t):
+    (f, s) = t
+    return f
 def snd(t):
-    (f, s) = t; return s
+    (f, s) = t
+    return s
 def concat(lists): return reduce(list.__add__, lists, [])
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
-b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str("symbol", [])])])
-b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str("name", [])])])
+b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
+b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
 b_symbol.refAtom = b_symbol
 b_symbol.subs[0].refAtom = b_name
 b_name.subs[0].refAtom = b_name
@@ -28,11 +31,11 @@ def add_sym(name):
     boot_sym_names[name] = node
 
 def symref(name, subs):
-    assert name in boot_sym_names, "%s not a boot symbol" % (name,)
+    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     return Ref(boot_sym_names[name], boot_mod, subs)
 
 def symcall(name, subs):
-    assert name in boot_sym_names, "%s not a boot symbol" % (name,)
+    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     func = Ref(boot_sym_names[name], boot_mod, [])
     return symref('call', [func, Int(len(subs), [])] + subs)
 
@@ -107,7 +110,8 @@ def conv_compare(e):
     op = e.ops[0][0]
     return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
 
-add_sym('intlit'); add_sym('strlit')
+add_sym('intlit')
+add_sym('strlit')
 @expr(Const)
 def conv_const(e):
     v = e.value
@@ -115,7 +119,7 @@ def conv_const(e):
         return (symref('intlit', [Int(v, [])]), str(v))
     elif isinstance(v, str):
         return (symref('strlit', [Str(v, [])]), repr(v))
-    assert False, "Unknown literal type"
+    assert False, 'Unknown literal type'
 
 add_sym('dictlit')
 @expr(Dict)
@@ -136,11 +140,11 @@ def conv_genexprinner(e):
     assert len(e.quals) == 1
     (ea, et) = conv_expr(e.expr)
     comp = e.quals[0]
-    (assa, asst) = (Str("TODO", []), conv_ass(comp.assign))
+    (assa, asst) = (Str('TODO', []), conv_ass(comp.assign))
     (lista, listt) = conv_expr(comp.iter if hasattr(comp, 'iter')
                                else comp.list)
     preds = []
-    iftext = ""
+    iftext = ''
     for if_ in comp.ifs:
         (ifa, ift) = conv_expr(if_.test)
         preds.append(ifa)
@@ -167,13 +171,15 @@ def conv_ifexp(e):
     (ca, ct) = conv_expr(e.test)
     (ta, tt) = conv_expr(e.then)
     (fa, ft) = conv_expr(e.else_)
-    return (symcall('?:', [ca, ta, fa]), "%s if %s else %s" % (tt, ct, ft))
+    return (symcall('?:', [ca, ta, fa]), '%s if %s else %s' % (tt, ct, ft))
 
 def arg_pair(name):
     assert isinstance(name, str)
     return (symref('name', [Str(name, [])]), name)
 
-add_sym('vararg'); add_sym('kwarg'); add_sym('default')
+add_sym('vararg')
+add_sym('kwarg')
+add_sym('default')
 def extract_arglist(s):
     names = s.argnames[:]
     endnames = []
@@ -296,7 +302,7 @@ def conv_asstuple(s, context):
         if getattr(node, 'flags', '') == 'OP_DELETE':
             context.out('del %s', node.name)
         else:
-            assert False, "Unknown AssTuple node: " + repr(node)
+            assert False, 'Unknown AssTuple node: ' + repr(node)
 
 @stmt(AugAssign)
 def conv_augassign(s, context):
@@ -307,7 +313,7 @@ def conv_class(s, context):
     context.out('class %s%s:', s.name,
             '(%s)' % ', '.join(s.bases) if s.bases else '')
     if s.doc:
-        context.out("    " + s.doc)
+        context.out('    ' + s.doc)
     conv_stmts(s.code, context)
 
 @stmt(Discard)
@@ -397,13 +403,13 @@ class ConvertContext:
 
     def out(self, format, *args, **kwargs):
         indent = self.indent + kwargs.get('indent_offset', 0)
-        line = ('    ' * indent) + (format % args)
+        line = '    ' * indent + format % args
         print line
 
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
     conv_stmts(stmts, ConvertContext())
 
-convert_file("ast.py")
+convert_file('ast.py')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
