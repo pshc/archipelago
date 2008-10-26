@@ -1,26 +1,7 @@
 from atom import *
+from base import *
 import compiler
 from compiler.ast import *
-
-def maybe(default, func, expr):
-    return default if expr is None else func(expr)
-
-# Avoid tuples in args for simplicity
-def fst(t):
-    (f, s) = t
-    return f
-def snd(t):
-    (f, s) = t
-    return s
-def concat(lists):
-    return reduce(list.__add__, lists, [])
-def unzip(list):
-    first = []
-    second = []
-    for (f, s) in list:
-        first.append(f)
-        second.append(s)
-    return (first, second)
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])

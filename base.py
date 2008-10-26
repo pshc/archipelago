@@ -67,4 +67,26 @@ def match(atom, *cases):
 def const(val):
     return lambda x: val
 
+def maybe(default, func, expr):
+    return default if expr is None else func(expr)
+
+# Avoid tuples in args for simplicity
+def fst(t):
+    (f, s) = t
+    return f
+def snd(t):
+    (f, s) = t
+    return s
+
+def concat(lists):
+    return reduce(list.__add__, lists, [])
+
+def unzip(list):
+    first = []
+    second = []
+    for (f, s) in list:
+        first.append(f)
+        second.append(s)
+    return (first, second)
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
