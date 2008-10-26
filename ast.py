@@ -505,8 +505,30 @@ class ConvertContext:
 
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
-    conv_stmts(stmts, ConvertContext())
+    return conv_stmts(stmts, ConvertContext())
 
-convert_file('ast.py')
+def escape(text):
+    return text.replace('\\', '\\\\').replace('"', '\\"')
+
+add_sym('module')
+def emit_graph(stmts, filename):
+    f = open(filename, 'w')
+    def do_emit(node, ctr):
+        label = match(node,
+                ('Int(n, _)', str),
+                ('Str(s, _)', repr),
+                ('Ref(r, m, _)', lambda r, m: r.subs[0].subs[0].strVal
+                                              if m is boot_mod else '<ref>'))
+        f.write('n%d [label="%s"];\n' % (ctr, escape(label)))
+        orig = ctr
+        for sub in node.subs:
+            f.write('n%d -> n%d;\n' % (orig, ctr + 1))
+            ctr = do_emit(sub, ctr + 1)
+        return ctr
+    f.write('digraph G {\n')
+    do_emit(symref('module', stmts), 0)
+    f.write('}\n')
+
+emit_graph(convert_file('test.py'), 'graph.dot')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -2,4 +2,6 @@
 *.pyd
 *.pyo
 *.swp
+*.dot
+*.png
 mods
