@@ -36,7 +36,7 @@ def symident(name, subs):
     return symref('ident', [Str(name, subs)])
 
 def unknown_stmt(node, context):
-    context.out('??%s %s??', node.__class__,
+    cout(context, '??%s %s??', node.__class__,
           ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
 
 def unknown_expr(node):
@@ -291,7 +291,7 @@ add_sym('assert')
 def conv_assert(s, context):
     (testa, testt) = conv_expr(s.test)
     (faila, failt) = maybe((Str('', []), None), conv_expr, s.fail)
-    context.out('assert %s%s', testt, ', ' + failt if failt else '')
+    cout(context, 'assert %s%s', testt, ', ' + failt if failt else '')
     return [symcall('assert', [testa, faila])]
 
 add_sym('=')
@@ -303,7 +303,7 @@ def conv_assign(s, context):
     for ass in lefta: # backwards
         assa.append(symref('=', [ass, expra]))
         expra = ass
-    context.out('%s = %s', ' = '.join(leftt), exprt)
+    cout(context, '%s = %s', ' = '.join(leftt), exprt)
     return assa
 
 @stmt(AssList)
@@ -317,7 +317,7 @@ def conv_asstuple(s, context):
     ata = []
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
-            context.out('del %s', node.name)
+            cout(context, 'del %s', node.name)
             ata.append(symref('del', [symident(node.name, [])]))
         else:
             assert False, 'Unknown AssTuple node: ' + repr(node)
@@ -328,16 +328,16 @@ map(add_sym, ['+=', '-=', '*=', '/=', '%='])
 def conv_augassign(s, context):
     (assa, asst) = conv_expr(s.node)
     (ea, et) = conv_expr(s.expr)
-    context.out('%s %s %s', asst, s.op, et)
+    cout(context, '%s %s %s', asst, s.op, et)
     return [symref(s.op, [assa, ea])]
 
 add_sym('class')
 @stmt(Class)
 def conv_class(s, context):
-    context.out('class %s%s:', s.name,
+    cout(context, 'class %s%s:', s.name,
             '(%s)' % ', '.join(s.bases) if s.bases else '')
     if s.doc:
-        context.out('    ' + s.doc)
+        cout(context, '    ' + s.doc)
     conv_stmts(s.code, context)
     return [symref('class', [])] # XXX: Will likely not support classes
 
@@ -345,7 +345,7 @@ add_sym('exprstmt')
 @stmt(Discard)
 def conv_discard(s, context):
     (ea, et) = conv_expr(s.expr)
-    context.out('%s', et)
+    cout(context, '%s', et)
     return [symref('exprstmt', [ea])]
 
 add_sym('unpacktuple')
@@ -369,7 +369,7 @@ add_sym('body')
 def conv_for(s, context):
     (assa, asst) = conv_ass(s.assign)
     (lista, listt) = conv_expr(s.list)
-    context.out('for %s in %s:', asst, listt)
+    cout(context, 'for %s in %s:', asst, listt)
     stmts = conv_stmts(s.body, context)
     fora = [assa, lista, symref('body', [int_len(stmts)] + stmts)]
     if s.else_:
@@ -379,7 +379,7 @@ def conv_for(s, context):
 # TODO
 @stmt(From)
 def conv_from(s, context):
-    context.out('from %s import %s', s.modname,
+    cout(context, 'from %s import %s', s.modname,
             ', '.join(import_names(s.names)))
     return []
 
@@ -393,12 +393,12 @@ def conv_function(s, context):
     decs = []
     for decorator in s.decorators or []:
         (deca, dect) = conv_expr(decorator)
-        context.out('@%s', dect)
+        cout(context, '@%s', dect)
         decs.append(deca)
     (argsa, argst) = extract_arglist(s)
-    context.out('def %s(%s):', s.name, ', '.join(argst))
+    cout(context, 'def %s(%s):', s.name, ', '.join(argst))
     if s.doc:
-        context.out(repr(s.doc), indent_offset=1)
+        cout(context, repr(s.doc), indent_offset=1)
     stmts = conv_stmts(s.code, context)
     funca = [symref('name', [Str(s.name, [])]),
              symref('args', argsa),
@@ -418,12 +418,12 @@ def conv_if(s, context):
     keyword = 'if'
     for (test, body) in s.tests:
         (testa, testt) = conv_expr(test)
-        context.out('%s %s:', keyword, testt)
+        cout(context, '%s %s:', keyword, testt)
         stmts = conv_stmts(body, context)
         conds.append(symref('case', [testa, int_len(stmts)] + stmts))
         keyword = 'elif'
     if s.else_:
-        context.out('else:')
+        cout(context, 'else:')
         stmts = conv_stmts(s.else_, context)
         conds.append(symref('case', [symref('else', []), int_len(stmts)]
                                     + stmts))
@@ -435,12 +435,12 @@ def import_names(nms):
 # TODO
 @stmt(Import)
 def conv_import(s, context):
-    context.out('import %s', ', '.join(import_names(s.names)))
+    cout(context, 'import %s', ', '.join(import_names(s.names)))
     return []
 
 @stmt(Pass)
 def conv_pass(s, context):
-    context.out('pass')
+    cout(context, 'pass')
     return []
 
 add_sym('print')
@@ -448,7 +448,7 @@ add_sym('print')
 def conv_print(s, context):
     assert s.dest is None
     (exprsa, exprst) = conv_exprs(s.nodes)
-    context.out('print %s,', ', '.join(exprst))
+    cout(context, 'print %s,', ', '.join(exprst))
     return [symcall('print', exprsa)]
 
 add_sym('printnl')
@@ -456,14 +456,14 @@ add_sym('printnl')
 def conv_printnl(s, context):
     assert s.dest is None
     (exprsa, exprst) = conv_exprs(s.nodes)
-    context.out('print %s', ', '.join(exprst))
+    cout(context, 'print %s', ', '.join(exprst))
     return [symcall('printnl', exprsa)]
 
 add_sym('return')
 @stmt(Return)
 def conv_return(s, context):
     (vala, valt) = conv_expr(s.value)
-    context.out('return %s', valt)
+    cout(context, 'return %s', valt)
     return [symref('return', [vala])]
 
 def conv_stmts(stmts, context):
@@ -472,18 +472,16 @@ def conv_stmts(stmts, context):
     context.indent -= 1
     return concat(converted)
 
-class ConvertContext:
-    def __init__(self):
-        self.indent = -1
+ConvertContext = DT('ConvertContext', ('indent', int))
 
-    def out(self, format, *args, **kwargs):
-        indent = self.indent + kwargs.get('indent_offset', 0)
-        line = '    ' * indent + format % args
-        print line
+def cout(context, format, *args, **kwargs):
+    indent = context.indent + kwargs.get('indent_offset', 0)
+    line = '    ' * indent + format % args
+    print line
 
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
-    return conv_stmts(stmts, ConvertContext())
+    return conv_stmts(stmts, ConvertContext(-1))
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
