@@ -135,16 +135,14 @@ def conv_compare(e):
     op = e.ops[0][0]
     return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
 
-add_sym('intlit')
-add_sym('strlit')
 add_sym('null')
 @expr(Const)
 def conv_const(e):
     v = e.value
     if isinstance(v, int):
-        return (symref('intlit', [Int(v, [])]), str(v))
+        return (Int(v, []), str(v))
     elif isinstance(v, str):
-        return (symref('strlit', [Str(v, [])]), repr(v))
+        return (Str(v, []), repr(v))
     elif v is None:
         return (symref('null', []), 'None')
     assert False, 'Unknown literal %s' % (e,)
@@ -311,8 +309,7 @@ add_sym('assert')
 @stmt(Assert)
 def conv_assert(s, context):
     (testa, testt) = conv_expr(s.test)
-    (faila, failt) = maybe((symref('strlit', [Str('', [])]), None),
-                           conv_expr, s.fail)
+    (faila, failt) = maybe((Str('', []), None), conv_expr, s.fail)
     context.out('assert %s%s', testt, ', ' + failt if failt else '')
     return [symcall('assert', [testa, faila])]
 
