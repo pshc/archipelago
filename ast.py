@@ -1,10 +1,10 @@
-from atom import *
+from atom import Atom, Int, Str, Ref, Module as Module_
 from base import *
 import compiler
 from compiler.ast import *
 
 # Bootstrap module
-boot_mod = Module('bootstrap', None, [])
+boot_mod = Module_('bootstrap', None, [])
 b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
 b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
 b_symbol.refAtom = b_symbol
@@ -30,7 +30,7 @@ def symref(name, subs):
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     func = Ref(boot_sym_names[name], boot_mod, [])
-    return symref('call', [func, int_len(subs)] + subs)
+    return symref('call', [func, symref('args', [int_len(subs)] + subs)])
 
 def symident(name, subs):
     return symref('ident', [Str(name, subs)])
@@ -178,7 +178,7 @@ def conv_ifexp(e):
     (ca, ct) = conv_expr(e.test)
     (ta, tt) = conv_expr(e.then)
     (fa, ft) = conv_expr(e.else_)
-    return (symcall('?:', [ca, ta, fa]), '%s if %s else %s' % (tt, ct, ft))
+    return (symref('?:', [ca, ta, fa]), '%s if %s else %s' % (tt, ct, ft))
 
 def arg_pair(name):
     assert isinstance(name, str)
@@ -355,6 +355,7 @@ def conv_ass(s):
         return (symident(s.name, []), s.name)
     elif isinstance(s, AssTuple):
         (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
+        itemsa.insert(0, Int(len(itemsa), []))
         return (symref('unpacktuple', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
@@ -401,7 +402,7 @@ def conv_function(s, context):
         cout(context, repr(s.doc), indent_offset=1)
     stmts = conv_stmts(s.code, context)
     funca = [symref('name', [Str(s.name, [])]),
-             symref('args', argsa),
+             symref('args', [int_len(argsa)] + argsa),
              symref('body', [int_len(stmts)] + stmts)]
     if s.doc:
         funca.append(symref('doc', [Str(s.doc)]))
@@ -481,13 +482,13 @@ def cout(context, format, *args, **kwargs):
 
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
-    return conv_stmts(stmts, ConvertContext(-1))
+    return Module_(filename, None, conv_stmts(stmts, ConvertContext(-1)))
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
 
 add_sym('module')
-def emit_graph(stmts, filename):
+def emit_graph(mod, filename):
     f = open(filename, 'w')
     def do_emit(node, ctr):
         label = match(node,
@@ -502,9 +503,10 @@ def emit_graph(stmts, filename):
             ctr = do_emit(sub, ctr + 1)
         return ctr
     f.write('digraph G {\n')
-    do_emit(symref('module', stmts), 0)
+    do_emit(symref('module', mod.roots), 0)
     f.write('}\n')
 
-emit_graph(convert_file('test.py'), 'graph.dot')
+if __name__ == '__main__':
+    emit_graph(convert_file('test.py'), 'graph.dot')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

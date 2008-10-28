@@ -65,8 +65,9 @@ def serialize_module(module):
     system('mv -f -- %s %s' % (temp, filename))
     return selfixs
 
-system('rm -f -- mods/*')
-mod = Module("boot", "", [Int(42, [])])
-serialize_module(mod)
+if __name__ == '__main__':
+    system('rm -f -- mods/*')
+    mod = Module("boot", "", [Int(42, [])])
+    serialize_module(mod)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
