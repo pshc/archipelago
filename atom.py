@@ -12,19 +12,50 @@ from base import *
 Module = DT('Module',
             ('name', str), ('digest', str), ('roots', [Atom]))
 
+# Bootstrap module
+boot_mod = Module('bootstrap', None, [])
+b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
+b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
+b_symbol.refAtom = b_symbol
+b_symbol.subs[0].refAtom = b_name
+b_name.subs[0].refAtom = b_name
+boot_syms = [b_symbol, b_name]
+boot_sym_names = {'symbol': b_symbol, 'name': b_name}
+
+def add_sym(name):
+    if name in boot_sym_names:
+        return
+    node = Ref(b_symbol, boot_mod, [Ref(b_name, boot_mod, [Str(name, [])])])
+    boot_syms.append(node)
+    boot_sym_names[name] = node
+
+def int_len(list):
+    return Int(len(list), [])
+
+def symref(name, subs):
+    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
+    return Ref(boot_sym_names[name], boot_mod, subs)
+
+def symcall(name, subs):
+    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
+    func = Ref(boot_sym_names[name], boot_mod, [])
+    return symref('call', [func, symref('args', [int_len(subs)] + subs)])
+
+def symident(name, subs):
+    return symref('ident', [Str(name, subs)])
+
 def walk_atoms(atoms, ret, f):
     for atom in atoms:
         ret = f(atom, ret)
         ret = walk_atoms(atom.subs, ret, f)
     return ret
 
-def init_serialize(atom, (natoms, selfindices, modset)):
-    selfindices[atom] = natoms + 1
-    match(atom, ("Ref(_, m, _)", modset.add),
-                ("_",            lambda: None))
-    return (natoms + 1, selfindices, modset)
-
 def serialize_module(module):
+    def init_serialize(atom, (natoms, selfindices, modset)):
+        selfindices[atom] = natoms + 1
+        match(atom, ("Ref(_, m, _)", modset.add),
+                    ("_",            lambda: None))
+        return (natoms + 1, selfindices, modset)
     beg = (7, {}, set())
     (natoms, selfixs, modset) = walk_atoms(module.roots, beg, init_serialize)
     nmods = len(modset)
@@ -64,6 +95,69 @@ def serialize_module(module):
     filename = 'mods/%s' % hash.digest().encode('hex')
     system('mv -f -- %s %s' % (temp, filename))
     return selfixs
+
+@matcher('sized')
+def match_sized(atom, ast):
+    # specific to atoms; matches int(n) followed by n items
+    assert 1 <= len(ast.args) <= 2
+    assert isinstance(atom, list), "Expected list for 'sized"
+    if isinstance(atom[0], Int):
+        n = atom[0].intVal
+        if len(atom) > n:
+            atomsm = match_try(atom[1:n+1], ast.args[0])
+            if atomsm is not None:
+                if len(ast.args) == 1:
+                    return atomsm
+                restm = match_try(atom[n+1:], ast.args[1])
+                if restm is not None:
+                    return atomsm + restm
+    return None
+
+@matcher('named')
+def match_named(atom, ast):
+    assert 1 <= len(ast.args) <= 2
+    if len(ast.args) == 1: # Don't know what it's named yet
+        if isinstance(atom, Ref) and isinstance(atom.refAtom, Ref):
+            sym = atom.refAtom
+            if sym.refAtom is boot_sym_names['symbol']:
+                target = boot_sym_names['name']
+                for sub in sym.subs:
+                    if isinstance(sub, Ref) and sub.refAtom is target:
+                        name = sub.subs[0]
+                        assert isinstance(name, Str)
+                        result = match_try(name.strVal, ast.args[0])
+                        if result is not None:
+                            return result
+    else: # Already know what it's named; match second arg to its subs
+        assert isinstance(ast.args[0], compiler.ast.Const)
+        required_name = ast.args[0].value
+        assert isinstance(required_name, str)
+        if isinstance(atom, Ref) and isinstance(atom.refAtom, Ref):
+            sym = atom.refAtom
+            if sym.refAtom is boot_sym_names['symbol']:
+                target = boot_sym_names['name']
+                for sub in sym.subs:
+                    if isinstance(sub, Ref) and sub.refAtom is target:
+                        assert isinstance(sub.subs[0], Str)
+                        if required_name == sub.subs[0].strVal:
+                            return match_try(atom.subs, ast.args[1])
+    return None
+
+
+def atom_repr(s, indent=-1):
+    extra = ''
+    if indent == -1:
+        indent = 0
+        extra = '\n'
+    label = match(s,
+            ('Int(n, _)\n', str),
+            ('Str(s, _)\n', repr),
+            ('Ref(r, m, _)\n', lambda r, m: r.subs[0].subs[0].strVal
+                                            if m is boot_mod else '<ref>'))
+    return '%s%s%s\n%s' % (extra, '  ' * indent, label,
+                           ''.join(atom_repr(t, indent+1) for t in s.subs))
+
+Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
 
 if __name__ == '__main__':
     system('rm -f -- mods/*')

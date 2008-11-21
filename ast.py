@@ -1,39 +1,7 @@
-from atom import Atom, Int, Str, Ref, Module as Module_
+from atom import *
 from base import *
 import compiler
 from compiler.ast import *
-
-# Bootstrap module
-boot_mod = Module_('bootstrap', None, [])
-b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
-b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
-b_symbol.refAtom = b_symbol
-b_symbol.subs[0].refAtom = b_name
-b_name.subs[0].refAtom = b_name
-boot_syms = [b_symbol, b_name]
-boot_sym_names = {'symbol': b_symbol, 'name': b_name}
-
-def add_sym(name):
-    if name in boot_sym_names:
-        return
-    node = Ref(b_symbol, boot_mod, [Ref(b_name, boot_mod, [Str(name, [])])])
-    boot_syms.append(node)
-    boot_sym_names[name] = node
-
-def int_len(list):
-    return Int(len(list), [])
-
-def symref(name, subs):
-    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return Ref(boot_sym_names[name], boot_mod, subs)
-
-def symcall(name, subs):
-    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    func = Ref(boot_sym_names[name], boot_mod, [])
-    return symref('call', [func, symref('args', [int_len(subs)] + subs)])
-
-def symident(name, subs):
-    return symref('ident', [Str(name, subs)])
 
 def unknown_stmt(node, context):
     cout(context, '??%s %s??', node.__class__,
@@ -129,12 +97,15 @@ def conv_const(e):
     assert False, 'Unknown literal %s' % (e,)
 
 add_sym('dictlit')
+add_sym('pair')
 @expr(Dict)
 def conv_dict(e):
+    # This is pretty gross
     keys = map(conv_expr, map(fst, e.items))
     vals = map(conv_expr, map(snd, e.items))
     pairs = [([ka, va], (kt, vt)) for ((ka, kt), (va, vt)) in zip(keys, vals)]
-    return (symref('dictlit', concat(map(fst, pairs))),
+    apairs = [symref('pair', [k, v]) for (k, v) in map(fst, pairs)]
+    return (symref('dictlit', apairs),
             '{%s}' % ', '.join('%s: %s' % kv for kv in map(snd, pairs)))
 
 @expr(GenExpr)
@@ -272,7 +243,7 @@ def conv_subscript(e):
     assert len(e.subs) == 1
     (ea, et) = conv_expr(e.expr)
     (sa, st) = conv_expr(e.subs[0])
-    return (symcall('subscript', [ea, sa]), '%s[%s]' % (et, st))
+    return (symref('subscript', [ea, sa]), '%s[%s]' % (et, st))
 
 add_sym('tuplelit')
 @expr(Tuple)
@@ -292,7 +263,7 @@ def conv_assert(s, context):
     (testa, testt) = conv_expr(s.test)
     (faila, failt) = maybe((Str('', []), None), conv_expr, s.fail)
     cout(context, 'assert %s%s', testt, ', ' + failt if failt else '')
-    return [symcall('assert', [testa, faila])]
+    return [symref('assert', [testa, faila])]
 
 add_sym('=')
 @stmt(Assign)
@@ -355,7 +326,7 @@ def conv_ass(s):
         return (symident(s.name, []), s.name)
     elif isinstance(s, AssTuple):
         (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
-        itemsa.insert(0, Int(len(itemsa), []))
+        itemsa.insert(0, int_len(itemsa))
         return (symref('unpacktuple', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
@@ -482,6 +453,7 @@ def cout(context, format, *args, **kwargs):
 
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
+    from atom import Module as Module_
     return Module_(filename, None, conv_stmts(stmts, ConvertContext(-1)))
 
 def escape(text):

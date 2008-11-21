@@ -1,4 +1,4 @@
 all: tada
 
 tada:
-	python ast.py
+	python interpret.py
