@@ -421,15 +421,15 @@ def conv_print(s, context):
     assert s.dest is None
     (exprsa, exprst) = conv_exprs(s.nodes)
     cout(context, 'print %s,', ', '.join(exprst))
-    return [symcall('print', exprsa)]
+    return [symref('exprstmt', [symcall('print', exprsa)])]
 
-add_sym('printnl')
+add_sym('println')
 @stmt(Printnl)
 def conv_printnl(s, context):
     assert s.dest is None
     (exprsa, exprst) = conv_exprs(s.nodes)
     cout(context, 'print %s', ', '.join(exprst))
-    return [symcall('printnl', exprsa)]
+    return [symref('exprstmt', [symcall('println', exprsa)])]
 
 add_sym('return')
 @stmt(Return)
@@ -443,6 +443,15 @@ def conv_stmts(stmts, context):
     converted = [conv_stmt(stmt, context) for stmt in stmts]
     context.indent -= 1
     return concat(converted)
+
+add_sym('while')
+add_sym('body')
+@stmt(While)
+def conv_while(s, context):
+    (testa, testt) = conv_expr(s.test)
+    cout(context, 'while %s:', testt)
+    stmts = conv_stmts(s.body, context)
+    return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
 
 ConvertContext = DT('ConvertContext', ('indent', int))
 
@@ -479,6 +488,6 @@ def emit_graph(mod, filename):
     f.write('}\n')
 
 if __name__ == '__main__':
-    emit_graph(convert_file('test.py'), 'graph.dot')
+    emit_graph(convert_file('interpret.py'), 'graph.dot')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

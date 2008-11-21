@@ -15,15 +15,27 @@ def expr_binary(op, subs, scope):
         return 'format'
     return op
 
+def expr_builtin(op, subs, scope):
+    return op
+
 def expr_call(op, subs, scope):
     return match(subs, ('cons(f, contains(named("args", sized(args))))',
                         lambda f, args: '%s(%s)' % (eval_expr(f, scope),
                                         ', '.join(eval_exprs(args, scope)))))
 
+def expr_cmp(op, subs, scope):
+    return op
+
 def expr_dictlit(op, subs, scope):
     pairs = match(subs, ('all(named("pair", cons(k, cons(v, _))))', identity))
     return '{%s}' % ', '.join(['%s : %s' % (eval_expr(k, scope),
                               eval_expr(v, scope)) for (k, v) in pairs])
+
+def expr_genexpr(op, subs, scope):
+    return match(subs, ('cons(e, cons(a, cons(l, sized(ps))))',
+        lambda e, a, l, ps: '[%s for %s in %s%s]' % (
+            eval_expr(e, scope), eval_expr(a, scope), eval_expr(l, scope),
+            ''.join([' if ' + eval_expr(p, scope) for p in ps]))))
 
 def expr_getattr(op, subs, scope):
     return '%s.%s' % (eval_expr(subs[0], scope), subs[1].strVal)
@@ -62,8 +74,12 @@ def expr_tuplelit(op, subs, scope):
 
 expr_dispatch = {
         '+': expr_binary, '-': expr_binary, '%': expr_binary,
+        'println': expr_builtin, 'slice': expr_builtin,
         'call': expr_call,
+        '==': expr_cmp,
+        'in': expr_cmp, 'not in': expr_cmp, 'is': expr_cmp, 'is not': expr_cmp,
         'dictlit': expr_dictlit,
+        'genexpr': expr_genexpr,
         'getattr': expr_getattr,
         'ident': expr_ident,
         'lambda': expr_lambda,
@@ -96,13 +112,23 @@ def stmt_assert(op, subs, scope):
 def stmt_assign(op, subs, scope):
     print eval_expr(subs[0], scope), op, eval_expr(subs[1], scope)
 
+def stmt_cond(op, subs, scope):
+    kw = 'if'
+    cases = match(subs, ('all(named("case", cons(test, sized(body))))',
+                         identity))
+    for (tst, body) in cases:
+        print match(tst, ('named("else")', lambda: 'else:'),
+                         ('t', lambda t: '%s %s:' % (kw, eval_expr(t, scope))))
+        scope_stmts(body, scope.name + '.<cond>', scope)
+        kw = 'elif'
+
 def stmt_exprstmt(op, subs, scope):
     print eval_expr(subs[0], scope)
 
 def stmt_for(op, subs, scope):
     print 'for %s in %s:' % match(subs, ('cons(a, cons(t, _))',
             lambda a, t: (eval_expr(a, scope), eval_expr(t, scope))))
-    match(subs, ('contains(named("body", sized(stmts)))',
+    match(subs, ('cons(_, cons(_, contains(named("body", sized(stmts)))))',
                  lambda ss: scope_stmts(ss, scope.name + '.<for>', scope)))
 
 def stmt_func(op, subs, scope):
@@ -116,13 +142,20 @@ def stmt_func(op, subs, scope):
 def stmt_return(op, subs, scope):
     print 'return', eval_expr(subs[0], scope)
 
+def stmt_while(op, subs, scope):
+    print 'while %s:' % (eval_expr(subs[0], scope),)
+    match(subs, ('cons(_, contains(named("body", sized(stmts))))',
+                 lambda ss: scope_stmts(ss, scope.name + '.<while>', scope)))
+
 stmt_dispatch = {
         'assert': stmt_assert,
         '=': stmt_assign, '+=': stmt_assign, '-=': stmt_assign,
+        'cond': stmt_cond,
         'exprstmt': stmt_exprstmt,
         'for': stmt_for,
         'func': stmt_func,
         'return': stmt_return,
+        'while': stmt_while,
     }
 
 def run_stmt(stmt, scope):
@@ -145,6 +178,6 @@ def scope_lookup(name, scope):
     assert False, 'Symbol "%s" not defined' % (name,)
 
 if __name__ == '__main__':
-    run_module(ast.convert_file('test.py'))
+    run_module(ast.convert_file('interpret.py'))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
