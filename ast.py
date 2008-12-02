@@ -302,6 +302,12 @@ def conv_augassign(s, context):
     cout(context, '%s %s %s', asst, s.op, et)
     return [symref(s.op, [assa, ea])]
 
+add_sym('break')
+@stmt(Break)
+def conv_break(s, context):
+    cout(context, 'break')
+    return [symref('break', [])]
+
 add_sym('class')
 @stmt(Class)
 def conv_class(s, context):
@@ -311,6 +317,12 @@ def conv_class(s, context):
         cout(context, '    ' + s.doc)
     conv_stmts(s.code, context)
     return [symref('class', [])] # XXX: Will likely not support classes
+
+add_sym('continue')
+@stmt(Continue)
+def conv_continue(s, context):
+    cout(context, 'continue')
+    return [symref('continue', [])]
 
 add_sym('exprstmt')
 @stmt(Discard)
