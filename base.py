@@ -9,9 +9,9 @@ def DT(*members):
     mems = [(nm) for (nm, t) in members[1:]]
     code = """class %s(object):
   __slots__ = [%s]
-  def __init__(self, %s):
-%s""" % (name, ', '.join(map(repr, mems)), ', '.join(mems),
-        ''.join(['    self.%s = %s\n' % (m, m) for m in mems]))
+  def __init__(self%s):
+%s""" % (name, ', '.join(map(repr, mems)), ''.join(', %s' % m for m in mems),
+        ''.join(['    self.%s = %s\n' % (m, m) for m in mems]) or '    pass')
     exec code
     dt = datatypes[name] = eval(name)
     return dt
@@ -73,6 +73,11 @@ def match_try(atom, ast):
                 return None
             and_args += case_args
         return and_args
+    elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
+        # capture right side
+        assert isinstance(ast.expr, Name) and ast.expr.name != '_'
+        capture_args = match_try(atom, ast.ops[0][1])
+        return [atom] + capture_args if capture_args is not None else None
     assert False, "Unknown match case: %s" % ast
 
 def match(atom, *cases):
@@ -149,5 +154,9 @@ def unzip(list):
         first.append(f)
         second.append(s)
     return (first, second)
+
+def tuple2(a, b): return (a, b)
+def tuple3(a, b, c): return (a, b, c)
+def tuple4(a, b, c, d): return (a, b, c, d)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
