@@ -16,7 +16,7 @@ Function = DT('Function', ('name', str),
                           ('argnames', [str]),
                           ('stmts', [Atom]))
 
-def bi_println(s): print s
+def bi_print(s): print s
 
 def run_module(module):
     builtins = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
@@ -26,13 +26,13 @@ def run_module(module):
                 '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
                 'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'println': bi_println,
+                'slice': lambda l, d, u: l[d:u], 'print': bi_print,
                 }
     builtinScope = new_scope(builtins, None, [], None)
     run_scope(new_scope({}, '<top-level>', module.roots[:], builtinScope))
 
 def expr_call(op, subs, scope):
-    return match(subs, ('cons(f, contains(named("args", sized(args))))',
+    return match(subs, ('cons(f, contains(key("args", sized(args))))',
                         lambda f, args: call_func(eval_expr(f, scope),
                                                   eval_exprs(args, scope),
                                                   scope)))
@@ -50,7 +50,7 @@ def call_func_obj(f, args, scope):
     return scope.scopeInfo.returnValue
 
 def expr_dictlit(op, subs, scope):
-    pairs = match(subs, ('all(named("pair", cons(k, cons(v, _))))', identity))
+    pairs = match(subs, ('all(key("pair", cons(k, cons(v, _))))', identity))
     return dict([(eval_expr(k, scope), eval_expr(v, scope))
                  for (k, v) in pairs])
 
@@ -77,7 +77,7 @@ def expr_ident(op, subs, scope):
     return scope_lookup(subs[0].strVal, scope)
 
 def extract_argnames(args):
-    return [match(a, ('named("name", cons(Str(nm), _))', identity))
+    return [match(a, ('key("name", cons(Str(nm), _))', identity))
             for a in args]
 
 def expr_lambda(op, subs, scope):
@@ -112,7 +112,7 @@ expr_dispatch = {
     }
 
 def eval_expr(expr, scope):
-    nm = match(expr, ('named(nm)', identity), ('s', const(None)))
+    nm = match(expr, ('key(nm)', identity), ('s', const(None)))
     if nm in expr_dispatch:
         return expr_dispatch[nm](nm, expr.subs, scope)
     elif nm is None:
@@ -143,14 +143,14 @@ def assign_nm(nm, val, scope):
     dest[nm] = val
 
 def assign_sub(container, sub, val, scope):
-    nm = match(container, ('named("ident", cons(Str(nm), _))', identity))
+    nm = match(container, ('key("ident", cons(Str(nm), _))', identity))
     dest = dest_scope(nm, scope).syms[nm]
     dest[eval_expr(sub, scope)] = val
 
 def do_assign(dest, val, scope):
-    match(dest, ('named("ident", cons(Str(nm), _))',
+    match(dest, ('key("ident", cons(Str(nm), _))',
                     lambda nm: assign_nm(nm, val, scope)),
-                ('named("subscript", cons(d, cons (ix, _)))',
+                ('key("subscript", cons(d, cons (ix, _)))',
                     lambda d, ix: assign_sub(d, ix, val, scope)))
     return scope
 
@@ -173,10 +173,10 @@ def stmt_break(op, subs, scope):
     return scope
 
 def stmt_cond(op, subs, scope):
-    cases = match(subs, ('all(named("case", cons(test, sized(body))))',
+    cases = match(subs, ('all(key("case", cons(test, sized(body))))',
                          identity))
     for (tst, body) in cases:
-        if match(tst, ('named("else")', lambda: True),
+        if match(tst, ('key("else")', lambda: True),
                       ('t', lambda t: eval_expr(t, scope))):
             scope.stmts = body + scope.stmts
             break
@@ -196,7 +196,7 @@ def stmt_exprstmt(op, subs, scope):
 
 def stmt_for(op, subs, scope):
     (a, ls, body) = match(subs,
-        ('cons(a, cons(ls, contains(named("body", sized(body)))))', tuple3))
+        ('cons(a, cons(ls, contains(key("body", sized(body)))))', tuple3))
     items = eval_expr(ls, scope)
     if not len(items):
         return scope
@@ -207,9 +207,9 @@ def stmt_for(op, subs, scope):
 
 def stmt_func(op, subs, scope):
     (name, args, body) = match(subs,
-        ('contains(named("name", cons(Str(nm, _), _))) and \
-          contains(named("args", sized(args))) and \
-          contains(named("body", sized(body)))', tuple3))
+        ('contains(key("name", cons(Str(nm, _), _))) and \
+          contains(key("args", sized(args))) and \
+          contains(key("body", sized(body)))', tuple3))
     scope.syms[name] = Function(name, extract_argnames(args), body)
     return scope
 
@@ -226,7 +226,7 @@ def stmt_return(op, subs, scope):
     return this_frame
 
 def stmt_while(op, subs, scope):
-    (test, body) = match(subs, ('cons(t, contains(named("body", sized(b))))',
+    (test, body) = match(subs, ('cons(t, contains(key("body", sized(b))))',
                                tuple2))
     if not eval_expr(test, scope):
         return scope
@@ -272,7 +272,7 @@ def run_scope(scope):
 
 
 def run_stmt(stmt, scope):
-    nm = match(stmt, ('named(nm)', identity), ('s', const(None)))
+    nm = match(stmt, ('key(nm)', identity), ('s', const(None)))
     if nm in stmt_dispatch:
         return stmt_dispatch[nm](nm, stmt.subs, scope)
     else:

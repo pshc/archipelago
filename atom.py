@@ -113,6 +113,20 @@ def match_sized(atom, ast):
                     return atomsm + restm
     return None
 
+@matcher('key')
+def match_key(atom, ast):
+    assert 1 <= len(ast.args) <= 2
+    if isinstance(atom, Ref):
+        if len(ast.args) == 1: # Don't know what it's named yet
+            for k, v in boot_sym_names.iteritems():
+                if atom.refAtom is v:
+                    return match_try(k, ast.args[0])
+        else:
+            assert isinstance(ast.args[0], compiler.ast.Const)
+            if atom.refAtom is boot_sym_names[ast.args[0].value]:
+                return match_try(atom.subs, ast.args[1])
+    return None
+
 @matcher('named')
 def match_named(atom, ast):
     assert 1 <= len(ast.args) <= 2
@@ -125,9 +139,7 @@ def match_named(atom, ast):
                     if isinstance(sub, Ref) and sub.refAtom is target:
                         name = sub.subs[0]
                         assert isinstance(name, Str)
-                        result = match_try(name.strVal, ast.args[0])
-                        if result is not None:
-                            return result
+                        return match_try(name.strVal, ast.args[0])
     else: # Already know what it's named; match second arg to its subs
         assert isinstance(ast.args[0], compiler.ast.Const)
         required_name = ast.args[0].value

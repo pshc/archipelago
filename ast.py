@@ -428,20 +428,12 @@ def conv_pass(s, context):
     return []
 
 add_sym('print')
-@stmt(Print)
-def conv_print(s, context):
-    assert s.dest is None
-    (exprsa, exprst) = conv_exprs(s.nodes)
-    cout(context, 'print %s,', ', '.join(exprst))
-    return [symref('exprstmt', [symcall('print', exprsa)])]
-
-add_sym('println')
 @stmt(Printnl)
 def conv_printnl(s, context):
     assert s.dest is None
     (exprsa, exprst) = conv_exprs(s.nodes)
     cout(context, 'print %s', ', '.join(exprst))
-    return [symref('exprstmt', [symcall('println', exprsa)])]
+    return [symref('exprstmt', [symcall('print', exprsa)])]
 
 add_sym('return')
 @stmt(Return)
