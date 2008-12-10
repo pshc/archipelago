@@ -125,6 +125,9 @@ def eval_expr(expr, scope):
 def eval_exprs(list, scope):
     return [eval_expr(sub, scope) for sub in list]
 
+def stmt_ADT(op, subs, scope):
+    return scope
+
 def stmt_assert(op, subs, scope):
     assert eval_expr(subs[0], scope), eval_expr(subs[1], scope)
     return scope
@@ -189,6 +192,8 @@ def stmt_continue(op, subs, scope):
     scope.stmts = []
     return scope
 
+def stmt_DT(op, subs, scope):
+    return scope
 
 def stmt_exprstmt(op, subs, scope):
     eval_expr(subs[0], scope)
@@ -233,11 +238,13 @@ def stmt_while(op, subs, scope):
     return new_scope({}, WhileScope(test, body), body, scope)
 
 stmt_dispatch = {
+        'ADT': stmt_ADT,
         'assert': stmt_assert,
         '=': stmt_assign, '+=': stmt_assign, '-=': stmt_assign,
         'break': stmt_break,
         'cond': stmt_cond,
         'continue': stmt_continue,
+        'DT': stmt_DT,
         'exprstmt': stmt_exprstmt,
         'for': stmt_for,
         'func': stmt_func,
@@ -291,8 +298,8 @@ def scope_lookup(name, scope):
                   scope.scopeInfo, scope.syms)
 
 if __name__ == '__main__':
-    module = ast.convert_file('test.py')
-    print module.roots
+    module = ast.convert_file('interpret.py')
+    open('hello', 'w').write(str(module.roots))
     run_module(module)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
