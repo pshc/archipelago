@@ -58,12 +58,42 @@ def conv_and(e):
     return (symref('and', [int_len(exprsa)]) + exprsa,
             ' and '.join(exprst))
 
+add_sym('ADT')
+add_sym('ctor')
+def make_adt(left, args):
+    adt_nm = args.pop(0)
+    dtargs = [args.pop(0)]
+    dts = []
+    dtnms = []
+    for arg in args:
+        if isinstance(arg, str):
+            dtnm = dtargs[0]
+            dtnames.append(dtnm)
+            dts.append(make_dt([dtnm], dtargs))
+            dtargs = []
+        dtargs.append(arg)
+    adta = [symref('ctor', [symname(nm)]) for nm in dtnms]
+    return (dts + [symref('ADT', [symname(adt_nm)] + adta)],
+            '%s = ADT(%s)' % (adt_nm, ', '.join(dtnms)))
+
+add_sym('DT')
+add_sym('field')
+def make_dt(left, args):
+    dt_nm = args.pop(0)
+    nms = [match(a, ('key("tuplelit", sized(cons(Str(nm, _), _)))', identity))
+           for a in args]
+    fa = [symname(dt_nm)] + [symref('field', [symname(nm)]) for nm in nms]
+    return ([symref('DT', fa)], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
+
+SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
+special_call_forms = {'ADT': make_adt, 'DT': make_dt}
+
 map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
 @expr(CallFunc)
 def conv_callfunc(e):
     (fa, ft) = conv_expr(e.node)
-    (argsa, argst) = unzip(map(conv_expr, e.args))
-    argsa = [fa, symref('args', [int_len(argsa)] + argsa)]
+    (argsa0, argst) = unzip(map(conv_expr, e.args))
+    argsa = [fa, symref('args', [int_len(argsa0)] + argsa0)]
     if e.star_args:
         (saa, sat) = conv_expr(e.star_args)
         argsa.append(symref('starargs', [saa]))
@@ -72,7 +102,10 @@ def conv_callfunc(e):
         (dsa, dst) = conv_expr(e.dstar_args)
         argsa.append(symref('dstarargs', [dsa]))
         argst.append('**' + sat)
-    return (symref('call', argsa), '%s(%s)' % (ft, ', '.join(argst)))
+    argstt = '%s(%s)' % (ft, ', '.join(argst))
+    if isinstance(e.node, Name) and e.node.name in special_call_forms:
+        return (SpecialCallForm(e.node.name, argsa0), argstt)
+    return (symref('call', argsa), argstt)
 
 map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
               'is', 'is not', 'in', 'not in'])
@@ -153,7 +186,7 @@ def conv_ifexp(e):
 
 def arg_pair(name):
     assert isinstance(name, str)
-    return (symref('name', [Str(name, [])]), name)
+    return (symname(name), name)
 
 add_sym('vararg')
 add_sym('kwarg')
@@ -270,6 +303,11 @@ add_sym('=')
 def conv_assign(s, context):
     (expra, exprt) = conv_expr(s.expr)
     (lefta, leftt) = unzip(map(conv_ass, s.nodes))
+    if isinstance(expra, SpecialCallForm):
+        assert len(lefta) == 1
+        (spa, spt) = special_call_forms[expra.name](lefta[0], expra.args)
+        cout(context, spt)
+        return spa
     assa = []
     for ass in lefta: # backwards
         assa.append(symref('=', [ass, expra]))
@@ -384,7 +422,7 @@ def conv_function(s, context):
     if s.doc:
         cout(context, repr(s.doc), indent_offset=1)
     stmts = conv_stmts(s.code, context)
-    funca = [symref('name', [Str(s.name, [])]),
+    funca = [symname(s.name),
              symref('args', [int_len(argsa)] + argsa),
              symref('body', [int_len(stmts)] + stmts)]
     if s.doc:

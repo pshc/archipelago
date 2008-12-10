@@ -44,6 +44,9 @@ def symcall(name, subs):
 def symident(name, subs):
     return symref('ident', [Str(name, subs)])
 
+def symname(name):
+    return symref('name', [Str(name, [])])
+
 def walk_atoms(atoms, ret, f):
     for atom in atoms:
         ret = f(atom, ret)
@@ -117,7 +120,7 @@ def match_sized(atom, ast):
 def match_key(atom, ast):
     assert 1 <= len(ast.args) <= 2
     if isinstance(atom, Ref):
-        if len(ast.args) == 1: # Don't know what it's named yet
+        if len(ast.args) == 1: # Don't know which boot sym this is yet
             for k, v in boot_sym_names.iteritems():
                 if atom.refAtom is v:
                     return match_try(k, ast.args[0])
@@ -130,29 +133,14 @@ def match_key(atom, ast):
 @matcher('named')
 def match_named(atom, ast):
     assert 1 <= len(ast.args) <= 2
-    if len(ast.args) == 1: # Don't know what it's named yet
-        if isinstance(atom, Ref) and isinstance(atom.refAtom, Ref):
-            sym = atom.refAtom
-            if sym.refAtom is boot_sym_names['symbol']:
-                target = boot_sym_names['name']
-                for sub in sym.subs:
-                    if isinstance(sub, Ref) and sub.refAtom is target:
-                        name = sub.subs[0]
-                        assert isinstance(name, Str)
-                        return match_try(name.strVal, ast.args[0])
-    else: # Already know what it's named; match second arg to its subs
-        assert isinstance(ast.args[0], compiler.ast.Const)
-        required_name = ast.args[0].value
-        assert isinstance(required_name, str)
-        if isinstance(atom, Ref) and isinstance(atom.refAtom, Ref):
-            sym = atom.refAtom
-            if sym.refAtom is boot_sym_names['symbol']:
-                target = boot_sym_names['name']
-                for sub in sym.subs:
-                    if isinstance(sub, Ref) and sub.refAtom is target:
-                        assert isinstance(sub.subs[0], Str)
-                        if required_name == sub.subs[0].strVal:
-                            return match_try(atom.subs, ast.args[1])
+    for sub in atom.subs:
+        if sub is boot_sym_names['name']:
+            name = sub.subs[0]
+            assert isinstance(name, Str)
+            m = match_try(name.strVal, ast.args[0])
+            if len(ast.args) == 1:
+                return m
+            return match_try(atom.subs, ast.args[1])
     return None
 
 
