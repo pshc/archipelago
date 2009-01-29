@@ -44,6 +44,9 @@ def symcall(name, subs):
 def symident(name, subs):
     return symref('ident', [Str(name, subs)])
 
+def getident(sub):
+    return match(sub, ('key("ident", cons(Str(nm, _), _))', identity))
+
 def symname(name):
     return symref('name', [Str(name, [])])
 
@@ -134,13 +137,14 @@ def match_key(atom, ast):
 def match_named(atom, ast):
     assert 1 <= len(ast.args) <= 2
     for sub in atom.subs:
-        if sub is boot_sym_names['name']:
+        if isinstance(sub, Ref) and sub.refAtom is boot_sym_names['name']:
             name = sub.subs[0]
             assert isinstance(name, Str)
             m = match_try(name.strVal, ast.args[0])
-            if len(ast.args) == 1:
+            if len(ast.args) == 1 or m is None:
                 return m
-            return match_try(atom.subs, ast.args[1])
+            n = match_try(atom.subs, ast.args[1])
+            return None if n is None else m + n
     return None
 
 

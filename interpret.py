@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import ast
 from atom import *
 from base import *
@@ -27,6 +28,7 @@ def run_module(module):
                 'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
                 'slice': lambda l, d, u: l[d:u], 'print': bi_print,
+                'object': make_record,
                 }
     builtinScope = new_scope(builtins, None, [], None)
     run_scope(new_scope({}, '<top-level>', module.roots[:], builtinScope))
@@ -146,15 +148,22 @@ def assign_nm(nm, val, scope):
     dest[nm] = val
 
 def assign_sub(container, sub, val, scope):
-    nm = match(container, ('key("ident", cons(Str(nm), _))', identity))
+    nm = getident(container)
     dest = dest_scope(nm, scope).syms[nm]
     dest[eval_expr(sub, scope)] = val
+
+def assign_attr(obj, attr, val, scope):
+    nm = getident(obj)
+    dest = dest_scope(nm, scope).syms[nm]
+    setattr(dest, getident(attr), val)
 
 def do_assign(dest, val, scope):
     match(dest, ('key("ident", cons(Str(nm), _))',
                     lambda nm: assign_nm(nm, val, scope)),
                 ('key("subscript", cons(d, cons (ix, _)))',
-                    lambda d, ix: assign_sub(d, ix, val, scope)))
+                    lambda d, ix: assign_sub(d, ix, val, scope)),
+                ('key("setattr", cons(o, cons(a, _)))',
+                    lambda o, a: assign_attr(o, a, val, scope)))
     return scope
 
 def stmt_assign(op, subs, scope):
@@ -193,6 +202,17 @@ def stmt_continue(op, subs, scope):
     return scope
 
 def stmt_DT(op, subs, scope):
+    # Getattr is already done for us; all we need is the constructor
+    (name, fs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
+                               all(key("field", _) and named(f))', tuple2))
+    fs = [f[0] for f in fs] # Hmmm...
+    scope.syms[name] = Function(name, fs,
+            [symref('=', [symident('obj', []), symcall('object', [])])] +
+            [symref('=', [symref('setattr', [symident('obj', []),
+                                             symident(f, [])]),
+                          symident(f, [])])
+             for f in fs] +
+            [symref('return', [symident('obj', [])])])
     return scope
 
 def stmt_exprstmt(op, subs, scope):
@@ -294,12 +314,16 @@ def scope_lookup(name, scope):
         if name in cur.syms:
             return cur.syms[name]
         cur = cur.prevScope
-    assert False, 'Symbol "%s" not defined in scope %s (%s)' % (name,
-                  scope.scopeInfo, scope.syms)
+    assert False, 'Symbol "%s" not defined in scope %s:\n%s\n' % (name,
+                  scope.scopeInfo,
+                  '\n'.join('\t%s\t%s' % i for i in scope.syms.iteritems()))
 
 if __name__ == '__main__':
-    module = ast.convert_file('interpret.py')
+    import sys
+    filename = sys.argv[1] if len(sys.argv) > 1 else 'interpret.py'
+    module = ast.convert_file(filename)
     open('hello', 'w').write(str(module.roots))
+    print 'Converted'
     run_module(module)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

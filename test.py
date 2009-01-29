@@ -1,3 +1,5 @@
+Pair = DT('Pair', ('first', None), ('second', None))
+
 def foo(bar, baz):
     print baz
     return bar + bar
@@ -20,3 +22,6 @@ elif a == 4:
     print a
 else:
     print 'NO'
+p = Pair(1, 2)
+print p.first
+print p.second

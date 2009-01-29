@@ -3,6 +3,8 @@ from base import *
 import compiler
 from compiler.ast import *
 
+add_sym('object')
+
 def unknown_stmt(node, context):
     cout(context, '??%s %s??', node.__class__,
           ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
@@ -61,7 +63,7 @@ def conv_and(e):
 add_sym('ADT')
 add_sym('ctor')
 def make_adt(left, args):
-    adt_nm = args.pop(0)
+    adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
     dtargs = [args.pop(0)]
     dts = []
     dtnms = []
@@ -79,10 +81,11 @@ def make_adt(left, args):
 add_sym('DT')
 add_sym('field')
 def make_dt(left, args):
-    dt_nm = args.pop(0)
-    nms = [match(a, ('key("tuplelit", sized(cons(Str(nm, _), _)))', identity))
-           for a in args]
+    (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(key("tuplelit", \
+                                 sized(cons(Str(nm, _), _)))))', tuple2))
+    nms = (nm[0] for nm in nms) # Hmmm...
     fa = [symname(dt_nm)] + [symref('field', [symname(nm)]) for nm in nms]
+    print dt_nm, nms
     return ([symref('DT', fa)], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))

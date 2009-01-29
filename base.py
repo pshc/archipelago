@@ -4,6 +4,11 @@ from compiler.ast import *
 datatypes = {}
 algetypes = {}
 
+def make_record():
+    class Record(object):
+        pass
+    return Record
+
 def DT(*members):
     name = members[0]
     mems = [(nm) for (nm, t) in members[1:]]
