@@ -73,7 +73,8 @@ def expr_genexpr(op, subs, scope):
     return results
 
 def expr_getattr(op, subs, scope):
-    return getattr(eval_expr(subs[0], scope), subs[1].strVal)
+    attr_name = match(subs[1], ('key("ident", cons(Str(nm, _), _))', identity))
+    return getattr(eval_expr(subs[0], scope), attr_name)
 
 def expr_ident(op, subs, scope):
     return scope_lookup(subs[0].strVal, scope)

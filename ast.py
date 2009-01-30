@@ -171,7 +171,7 @@ add_sym('attr')
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
-    return (symref('attr', [ea, Str(nm, [])]), '%s.%s' % (et, nm))
+    return (symref('attr', [ea, symident(nm, [])]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
 @expr(Keyword)

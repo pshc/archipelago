@@ -1,4 +1,7 @@
+from base import DT, ADT
+
 Pair = DT('Pair', ('first', None), ('second', None))
+
 
 def foo(bar, baz):
     print baz
@@ -23,5 +26,8 @@ elif a == 4:
 else:
     print 'NO'
 p = Pair(1, 2)
+print p.first
+print p.second
+p.first = 4
 print p.first
 print p.second
