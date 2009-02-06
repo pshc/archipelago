@@ -166,12 +166,12 @@ def conv_genexprinner(e):
     return (symref('genexpr', [ea, assa, lista, int_len(preds)] + preds),
             '%s for %s in %s%s' % (et, asst, listt, iftext))
 
-add_sym('getattr')
+add_sym('attr')
 @expr(Getattr)
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
-    return (symref('getattr', [ea, Str(nm, [])]), '%s.%s' % (et, nm))
+    return (symref('attr', [ea, Str(nm, [])]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
 @expr(Keyword)
@@ -373,7 +373,7 @@ def conv_discard(s, context):
     return [symref('exprstmt', [ea])]
 
 add_sym('unpacktuple')
-add_sym('setattr')
+add_sym('attr')
 def conv_ass(s):
     if isinstance(s, AssName):
         return (symident(s.name, []), s.name)
@@ -384,7 +384,7 @@ def conv_ass(s):
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
         (attra, attrt) = (symident(s.attrname, []), s.attrname)
-        return (symref('setattr', [expra, attra]), '%s.%s' % (exprt, attrt))
+        return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
         return conv_expr(s)
 

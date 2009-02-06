@@ -103,7 +103,7 @@ expr_dispatch = {
         'call': expr_call,
         'dictlit': expr_dictlit,
         'genexpr': expr_genexpr,
-        'getattr': expr_getattr,
+        'attr': expr_getattr,
         'ident': expr_ident,
         'lambda': expr_lambda,
         'listlit': expr_listlit,
@@ -162,7 +162,7 @@ def do_assign(dest, val, scope):
                     lambda nm: assign_nm(nm, val, scope)),
                 ('key("subscript", cons(d, cons (ix, _)))',
                     lambda d, ix: assign_sub(d, ix, val, scope)),
-                ('key("setattr", cons(o, cons(a, _)))',
+                ('key("attr", cons(o, cons(a, _)))',
                     lambda o, a: assign_attr(o, a, val, scope)))
     return scope
 
@@ -208,8 +208,8 @@ def stmt_DT(op, subs, scope):
     fs = [f[0] for f in fs] # Hmmm...
     scope.syms[name] = Function(name, fs,
             [symref('=', [symident('obj', []), symcall('object', [])])] +
-            [symref('=', [symref('setattr', [symident('obj', []),
-                                             symident(f, [])]),
+            [symref('=', [symref('attr', [symident('obj', []),
+                                          symident(f, [])]),
                           symident(f, [])])
              for f in fs] +
             [symref('return', [symident('obj', [])])])
