@@ -128,7 +128,22 @@ def eval_expr(expr, scope):
 def eval_exprs(list, scope):
     return [eval_expr(sub, scope) for sub in list]
 
+ADTCtors = DT('ADTCtors', ('ctorList', [str]))
+
 def stmt_ADT(op, subs, scope):
+    (name, cs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
+                               all(key("ctor", c))', tuple2))
+    scope.syms[name] = ADTCtors(cs)
+    ix = 0
+    for c in cs:
+        ctor = c[0]
+        scope = stmt_DT('ADT', ctor, scope)
+        nm = match(ctor, ('contains(key("name", cons(Str(nm, _), _)))',
+                          identity))
+        scope.syms[nm].stmts.insert(1, symref('=',
+                [symref('attr', [symident('obj', []), symident('_ix', [])]),
+                 Int(ix, [])]))
+        ix += 1
     return scope
 
 def stmt_assert(op, subs, scope):

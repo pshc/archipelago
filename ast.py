@@ -64,19 +64,25 @@ add_sym('ADT')
 add_sym('ctor')
 def make_adt(left, args):
     adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
-    dtargs = [args.pop(0)]
-    dts = []
-    dtnms = []
-    for arg in args:
-        if isinstance(arg, str):
-            dtnm = dtargs[0]
-            dtnames.append(dtnm)
-            dts.append(make_dt([dtnm], dtargs))
-            dtargs = []
-        dtargs.append(arg)
-    adta = [symref('ctor', [symname(nm)]) for nm in dtnms]
-    return (dts + [symref('ADT', [symname(adt_nm)] + adta)],
-            '%s = ADT(%s)' % (adt_nm, ', '.join(dtnms)))
+    ctors = []
+    ctor_nms = []
+    while args:
+        ctor = match(args.pop(0), ('Str(s, _)', identity))
+        members = []
+        while args:
+            nm = match(args[0], ('Str(_, _)', lambda: False),
+                                ('key("tuplelit", sized(cons(Str(nm, _), _)))',
+                                    identity))
+            if not nm:
+                break
+            members.append(nm)
+            args.pop(0)
+        members = [symref('field', [symname(nm)]) for nm in members]
+        ctor_nms.append(ctor)
+        ctors.append(symref('ctor', [symname(ctor)] + members))
+    return ([symref('ADT', [symname(adt_nm)] + ctors)],
+            '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
+
 
 add_sym('DT')
 add_sym('field')

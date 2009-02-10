@@ -1,7 +1,7 @@
 from base import DT, ADT
 
 Pair = DT('Pair', ('first', None), ('second', None))
-
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', None), 'Nothing')
 
 def foo(bar, baz):
     print baz
@@ -31,3 +31,7 @@ print p.second
 p.first = 4
 print p.first
 print p.second
+
+n = Nothing()
+j = Just("just value")
+print j.just
