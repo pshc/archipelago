@@ -135,8 +135,7 @@ def stmt_ADT(op, subs, scope):
                                all(key("ctor", c))', tuple2))
     scope.syms[name] = ADTCtors(cs)
     ix = 0
-    for c in cs:
-        ctor = c[0]
+    for ctor in cs:
         scope = stmt_DT('ADT', ctor, scope)
         nm = match(ctor, ('contains(key("name", cons(Str(nm, _), _)))',
                           identity))
@@ -221,7 +220,6 @@ def stmt_DT(op, subs, scope):
     # Getattr is already done for us; all we need is the constructor
     (name, fs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
                                all(key("field", _) and named(f))', tuple2))
-    fs = [f[0] for f in fs] # Hmmm...
     scope.syms[name] = Function(name, fs,
             [symref('=', [symident('obj', []), symcall('object', [])])] +
             [symref('=', [symref('attr', [symident('obj', []),

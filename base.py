@@ -129,8 +129,15 @@ def match_cons(atom, ast):
 def match_all(atom, ast):
     assert len(ast.args) == 1
     assert isinstance(atom, list)
-    return [filter(lambda r: r is not None,
-                   [match_try(i, ast.args[0]) for i in atom])]
+    results = []
+    all_singular = True
+    for i in atom:
+        r = match_try(i, ast.args[0])
+        if r is not None:
+            if len(r) != 1:
+                all_singular = False
+            results.append(r)
+    return [[r[0] for r in results] if all_singular else results]
 
 def const(val):
     return lambda x: val

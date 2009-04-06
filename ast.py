@@ -89,7 +89,6 @@ add_sym('field')
 def make_dt(left, args):
     (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(key("tuplelit", \
                                  sized(cons(Str(nm, _), _)))))', tuple2))
-    nms = (nm[0] for nm in nms) # Hmmm...
     fa = [symname(dt_nm)] + [symref('field', [symname(nm)]) for nm in nms]
     print dt_nm, nms
     return ([symref('DT', fa)], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
