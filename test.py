@@ -34,4 +34,5 @@ print p.second
 
 n = Nothing()
 j = Just("just value")
-print j.just
+r = match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
+print r

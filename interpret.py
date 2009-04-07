@@ -17,6 +17,9 @@ Function = DT('Function', ('name', str),
                           ('argnames', [str]),
                           ('stmts', [Atom]))
 
+CTORS = {}
+CTOR_FIELDS = []
+
 def bi_print(s): print s
 
 def run_module(module):
@@ -28,7 +31,10 @@ def run_module(module):
                 'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
                 'slice': lambda l, d, u: l[d:u], 'print': bi_print,
-                'object': make_record,
+                'object': make_record, 'getattr': getattr,
+                'const': lambda x: lambda y: x, 'identity': lambda x: x,
+                'tuple2': lambda x, y: (x, y),
+                'tuple3': lambda x, y, z: (x, y, z),
                 }
     builtinScope = new_scope(builtins, None, [], None)
     run_scope(new_scope({}, '<top-level>', module.roots[:], builtinScope))
@@ -85,7 +91,7 @@ def extract_argnames(args):
 
 def expr_lambda(op, subs, scope):
     (args, expr) = match(subs, ('sized(args, cons(expr, _))', tuple2))
-    return Function(None, extract_argnames(args), symref('return', [expr]))
+    return Function(None, extract_argnames(args), [symref('return', [expr])])
 
 def expr_listlit(op, subs, scope):
     return eval_exprs(match(subs, ('sized(items)', identity)), scope)
@@ -100,6 +106,64 @@ def expr_ternary(op, subs, scope):
 def expr_tuplelit(op, subs, scope):
     return tuple(eval_exprs(match(subs, ('sized(items)', identity)), scope))
 
+def match_or(ps, e):
+    for p in ps:
+        r = pat_match(p, e)
+        if r is not None:
+            return r
+    return None
+
+def match_and(ps, e):
+    rs = []
+    for p in ps:
+        r = pat_match(p, e)
+        if r is None:
+            return None
+        rs += r
+    return rs
+
+def match_capture(pat, e):
+    r = pat_match(pat, e)
+    if r is None:
+        return None
+    return [e] + r
+
+def match_ctor(ctor, args, e):
+    if CTORS[match(ctor, ('key("ident", cons(Str(c, _), _))', identity))] != e._ix:
+        return None
+    fs = CTOR_FIELDS[e._ix]
+    rs = []
+    for f in fs:
+        r = pat_match(args.pop(0), getattr(e, f))
+        if r is None:
+            return None
+        rs += r
+    return rs
+
+def pat_match(pat, e):
+    return match(pat,
+            ('Int(i, _)', lambda i: [] if i == e else None),
+            ('Str(s, _)', lambda s: [] if s == e else None),
+            ('key("ident", cons(i, _))', const([e])),
+            ('key("wildcard", _)', lambda: []),
+            ('key("ctor", cons(c, sized(args)))',
+                lambda c, args: match_ctor(c, args, e)),
+            ('key("or", sized(ps))', lambda ps: match_or(ps, e)),
+            ('key("and", sized(ps))', lambda ps: match_and(ps, e)),
+            ('key("capture", cons(_, cons(p, _)))',
+                lambda p: match_capture(p, e)),
+            )
+
+def expr_match(op, subs, scope):
+    e, cases = match(subs, ('cons(e, all(key("case", cons(p, cons(f, _)))))',
+                            tuple2))
+    expr = eval_expr(e, scope)
+    for pat, f in cases:
+        r = pat_match(pat, expr)
+        if r is not None:
+            return call_func(eval_expr(f, scope), r, scope)
+    assert False, "Match failed"
+
 expr_dispatch = {
         'call': expr_call,
         'dictlit': expr_dictlit,
@@ -112,6 +176,7 @@ expr_dispatch = {
         '?:': expr_ternary,
         'tuplelit': expr_tuplelit,
         'unpacktuple': expr_tuplelit,
+        'match': expr_match,
     }
 
 def eval_expr(expr, scope):
@@ -134,15 +199,14 @@ def stmt_ADT(op, subs, scope):
     (name, cs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
                                all(key("ctor", c))', tuple2))
     scope.syms[name] = ADTCtors(cs)
-    ix = 0
     for ctor in cs:
         scope = stmt_DT('ADT', ctor, scope)
         nm = match(ctor, ('contains(key("name", cons(Str(nm, _), _)))',
                           identity))
+        ix = len(CTOR_FIELDS) - 1
         scope.syms[nm].stmts.insert(1, symref('=',
                 [symref('attr', [symident('obj', []), symident('_ix', [])]),
                  Int(ix, [])]))
-        ix += 1
     return scope
 
 def stmt_assert(op, subs, scope):
@@ -220,6 +284,8 @@ def stmt_DT(op, subs, scope):
     # Getattr is already done for us; all we need is the constructor
     (name, fs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
                                all(key("field", _) and named(f))', tuple2))
+    CTORS[name] = len(CTOR_FIELDS)
+    CTOR_FIELDS.append(fs) # Yes, appending a list
     scope.syms[name] = Function(name, fs,
             [symref('=', [symident('obj', []), symcall('object', [])])] +
             [symref('=', [symref('attr', [symident('obj', []),

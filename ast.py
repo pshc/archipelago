@@ -93,6 +93,57 @@ def make_dt(left, args):
     print dt_nm, nms
     return ([symref('DT', fa)], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
+add_sym('match')
+add_sym('case')
+def conv_match(args):
+    expra = args.pop(0)
+    casesa = [expra]
+    for a in args:
+        c, f = match(a, ('key("tuplelit", sized(cons(Str(c, _), cons(f, _))))',
+                         tuple2))
+        casea = conv_match_try(compiler.parse(c, mode='eval').node)
+        casesa.append(symref('case', [casea, f]))
+    return symref('match', casesa)
+
+named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
+                     'contains': [1], 'cons': [2], 'all': [1]}
+assert set(named_match_cases) == set(named_match_dispatch)
+
+for nm, ns in named_match_cases.iteritems():
+    for n in ns:
+        add_sym('%s%d' % (nm, n))
+add_sym('capture')
+add_sym('wildcard')
+def conv_match_try(ast):
+    if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
+        nm = ast.node.name
+        args = map(conv_match_try, ast.args)
+        named_matcher = named_match_cases.get(nm)
+        if named_matcher is not None:
+            assert len(args) in named_matcher, (
+                   "Bad number of args (%d) to %s matcher" % (len(args), nm))
+            return symref("%s%d" % (nm, len(args)), args)
+        else:
+            return symref('ctor', [symident(nm, []), int_len(args)] + args)
+    elif isinstance(ast, Name):
+        return symref('wildcard', []) if ast.name == '_' \
+                                      else symident(ast.name, [])
+    elif isinstance(ast, Const):
+        va, vt = conv_const(ast)
+        return va
+    elif isinstance(ast, Or):
+        return symref('or', [int_len(ast.nodes)]
+                            + map(conv_match_try, ast.nodes))
+    elif isinstance(ast, And):
+        return symref('and', [int_len(ast.nodes)]
+                             + map(conv_match_try, ast.nodes))
+    elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
+        assert isinstance(ast.expr, Name) and ast.expr.name != '_'
+        return symref('capture', [symident(ast.expr.name, []),
+                                  conv_match_try(ast.ops[0][1])])
+    assert False, "Unknown match case: %s" % ast
+
+
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
 special_call_forms = {'ADT': make_adt, 'DT': make_dt}
 
@@ -111,8 +162,11 @@ def conv_callfunc(e):
         argsa.append(symref('dstarargs', [dsa]))
         argst.append('**' + sat)
     argstt = '%s(%s)' % (ft, ', '.join(argst))
-    if isinstance(e.node, Name) and e.node.name in special_call_forms:
-        return (SpecialCallForm(e.node.name, argsa0), argstt)
+    if isinstance(e.node, Name):
+        if e.node.name in special_call_forms:
+            return (SpecialCallForm(e.node.name, argsa0), argstt)
+        elif e.node.name == 'match':
+            return (conv_match(argsa0), argstt)
     return (symref('call', argsa), argstt)
 
 map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
