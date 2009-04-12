@@ -431,7 +431,7 @@ def conv_discard(s, context):
     cout(context, '%s', et)
     return [symref('exprstmt', [ea])]
 
-add_sym('unpacktuple')
+add_sym('tuplelit')
 add_sym('attr')
 def conv_ass(s):
     if isinstance(s, AssName):
@@ -439,7 +439,7 @@ def conv_ass(s):
     elif isinstance(s, AssTuple):
         (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
         itemsa.insert(0, int_len(itemsa))
-        return (symref('unpacktuple', itemsa), '(%s)' % (', '.join(itemst),))
+        return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
         (attra, attrt) = (symident(s.attrname, []), s.attrname)

@@ -241,7 +241,6 @@ expr_dispatch = {
         'subscript': expr_subscript,
         '?:': expr_ternary,
         'tuplelit': expr_tuplelit,
-        'unpacktuple': expr_tuplelit,
         'match': expr_match,
     }
 
