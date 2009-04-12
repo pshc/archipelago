@@ -129,7 +129,8 @@ def match_capture(pat, e):
     return [e] + r
 
 def match_ctor(ctor, args, e):
-    if CTORS[match(ctor, ('key("ident", cons(Str(c, _), _))', identity))] != e._ix:
+    nm = match(ctor, ('key("ident", cons(Str(c, _), _))', identity))
+    if CTORS[nm] != e._ix:
         return None
     fs = CTOR_FIELDS[e._ix]
     rs = []
@@ -139,6 +140,55 @@ def match_ctor(ctor, args, e):
             return None
         rs += r
     return rs
+
+def match_contains(p, es):
+    for e in es:
+        r = pat_match(p, e)
+        if r is not None:
+            return r
+    return None
+
+def match_cons(hp, tp, e):
+    h, t = match(e, ('cons(h, t)', tuple2))
+    hr = pat_match(hp, e)
+    if hr is None:
+        return None
+    tr = pat_match(tp, e)
+    return None if tr is None else hr + tr
+
+def match_all(p, es):
+    rs = []
+    all_singular = True
+    for e in es:
+        r = pat_match(p, e)
+        if len(r) > 1:
+            all_singular = False
+        rs.append(r)
+    return [t[0] for t in rs] if all_singular else rs
+
+def match_sized2(hp, tp, e):
+    h, t = match(e, ('sized(h, t)', tuple2))
+    hr = pat_match(hp, h)
+    if hr is None:
+        return None
+    tr = pat_match(tp, t)
+    return None if tr is None else hr + tr
+
+def match_key2(kp, sp, e):
+    k, s = match(e, ('key(k, s)', tuple2))
+    kr = pat_match(kp, k)
+    if kr is None:
+        return None
+    sr = pat_match(sp, s)
+    return None if sr is None else kr + sr
+
+def match_named2(np, sp, e):
+    n, s = match(e, ('named(n, s)', tuple2))
+    nr = pat_match(np, n) # oshi
+    if nr is None:
+        return None
+    sr = pat_match(sp, s)
+    return None if sr is None else nr + sr
 
 def pat_match(pat, e):
     return match(pat,
@@ -152,6 +202,22 @@ def pat_match(pat, e):
             ('key("and", sized(ps))', lambda ps: match_and(ps, e)),
             ('key("capture", cons(_, cons(p, _)))',
                 lambda p: match_capture(p, e)),
+            ('key("sized1", cons(p, _))',
+                lambda p: match(e, ('sized(s)', lambda s: try_match(p, s)))),
+            ('key("sized2", cons(p, cons(q, _)))',
+                lambda p, q: match_sized2(p, q, e)),
+            ('key("key1", cons(p, _))',
+                lambda p: match(e, ('key(k)', lambda k: try_match(p, k)))),
+            ('key("key2", cons(p, cons(q, _)))',
+                lambda p, q: match_key2(p, q, e)),
+            ('key("named1", cons(p, _))',
+                lambda p: match(e, ('named(n)', lambda n: try_match(p, n)))),
+            ('key("named2", cons(p, cons(q, _)))',
+                lambda p, q: match_named2(p, q, e)),
+            ('key("contains1", cons(p, _))', lambda p: match_contains(p, e)),
+            ('key("cons2", cons(h, cons(t, _)))',
+                lambda h, t: match_cons(h, t, e)),
+            ('key("all1", cons(p, _))', lambda p: match_all(p, e)),
             )
 
 def expr_match(op, subs, scope):
