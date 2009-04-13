@@ -84,8 +84,7 @@ def expr_genexpr(op, subs, scope):
     return results
 
 def expr_getattr(op, subs, scope):
-    attr_name = match(subs[1], ('key("ident", cons(Str(nm, _), _))', identity))
-    return getattr(eval_expr(subs[0], scope), attr_name)
+    return getattr(eval_expr(subs[0], scope), getident(subs[1]))
 
 def expr_ident(op, subs, scope):
     return scope_lookup(subs[0].strVal, scope)
@@ -134,7 +133,7 @@ def match_capture(pat, e):
     return [e] + r
 
 def match_ctor(ctor, args, e):
-    nm = match(ctor, ('key("ident", cons(Str(c, _), _))', identity))
+    nm = getident(ctor)
     if CTORS[nm] != e._ix:
         return None
     fs = CTOR_FIELDS[e._ix]
@@ -307,7 +306,7 @@ def assign_attr(obj, attr, val, scope):
     setattr(dest, getident(attr), val)
 
 def do_assign(dest, val, scope):
-    match(dest, ('key("ident", cons(Str(nm), _))',
+    match(dest, ('key("ident", cons(Str(nm, _), _))',
                     lambda nm: assign_nm(nm, val, scope)),
                 ('key("subscript", cons(d, cons (ix, _)))',
                     lambda d, ix: assign_sub(d, ix, val, scope)),
