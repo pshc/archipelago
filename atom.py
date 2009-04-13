@@ -150,8 +150,12 @@ def match_named(atom, ast):
 
 def do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
-        label = s.refAtom.subs[0].subs[0].strVal if s.refMod is boot_mod \
-                                                 else '<ref>'
+        label = '<ref>'
+        if s.refMod is boot_mod:
+            label = s.refAtom.subs[0].subs[0].strVal
+        elif s.refAtom.subs:
+            if getattr(s.refAtom.subs[0], 'refAtom', None) is b_name:
+                label = '->%s' % (s.refAtom.subs[0].subs[0].strVal)
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
     else:

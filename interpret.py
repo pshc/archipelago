@@ -4,10 +4,10 @@ from atom import *
 from base import *
 
 ScopeInfo, FuncScope, CondScope, WhileScope, ForScope = ADT('ScopeInfo',
-        'FuncScope', ('name', str), ('returnValue', Atom),
+        'FuncScope', ('calledFuncName', str), ('returnValue', Atom),
         'CondScope',
-        'WhileScope', ('cond', Atom), ('body', [Atom]),
-        'ForScope', ('var', Atom), ('loopList', []), ('body', [Atom]))
+        'WhileScope', ('loopCond', Atom), ('whileBody', [Atom]),
+        'ForScope', ('forVar', Atom), ('loopList', []), ('forBody', [Atom]))
 
 Scope = DT('Scope', ('syms', {str: Atom}),
                     ('scopeInfo', ScopeInfo),
@@ -15,14 +15,16 @@ Scope = DT('Scope', ('syms', {str: Atom}),
                     ('stmtsPos', int),
                     ('prevScope', 'Scope'))
 
-Function = DT('Function', ('name', str),
+Function = DT('Function', ('funcName', str),
                           ('argnames', [str]),
-                          ('stmts', [Atom]))
+                          ('funcStmts', [Atom]))
 
 CTORS = {}
 CTOR_FIELDS = []
 
 EXIT_SCOPE = -2
+
+var_id = id
 
 def bi_print(s): print s
 
@@ -53,13 +55,13 @@ def expr_call(op, subs, scope):
 
 def call_func(f, args, sc):
     return match(f, ('Function(_, _, _)', lambda: call_func_obj(f, args, sc)),
-                    ('func', lambda func: func(*args)))
+                    ('func', lambda func: apply(func, args)))
 
 def call_func_obj(f, args, scope):
     assert len(f.argnames) == len(args), \
-           'Bad arg count (%d) for calling %s' % (len(args), f.name)
+           'Bad arg count (%d) for calling %s' % (len(args), f.funcName)
     argvars = dict(zip(f.argnames, args))
-    scope = new_scope(argvars, FuncScope(f.name, None), f.stmts, scope)
+    scope = new_scope(argvars, FuncScope(f.funcName, None), f.funcStmts, scope)
     run_scope(scope)
     return scope.scopeInfo.returnValue
 
@@ -91,8 +93,9 @@ def expr_ident(op, subs, scope):
     return scope_lookup(subs[0].strVal, scope)
 
 def extract_argnames(args):
-    return [match(a, ('key("name", cons(Str(nm), _))', identity))
-            for a in args]
+    nms = match(args, ('all(named(nm))', identity))
+    assert len(nms) == len(args)
+    return nms
 
 def expr_lambda(op, subs, scope):
     (args, expr) = match(subs, ('sized(args, cons(expr, _))', tuple2))
@@ -199,7 +202,7 @@ def pat_match(pat, e):
     return match(pat,
             ('Int(i, _)', lambda i: [] if i == e else None),
             ('Str(s, _)', lambda s: [] if s == e else None),
-            ('key("ident", cons(i, _))', const([e])),
+            ('key("var", _)', lambda: [e]),
             ('key("wildcard", _)', lambda: []),
             ('key("ctor", cons(c, sized(args)))',
                 lambda c, args: match_ctor(c, args, e)),
@@ -274,7 +277,7 @@ def stmt_ADT(op, subs, scope):
         nm = match(ctor, ('contains(key("name", cons(Str(nm, _), _)))',
                           identity))
         ix = len(CTOR_FIELDS) - 1
-        scope.syms[nm].stmts.insert(1, symref('=',
+        scope.syms[nm].funcStmts.insert(1, symref('=',
                 [symref('attr', [symident('obj', []), symident('_ix', [])]),
                  Int(ix, [])]))
     return scope
@@ -294,9 +297,9 @@ def dest_scope(nm, scope, local):
         cur_scope = cur_scope.prevScope
     return scope
 
-def assign_nm(nm, val, scope, local):
-    dest = dest_scope(nm, scope, local).syms
-    dest[nm] = val
+def assign_id(i, val, scope, local):
+    dest = dest_scope(i, scope, local).syms
+    dest[i] = val
 
 def assign_tuple(bs, val, scope, local):
     for b, v in zip(bs, val):
@@ -315,8 +318,8 @@ def assign_attr(obj, attr, val, scope, local):
     setattr(dest, getident(attr), val)
 
 def do_assign(dest, val, scope, local):
-    match(dest, ('key("ident", cons(Str(nm, _), _))',
-                    lambda nm: assign_nm(nm, val, scope, local)),
+    match(dest, ('v==key("var", _)',
+                    lambda v: assign_id(var_id(v), val, scope, local)),
                 ('key("tuplelit", sized(bits))',
                     lambda bs: assign_tuple(bs, val, scope, local)),
                 ('key("subscript", cons(d, cons (ix, _)))',
@@ -342,7 +345,7 @@ def break_for(for_scope):
     for_scope.loopList = []
 
 def break_while(while_scope):
-    while_scope.cond = False
+    while_scope.loopCond = False
 
 def stmt_break(op, subs, scope):
     scope = enclosing_loop(scope)

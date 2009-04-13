@@ -3,7 +3,47 @@ from base import *
 import compiler
 from compiler.ast import *
 
-add_sym('object')
+builtins = ['object', 'None', 'True', 'False']
+[add_sym(b) for b in builtins]
+
+FIND, UPDATE, UNIQUE = 0, 1, 2
+
+add_sym('var')
+# HACK: Need context, storing a global...
+CUR_CONTEXT = None
+def identref(nm, mode=FIND):
+    #return symident(nm, [])
+    global CUR_CONTEXT
+    context = CUR_CONTEXT
+    if mode == UNIQUE:
+        return identifier('var', nm, [])
+    while context is not None:
+        if nm in context.syms:
+            return Ref(context.syms[nm], context.module, [])
+        context = context.prevContext
+    if mode == UPDATE:
+        return identifier('var', nm, [])
+    assert False, "Unknown symbol %s" % (nm,)
+
+def identifier(bootkey, name, subs):
+    global CUR_CONTEXT
+    context = CUR_CONTEXT
+    assert name not in context.syms, "Symbol '%s' conflicts" % (name,)
+    s = symref(bootkey, [symname(name)] + subs)
+    context.syms[name] = s
+    return s
+
+def inside_scope(f):
+    def new_scope(*args, **kwargs):
+        global CUR_CONTEXT
+        prev = CUR_CONTEXT
+        context = ConvertContext(prev.indent + 1, {}, prev.module, prev)
+        CUR_CONTEXT = context
+        r = f(context, *args, **kwargs)
+        CUR_CONTEXT = prev
+        return r
+    return new_scope
+
 
 def unknown_stmt(node, context):
     cout(context, '??%s %s??', node.__class__,
@@ -76,10 +116,10 @@ def make_adt(left, args):
                 break
             members.append(nm)
             args.pop(0)
-        members = [symref('field', [symname(nm)]) for nm in members]
+        members = [identifier('field', nm, []) for nm in members]
         ctor_nms.append(ctor)
-        ctors.append(symref('ctor', [symname(ctor)] + members))
-    return ([symref('ADT', [symname(adt_nm)] + ctors)],
+        ctors.append(identifier('ctor', ctor, members))
+    return ([identifier('ADT', adt_nm, ctors)],
             '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
 
 
@@ -88,9 +128,9 @@ add_sym('field')
 def make_dt(left, args):
     (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(key("tuplelit", \
                                  sized(cons(Str(nm, _), _)))))', tuple2))
-    fa = [symname(dt_nm)] + [symref('field', [symname(nm)]) for nm in nms]
+    fa = identifier('DT', dt_nm, [identifier('field', nm, []) for nm in nms])
     print dt_nm, nms
-    return ([symref('DT', fa)], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
+    return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
 add_sym('match')
 add_sym('case')
@@ -123,10 +163,10 @@ def conv_match_try(ast):
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             return symref("%s%d" % (nm, len(args)), args)
         else:
-            return symref('ctor', [symident(nm, []), int_len(args)] + args)
+            return symref('ctor', [identref(nm), int_len(args)] + args)
     elif isinstance(ast, Name):
         return symref('wildcard', []) if ast.name == '_' \
-                                      else symident(ast.name, [])
+                                      else identref(ast.name, UNIQUE)
     elif isinstance(ast, Const):
         va, vt = conv_const(ast)
         return va
@@ -138,7 +178,7 @@ def conv_match_try(ast):
                              + map(conv_match_try, ast.nodes))
     elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
         assert isinstance(ast.expr, Name) and ast.expr.name != '_'
-        return symref('capture', [symident(ast.expr.name, []),
+        return symref('capture', [identref(ast.expr.name, UNIQUE),
                                   conv_match_try(ast.ops[0][1])])
     assert False, "Unknown match case: %s" % ast
 
@@ -146,27 +186,22 @@ def conv_match_try(ast):
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
 special_call_forms = {'ADT': make_adt, 'DT': make_dt}
 
-map(add_sym, ['call', 'args', 'starargs', 'dstarargs'])
+add_sym('call')
+add_sym('args')
 @expr(CallFunc)
 def conv_callfunc(e):
-    (fa, ft) = conv_expr(e.node)
+    assert not e.star_args and not e.dstar_args
     (argsa0, argst) = unzip(map(conv_expr, e.args))
-    argsa = [fa, symref('args', [int_len(argsa0)] + argsa0)]
-    if e.star_args:
-        (saa, sat) = conv_expr(e.star_args)
-        argsa.append(symref('starargs', [saa]))
-        argst.append('*' + sat)
-    if e.dstar_args:
-        (dsa, dst) = conv_expr(e.dstar_args)
-        argsa.append(symref('dstarargs', [dsa]))
-        argst.append('**' + sat)
-    argstt = '%s(%s)' % (ft, ', '.join(argst))
+    argsa = [symref('args', [int_len(argsa0)] + argsa0)]
+    argstt = '(%s)' % (', '.join(argst),)
     if isinstance(e.node, Name):
+        argsttt = e.node.name + argstt
         if e.node.name in special_call_forms:
-            return (SpecialCallForm(e.node.name, argsa0), argstt)
+            return (SpecialCallForm(e.node.name, argsa0), argsttt)
         elif e.node.name == 'match':
-            return (conv_match(argsa0), argstt)
-    return (symref('call', argsa), argstt)
+            return (conv_match(argsa0), argsttt)
+    (fa, ft) = conv_expr(e.node)
+    return (symref('call', [fa] + argsa), ft + argstt)
 
 map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
               'is', 'is not', 'in', 'not in'])
@@ -229,7 +264,7 @@ add_sym('attr')
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
-    return (symref('attr', [ea, symident(nm, [])]), '%s.%s' % (et, nm))
+    return (symref('attr', [ea, identref(nm)]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
 @expr(Keyword)
@@ -249,42 +284,16 @@ def arg_pair(name):
     assert isinstance(name, str)
     return (symname(name), name)
 
-add_sym('vararg')
-add_sym('kwarg')
-add_sym('default')
+add_sym('arg')
 def extract_arglist(s):
     names = s.argnames[:]
-    endnames = []
-    astargs = []
-    if s.kwargs:
-        (kwa, kwt) = arg_pair(names.pop())
-        endnames = ['**' + kwt]
-        kwa.subs.append(symref('kwarg', []))
-        astargs = [kwa]
-    if s.varargs:
-        (vaa, vat) = arg_pair(names.pop())
-        endnames.insert(0, '*' + vat)
-        vaa.subs.append(symref('vararg', []))
-        astargs.insert(0, vaa)
-    if s.defaults:
-        ndefs = len(s.defaults)
-        defnames = []
-        astdefs = []
-        for (nm, e) in zip(names[-ndefs:], s.defaults):
-            (aa, at) = arg_pair(nm)
-            (da, dt) = conv_expr(e) # default value expr
-            defnames.append('%s=%s' % (at, dt))
-            aa.subs.append(symref('default', [da]))
-            astdefs.append(aa)
-        endnames = defnames + endnames
-        astargs = astdefs + astargs
-        names = names[:-ndefs]
-    args = map(arg_pair, names)
-    return (map(fst, args) + astargs, map(snd, args) + endnames)
+    assert not s.kwargs and not s.varargs and not s.defaults
+    return ([identifier('arg', nm, []) for nm in names], names)
 
 add_sym('lambda')
 @expr(Lambda)
-def conv_lambda(e):
+@inside_scope
+def conv_lambda(context, e):
     (argsa, argst) = extract_arglist(e)
     (codea, codet) = conv_expr(e.code)
     return (symref('lambda', [int_len(argsa)] + argsa + [codea]),
@@ -305,7 +314,7 @@ def conv_listcomp(e):
 add_sym('ident')
 @expr(Name)
 def conv_name(e):
-    return (symident(e.name, []), e.name)
+    return (identref(e.name), e.name)
 
 add_sym('or')
 @expr(Or)
@@ -362,12 +371,12 @@ add_sym('=')
 @stmt(Assign)
 def conv_assign(s, context):
     (expra, exprt) = conv_expr(s.expr)
-    (lefta, leftt) = unzip(map(conv_ass, s.nodes))
     if isinstance(expra, SpecialCallForm):
-        assert len(lefta) == 1
-        (spa, spt) = special_call_forms[expra.name](lefta[0], expra.args)
+        assert len(s.nodes) == 1
+        (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
         cout(context, spt)
         return spa
+    (lefta, leftt) = unzip(map(conv_ass, s.nodes))
     assa = []
     for ass in lefta: # backwards
         assa.append(symref('=', [ass, expra]))
@@ -387,7 +396,7 @@ def conv_asstuple(s, context):
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
             cout(context, 'del %s', node.name)
-            ata.append(symref('del', [symident(node.name, [])]))
+            ata.append(symref('del', [identref(node.name)]))
         else:
             assert False, 'Unknown AssTuple node: ' + repr(node)
     return ata
@@ -433,14 +442,14 @@ add_sym('tuplelit')
 add_sym('attr')
 def conv_ass(s):
     if isinstance(s, AssName):
-        return (symident(s.name, []), s.name)
+        return (identref(s.name, UPDATE), s.name)
     elif isinstance(s, AssTuple):
         (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
         itemsa.insert(0, int_len(itemsa))
         return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
-        (attra, attrt) = (symident(s.attrname, []), s.attrname)
+        (attra, attrt) = (identref(s.attrname, UPDATE), s.attrname)
         return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
         return conv_expr(s)
@@ -448,11 +457,12 @@ def conv_ass(s):
 add_sym('for')
 add_sym('body')
 @stmt(For)
-def conv_for(s, context):
+@inside_scope
+def conv_for(context, s, prev):
     (assa, asst) = conv_ass(s.assign)
     (lista, listt) = conv_expr(s.list)
-    cout(context, 'for %s in %s:', asst, listt)
-    stmts = conv_stmts(s.body, context)
+    cout(context, 'for %s in %s:', asst, listt, indent_offset=-1)
+    stmts = conv_stmts_noscope(s.body, context)
     fora = [assa, lista, symref('body', [int_len(stmts)] + stmts)]
     if s.else_:
         assert False
@@ -469,7 +479,7 @@ add_sym('func')
 add_sym('args')
 add_sym('body')
 add_sym('doc')
-add_sym('decors')
+add_sym('decorators')
 @stmt(Function)
 def conv_function(s, context):
     decs = []
@@ -477,19 +487,24 @@ def conv_function(s, context):
         (deca, dect) = conv_expr(decorator)
         cout(context, '@%s', dect)
         decs.append(deca)
-    (argsa, argst) = extract_arglist(s)
-    cout(context, 'def %s(%s):', s.name, ', '.join(argst))
-    if s.doc:
-        cout(context, repr(s.doc), indent_offset=1)
-    stmts = conv_stmts(s.code, context)
-    funca = [symname(s.name),
-             symref('args', [int_len(argsa)] + argsa),
-             symref('body', [int_len(stmts)] + stmts)]
-    if s.doc:
-        funca.append(symref('doc', [Str(s.doc)]))
-    if decs:
-        funca.append(symref('decors', decs))
-    return [symref('func', funca)]
+    func = identifier('func', s.name, [])
+    @inside_scope
+    def rest(context):
+        (argsa, argst) = extract_arglist(s)
+        cout(context, 'def %s(%s):', s.name, ', '.join(argst),
+                indent_offset=-1)
+        if s.doc:
+            cout(context, repr(s.doc))
+        stmts = conv_stmts_noscope(s.code, context)
+        funca = [symref('args', [int_len(argsa)] + argsa),
+                 symref('body', [int_len(stmts)] + stmts)]
+        if s.doc:
+            funca.append(symref('doc', [Str(s.doc)]))
+        if decs:
+            funca.append(symref('decorators', [int_len(decs)] + decs))
+        return funca
+    func.subs += rest()
+    return [func]
 
 add_sym('cond')
 add_sym('case')
@@ -540,11 +555,14 @@ def conv_return(s, context):
     cout(context, 'return %s', valt)
     return [symref('return', [vala])]
 
-def conv_stmts(stmts, context):
-    context.indent += 1
-    converted = [conv_stmt(stmt, context) for stmt in stmts]
-    context.indent -= 1
-    return concat(converted)
+@inside_scope
+def conv_stmts(context, stmts, prev_context, module=None):
+    if module is not None:
+        context.module = module
+    return concat([conv_stmt(stmt, context) for stmt in stmts])
+
+def conv_stmts_noscope(stmts, context):
+    return concat([conv_stmt(stmt, context) for stmt in stmts])
 
 add_sym('while')
 add_sym('body')
@@ -555,7 +573,10 @@ def conv_while(s, context):
     stmts = conv_stmts(s.body, context)
     return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
 
-ConvertContext = DT('ConvertContext', ('indent', int))
+ConvertContext = DT('ConvertContext', ('indent', int),
+                                      ('syms', {str: Atom}),
+                                      ('module', 'atom.Module'),
+                                      ('prevContext', None))
 
 def cout(context, format, *args, **kwargs):
     indent = context.indent + kwargs.get('indent_offset', 0)
@@ -565,7 +586,12 @@ def cout(context, format, *args, **kwargs):
 def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
-    return Module_(filename, None, conv_stmts(stmts, ConvertContext(-1)))
+    mod = Module_(filename, None, [])
+    context = ConvertContext(-1, boot_sym_names, boot_mod, None)
+    global CUR_CONTEXT
+    CUR_CONTEXT = context
+    mod.roots = conv_stmts(stmts, context, module=mod)
+    return mod
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
