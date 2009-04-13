@@ -3,14 +3,16 @@ import ast
 from atom import *
 from base import *
 
-ScopeInfo, FuncScope, WhileScope, ForScope = ADT('ScopeInfo',
+ScopeInfo, FuncScope, CondScope, WhileScope, ForScope = ADT('ScopeInfo',
         'FuncScope', ('name', str), ('returnValue', Atom),
+        'CondScope',
         'WhileScope', ('cond', Atom), ('body', [Atom]),
         'ForScope', ('var', Atom), ('loopList', []), ('body', [Atom]))
 
 Scope = DT('Scope', ('syms', {str: Atom}),
                     ('scopeInfo', ScopeInfo),
                     ('stmts', [Atom]),
+                    ('stmtsPos', int),
                     ('prevScope', 'Scope'))
 
 Function = DT('Function', ('name', str),
@@ -20,11 +22,14 @@ Function = DT('Function', ('name', str),
 CTORS = {}
 CTOR_FIELDS = []
 
+EXIT_SCOPE = -2
+
 def bi_print(s): print s
 
 def run_module(module):
     builtins = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 '%': lambda x, y: x % y,
+                'negate': lambda x: -x,
                 '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
                 '<': lambda x, y: x < y, '>': lambda x, y: x > y,
                 '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
@@ -37,7 +42,7 @@ def run_module(module):
                 'tuple3': lambda x, y, z: (x, y, z),
                 }
     builtinScope = new_scope(builtins, None, [], None)
-    run_scope(new_scope({}, '<top-level>', module.roots[:], builtinScope))
+    run_scope(new_scope({}, '<top-level>', module.roots, builtinScope))
 
 def expr_call(op, subs, scope):
     return match(subs, ('cons(f, contains(key("args", sized(args))))',
@@ -134,8 +139,8 @@ def match_ctor(ctor, args, e):
         return None
     fs = CTOR_FIELDS[e._ix]
     rs = []
-    for f in fs:
-        r = pat_match(args.pop(0), getattr(e, f))
+    for f, a in zip(fs, args):
+        r = pat_match(a, getattr(e, f))
         if r is None:
             return None
         rs += r
@@ -316,6 +321,13 @@ def stmt_assign(op, subs, scope):
         return scope
     assert False
 
+def enclosing_loop(scope):
+    return match(scope.scopeInfo, ('ForScope(_, _, _)', lambda: scope),
+                                  ('WhileScope(_, _, _)', lambda: scope),
+                                  ('CondScope()',
+                                      lambda: enclosing_loop(scope.prevScope)),
+                                  ('_', lambda: None))
+
 def break_for(for_scope):
     for_scope.loopList = []
 
@@ -323,9 +335,10 @@ def break_while(while_scope):
     while_scope.cond = False
 
 def stmt_break(op, subs, scope):
+    scope = enclosing_loop(scope)
     match(scope.scopeInfo, ('f==ForScope(_, _, _)', break_for),
                            ('w==WhileScope(_, _, _)', break_while))
-    scope.stmts = []
+    scope.stmtsPos = EXIT_SCOPE
     return scope
 
 def stmt_cond(op, subs, scope):
@@ -334,15 +347,12 @@ def stmt_cond(op, subs, scope):
     for (tst, body) in cases:
         if match(tst, ('key("else")', lambda: True),
                       ('t', lambda t: eval_expr(t, scope))):
-            scope.stmts = body + scope.stmts
-            break
+            return new_scope({}, CondScope(), body, scope)
     return scope
 
 def stmt_continue(op, subs, scope):
-    assert match(scope.scopeInfo, ('WhileScope(_, _)', lambda: True),
-                                  ('ForScope(_, _, _)', lambda: True),
-                                  ('otherwise', lambda: False)), "Bad continue"
-    scope.stmts = []
+    assert enclosing_loop(scope) is not None, "Bad continue"
+    scope.stmtsPos = EXIT_SCOPE
     return scope
 
 def stmt_DT(op, subs, scope):
@@ -368,11 +378,8 @@ def stmt_for(op, subs, scope):
     (a, ls, body) = match(subs,
         ('cons(a, cons(ls, contains(key("body", sized(body)))))', tuple3))
     items = eval_expr(ls, scope)
-    if not len(items):
-        return scope
-    first = items.pop(0)
     for_scope = new_scope({}, ForScope(a, items, body), body, scope)
-    do_assign(a, first, for_scope)
+    for_scope.stmtsPos = EXIT_SCOPE
     return for_scope
 
 def stmt_func(op, subs, scope):
@@ -392,7 +399,7 @@ def stmt_return(op, subs, scope):
             break
         this_frame = this_frame.prevScope
     this_frame.scopeInfo.returnValue = eval_expr(subs[0], scope)
-    this_frame.stmts = []
+    this_frame.stmtsPos = EXIT_SCOPE
     return this_frame
 
 def stmt_while(op, subs, scope):
@@ -417,29 +424,31 @@ stmt_dispatch = {
         'while': stmt_while,
     }
 
-def loop_while(cond, body, scope):
+def loop_while(cond, scope):
     if eval_expr(cond, scope):
-        scope.stmts = body[:]
+        scope.stmtsPos = 0
         return True
     return False
 
-def loop_for(var, list, body, scope):
+def loop_for(var, list, scope):
     if len(list) > 0:
         do_assign(var, list.pop(0), scope)
-        scope.stmts = body[:]
+        scope.stmtsPos = 0
         return True
     return False
 
 def run_scope(scope):
     orig_scope = scope
     while scope is not None:
-        while len(scope.stmts) > 0:
-            scope = run_stmt(scope.stmts.pop(0), scope)
+        while scope.stmtsPos >= 0 and scope.stmtsPos < len(scope.stmts):
+            scope.stmtsPos += 1
+            scope = run_stmt(scope.stmts[scope.stmtsPos - 1], scope)
         if scope is orig_scope:
             break
         if not match(scope.scopeInfo,
-                ('WhileScope(c,b)', lambda c, b: loop_while(c, b, scope)),
-                ('ForScope(v,l,b)', lambda v, l, b: loop_for(v, l, b, scope))):
+                ('WhileScope(c, _)', lambda c: loop_while(c, scope)),
+                ('ForScope(v, l, _)', lambda v, l: loop_for(v, l, scope)),
+                ('CondScope()', lambda: False)):
             scope = scope.prevScope
 
 
@@ -451,7 +460,7 @@ def run_stmt(stmt, scope):
         assert False, 'WTF is stmt %s?' % (nm,)
 
 def new_scope(syms, info, stmts, prev_scope):
-    return Scope(syms, info, stmts[:], prev_scope)
+    return Scope(syms, info, stmts, 0, prev_scope)
 
 def scope_lookup(name, scope):
     cur = scope

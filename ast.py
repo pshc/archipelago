@@ -57,8 +57,7 @@ add_sym('and')
 @expr(And)
 def conv_and(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('and', [int_len(exprsa)]) + exprsa,
-            ' and '.join(exprst))
+    return (symref('and', [int_len(exprsa)] + exprsa), ' and '.join(exprst))
 
 add_sym('ADT')
 add_sym('ctor')
@@ -312,8 +311,7 @@ add_sym('or')
 @expr(Or)
 def conv_or(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('or', [int_len(exprsa)] + exprsa),
-            ' or '.join(exprst))
+    return (symref('or', [int_len(exprsa)] + exprsa), ' or '.join(exprst))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
 @expr(Slice)
