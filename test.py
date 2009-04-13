@@ -10,10 +10,12 @@ a = 10
 while a > 4:
     print a
     a = a - 1
-greeting = ["hello", "there"]
-greeting[1] = "world"
-for b in greeting:
-    print b
+greeting = [(True, "ello"), (True, "friend")]
+greeting[1] = (False, "world")
+for b, c in greeting:
+    if b:
+        print 'h'
+    print c
     while 0:
         break
     continue

@@ -30,6 +30,7 @@ def run_module(module):
     builtins = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 '%': lambda x, y: x % y,
                 'negate': lambda x: -x,
+                'True': True, 'False': False,
                 '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
                 '<': lambda x, y: x < y, '>': lambda x, y: x > y,
                 '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
@@ -72,7 +73,7 @@ def expr_genexpr(op, subs, scope):
                                  tuple4))
     results = []
     for item in eval_expr(l, scope):
-        do_assign(a, item, scope)
+        do_assign(a, item, scope, True)
         # TODO: Proper fold or something
         ok = True
         for cond in ps:
@@ -283,7 +284,9 @@ def stmt_assert(op, subs, scope):
     return scope
 
 # Returns the scope which nm should be assigned into
-def dest_scope(nm, scope):
+def dest_scope(nm, scope, local):
+    if local:
+        return scope
     cur_scope = scope
     while cur_scope is not None:
         if nm in cur_scope.syms:
@@ -291,32 +294,40 @@ def dest_scope(nm, scope):
         cur_scope = cur_scope.prevScope
     return scope
 
-def assign_nm(nm, val, scope):
-    dest = dest_scope(nm, scope).syms
+def assign_nm(nm, val, scope, local):
+    dest = dest_scope(nm, scope, local).syms
     dest[nm] = val
 
-def assign_sub(container, sub, val, scope):
+def assign_tuple(bs, val, scope, local):
+    for b, v in zip(bs, val):
+        nm = getident(b)
+        dest = dest_scope(nm, scope, local).syms
+        dest[nm] = v
+
+def assign_sub(container, sub, val, scope, local):
     nm = getident(container)
-    dest = dest_scope(nm, scope).syms[nm]
+    dest = dest_scope(nm, scope, local).syms[nm]
     dest[eval_expr(sub, scope)] = val
 
-def assign_attr(obj, attr, val, scope):
+def assign_attr(obj, attr, val, scope, local):
     nm = getident(obj)
-    dest = dest_scope(nm, scope).syms[nm]
+    dest = dest_scope(nm, scope, local).syms[nm]
     setattr(dest, getident(attr), val)
 
-def do_assign(dest, val, scope):
+def do_assign(dest, val, scope, local):
     match(dest, ('key("ident", cons(Str(nm, _), _))',
-                    lambda nm: assign_nm(nm, val, scope)),
+                    lambda nm: assign_nm(nm, val, scope, local)),
+                ('key("tuplelit", sized(bits))',
+                    lambda bs: assign_tuple(bs, val, scope, local)),
                 ('key("subscript", cons(d, cons (ix, _)))',
-                    lambda d, ix: assign_sub(d, ix, val, scope)),
+                    lambda d, ix: assign_sub(d, ix, val, scope, local)),
                 ('key("attr", cons(o, cons(a, _)))',
-                    lambda o, a: assign_attr(o, a, val, scope)))
+                    lambda o, a: assign_attr(o, a, val, scope, local)))
     return scope
 
 def stmt_assign(op, subs, scope):
     if op == '=':
-        do_assign(subs[0], eval_expr(subs[1], scope), scope)
+        do_assign(subs[0], eval_expr(subs[1], scope), scope, False)
         return scope
     assert False
 
@@ -431,7 +442,7 @@ def loop_while(cond, scope):
 
 def loop_for(var, list, scope):
     if len(list) > 0:
-        do_assign(var, list.pop(0), scope)
+        do_assign(var, list.pop(0), scope, True)
         scope.stmtsPos = 0
         return True
     return False
