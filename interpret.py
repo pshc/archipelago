@@ -476,7 +476,9 @@ if __name__ == '__main__':
     import sys
     filename = sys.argv[1] if len(sys.argv) > 1 else 'interpret.py'
     module = ast.convert_file(filename)
-    open('hello', 'w').write(str(module.roots))
+    f = open('hello', 'w')
+    for r in module.roots:
+        f.write(repr(r))
     print 'Converted'
     run_module(module)
 

@@ -148,18 +148,23 @@ def match_named(atom, ast):
     return None
 
 
-def atom_repr(s, indent=-1):
-    extra = ''
-    if indent == -1:
-        indent = 0
-        extra = '\n'
-    label = match(s,
-            ('Int(n, _)\n', str),
-            ('Str(s, _)\n', repr),
-            ('Ref(r, m, _)\n', lambda r, m: r.subs[0].subs[0].strVal
-                                            if m is boot_mod else '<ref>'))
-    return '%s%s%s\n%s' % (extra, '  ' * indent, label,
-                           ''.join(atom_repr(t, indent+1) for t in s.subs))
+def do_repr(s, r, indent):
+    if hasattr(s, 'refAtom'):
+        label = s.refAtom.subs[0].subs[0].strVal if s.refMod is boot_mod \
+                                                 else '<ref>'
+    elif hasattr(s, 'intVal'):
+        label = str(s.intVal)
+    else:
+        label = repr(s.strVal)
+    r.append('  ' * indent + label)
+    for sub in s.subs:
+        do_repr(sub, r, indent + 1)
+
+def atom_repr(s):
+    r = []
+    do_repr(s, r, 0)
+    r.append('')
+    return '\n'.join(r)
 
 Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
 
