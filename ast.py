@@ -3,9 +3,6 @@ from base import *
 import compiler
 from compiler.ast import *
 
-builtins = ['object', 'None', 'True', 'False']
-[add_sym(b) for b in builtins]
-
 FIND, UPDATE, UNIQUE = 0, 1, 2
 
 add_sym('var')
@@ -132,6 +129,10 @@ def make_dt(left, args):
     print dt_nm, nms
     return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
+@inside_scope
+def conv_match_case(context, code):
+    return conv_match_try(compiler.parse(code, mode='eval').node)
+
 add_sym('match')
 add_sym('case')
 def conv_match(args):
@@ -140,8 +141,7 @@ def conv_match(args):
     for a in args:
         c, f = match(a, ('key("tuplelit", sized(cons(Str(c, _), cons(f, _))))',
                          tuple2))
-        casea = conv_match_try(compiler.parse(c, mode='eval').node)
-        casesa.append(symref('case', [casea, f]))
+        casesa.append(symref('case', [conv_match_case(c), f]))
     return symref('match', casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
@@ -311,7 +311,6 @@ def conv_listcomp(e):
     (compa, compt) = conv_genexprinner(e)
     return (compa, '[%s]' % compt)
 
-add_sym('ident')
 @expr(Name)
 def conv_name(e):
     return (identref(e.name), e.name)

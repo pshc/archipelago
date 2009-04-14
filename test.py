@@ -34,7 +34,6 @@ p.first = 4
 print p.first
 print p.second
 
-n = Nothing()
-j = Just("just value")
-r = match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
-print r
+n, j = Nothing(), Just("just value")
+print match(n, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
+print match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))

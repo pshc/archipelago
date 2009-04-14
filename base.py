@@ -1,5 +1,6 @@
 import compiler
 from compiler.ast import *
+from types import FunctionType
 
 datatypes = {}
 algetypes = {}
@@ -170,5 +171,32 @@ def unzip(list):
 def tuple2(a, b): return (a, b)
 def tuple3(a, b, c): return (a, b, c)
 def tuple4(a, b, c, d): return (a, b, c, d)
+
+builtinConsts = {'None': None, 'True': True, 'False': False, '_ix': None}
+
+builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
+                '%': lambda x, y: x % y,
+                'negate': lambda x: -x,
+                '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
+                '<': lambda x, y: x < y, '>': lambda x, y: x > y,
+                '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
+                'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
+                'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
+                'slice': lambda l, d, u: l[d:u], 'print': None,
+                'object': make_record, 'getattr': getattr,
+                'const': lambda x: lambda y: x, 'identity': lambda x: x,
+                'tuple2': lambda x, y: (x, y),
+                'tuple3': lambda x, y, z: (x, y, z),
+                }
+
+def is_builtin_func(r):
+    if isinstance(r, FunctionType):
+        return r
+    f = builtinFuncs.get(match(r, ('key(nm)', identity), ('_', lambda: None)))
+    if f is not None:
+        return f
+
+def call_builtin_func(f, args, scope):
+    return f(*args)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

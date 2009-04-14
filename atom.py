@@ -29,6 +29,9 @@ def add_sym(name):
     boot_syms.append(node)
     boot_sym_names[name] = node
 
+map(add_sym, builtinConsts)
+map(add_sym, builtinFuncs)
+
 def int_len(list):
     return Int(len(list), [])
 
@@ -41,14 +44,14 @@ def symcall(name, subs):
     func = Ref(boot_sym_names[name], boot_mod, [])
     return symref('call', [func, symref('args', [int_len(subs)] + subs)])
 
-def symident(name, subs):
-    return symref('ident', [Str(name, subs)])
-
-def getident(sub):
-    return match(sub, ('key("ident", cons(Str(nm, _), _))', identity))
+def getident(ref):
+    return match(ref, ('Ref(named(nm), _, _)', identity))
 
 def symname(name):
     return symref('name', [Str(name, [])])
+
+def getname(sym):
+    return match(sym, ('named(nm)', identity))
 
 def walk_atoms(atoms, ret, f):
     for atom in atoms:

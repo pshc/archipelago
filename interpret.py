@@ -9,22 +9,20 @@ ScopeInfo, FuncScope, CondScope, WhileScope, ForScope = ADT('ScopeInfo',
         'WhileScope', ('loopCond', Atom), ('whileBody', [Atom]),
         'ForScope', ('forVar', Atom), ('loopList', []), ('forBody', [Atom]))
 
-Scope = DT('Scope', ('syms', {str: Atom}),
+Scope = DT('Scope', ('syms', {Atom: Atom}),
                     ('scopeInfo', ScopeInfo),
                     ('stmts', [Atom]),
                     ('stmtsPos', int),
                     ('prevScope', 'Scope'))
 
 Function = DT('Function', ('funcName', str),
-                          ('argnames', [str]),
+                          ('argBindings', [Atom]),
                           ('funcStmts', [Atom]))
 
 CTORS = {}
 CTOR_FIELDS = []
 
 EXIT_SCOPE = -2
-
-var_id = id
 
 def bi_print(s): print s
 
@@ -44,7 +42,8 @@ def run_module(module):
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
                 }
-    builtinScope = new_scope(builtins, None, [], None)
+    biSyms = dict((boot_sym_names[nm], f) for nm, f in builtins.iteritems())
+    builtinScope = new_scope(biSyms, None, [], None)
     run_scope(new_scope({}, '<top-level>', module.roots, builtinScope))
 
 def expr_call(op, subs, scope):
@@ -53,14 +52,13 @@ def expr_call(op, subs, scope):
                                                   eval_exprs(args, scope),
                                                   scope)))
 
-def call_func(f, args, sc):
-    return match(f, ('Function(_, _, _)', lambda: call_func_obj(f, args, sc)),
-                    ('func', lambda func: apply(func, args)))
-
-def call_func_obj(f, args, scope):
-    assert len(f.argnames) == len(args), \
+def call_func(f, args, scope):
+    bf = is_builtin_func(f)
+    if bf is not None:
+        return call_builtin_func(bf, args, scope)
+    assert len(f.argBindings) == len(args), \
            'Bad arg count (%d) for calling %s' % (len(args), f.funcName)
-    argvars = dict(zip(f.argnames, args))
+    argvars = dict(zip(f.argBindings, args))
     scope = new_scope(argvars, FuncScope(f.funcName, None), f.funcStmts, scope)
     run_scope(scope)
     return scope.scopeInfo.returnValue
@@ -75,7 +73,7 @@ def expr_genexpr(op, subs, scope):
                                  tuple4))
     results = []
     for item in eval_expr(l, scope):
-        do_assign(a, item, scope, True)
+        do_assign(a, item, scope)
         # TODO: Proper fold or something
         ok = True
         for cond in ps:
@@ -89,17 +87,10 @@ def expr_genexpr(op, subs, scope):
 def expr_getattr(op, subs, scope):
     return getattr(eval_expr(subs[0], scope), getident(subs[1]))
 
-def expr_ident(op, subs, scope):
-    return scope_lookup(subs[0].strVal, scope)
-
-def extract_argnames(args):
-    nms = match(args, ('all(named(nm))', identity))
-    assert len(nms) == len(args)
-    return nms
-
 def expr_lambda(op, subs, scope):
-    (args, expr) = match(subs, ('sized(args, cons(expr, _))', tuple2))
-    return Function(None, extract_argnames(args), [symref('return', [expr])])
+    (args, expr) = match(subs, ('sized(all(arg==key("arg")), cons(expr, _))',
+                                tuple2))
+    return Function(None, args, [symref('return', [expr])])
 
 def expr_listlit(op, subs, scope):
     return eval_exprs(match(subs, ('sized(items)', identity)), scope)
@@ -143,7 +134,7 @@ def match_ctor(ctor, args, e):
     fs = CTOR_FIELDS[e._ix]
     rs = []
     for f, a in zip(fs, args):
-        r = pat_match(a, getattr(e, f))
+        r = pat_match(a, getattr(e, getname(f)))
         if r is None:
             return None
         rs += r
@@ -243,7 +234,6 @@ expr_dispatch = {
         'dictlit': expr_dictlit,
         'genexpr': expr_genexpr,
         'attr': expr_getattr,
-        'ident': expr_ident,
         'lambda': expr_lambda,
         'listlit': expr_listlit,
         'subscript': expr_subscript,
@@ -256,83 +246,87 @@ def eval_expr(expr, scope):
     nm = match(expr, ('key(nm)', identity), ('s', const(None)))
     if nm in expr_dispatch:
         return expr_dispatch[nm](nm, expr.subs, scope)
-    elif nm is None:
-        return match(expr, ('Str(s, _)', identity),
-                           ('Int(i, _)', identity),
-                           ('ref', lambda r: TODO_DUNNO_LOL))
-    else:
-        return scope_lookup(nm, scope)
+    #elif nm is not None:
+    #    return scope_lookup(expr, scope)
+    #assert nm is None, "Unknown expr key '%s'" % (nm,)
+    return match(expr, ('Str(s, _)', identity),
+                       ('Int(i, _)', identity),
+                       ('Ref(r, _, _)', lambda r: scope_lookup(r, scope)))
 
 def eval_exprs(list, scope):
     return [eval_expr(sub, scope) for sub in list]
 
 ADTCtors = DT('ADTCtors', ('ctorList', [str]))
 
-def stmt_ADT(op, subs, scope):
-    (name, cs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
-                               all(key("ctor", c))', tuple2))
-    scope.syms[name] = ADTCtors(cs)
+def stmt_ADT(stmt, scope):
+    (name, cs) = match(stmt, ('named(name, all(c==key("ctor")))', tuple2))
+    scope.syms[stmt] = ADTCtors(cs)
     for ctor in cs:
-        scope = stmt_DT('ADT', ctor, scope)
-        nm = match(ctor, ('contains(key("name", cons(Str(nm, _), _)))',
-                          identity))
-        ix = len(CTOR_FIELDS) - 1
-        scope.syms[nm].funcStmts.insert(1, symref('=',
-                [symref('attr', [symident('obj', []), symident('_ix', [])]),
-                 Int(ix, [])]))
+        scope = stmt_DT(ctor, scope)
     return scope
 
-def stmt_assert(op, subs, scope):
-    assert eval_expr(subs[0], scope), eval_expr(subs[1], scope)
+def stmt_assert(stmt, scope):
+    assert eval_expr(stmt.subs[0], scope), eval_expr(stmt.subs[1], scope)
     return scope
+
+def list_scope(scope):
+    additional = ''
+    p = scope.prevScope
+    if p is not None and p.scopeInfo is not None:
+        additional = '\nUnder scope %s:\n%s' % (p.scopeInfo, list_scope(p))
+    return '\n'.join('\t%s\t%s' % (getname(k), v)
+                                   for k, v in scope.syms.iteritems()) \
+           + additional
 
 # Returns the scope which nm should be assigned into
-def dest_scope(nm, scope, local):
-    if local:
-        return scope
-    cur_scope = scope
-    while cur_scope is not None:
-        if nm in cur_scope.syms:
-            return cur_scope
-        cur_scope = cur_scope.prevScope
-    return scope
+def dest_scope(ref, scope):
+    cur = scope
+    while cur is not None:
+        if ref in cur.syms:
+            return cur
+        cur = cur.prevScope
+    assert False, 'Ref to "%s" not defined in scope %s:\n%s\n' % (
+                  getident(ref), scope.scopeInfo, list_scope(scope))
 
-def assign_id(i, val, scope, local):
-    dest = dest_scope(i, scope, local).syms
-    dest[i] = val
+def assign_new(var, val, scope):
+    scope.syms[var] = val
 
-def assign_tuple(bs, val, scope, local):
+def assign_var(var, val, scope):
+    dest = dest_scope(var, scope).syms
+    dest[var] = val
+
+def assign_tuple(bs, val, scope):
     for b, v in zip(bs, val):
-        nm = getident(b)
-        dest = dest_scope(nm, scope, local).syms
-        dest[nm] = v
+        if match(b, ('key("var"or"arg")', lambda: True), ('_', lambda: False)):
+            assign_new(b, v, scope)
+        else:
+            assign_var(b, v, scope)
 
-def assign_sub(container, sub, val, scope, local):
-    nm = getident(container)
-    dest = dest_scope(nm, scope, local).syms[nm]
+def assign_sub(c, sub, val, scope):
+    dest = dest_scope(c, scope).syms[c]
     dest[eval_expr(sub, scope)] = val
 
-def assign_attr(obj, attr, val, scope, local):
-    nm = getident(obj)
-    dest = dest_scope(nm, scope, local).syms[nm]
+def assign_attr(obj, attr, val, scope):
+    dest = dest_scope(obj, scope).syms[obj]
     setattr(dest, getident(attr), val)
 
-def do_assign(dest, val, scope, local):
-    match(dest, ('v==key("var", _)',
-                    lambda v: assign_id(var_id(v), val, scope, local)),
+def do_assign(dest, val, scope):
+    match(dest, ('n==key("var" or "arg")',
+                    lambda n: assign_new(n, val, scope)),
+                ('Ref(v==key("var" or "arg"), _, _)',
+                    lambda v: assign_var(v, val, scope)),
                 ('key("tuplelit", sized(bits))',
-                    lambda bs: assign_tuple(bs, val, scope, local)),
-                ('key("subscript", cons(d, cons (ix, _)))',
-                    lambda d, ix: assign_sub(d, ix, val, scope, local)),
-                ('key("attr", cons(o, cons(a, _)))',
-                    lambda o, a: assign_attr(o, a, val, scope, local)))
+                    lambda bs: assign_tuple(bs, val, scope)),
+                ('key("subscript", cons(Ref(d, _, _), cons (ix, _)))',
+                    lambda d, ix: assign_sub(d, ix, val, scope)),
+                ('key("attr", cons(Ref(o, _, _), cons(a, _)))',
+                    lambda o, a: assign_attr(o, a, val, scope)))
     return scope
 
-def stmt_assign(op, subs, scope):
-    if op == '=':
-        do_assign(subs[0], eval_expr(subs[1], scope), scope, False)
-        return scope
-    assert False
+def stmt_assign(stmt, scope):
+    left, e = match(stmt, ('key("=", cons(left, cons(e, _)))', tuple2))
+    do_assign(left, eval_expr(e, scope), scope)
+    return scope
 
 def enclosing_loop(scope):
     return match(scope.scopeInfo, ('ForScope(_, _, _)', lambda: scope),
@@ -347,63 +341,70 @@ def break_for(for_scope):
 def break_while(while_scope):
     while_scope.loopCond = False
 
-def stmt_break(op, subs, scope):
+def stmt_break(stmt, scope):
     scope = enclosing_loop(scope)
     match(scope.scopeInfo, ('f==ForScope(_, _, _)', break_for),
                            ('w==WhileScope(_, _, _)', break_while))
     scope.stmtsPos = EXIT_SCOPE
     return scope
 
-def stmt_cond(op, subs, scope):
-    cases = match(subs, ('all(key("case", cons(test, sized(body))))',
-                         identity))
+def stmt_cond(stmt, scope):
+    cases = match(stmt.subs, ('all(key("case", cons(test, sized(body))))',
+                              identity))
     for (tst, body) in cases:
         if match(tst, ('key("else")', lambda: True),
                       ('t', lambda t: eval_expr(t, scope))):
             return new_scope({}, CondScope(), body, scope)
     return scope
 
-def stmt_continue(op, subs, scope):
+def stmt_continue(stmt, scope):
     assert enclosing_loop(scope) is not None, "Bad continue"
     scope.stmtsPos = EXIT_SCOPE
     return scope
 
-def stmt_DT(op, subs, scope):
+def stmt_DT(stmt, scope):
     # Getattr is already done for us; all we need is the constructor
-    (name, fs) = match(subs, ('contains(key("name", cons(Str(nm, _), _))) and\
-                               all(key("field", _) and named(f))', tuple2))
-    CTORS[name] = len(CTOR_FIELDS)
+    name, fs = match(stmt, ('named(nm, all(f==key("field", _)))', tuple2))
+    ix = len(CTOR_FIELDS)
+    CTORS[name] = ix
     CTOR_FIELDS.append(fs) # Yes, appending a list
-    scope.syms[name] = Function(name, fs,
-            [symref('=', [symident('obj', []), symcall('object', [])])] +
-            [symref('=', [symref('attr', [symident('obj', []),
-                                          symident(f, [])]),
-                          symident(f, [])])
-             for f in fs] +
-            [symref('return', [symident('obj', [])])])
+    obj = symref('var', [symname('obj')])
+    objref = Ref(obj, None, [])
+    stmts = [symref('=', [obj, symcall('object', [])]),
+             symref('=', [symref('attr', [objref, symref('_ix', [])]),
+                          Int(ix, [])])]
+    args = []
+    for f in fs:
+        arg = symref('arg', [symname(getident(f))])
+        args.append(arg)
+        stmts.append(symref('=', [symref('attr', [objref, Ref(f, None, [])]),
+                                  Ref(arg, None, [])]))
+    stmts.append(symref('return', [objref]))
+    scope.syms[stmt] = Function(name, args, stmts)
     return scope
 
-def stmt_exprstmt(op, subs, scope):
-    eval_expr(subs[0], scope)
+def stmt_exprstmt(stmt, scope):
+    eval_expr(stmt.subs[0], scope)
     return scope
 
-def stmt_for(op, subs, scope):
-    (a, ls, body) = match(subs,
+def stmt_for(stmt, scope):
+    a, ls, body = match(stmt.subs,
         ('cons(a, cons(ls, contains(key("body", sized(body)))))', tuple3))
     items = eval_expr(ls, scope)
     for_scope = new_scope({}, ForScope(a, items, body), body, scope)
     for_scope.stmtsPos = EXIT_SCOPE
     return for_scope
 
-def stmt_func(op, subs, scope):
-    (name, args, body) = match(subs,
-        ('contains(key("name", cons(Str(nm, _), _))) and \
-          contains(key("args", sized(args))) and \
-          contains(key("body", sized(body)))', tuple3))
-    scope.syms[name] = Function(name, extract_argnames(args), body)
+def stmt_func(stmt, scope):
+    # XXX: all(...) is wrong, should be irrefutable for all elements
+    #      (same for expr_lambda)
+    scope.syms[stmt] = match(stmt,
+        ('named(nm) and key("func", \
+          contains(key("args", sized(all(arg==key("arg"))))) and \
+          contains(key("body", sized(body))))', Function))
     return scope
 
-def stmt_return(op, subs, scope):
+def stmt_return(stmt, scope):
     this_frame = scope
     while True:
         assert this_frame is not None, 'Cannot return from root scope'
@@ -411,13 +412,13 @@ def stmt_return(op, subs, scope):
                                        ('_', lambda: False)):
             break
         this_frame = this_frame.prevScope
-    this_frame.scopeInfo.returnValue = eval_expr(subs[0], scope)
+    this_frame.scopeInfo.returnValue = eval_expr(stmt.subs[0], scope)
     this_frame.stmtsPos = EXIT_SCOPE
     return this_frame
 
-def stmt_while(op, subs, scope):
-    (test, body) = match(subs, ('cons(t, contains(key("body", sized(b))))',
-                               tuple2))
+def stmt_while(stmt, scope):
+    test, body = match(stmt.subs, ('cons(t, contains(key("body", sized(b))))',
+                                   tuple2))
     if not eval_expr(test, scope):
         return scope
     return new_scope({}, WhileScope(test, body), body, scope)
@@ -445,7 +446,7 @@ def loop_while(cond, scope):
 
 def loop_for(var, list, scope):
     if len(list) > 0:
-        do_assign(var, list.pop(0), scope, True)
+        do_assign(var, list.pop(0), scope)
         scope.stmtsPos = 0
         return True
     return False
@@ -466,24 +467,15 @@ def run_scope(scope):
 
 
 def run_stmt(stmt, scope):
-    nm = match(stmt, ('key(nm)', identity), ('s', const(None)))
-    if nm in stmt_dispatch:
-        return stmt_dispatch[nm](nm, stmt.subs, scope)
-    else:
-        assert False, 'WTF is stmt %s?' % (nm,)
+    nm = match(stmt, ('key(nm)', identity), ('_', lambda: None))
+    assert nm in stmt_dispatch, 'Unknown statement %s' % (nm,)
+    return stmt_dispatch[nm](stmt, scope)
 
-def new_scope(syms, info, stmts, prev_scope):
-    return Scope(syms, info, stmts, 0, prev_scope)
+def new_scope(syms, info, scopeStmts, prev_scope):
+    return Scope(syms, info, scopeStmts, 0, prev_scope)
 
-def scope_lookup(name, scope):
-    cur = scope
-    while cur is not None:
-        if name in cur.syms:
-            return cur.syms[name]
-        cur = cur.prevScope
-    assert False, 'Symbol "%s" not defined in scope %s:\n%s\n' % (name,
-                  scope.scopeInfo,
-                  '\n'.join('\t%s\t%s' % i for i in scope.syms.iteritems()))
+def scope_lookup(ref, scope):
+    return dest_scope(ref, scope).syms[ref]
 
 if __name__ == '__main__':
     import sys
@@ -492,6 +484,7 @@ if __name__ == '__main__':
     f = open('hello', 'w')
     for r in module.roots:
         f.write(repr(r))
+    del f, r, filename
     print 'Converted'
     run_module(module)
 
