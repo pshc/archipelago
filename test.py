@@ -37,3 +37,10 @@ print p.second
 n, j = Nothing(), Just("just value")
 print match(n, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
 print match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
+
+def fac(n):
+    if n == 0:
+        return 1
+    return n * fac(n - 1)
+
+print fac(5)

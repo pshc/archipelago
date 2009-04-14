@@ -28,7 +28,7 @@ def bi_print(s): print s
 
 def run_module(module):
     builtins = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
-                '%': lambda x, y: x % y,
+                '*': lambda x, y: x * y, '%': lambda x, y: x % y,
                 'negate': lambda x: -x,
                 'True': True, 'False': False,
                 '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
@@ -285,8 +285,8 @@ def dest_scope(ref, scope):
         if ref in cur.syms:
             return cur
         cur = cur.prevScope
-    assert False, 'Ref to "%s" not defined in scope %s:\n%s\n' % (
-                  getident(ref), scope.scopeInfo, list_scope(scope))
+    assert False, '"%s" not defined in scope %s:\n%s\n' % (
+                  getname(ref), scope.scopeInfo, list_scope(scope))
 
 def assign_new(var, val, scope):
     scope.syms[var] = val
