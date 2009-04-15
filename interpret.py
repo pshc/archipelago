@@ -488,6 +488,7 @@ if __name__ == '__main__':
         f.write(repr(r))
     del f, r, filename
     print 'Converted'
+    serialize_module(module)
     run_module(module)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

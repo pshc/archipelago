@@ -19,7 +19,8 @@ b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
 b_symbol.refAtom = b_symbol
 b_symbol.subs[0].refAtom = b_name
 b_name.subs[0].refAtom = b_name
-boot_syms = [b_symbol, b_name]
+boot_syms = boot_mod.roots
+boot_syms += [b_symbol, b_name]
 boot_sym_names = {'symbol': b_symbol, 'name': b_name}
 
 def add_sym(name):
@@ -29,6 +30,8 @@ def add_sym(name):
     boot_syms.append(node)
     boot_sym_names[name] = node
 
+add_sym('deps')
+add_sym('roots')
 map(add_sym, builtinConsts)
 map(add_sym, builtinFuncs)
 
@@ -61,24 +64,28 @@ def walk_atoms(atoms, ret, f):
 
 def serialize_module(module):
     def init_serialize(atom, (natoms, selfindices, modset)):
-        selfindices[atom] = natoms + 1
-        match(atom, ("Ref(_, m, _)", modset.add),
-                    ("_",            lambda: None))
+        selfindices[atom] = natoms
+        m = getattr(atom, 'refMod', None)
+        if m is not None and m is not module:
+            modset.add(m)
         return (natoms + 1, selfindices, modset)
-    beg = (7, {}, set())
-    (natoms, selfixs, modset) = walk_atoms(module.roots, beg, init_serialize)
+    beg = (0, {}, set())
+    (natoms, atomixs, modset) = walk_atoms(module.roots, beg, init_serialize)
     nmods = len(modset)
-    natoms += nmods
+    base = 7 + nmods
+    natoms += base
     refmap = {}
-    for (i, ix) in enumerate(selfixs):
-        refmap[ix] = (i + 1, 0)
+    selfixs = {}
+    for atom, i in atomixs.iteritems():
+        refmap[atom] = (i + base + 1, 0)
+        selfixs[atom] = i + base + 1
     deps = ""
-    for (m, mod) in enumerate(modset):
+    for m, mod in enumerate(modset):
         ixs = serialize_module(mod)
-        assert len(mod.digest)
-        for (i, ix) in enumerate(ixs):
-            refmap[ix] = (i + 1, m + 1)
-        deps += "s%s\n" % repr(mod.digest)
+        assert mod.digest
+        for atom, i in ixs.iteritems():
+            refmap[atom] = (i, m + 1)
+        deps += "s%r\n" % (mod.digest,)
     nroots = len(module.roots)
     header = 's"";4\ni1;1\ns%s\ni2;1\ni%d\ni3%s\n%si4%s\n' % (
              repr(module.name), natoms, ";%d" % (nmods,) if nmods else "",
@@ -101,7 +108,8 @@ def serialize_module(module):
     for atom in module.roots:
         serialize_atom(atom)
     f.close()
-    filename = 'mods/%s' % hash.digest().encode('hex')
+    module.digest = hash.digest().encode('hex')
+    filename = 'mods/%s' % (module.digest,)
     system('mv -f -- %s %s' % (temp, filename))
     return selfixs
 
