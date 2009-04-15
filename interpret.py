@@ -88,7 +88,7 @@ def expr_getattr(op, subs, scope):
     return getattr(eval_expr(subs[0], scope), getident(subs[1]))
 
 def expr_lambda(op, subs, scope):
-    (args, expr) = match(subs, ('sized(all(arg==key("arg")), cons(expr, _))',
+    (args, expr) = match(subs, ('sized(all(arg==key("var")), cons(expr, _))',
                                 tuple2))
     return Function(None, args, [symref('return', [expr])])
 
@@ -299,7 +299,7 @@ def assign_var(var, val, scope):
 
 def assign_tuple(bs, val, scope):
     for b, v in zip(bs, val):
-        if match(b, ('key("var"or"arg")', lambda: True), ('_', lambda: False)):
+        if match(b, ('key("var")', lambda: True), ('_', lambda: False)):
             assign_new(b, v, scope)
         else:
             assign_var(b, v, scope)
@@ -313,9 +313,9 @@ def assign_attr(obj, attr, val, scope):
     setattr(dest, getident(attr), val)
 
 def do_assign(dest, val, scope):
-    match(dest, ('n==key("var" or "arg")',
+    match(dest, ('n==key("var")',
                     lambda n: assign_new(n, val, scope)),
-                ('Ref(v==key("var" or "arg"), _, _)',
+                ('Ref(v==key("var"), _, _)',
                     lambda v: assign_var(v, val, scope)),
                 ('key("tuplelit", sized(bits))',
                     lambda bs: assign_tuple(bs, val, scope)),
@@ -377,7 +377,7 @@ def stmt_DT(stmt, scope):
                           Int(ix, [])])]
     args = []
     for f in fs:
-        arg = symref('arg', [symname(getident(f))])
+        arg = symref('var', [symname(getident(f))])
         args.append(arg)
         stmts.append(symref('=', [symref('attr', [objref, Ref(f, None, [])]),
                                   Ref(arg, None, [])]))
@@ -402,7 +402,7 @@ def stmt_func(stmt, scope):
     #      (same for expr_lambda)
     scope.syms[stmt] = match(stmt,
         ('named(nm) and key("func", \
-          contains(key("args", sized(all(arg==key("arg"))))) and \
+          contains(key("args", sized(all(arg==key("var"))))) and \
           contains(key("body", sized(body))))', Function))
     return scope
 

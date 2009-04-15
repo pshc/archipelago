@@ -145,9 +145,8 @@ def replace_refs(mapping, e):
 def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
-    print "Matching case with bindings", bs, "and function", f
     ref = lambda s: Ref(s, context.module, [])
-    e = match(f, ('key("lambda", sized(all(arg==key("arg")), cons(e, _)))',
+    e = match(f, ('key("lambda", sized(all(arg==key("var")), cons(e, _)))',
                   lambda args, e: replace_refs(dict(zip(args, bs)), e)),
                  ('key("call", cons(key("const"), sized(cons(e, _))))',
                   identity),
@@ -314,11 +313,10 @@ def arg_pair(name):
     assert isinstance(name, str)
     return (symname(name), name)
 
-add_sym('arg')
 def extract_arglist(s):
     names = s.argnames[:]
     assert not s.kwargs and not s.varargs and not s.defaults
-    return ([identifier('arg', nm, []) for nm in names], names)
+    return ([identifier('var', nm, []) for nm in names], names)
 
 add_sym('lambda')
 @expr(Lambda)
