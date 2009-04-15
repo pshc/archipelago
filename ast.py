@@ -187,21 +187,19 @@ SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
 special_call_forms = {'ADT': make_adt, 'DT': make_dt}
 
 add_sym('call')
-add_sym('args')
 @expr(CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
-    (argsa0, argst) = unzip(map(conv_expr, e.args))
-    argsa = [symref('args', [int_len(argsa0)] + argsa0)]
+    (argsa, argst) = unzip(map(conv_expr, e.args))
     argstt = '(%s)' % (', '.join(argst),)
     if isinstance(e.node, Name):
         argsttt = e.node.name + argstt
         if e.node.name in special_call_forms:
-            return (SpecialCallForm(e.node.name, argsa0), argsttt)
+            return (SpecialCallForm(e.node.name, argsa), argsttt)
         elif e.node.name == 'match':
-            return (conv_match(argsa0), argsttt)
+            return (conv_match(argsa), argsttt)
     (fa, ft) = conv_expr(e.node)
-    return (symref('call', [fa] + argsa), ft + argstt)
+    return (symref('call', [fa, int_len(argsa)] + argsa), ft + argstt)
 
 map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
               'is', 'is not', 'in', 'not in'])

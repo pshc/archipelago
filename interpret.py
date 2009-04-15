@@ -47,7 +47,7 @@ def run_module(module):
     run_scope(new_scope({}, '<top-level>', module.roots, builtinScope))
 
 def expr_call(op, subs, scope):
-    return match(subs, ('cons(f, contains(key("args", sized(args))))',
+    return match(subs, ('cons(f, sized(args))',
                         lambda f, args: call_func(eval_expr(f, scope),
                                                   eval_exprs(args, scope),
                                                   scope)))

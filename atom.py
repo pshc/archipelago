@@ -42,7 +42,7 @@ def symref(name, subs):
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     func = Ref(boot_sym_names[name], boot_mod, [])
-    return symref('call', [func, symref('args', [int_len(subs)] + subs)])
+    return symref('call', [func, int_len(subs)] + subs)
 
 def getident(ref):
     return match(ref, ('Ref(named(nm), _, _)', identity))
