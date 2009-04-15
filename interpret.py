@@ -3,9 +3,9 @@ import ast
 from atom import *
 from base import *
 
-ScopeInfo, FuncScope, CondScope, WhileScope, ForScope = ADT('ScopeInfo',
+ScopeInfo, FuncScope, CaseScope, WhileScope, ForScope = ADT('ScopeInfo',
         'FuncScope', ('calledFuncName', str), ('returnValue', Atom),
-        'CondScope',
+        'CaseScope',
         'WhileScope', ('loopCond', Atom), ('whileBody', [Atom]),
         'ForScope', ('forVar', Atom), ('loopList', []), ('forBody', [Atom]))
 
@@ -121,11 +121,12 @@ def match_and(ps, e):
         rs += r
     return rs
 
-def match_capture(pat, e):
+def match_capture(v, pat, e):
     r = pat_match(pat, e)
     if r is None:
         return None
-    return [e] + r
+    r.append((v, e))
+    return r
 
 def match_ctor(ctor, args, e):
     nm = getident(ctor)
@@ -155,15 +156,15 @@ def match_cons(hp, tp, e):
     tr = pat_match(tp, e)
     return None if tr is None else hr + tr
 
-def match_all(p, es):
+def match_all(v, p, es):
     rs = []
     all_singular = True
     for e in es:
         r = pat_match(p, e)
         if len(r) > 1:
             all_singular = False
-        rs.append(r)
-    return [t[0] for t in rs] if all_singular else rs
+        rs.append(r[1])
+    return [(v, [r[0] for r in rs] if all_singular else rs)]
 
 def match_sized2(hp, tp, e):
     h, t = match(e, ('sized(h, t)', tuple2))
@@ -193,14 +194,14 @@ def pat_match(pat, e):
     return match(pat,
             ('Int(i, _)', lambda i: [] if i == e else None),
             ('Str(s, _)', lambda s: [] if s == e else None),
-            ('key("var", _)', lambda: [e]),
+            ('v==key("var", _)', lambda v: [(v, e)]),
             ('key("wildcard", _)', lambda: []),
             ('key("ctor", cons(c, sized(args)))',
                 lambda c, args: match_ctor(c, args, e)),
             ('key("or", sized(ps))', lambda ps: match_or(ps, e)),
             ('key("and", sized(ps))', lambda ps: match_and(ps, e)),
-            ('key("capture", cons(_, cons(p, _)))',
-                lambda p: match_capture(p, e)),
+            ('key("capture", cons(v, cons(p, _)))',
+                lambda p: match_capture(v, p, e)),
             ('key("sized1", cons(p, _))',
                 lambda p: match(e, ('sized(s)', lambda s: try_match(p, s)))),
             ('key("sized2", cons(p, cons(q, _)))',
@@ -216,7 +217,8 @@ def pat_match(pat, e):
             ('key("contains1", cons(p, _))', lambda p: match_contains(p, e)),
             ('key("cons2", cons(h, cons(t, _)))',
                 lambda h, t: match_cons(h, t, e)),
-            ('key("all1", cons(p, _))', lambda p: match_all(p, e)),
+            ('key("all1", cons(v, cons(p, _)))',
+                lambda v, p: match_all(v, p, e)),
             )
 
 def expr_match(op, subs, scope):
@@ -224,9 +226,9 @@ def expr_match(op, subs, scope):
                             tuple2))
     expr = eval_expr(e, scope)
     for pat, f in cases:
-        r = pat_match(pat, expr)
-        if r is not None:
-            return call_func(eval_expr(f, scope), r, scope)
+        bs = pat_match(pat, expr)
+        if bs is not None:
+            return eval_expr(f, new_scope(dict(bs), CaseScope(), [], scope))
     assert False, "Match failed"
 
 expr_dispatch = {
@@ -331,7 +333,7 @@ def stmt_assign(stmt, scope):
 def enclosing_loop(scope):
     return match(scope.scopeInfo, ('ForScope(_, _, _)', lambda: scope),
                                   ('WhileScope(_, _, _)', lambda: scope),
-                                  ('CondScope()',
+                                  ('CaseScope()',
                                       lambda: enclosing_loop(scope.prevScope)),
                                   ('_', lambda: None))
 
@@ -354,7 +356,7 @@ def stmt_cond(stmt, scope):
     for (tst, body) in cases:
         if match(tst, ('key("else")', lambda: True),
                       ('t', lambda t: eval_expr(t, scope))):
-            return new_scope({}, CondScope(), body, scope)
+            return new_scope({}, CaseScope(), body, scope)
     return scope
 
 def stmt_continue(stmt, scope):
@@ -462,7 +464,7 @@ def run_scope(scope):
         if not match(scope.scopeInfo,
                 ('WhileScope(c, _)', lambda c: loop_while(c, scope)),
                 ('ForScope(v, l, _)', lambda v, l: loop_for(v, l, scope)),
-                ('CondScope()', lambda: False)):
+                ('CaseScope()', lambda: False)):
             scope = scope.prevScope
 
 

@@ -3,7 +3,7 @@ from base import *
 import compiler
 from compiler.ast import *
 
-FIND, UPDATE, UNIQUE = 0, 1, 2
+FIND, UPDATE, UNIQUE, FRESH = range(4)
 
 add_sym('var')
 # HACK: Need context, storing a global...
@@ -12,7 +12,11 @@ def identref(nm, mode=FIND):
     #return symident(nm, [])
     global CUR_CONTEXT
     context = CUR_CONTEXT
-    if mode == UNIQUE:
+    if mode == FRESH:
+        while nm in context.syms:
+            nm += '_'
+        return identifier('var', nm, [])
+    elif mode == UNIQUE:
         return identifier('var', nm, [])
     while context is not None:
         if nm in context.syms:
@@ -129,20 +133,40 @@ def make_dt(left, args):
     print dt_nm, nms
     return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
+def replace_refs(mapping, e):
+    ra = getattr(e, 'refAtom', None)
+    if ra in mapping:
+        e.refAtom = mapping[ra]
+    for sub in e.subs:
+        replace_refs(mapping, sub)
+    return e
+
 @inside_scope
-def conv_match_case(context, code):
-    return conv_match_try(compiler.parse(code, mode='eval').node)
+def conv_match_case(context, code, f):
+    bs = []
+    c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
+    print "Matching case with bindings", bs, "and function", f
+    ref = lambda s: Ref(s, context.module, [])
+    e = match(f, ('key("lambda", sized(all(arg==key("arg")), cons(e, _)))',
+                  lambda args, e: replace_refs(dict(zip(args, bs)), e)),
+                 ('key("call", cons(key("const"), sized(cons(e, _))))',
+                  identity),
+                 ('key("identity")', lambda: ref(bs[0])),
+                 ('key("tuple2")', lambda: symref('tuplelit', [Int(2, []),
+                                                  ref(bs[0]), ref(bs[1])])),
+                 ('key("tuple3")', lambda: symref('tuplelit', [Int(3, []),
+                                         ref(bs[0]), ref(bs[1]), ref(bs[2])])),
+                 ('_', lambda: symref('call', [f, int_len(bs)]
+                                      + [ref(b) for b in bs])))
+    return symref('case', [c, e])
 
 add_sym('match')
 add_sym('case')
 def conv_match(args):
     expra = args.pop(0)
-    casesa = [expra]
-    for a in args:
-        c, f = match(a, ('key("tuplelit", sized(cons(Str(c, _), cons(f, _))))',
-                         tuple2))
-        casesa.append(symref('case', [conv_match_case(c), f]))
-    return symref('match', casesa)
+    casesa = [match(a, ('key("tuplelit", sized(cons(Str(c, _), cons(f, _))))',
+                        conv_match_case)) for a in args]
+    return symref('match', [expra] + casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
                      'contains': [1], 'cons': [2], 'all': [1]}
@@ -153,11 +177,15 @@ for nm, ns in named_match_cases.iteritems():
         add_sym('%s%d' % (nm, n))
 add_sym('capture')
 add_sym('wildcard')
-def conv_match_try(ast):
+def conv_match_try(ast, bs):
     if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
         nm = ast.node.name
-        args = map(conv_match_try, ast.args)
         named_matcher = named_match_cases.get(nm)
+        if nm == 'all':
+            args = [conv_match_try(n, []) for n in ast.args]
+            i = identref('allList', FRESH)
+            return symref('all1', [i, args[0]])
+        args = [conv_match_try(n, bs) for n in ast.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
@@ -165,21 +193,25 @@ def conv_match_try(ast):
         else:
             return symref('ctor', [identref(nm), int_len(args)] + args)
     elif isinstance(ast, Name):
-        return symref('wildcard', []) if ast.name == '_' \
-                                      else identref(ast.name, UNIQUE)
+        if ast.name == '_':
+            return symref('wildcard', [])
+        i = identref(ast.name, UNIQUE)
+        bs.append(i)
+        return i
     elif isinstance(ast, Const):
         va, vt = conv_const(ast)
         return va
     elif isinstance(ast, Or):
         return symref('or', [int_len(ast.nodes)]
-                            + map(conv_match_try, ast.nodes))
+                            + [conv_match_try(n, bs) for n in ast.nodes])
     elif isinstance(ast, And):
         return symref('and', [int_len(ast.nodes)]
-                             + map(conv_match_try, ast.nodes))
+                             + [conv_match_try(n, bs) for n in ast.nodes])
     elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
         assert isinstance(ast.expr, Name) and ast.expr.name != '_'
-        return symref('capture', [identref(ast.expr.name, UNIQUE),
-                                  conv_match_try(ast.ops[0][1])])
+        i = identref(ast.expr.name, UNIQUE)
+        bs.append(i)
+        return symref('capture', [i, conv_match_try(ast.ops[0][1], bs)])
     assert False, "Unknown match case: %s" % ast
 
 
