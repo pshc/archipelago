@@ -127,7 +127,7 @@ def make_adt(left, args):
 add_sym('DT')
 add_sym('field')
 def make_dt(left, args):
-    (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(key("tuplelit", \
+    (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                                  sized(cons(Str(nm, _), _)))))', tuple2))
     fa = identifier('DT', dt_nm, [identifier('field', nm, []) for nm in nms])
     print dt_nm, nms
@@ -146,7 +146,8 @@ def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
     ref = lambda s: Ref(s, context.module, [])
-    e = match(f, ('key("lambda", sized(all(arg==key("var")), cons(e, _)))',
+    e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
+                                       cons(e, _)))',
                   lambda args, e: replace_refs(dict(zip(args, bs)), e)),
                  ('key("call", cons(key("const"), sized(cons(e, _))))',
                   identity),
@@ -168,7 +169,7 @@ def conv_match(args):
     return symref('match', [expra] + casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
-                     'contains': [1], 'cons': [2], 'all': [1], 'every': [1]}
+                     'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
 assert set(named_match_cases) == set(named_match_dispatch)
 
 for nm, ns in named_match_cases.iteritems():
@@ -181,10 +182,10 @@ def conv_match_try(ast, bs):
         nm = ast.node.name
         named_matcher = named_match_cases.get(nm)
         if nm in ('all', 'every'):
-            args = [conv_match_try(n, []) for n in ast.args]
-            i = identref(nm + 'List', FRESH)
-            bs.append(i)
-            return symref(nm + '1', [i, args[0]])
+            assert len(ast.args) == 2 and isinstance(ast.args[0], Name)
+            i = conv_match_try(ast.args[0], bs)
+            dummy = []
+            return symref(nm + '2', [i, conv_match_try(ast.args[1], dummy)])
         args = [conv_match_try(n, bs) for n in ast.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (

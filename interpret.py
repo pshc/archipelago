@@ -65,9 +65,8 @@ def call_func(f, args, scope):
     return scope.scopeInfo.returnValue
 
 def expr_dictlit(op, subs, scope):
-    pairs = match(subs, ('all(key("pair", cons(k, cons(v, _))))', identity))
-    return dict([(eval_expr(k, scope), eval_expr(v, scope))
-                 for (k, v) in pairs])
+    ps = match(subs, ('all(ps, key("pair", cons(k, cons(v, _))))', identity))
+    return dict([(eval_expr(k, scope), eval_expr(v, scope)) for (k, v) in ps])
 
 def expr_genexpr(op, subs, scope):
     (e, a, l, ps) = match(subs, ('cons(e, cons(a, cons(l, sized(ps))))',
@@ -88,8 +87,8 @@ def expr_getattr(op, subs, scope):
     return getattr(eval_expr(subs[0], scope), getident(subs[1]))
 
 def expr_lambda(op, subs, scope):
-    (args, expr) = match(subs, ('sized(every(arg==key("var")), cons(expr, _))',
-                                tuple2))
+    (args, expr) = match(subs, ('sized(every(args, arg==key("var")), \
+                                       cons(expr, _))', tuple2))
     return Function(None, args, [symref('return', [expr])])
 
 def expr_listlit(op, subs, scope):
@@ -231,17 +230,17 @@ def pat_match(pat, e):
             ('key("contains1", cons(p, _))', lambda p: match_contains(p, e)),
             ('key("cons2", cons(h, cons(t, _)))',
                 lambda h, t: match_cons(h, t, e)),
-            ('key("all1", cons(v, cons(p, _)))',
+            ('key("all2", cons(v, cons(p, _)))',
                 lambda v, p: match_all(v, p, e)),
-            ('key("every1", cons(v, cons(p, _)))',
+            ('key("every2", cons(v, cons(p, _)))',
                 lambda v, p: match_every(v, p, e)),
             )
 
 def expr_match(op, subs, scope):
-    e, cases = match(subs, ('cons(e, all(key("case", cons(p, cons(f, _)))))',
-                            tuple2))
+    e, cs = match(subs, ('cons(e, all(cs, key("case", cons(p, cons(f, _)))))',
+                         tuple2))
     expr = eval_expr(e, scope)
-    for pat, f in cases:
+    for pat, f in cs:
         bs = pat_match(pat, expr)
         if bs is not None:
             return eval_expr(f, new_scope(dict(bs), CaseScope(), [], scope))
@@ -277,7 +276,7 @@ def eval_exprs(list, scope):
 ADTCtors = DT('ADTCtors', ('ctorList', [str]))
 
 def stmt_ADT(stmt, scope):
-    (name, cs) = match(stmt, ('named(name, all(c==key("ctor")))', tuple2))
+    (name, cs) = match(stmt, ('named(name, all(cs, c==key("ctor")))', tuple2))
     scope.syms[stmt] = ADTCtors(cs)
     for ctor in cs:
         scope = stmt_DT(ctor, scope)
@@ -367,7 +366,7 @@ def stmt_break(stmt, scope):
     return scope
 
 def stmt_cond(stmt, scope):
-    cases = match(stmt.subs, ('all(key("case", cons(test, sized(body))))',
+    cases = match(stmt.subs, ('all(cs, key("case", cons(test, sized(body))))',
                               identity))
     for (tst, body) in cases:
         if match(tst, ('key("else")', lambda: True),
@@ -382,7 +381,7 @@ def stmt_continue(stmt, scope):
 
 def stmt_DT(stmt, scope):
     # Getattr is already done for us; all we need is the constructor
-    name, fs = match(stmt, ('named(nm, all(f==key("field", _)))', tuple2))
+    name, fs = match(stmt, ('named(nm, all(fs, f==key("field", _)))', tuple2))
     ix = len(CTOR_FIELDS)
     CTORS[name] = ix
     CTOR_FIELDS.append(fs) # Yes, appending a list
@@ -416,7 +415,7 @@ def stmt_for(stmt, scope):
 def stmt_func(stmt, scope):
     scope.syms[stmt] = match(stmt,
         ('named(nm) and key("func", \
-          contains(key("args", sized(every(arg==key("var"))))) and \
+          contains(key("args", sized(every(args, arg==key("var"))))) and \
           contains(key("body", sized(body))))', Function))
     return scope
 
