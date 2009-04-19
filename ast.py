@@ -168,7 +168,7 @@ def conv_match(args):
     return symref('match', [expra] + casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
-                     'contains': [1], 'cons': [2], 'all': [1]}
+                     'contains': [1], 'cons': [2], 'all': [1], 'every': [1]}
 assert set(named_match_cases) == set(named_match_dispatch)
 
 for nm, ns in named_match_cases.iteritems():
@@ -180,10 +180,11 @@ def conv_match_try(ast, bs):
     if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
         nm = ast.node.name
         named_matcher = named_match_cases.get(nm)
-        if nm == 'all':
+        if nm in ('all', 'every'):
             args = [conv_match_try(n, []) for n in ast.args]
-            i = identref('allList', FRESH)
-            return symref('all1', [i, args[0]])
+            i = identref(nm + 'List', FRESH)
+            bs.append(i)
+            return symref(nm + '1', [i, args[0]])
         args = [conv_match_try(n, bs) for n in ast.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (

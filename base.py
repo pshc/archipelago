@@ -140,6 +140,22 @@ def match_all(atom, ast):
             results.append(r)
     return [[r[0] for r in results] if all_singular else results]
 
+@matcher('every')
+def match_every(atom, ast):
+    assert len(ast.args) == 1
+    assert isinstance(atom, list)
+    results = []
+    all_singular = True
+    for i in atom:
+        r = match_try(i, ast.args[0])
+        if r is None:
+            return None
+        if len(r) != 1:
+            all_singular = False
+        results.append(r)
+    return [[r[0] for r in results] if all_singular else results]
+
+
 def const(val):
     return lambda x: val
 
@@ -182,7 +198,8 @@ builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
                 'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'print': None,
+                'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
+                'print': None,
                 'object': make_record, 'getattr': getattr,
                 'const': lambda x: lambda y: x, 'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),

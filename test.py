@@ -44,3 +44,9 @@ def fac(n):
     return n * fac(n - 1)
 
 print fac(5)
+
+ns = [0, 2, 0, 0, 1]
+print match(ns, ("every(0)", lambda: "every(...) failed"),
+		("_",        lambda: "every(...) OK!"))
+print match(ns, ("all(l==0)", lambda ls: "all(...) OK! %s" % ls),
+		("_",         lambda: "all(...) failed!"))

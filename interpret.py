@@ -36,7 +36,8 @@ def run_module(module):
                 '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
                 'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'print': bi_print,
+                'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
+                'print': bi_print,
                 'object': make_record, 'getattr': getattr,
                 'const': lambda x: lambda y: x, 'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
@@ -74,7 +75,6 @@ def expr_genexpr(op, subs, scope):
     results = []
     for item in eval_expr(l, scope):
         do_assign(a, item, scope)
-        # TODO: Proper fold or something
         ok = True
         for cond in ps:
             if not eval_expr(cond, scope):
@@ -88,7 +88,7 @@ def expr_getattr(op, subs, scope):
     return getattr(eval_expr(subs[0], scope), getident(subs[1]))
 
 def expr_lambda(op, subs, scope):
-    (args, expr) = match(subs, ('sized(all(arg==key("var")), cons(expr, _))',
+    (args, expr) = match(subs, ('sized(every(arg==key("var")), cons(expr, _))',
                                 tuple2))
     return Function(None, args, [symref('return', [expr])])
 
@@ -161,9 +161,23 @@ def match_all(v, p, es):
     all_singular = True
     for e in es:
         r = pat_match(p, e)
-        if len(r) > 1:
+        if r is None:
+            continue
+        if len(r) != 1:
             all_singular = False
-        rs.append(r[1])
+        rs.append([val for var, val in r])
+    return [(v, [r[0] for r in rs] if all_singular else rs)]
+
+def match_every(v, p, es):
+    rs = []
+    all_singular = True
+    for e in es:
+        r = pat_match(p, e)
+        if r is None:
+            return None
+        if len(r) != 1:
+            all_singular = False
+        rs.append([val for var, val in r])
     return [(v, [r[0] for r in rs] if all_singular else rs)]
 
 def match_sized2(hp, tp, e):
@@ -201,7 +215,7 @@ def pat_match(pat, e):
             ('key("or", sized(ps))', lambda ps: match_or(ps, e)),
             ('key("and", sized(ps))', lambda ps: match_and(ps, e)),
             ('key("capture", cons(v, cons(p, _)))',
-                lambda p: match_capture(v, p, e)),
+                lambda v, p: match_capture(v, p, e)),
             ('key("sized1", cons(p, _))',
                 lambda p: match(e, ('sized(s)', lambda s: try_match(p, s)))),
             ('key("sized2", cons(p, cons(q, _)))',
@@ -219,6 +233,8 @@ def pat_match(pat, e):
                 lambda h, t: match_cons(h, t, e)),
             ('key("all1", cons(v, cons(p, _)))',
                 lambda v, p: match_all(v, p, e)),
+            ('key("every1", cons(v, cons(p, _)))',
+                lambda v, p: match_every(v, p, e)),
             )
 
 def expr_match(op, subs, scope):
@@ -398,11 +414,9 @@ def stmt_for(stmt, scope):
     return for_scope
 
 def stmt_func(stmt, scope):
-    # XXX: all(...) is wrong, should be irrefutable for all elements
-    #      (same for expr_lambda)
     scope.syms[stmt] = match(stmt,
         ('named(nm) and key("func", \
-          contains(key("args", sized(all(arg==key("var"))))) and \
+          contains(key("args", sized(every(arg==key("var"))))) and \
           contains(key("body", sized(body))))', Function))
     return scope
 
