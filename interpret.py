@@ -42,6 +42,8 @@ def run_module(module):
                 'const': lambda x: lambda y: x, 'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
+                'tuple4': lambda w, x, y, z: (w, x, y, z),
+                'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
                 }
     biSyms = dict((boot_sym_names[nm], f) for nm, f in builtins.iteritems())
     builtinScope = new_scope(biSyms, None, [], None)
@@ -501,7 +503,9 @@ if __name__ == '__main__':
         f.write(repr(r))
     del f, r, filename
     print 'Converted'
+    system('rm -f -- mods/*')
     serialize_module(module)
+    print 'Serialized'
     run_module(module)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

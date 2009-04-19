@@ -193,6 +193,7 @@ def unzip(list):
 def tuple2(a, b): return (a, b)
 def tuple3(a, b, c): return (a, b, c)
 def tuple4(a, b, c, d): return (a, b, c, d)
+def tuple5(a, b, c, d, e): return (a, b, c, d, e)
 
 builtinConsts = {'None': None, 'True': True, 'False': False, '_ix': None}
 
@@ -210,6 +211,8 @@ builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 'const': lambda x: lambda y: x, 'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
+                'tuple4': lambda w, x, y, z: (w, x, y, z),
+                'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
                 }
 
 def is_builtin_func(r):

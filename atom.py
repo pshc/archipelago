@@ -30,6 +30,7 @@ def add_sym(name):
     boot_syms.append(node)
     boot_sym_names[name] = node
 
+add_sym('length')
 add_sym('deps')
 add_sym('roots')
 map(add_sym, builtinConsts)
@@ -62,6 +63,11 @@ def walk_atoms(atoms, ret, f):
         ret = walk_atoms(atom.subs, ret, f)
     return ret
 
+char_escapes = dict(zip('"\n\\\t\r\0\b\a\f\v', r'"n\tr0bafv'))
+
+def escape_str(s):
+    return '"%s"' % (''.join(char_escapes.get(c, c) for c in s),)
+
 def serialize_module(module):
     def init_serialize(atom, (natoms, selfindices, modset)):
         selfindices[atom] = natoms
@@ -77,19 +83,19 @@ def serialize_module(module):
     refmap = {}
     selfixs = {}
     for atom, i in atomixs.iteritems():
-        refmap[atom] = (i + base + 1, 0)
+        refmap[atom] = "s%d" % (i + base + 1,)
         selfixs[atom] = i + base + 1
     deps = ""
     for m, mod in enumerate(modset):
         ixs = serialize_module(mod)
         assert mod.digest
         for atom, i in ixs.iteritems():
-            refmap[atom] = (i, m + 1)
-        deps += "s%r\n" % (mod.digest,)
+            refmap[atom] = "r%d %d" % (i, m + 1)
+        deps += escape_str(mod.digest) + "\n"
     nroots = len(module.roots)
-    header = 's"";4\ni1;1\ns%s\ni2;1\ni%d\ni3%s\n%si4%s\n' % (
-             repr(module.name), natoms, ";%d" % (nmods,) if nmods else "",
-             deps, ";%d" % (nroots,) if nroots else "")
+    header = '"";4\n1;1\n%s\n2;1\n%d\n3%s\n%s4%s\n' % (
+             escape_str(module.name), natoms, ";%d" % nmods if nmods else "",
+             deps, ";%d" % nroots if nroots else "")
     hash = sha256(header)
     temp = '/tmp/serialize'
     f = file(temp, 'wb')
@@ -98,9 +104,9 @@ def serialize_module(module):
         hash.update(str)
         f.write(str)
     def serialize_atom(atom):
-        match(atom, ("Int(i, _)", lambda i: output("i%d" % (i,))),
-                    ("Str(s, _)", lambda s: output("s%s" % (repr(s),))),
-                    ("Ref(r, _, _)", lambda r: output("r%d %d" % refmap[r])))
+        match(atom, ("Int(i, _)", lambda i: output(str(i))),
+                    ("Str(s, _)", lambda s: output(escape_str(s))),
+                    ("Ref(r, _, _)", lambda r: output(refmap[r])))
         n = len(atom.subs)
         output(";%d\n" % n if n else "\n")
         for sub in atom.subs:
