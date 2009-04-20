@@ -44,6 +44,7 @@ def run_module(module):
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),
                 'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
+                'char': lambda c: c, 'to_void': lambda p: p,
                 }
     biSyms = dict((boot_sym_names[nm], f) for nm, f in builtins.iteritems())
     builtinScope = new_scope(biSyms, None, [], None)

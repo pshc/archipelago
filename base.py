@@ -213,6 +213,7 @@ builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),
                 'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
+                'char': lambda c: c, 'to_void': lambda p: p,
                 }
 
 def is_builtin_func(r):
