@@ -162,9 +162,6 @@ def match_every(atom, ast):
     return [[r[0] for r in results] if all_singular else results]
 
 
-def const(val):
-    return lambda x: val
-
 def identity(val):
     return val
 
@@ -208,7 +205,7 @@ builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
                 'print': None,
                 'object': make_record, 'getattr': getattr,
-                'const': lambda x: lambda y: x, 'identity': lambda x: x,
+                'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),

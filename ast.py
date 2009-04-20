@@ -149,13 +149,15 @@ def conv_match_case(context, code, f):
     e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
                                        cons(e, _)))',
                   lambda args, e: replace_refs(dict(zip(args, bs)), e)),
-                 ('key("call", cons(key("const"), sized(cons(e, _))))',
-                  identity),
                  ('key("identity")', lambda: ref(bs[0])),
                  ('key("tuple2")', lambda: symref('tuplelit', [Int(2, []),
                                                   ref(bs[0]), ref(bs[1])])),
                  ('key("tuple3")', lambda: symref('tuplelit', [Int(3, []),
                                          ref(bs[0]), ref(bs[1]), ref(bs[2])])),
+                 ('key("tuple4")', lambda: symref('tuplelit', [Int(4, []),
+                             ref(bs[0]), ref(bs[1]), ref(bs[2]), ref(bs[3])])),
+                 ('key("tuple5")', lambda: symref('tuplelit', [Int(5, []),
+                 ref(bs[0]), ref(bs[1]), ref(bs[2]), ref(bs[3]), ref(bs[4])])),
                  ('_', lambda: symref('call', [f, int_len(bs)]
                                       + [ref(b) for b in bs])))
     return symref('case', [c, e])

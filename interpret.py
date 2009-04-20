@@ -39,7 +39,7 @@ def run_module(module):
                 'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
                 'print': bi_print,
                 'object': make_record, 'getattr': getattr,
-                'const': lambda x: lambda y: x, 'identity': lambda x: x,
+                'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),
@@ -263,7 +263,7 @@ expr_dispatch = {
     }
 
 def eval_expr(expr, scope):
-    nm = match(expr, ('key(nm)', identity), ('s', const(None)))
+    nm = match(expr, ('key(nm)', identity), ('_', lambda: None))
     if nm in expr_dispatch:
         return expr_dispatch[nm](nm, expr.subs, scope)
     #elif nm is not None:
