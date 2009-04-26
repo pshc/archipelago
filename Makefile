@@ -1,7 +1,7 @@
 all: tada
 
 tada:
-	python interpret.py
+	./interpret.py serialize.py
 
 test:
 	./interpret.py test.py

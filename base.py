@@ -1,14 +1,8 @@
 import compiler
 from compiler.ast import *
-from types import FunctionType
 
 datatypes = {}
 algetypes = {}
-
-def make_record():
-    class Record(object):
-        pass
-    return Record
 
 def DT(*members):
     name = members[0]
@@ -192,35 +186,5 @@ def tuple3(a, b, c): return (a, b, c)
 def tuple4(a, b, c, d): return (a, b, c, d)
 def tuple5(a, b, c, d, e): return (a, b, c, d, e)
 
-builtinConsts = {'None': None, 'True': True, 'False': False, '_ix': None}
-
-builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
-                '%': lambda x, y: x % y,
-                'negate': lambda x: -x,
-                '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
-                '<': lambda x, y: x < y, '>': lambda x, y: x > y,
-                '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
-                'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
-                'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
-                'print': None,
-                'object': make_record, 'getattr': getattr,
-                'identity': lambda x: x,
-                'tuple2': lambda x, y: (x, y),
-                'tuple3': lambda x, y, z: (x, y, z),
-                'tuple4': lambda w, x, y, z: (w, x, y, z),
-                'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
-                'char': lambda c: c, 'to_void': lambda p: p,
-                }
-
-def is_builtin_func(r):
-    if isinstance(r, FunctionType):
-        return r
-    f = builtinFuncs.get(match(r, ('key(nm)', identity), ('_', lambda: None)))
-    if f is not None:
-        return f
-
-def call_builtin_func(f, args, scope):
-    return f(*args)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

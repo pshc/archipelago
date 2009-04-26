@@ -2,6 +2,8 @@
 import ast
 from atom import *
 from base import *
+from builtins import builtins
+import types
 
 ScopeInfo, FuncScope, CaseScope, WhileScope, ForScope = ADT('ScopeInfo',
         'FuncScope', ('calledFuncName', str), ('returnValue', Atom),
@@ -24,28 +26,13 @@ CTOR_FIELDS = []
 
 EXIT_SCOPE = -2
 
-def bi_print(s): print s
+def is_builtin_func(r):
+    if isinstance(r, (types.FunctionType, types.BuiltinFunctionType)):
+        return r
+    return builtins.get(match(r, ('key(nm)', identity),
+                                 ('_', lambda: None)))
 
 def run_module(module):
-    builtins = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
-                '*': lambda x, y: x * y, '%': lambda x, y: x % y,
-                'negate': lambda x: -x,
-                'True': True, 'False': False,
-                '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
-                '<': lambda x, y: x < y, '>': lambda x, y: x > y,
-                '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
-                'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
-                'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
-                'print': bi_print,
-                'object': make_record, 'getattr': getattr,
-                'identity': lambda x: x,
-                'tuple2': lambda x, y: (x, y),
-                'tuple3': lambda x, y, z: (x, y, z),
-                'tuple4': lambda w, x, y, z: (w, x, y, z),
-                'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
-                'char': lambda c: c, 'to_void': lambda p: p,
-                }
     biSyms = dict((boot_sym_names[nm], f) for nm, f in builtins.iteritems())
     builtinScope = new_scope(biSyms, None, [], None)
     run_scope(new_scope({}, '<top-level>', module.roots, builtinScope))
@@ -59,7 +46,7 @@ def expr_call(op, subs, scope):
 def call_func(f, args, scope):
     bf = is_builtin_func(f)
     if bf is not None:
-        return call_builtin_func(bf, args, scope)
+        return apply(bf, args)
     assert len(f.argBindings) == len(args), \
            'Bad arg count (%d) for calling %s' % (len(args), f.funcName)
     argvars = dict(zip(f.argBindings, args))
@@ -249,6 +236,11 @@ def expr_match(op, subs, scope):
             return eval_expr(f, new_scope(dict(bs), CaseScope(), [], scope))
     assert False, "Match failed"
 
+def expr_char(op, subs, scope):
+    assert isinstance(subs[0], Str) and len(subs[0].strVal) == 1, \
+            "'%s' is not a valid char literal" % (subs[0].strVal,)
+    return subs[0].strVal
+
 expr_dispatch = {
         'call': expr_call,
         'dictlit': expr_dictlit,
@@ -260,6 +252,7 @@ expr_dispatch = {
         '?:': expr_ternary,
         'tuplelit': expr_tuplelit,
         'match': expr_match,
+        'char': expr_char,
     }
 
 def eval_expr(expr, scope):

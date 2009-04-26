@@ -2,6 +2,7 @@
 from os import system
 from hashlib import sha256
 from base import *
+from builtins import builtins
 
 (Atom, Int, Str, Ref) = ADT('Atom',
                             'Int', ('intVal', int), ('subs', ['Atom']),
@@ -33,8 +34,7 @@ def add_sym(name):
 add_sym('length')
 add_sym('deps')
 add_sym('roots')
-map(add_sym, builtinConsts)
-map(add_sym, builtinFuncs)
+map(add_sym, builtins)
 
 def int_len(list):
     return Int(len(list), [])
@@ -115,8 +115,8 @@ def serialize_module(module):
         serialize_atom(atom)
     f.close()
     module.digest = hash.digest().encode('hex')
-    filename = 'mods/%s' % (module.digest,)
-    system('mv -f -- %s %s' % (temp, filename))
+    system('mv -f -- %s mods/%s' % (temp, module.digest))
+    system('ln -s -- %s mods/%s' % (module.digest, module.name))
     return selfixs
 
 @matcher('sized')
