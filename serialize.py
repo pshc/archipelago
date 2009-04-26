@@ -42,7 +42,7 @@ def read_expected(f, s):
     buf = array('char', n + 1)
     assert fread(buf, 1, n, f) == n, "Unexpected EOF"
     buf[n] = char('\0')
-    assert buf == s, "Expected %s, got %s" % (s, buf)
+    assert strcmp(buf, s) == 0, "Expected %s, got %s" % (s, buf)
 
 def read_header(f):
     read_expected(f, '"";4\n1;1\n"')
@@ -75,7 +75,7 @@ def read_atom(f, ix, natoms, atoms, dmods):
         atom._ix = 2
         atom.val = slen
         atom.ptr = to_void(s)
-    elif (char('0') <= c and c <= char('9')) or c == '-':
+    elif (char('0') <= c and c <= char('9')) or c == char('-'):
         i, c = read_int(f, c)
         atom._ix = 1
         atom.val = i

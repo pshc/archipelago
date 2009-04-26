@@ -10,6 +10,14 @@ fopen = open
 fclose = lambda f: f.close()
 sizeof = len
 range = xrange
+def strcmp(s1, s2):
+    if isinstance(s1, list):
+        assert s1[-1] == '\0', 's1 not null-terminated'
+        s1 = ''.join(s1[:-1])
+    if isinstance(s2, list):
+        assert s2[-1] == '\0', 's2 not null-terminated'
+        s2 = ''.join(s2[:-1])
+    return cmp(s1, s2)
 
 builtins = dict((k, v) for k, v in locals().iteritems()
                        if not k.startswith('__'))
