@@ -58,12 +58,74 @@ def expr_dictlit(op, subs, scope):
     ps = match(subs, ('all(ps, key("pair", cons(k, cons(v, _))))', identity))
     return dict([(eval_expr(k, scope), eval_expr(v, scope)) for (k, v) in ps])
 
+EQUALS, PLUS_EQUALS, MINUS_EQUALS = 1, 2, 3
+
+def assign_new(var, op, val, scope):
+    assert op == EQUALS
+    scope.syms[var] = val
+
+def assign_var(var, op, val, scope):
+    dest = dest_scope(var, scope).syms
+    if op == EQUALS:
+        dest[var] = val
+    elif op == PLUS_EQUALS:
+        dest[var] += val
+    elif op == MINUS_EQUALS:
+        dest[var] -= val
+    else:
+        assert False
+
+def assign_tuple(bs, op, val, scope):
+    assert op == EQUALS
+    for b, v in zip(bs, val):
+        match(b, ('key("var")', lambda: assign_new(b, op, v, scope)),
+                 ('_',          lambda: assign_var(b, op, v, scope)))
+
+def assign_sub(c, sub, op, val, scope):
+    dest = dest_scope(c, scope).syms[c]
+    s = eval_expr(sub, scope)
+    if op == EQUALS:
+        dest[s] = val
+    elif op == PLUS_EQUALS:
+        dest[s] += val
+    elif op == MINUS_EQUALS:
+        dest[s] -= val
+    else:
+        assert False
+
+def assign_attr(obj, attr, op, val, scope):
+    dest = dest_scope(obj, scope).syms[obj]
+    nm = getident(attr)
+    if op == EQUALS:
+        setattr(dest, nm, val)
+        return
+    old = getattr(dest, nm)
+    if op == PLUS_EQUALS:
+        setattr(dest, nm, old + val)
+    elif op == MINUS_EQUALS:
+        setattr(dest, nm, old - val)
+    else:
+        assert False
+
+def do_assign(dest, op, val, scope):
+    match(dest, ('n==key("var")',
+                    lambda n: assign_new(n, op, val, scope)),
+                ('Ref(v==key("var"), _, _)',
+                    lambda v: assign_var(v, op, val, scope)),
+                ('key("tuplelit", sized(bits))',
+                    lambda bs: assign_tuple(bs, op, val, scope)),
+                ('key("subscript", cons(Ref(d, _, _), cons (ix, _)))',
+                    lambda d, ix: assign_sub(d, ix, op, val, scope)),
+                ('key("attr", cons(Ref(o, _, _), cons(a, _)))',
+                    lambda o, a: assign_attr(o, a, op, val, scope)))
+    return scope
+
 def expr_genexpr(op, subs, scope):
     (e, a, l, ps) = match(subs, ('cons(e, cons(a, cons(l, sized(ps))))',
                                  tuple4))
     results = []
     for item in eval_expr(l, scope):
-        do_assign(a, item, scope)
+        do_assign(a, EQUALS, item, scope)
         ok = True
         for cond in ps:
             if not eval_expr(cond, scope):
@@ -301,44 +363,10 @@ def dest_scope(ref, scope):
     assert False, '"%s" not defined in scope %s:\n%s\n' % (
                   getname(ref), scope.scopeInfo, list_scope(scope))
 
-def assign_new(var, val, scope):
-    scope.syms[var] = val
-
-def assign_var(var, val, scope):
-    dest = dest_scope(var, scope).syms
-    dest[var] = val
-
-def assign_tuple(bs, val, scope):
-    for b, v in zip(bs, val):
-        if match(b, ('key("var")', lambda: True), ('_', lambda: False)):
-            assign_new(b, v, scope)
-        else:
-            assign_var(b, v, scope)
-
-def assign_sub(c, sub, val, scope):
-    dest = dest_scope(c, scope).syms[c]
-    dest[eval_expr(sub, scope)] = val
-
-def assign_attr(obj, attr, val, scope):
-    dest = dest_scope(obj, scope).syms[obj]
-    setattr(dest, getident(attr), val)
-
-def do_assign(dest, val, scope):
-    match(dest, ('n==key("var")',
-                    lambda n: assign_new(n, val, scope)),
-                ('Ref(v==key("var"), _, _)',
-                    lambda v: assign_var(v, val, scope)),
-                ('key("tuplelit", sized(bits))',
-                    lambda bs: assign_tuple(bs, val, scope)),
-                ('key("subscript", cons(Ref(d, _, _), cons (ix, _)))',
-                    lambda d, ix: assign_sub(d, ix, val, scope)),
-                ('key("attr", cons(Ref(o, _, _), cons(a, _)))',
-                    lambda o, a: assign_attr(o, a, val, scope)))
-    return scope
-
 def stmt_assign(stmt, scope):
-    left, e = match(stmt, ('key("=", cons(left, cons(e, _)))', tuple2))
-    do_assign(left, eval_expr(e, scope), scope)
+    o, left, e = match(stmt, ('key(o, cons(left, cons(e, _)))', tuple3))
+    op = {'=': EQUALS, '+=': PLUS_EQUALS, '-=': MINUS_EQUALS}[o]
+    do_assign(left, op, eval_expr(e, scope), scope)
     return scope
 
 def enclosing_loop(scope):
@@ -457,7 +485,7 @@ def loop_while(cond, scope):
 
 def loop_for(var, list, scope):
     if len(list) > 0:
-        do_assign(var, list.pop(0), scope)
+        do_assign(var, EQUALS, list.pop(0), scope)
         scope.stmtsPos = 0
         return True
     return False
