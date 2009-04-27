@@ -23,6 +23,7 @@ b_name.subs[0].refAtom = b_name
 boot_syms = boot_mod.roots
 boot_syms += [b_symbol, b_name]
 boot_sym_names = {'symbol': b_symbol, 'name': b_name}
+boot_sym_names_rev = {b_symbol: 'symbol', b_name: 'name'}
 
 def add_sym(name):
     if name in boot_sym_names:
@@ -30,6 +31,7 @@ def add_sym(name):
     node = Ref(b_symbol, boot_mod, [Ref(b_name, boot_mod, [Str(name, [])])])
     boot_syms.append(node)
     boot_sym_names[name] = node
+    boot_sym_names_rev[node] = name
 
 add_sym('length')
 add_sym('deps')
@@ -140,14 +142,13 @@ def match_sized(atom, ast):
 def match_key(atom, ast):
     assert 1 <= len(ast.args) <= 2
     if isinstance(atom, Ref):
-        if len(ast.args) == 1: # Don't know which boot sym this is yet
-            for k, v in boot_sym_names.iteritems():
-                if atom.refAtom is v:
-                    return match_try(k, ast.args[0])
-        else:
-            assert isinstance(ast.args[0], compiler.ast.Const)
-            if atom.refAtom is boot_sym_names[ast.args[0].value]:
-                return match_try(atom.subs, ast.args[1])
+        key = boot_sym_names_rev.get(atom.refAtom)
+        if key is not None:
+            m = match_try(key, ast.args[0])
+            if m is None or len(ast.args) == 1:
+                return m
+            msubs = match_try(atom.subs, ast.args[1])
+            return None if msubs is None else m + msubs
     return None
 
 @matcher('named')
