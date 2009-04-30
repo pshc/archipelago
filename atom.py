@@ -65,10 +65,11 @@ def walk_atoms(atoms, ret, f):
         ret = walk_atoms(atom.subs, ret, f)
     return ret
 
-char_escapes = dict(zip('"\n\\\t\r\0\b\a\f\v', r'"n\tr0bafv'))
+char_escapes = dict(zip('"\n\\\t\r\0\b\a\f\v', '"n\\tr0bafv'))
 
 def escape_str(s):
-    return '"%s"' % (''.join(char_escapes.get(c, c) for c in s),)
+    return '"%s"' % (''.join('\\' + char_escapes[c] if c in char_escapes
+                             else c for c in s),)
 
 def serialize_module(module):
     def init_serialize(atom, (natoms, selfindices, modset)):
