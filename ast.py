@@ -3,36 +3,36 @@ from base import *
 import compiler
 from compiler.ast import *
 
-FIND, UPDATE, UNIQUE, FRESH = range(4)
-
-add_sym('var')
 # HACK: Need context, storing a global...
 CUR_CONTEXT = None
-def identref(nm, mode=FIND):
-    #return symident(nm, [])
-    global CUR_CONTEXT
-    context = CUR_CONTEXT
-    if mode == FRESH:
-        while nm in context.syms:
-            nm += '_'
-        return identifier('var', nm, [])
-    elif mode == UNIQUE:
-        return identifier('var', nm, [])
-    while context is not None:
-        if nm in context.syms:
-            return Ref(context.syms[nm], context.module, [])
-        context = context.prevContext
-    if mode == UPDATE:
-        return identifier('var', nm, [])
-    assert False, "Unknown symbol %s" % (nm,)
 
-def identifier(bootkey, name, subs):
+def identifier(bootkey, name, subs=None):
     global CUR_CONTEXT
     context = CUR_CONTEXT
     assert name not in context.syms, "Symbol '%s' conflicts" % (name,)
-    s = symref(bootkey, [symname(name)] + subs)
+    s = symref(bootkey, [symname(name)] + (subs or []))
     context.syms[name] = s
     return s
+
+add_sym('var')
+def ident_ref(nm, create):
+    global CUR_CONTEXT
+    context = CUR_CONTEXT
+    while context is not None:
+        if nm in context.syms:
+            return (Ref(context.syms[nm], context.module, []), False)
+        context = context.prevContext
+    assert create, "Unknown symbol %s" % (nm,)
+    return (identifier('var', nm), True)
+
+def refs_existing(nm):
+    return ident_ref(nm, False)[0]
+
+def unique_ident(nm):
+    return identifier('var', nm)
+
+def create_or_update_ident(nm):
+    return ident_ref(nm, True)[0]
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
@@ -117,7 +117,7 @@ def make_adt(left, args):
                 break
             members.append(nm)
             args.pop(0)
-        members = [identifier('field', nm, []) for nm in members]
+        members = [identifier('field', nm) for nm in members]
         ctor_nms.append(ctor)
         ctors.append(identifier('ctor', ctor, members))
     return ([identifier('ADT', adt_nm, ctors)],
@@ -129,7 +129,7 @@ add_sym('field')
 def make_dt(left, args):
     (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                                  sized(cons(Str(nm, _), _)))))', tuple2))
-    fa = identifier('DT', dt_nm, [identifier('field', nm, []) for nm in nms])
+    fa = identifier('DT', dt_nm, [identifier('field', nm) for nm in nms])
     print dt_nm, nms
     return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
@@ -194,11 +194,11 @@ def conv_match_try(ast, bs):
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             return symref("%s%d" % (nm, len(args)), args)
         else:
-            return symref('ctor', [identref(nm), int_len(args)] + args)
+            return symref('ctor', [refs_existing(nm), int_len(args)] + args)
     elif isinstance(ast, Name):
         if ast.name == '_':
             return symref('wildcard', [])
-        i = identref(ast.name, UNIQUE)
+        i = unique_ident(ast.name)
         bs.append(i)
         return i
     elif isinstance(ast, Const):
@@ -212,7 +212,7 @@ def conv_match_try(ast, bs):
                              + [conv_match_try(n, bs) for n in ast.nodes])
     elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
         assert isinstance(ast.expr, Name) and ast.expr.name != '_'
-        i = identref(ast.expr.name, UNIQUE)
+        i = unique_ident(ast.expr.name)
         bs.append(i)
         return symref('capture', [i, conv_match_try(ast.ops[0][1], bs)])
     assert False, "Unknown match case: %s" % ast
@@ -302,7 +302,7 @@ add_sym('attr')
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
-    return (symref('attr', [ea, identref(nm)]), '%s.%s' % (et, nm))
+    return (symref('attr', [ea, refs_existing(nm)]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
 @expr(Keyword)
@@ -325,7 +325,7 @@ def arg_pair(name):
 def extract_arglist(s):
     names = s.argnames[:]
     assert not s.kwargs and not s.varargs and not s.defaults
-    return ([identifier('var', nm, []) for nm in names], names)
+    return ([identifier('var', nm) for nm in names], names)
 
 add_sym('lambda')
 @expr(Lambda)
@@ -350,7 +350,7 @@ def conv_listcomp(e):
 
 @expr(Name)
 def conv_name(e):
-    return (identref(e.name), e.name)
+    return (refs_existing(e.name), e.name)
 
 add_sym('or')
 @expr(Or)
@@ -432,7 +432,7 @@ def conv_asstuple(s, context):
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
             cout(context, 'del %s', node.name)
-            ata.append(symref('del', [identref(node.name)]))
+            ata.append(symref('del', [refs_existing(node.name)]))
         else:
             assert False, 'Unknown AssTuple node: ' + repr(node)
     return ata
@@ -478,14 +478,14 @@ add_sym('tuplelit')
 add_sym('attr')
 def conv_ass(s):
     if isinstance(s, AssName):
-        return (identref(s.name, UPDATE), s.name)
+        return (create_or_update_ident(s.name), s.name)
     elif isinstance(s, AssTuple):
         (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
         itemsa.insert(0, int_len(itemsa))
         return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
-        (attra, attrt) = (identref(s.attrname, UPDATE), s.attrname)
+        (attra, attrt) = (create_or_update_ident(s.attrname), s.attrname)
         return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
         return conv_expr(s)
@@ -523,7 +523,7 @@ def conv_function(s, context):
         (deca, dect) = conv_expr(decorator)
         cout(context, '@%s', dect)
         decs.append(deca)
-    func = identifier('func', s.name, [])
+    func = identifier('func', s.name)
     @inside_scope
     def rest(context):
         (argsa, argst) = extract_arglist(s)

@@ -516,9 +516,7 @@ def new_scope(syms, info, scopeStmts, prev_scope):
 def scope_lookup(ref, scope):
     return dest_scope(ref, scope).syms[ref]
 
-if __name__ == '__main__':
-    import sys
-    filename = sys.argv[1] if len(sys.argv) > 1 else 'interpret.py'
+def test(filename):
     module = ast.convert_file(filename)
     f = open('hello', 'w')
     for r in module.roots:
@@ -529,5 +527,10 @@ if __name__ == '__main__':
     serialize_module(module)
     print 'Serialized'
     run_module(module)
+
+if __name__ == '__main__':
+    import sys
+    filename = sys.argv[1] if len(sys.argv) > 1 else 'interpret.py'
+    test(filename)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
