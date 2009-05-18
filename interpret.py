@@ -376,16 +376,8 @@ def enclosing_loop(scope):
                                       lambda: enclosing_loop(scope.prevScope)),
                                   ('_', lambda: None))
 
-def break_for(for_scope):
-    for_scope.loopList = []
-
-def break_while(while_scope):
-    while_scope.loopCond = False
-
 def stmt_break(stmt, scope):
     scope = enclosing_loop(scope)
-    match(scope.scopeInfo, ('f==ForScope(_, _, _)', break_for),
-                           ('w==WhileScope(_, _, _)', break_while))
     scope.stmtsPos = EXIT_SCOPE
     return scope
 
