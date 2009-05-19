@@ -8,10 +8,11 @@ def read_int(f, first):
     if first == char('-'):
         neg = True
     else:
-        num += first - char('0')
+        num += ord(first) - ord(char('0'))
     c = fgetc(f)
     while char('0') <= c and c <= char('9'):
-        num = num * 10 + (char('0') - c if neg else c - char('0'))
+        num = num * 10 + (ord(char('0')) - ord(c) if neg
+                          else ord(c) - ord(char('0')))
         c = fgetc(f)
     return num, c
 
@@ -33,7 +34,7 @@ def read_str(f):
                     break
         buf[n] = c
         n += 1
-    assert n != sizeof(buf) - 1, "TODO: String literal is too long"
+    assert n != sizeof(buf) - 1, "TODO: String literal %s is too long" % buf
     buf[n] = char('\0')
     return (buf, n)
 

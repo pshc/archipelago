@@ -1,6 +1,7 @@
 # "Standard library" builtins
 def array(t, n):
-    return [{'char': '\0', 'Atom': None, 'Module': None}[t]] * n
+    return [{'char': '\0', 'str': "",
+             'Atom': None, 'Module': None}[t]] * n
 fgetc = lambda f: f.read(1)
 def fread(buf, sz, n, f):
     for i in range(n):
@@ -9,7 +10,7 @@ def fread(buf, sz, n, f):
 fopen = open
 fclose = lambda f: f.close()
 sizeof = len
-range = xrange
+range = range
 def strcmp(s1, s2):
     if isinstance(s1, list):
         assert s1[-1] == '\0', 's1 not null-terminated'
@@ -43,7 +44,7 @@ builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
                 'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
                 'print': bi_print,
                 'object': make_record, 'getattr': getattr,
-                'identity': lambda x: x,
+                'identity': lambda x: x, 'ord': ord,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),

@@ -24,7 +24,8 @@ Function = DT('Function', ('funcName', str),
 CTORS = {}
 CTOR_FIELDS = []
 
-EXIT_SCOPE = -2
+SCOPE_END = -2
+SCOPE_BREAK = -3
 
 def is_builtin_func(r):
     if isinstance(r, (types.FunctionType, types.BuiltinFunctionType)):
@@ -298,6 +299,18 @@ def expr_match(op, subs, scope):
             return eval_expr(f, new_scope(dict(bs), CaseScope(), [], scope))
     assert False, "Match failed"
 
+def expr_and(op, subs, scope):
+    for e in match(subs, ('sized(conds)', identity)):
+        if not eval_expr(e, scope):
+            return False
+    return True
+
+def expr_or(op, subs, scope):
+    for e in match(subs, ('sized(conds)', identity)):
+        if eval_expr(e, scope):
+            return True
+    return False
+
 def expr_char(op, subs, scope):
     assert isinstance(subs[0], Str) and len(subs[0].strVal) == 1, \
             "'%s' is not a valid char literal" % (subs[0].strVal,)
@@ -314,6 +327,8 @@ expr_dispatch = {
         '?:': expr_ternary,
         'tuplelit': expr_tuplelit,
         'match': expr_match,
+        'and': expr_and,
+        'or': expr_or,
         'char': expr_char,
     }
 
@@ -378,7 +393,7 @@ def enclosing_loop(scope):
 
 def stmt_break(stmt, scope):
     scope = enclosing_loop(scope)
-    scope.stmtsPos = EXIT_SCOPE
+    scope.stmtsPos = SCOPE_BREAK
     return scope
 
 def stmt_cond(stmt, scope):
@@ -392,7 +407,7 @@ def stmt_cond(stmt, scope):
 
 def stmt_continue(stmt, scope):
     assert enclosing_loop(scope) is not None, "Bad continue"
-    scope.stmtsPos = EXIT_SCOPE
+    scope.stmtsPos = SCOPE_END
     return scope
 
 def stmt_DT(stmt, scope):
@@ -425,7 +440,7 @@ def stmt_for(stmt, scope):
         ('cons(a, cons(ls, contains(key("body", sized(body)))))', tuple3))
     items = eval_expr(ls, scope)
     for_scope = new_scope({}, ForScope(a, items, body), body, scope)
-    for_scope.stmtsPos = EXIT_SCOPE
+    for_scope.stmtsPos = SCOPE_END
     return for_scope
 
 def stmt_func(stmt, scope):
@@ -444,7 +459,7 @@ def stmt_return(stmt, scope):
             break
         this_frame = this_frame.prevScope
     this_frame.scopeInfo.returnValue = eval_expr(stmt.subs[0], scope)
-    this_frame.stmtsPos = EXIT_SCOPE
+    this_frame.stmtsPos = SCOPE_BREAK
     return this_frame
 
 def stmt_while(stmt, scope):
@@ -490,7 +505,7 @@ def run_scope(scope):
             scope = run_stmt(scope.stmts[scope.stmtsPos - 1], scope)
         if scope is orig_scope:
             break
-        if not match(scope.scopeInfo,
+        if scope.stmtsPos == SCOPE_BREAK or not match(scope.scopeInfo,
                 ('WhileScope(c, _)', lambda c: loop_while(c, scope)),
                 ('ForScope(v, l, _)', lambda v, l: loop_for(v, l, scope)),
                 ('CaseScope()', lambda: False)):
