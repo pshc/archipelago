@@ -36,6 +36,7 @@ def read_str(f):
         n += 1
     assert n != sizeof(buf) - 1, "TODO: String literal %s is too long" % buf
     buf[n] = char('\0')
+    buf = hint(stringify(buf))
     return (buf, n)
 
 def read_expected(f, s):
@@ -43,7 +44,8 @@ def read_expected(f, s):
     buf = array('char', n + 1)
     assert fread(buf, 1, n, f) == n, "Unexpected EOF"
     buf[n] = char('\0')
-    assert strcmp(buf, s) == 0, "Expected %s, got %s" % (s, buf)
+    buf = hint(stringify(buf))
+    assert buf == s, "Expected %s, got %s" % (s, buf)
 
 def read_header(f):
     read_expected(f, '"";4\n1;1\n"')
