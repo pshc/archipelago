@@ -79,8 +79,8 @@ def assign_var(var, op, val, scope):
 def assign_tuple(bs, op, val, scope):
     assert op == EQUALS
     for b, v in zip(bs, val):
-        match(b, ('key("var")', lambda: assign_new(b, op, v, scope)),
-                 ('_',          lambda: assign_var(b, op, v, scope)))
+        match(b, ('key("var")',   lambda: assign_new(b, op, v, scope)),
+                 ('Ref(r, _, _)', lambda r: assign_var(r, op, v, scope)))
 
 def assign_sub(c, sub, op, val, scope):
     dest = dest_scope(c, scope).syms[c]
@@ -534,6 +534,12 @@ def test(filename):
     serialize_module(module)
     print 'Serialized'
     run_module(module)
+
+try:
+    import psyco
+    psyco.full()
+except ImportError:
+    pass
 
 if __name__ == '__main__':
     import sys

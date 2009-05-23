@@ -45,17 +45,20 @@ def read_expected(f, s):
     assert fread(buf, 1, n, f) == n, "Unexpected EOF"
     buf[n] = char('\0')
     buf = hint(stringify(buf))
-    assert buf == s, "Expected %s, got %s" % (s, buf)
+    assert buf == s, 'Expected "%s", got "%s"' % (s, buf)
 
 def read_header(f):
     read_expected(f, '"";4\n1;1\n"')
     nm, nmlen = read_str(f)
     read_expected(f, "\n2;1\n")
-    ln, nl1 = read_int(f, fgetc(f))
-    assert nl1 == char('\n'), "read_header: Expected newline (#1)"
-    read_expected(f, "3;")
-    ndeps, nl2 = read_int(f, fgetc(f))
-    assert nl2 == char('\n'), "read_header: Expected newline (#2)"
+    ln, nl = read_int(f, fgetc(f))
+    assert nl == char('\n'), "read_header: Expected newline (#1)"
+    assert fgetc(f) == char('3'), "read_header: Expected '3'"
+    ndeps = 0
+    nl = fgetc(f)
+    if nl == char(';'):
+        ndeps, nl = read_int(f, fgetc(f))
+    assert nl == char('\n'), "read_header: Expected newline (#2)"
     ds = array('str', ndeps)
     for i in range(ndeps):
         assert fgetc(f) == char('"'), "read_header: Expected string"
@@ -63,8 +66,8 @@ def read_header(f):
         ds[i] = d
         assert fgetc(f) == char('\n'), "read_header: Expected newline (#3)"
     read_expected(f, "4;")
-    nroots, nl4 = read_int(f, fgetc(f))
-    assert nl4 == char('\n'), "read_header: Expected newline (#4)"
+    nroots, nl = read_int(f, fgetc(f))
+    assert nl == char('\n'), "read_header: Expected newline (#4)"
     return (nm, ln, ndeps, ds, nroots)
 
 def read_atom(f, ix, natoms, atoms, dmods):
@@ -78,6 +81,7 @@ def read_atom(f, ix, natoms, atoms, dmods):
         atom._ix = 2
         atom.val = slen
         atom.ptr = to_void(s)
+        c = fgetc(f)
     elif (char('0') <= c and c <= char('9')) or c == char('-'):
         i, c = read_int(f, c)
         atom._ix = 1
@@ -96,11 +100,11 @@ def read_atom(f, ix, natoms, atoms, dmods):
         atom.val = i
         atom.ptr = to_void(dmods[m])
     else:
-        assert False, "read_atom: Bad atom type '%s'" % (c,)
+        assert False, "read_atom: Bad atom type '%c'" % (c,)
     subcount = 0
     if c == char(';'):
         subcount, c = read_int(f, char('0'))
-    assert c == char('\n'), "read_atom: Expected newline"
+    assert c == char('\n'), "read_atom: Expected newline, got '%c'" % (c,)
     for i in range(subcount):
         ix = read_atom(f, ix, natoms, atoms, dmods)
     atom.nsubs = subcount
@@ -113,8 +117,7 @@ Module = DT('Module', ('modName', 'str'), ('modDigest', 'str'),
 loaded_modules = {}
 
 def load_module(digest):
-    #f = fopen("mods/%s" % (digest,), "r")
-    f = fopen("mods/serialize.py", "r")
+    f = fopen("mods/%s" % (digest,), "r")
     nm, ln, ndeps, ds, nroots = read_header(f)
     dmods = array('Module', ndeps + 1)
     for i in range(ndeps):
@@ -140,6 +143,6 @@ def load_module(digest):
     loaded_modules[digest] = mod
     return mod
 
-load_module('')
+load_module("serialize.py")
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

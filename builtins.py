@@ -1,7 +1,20 @@
 # "Standard library" builtins
+class ArrayAtom:
+    __slots__ = ('_ix', 'val', 'ptr', 'nsubs')
+    def __init__(self):
+        self._ix = self.val = self.ptr = self.nsubs = 0
+
 def array(t, n):
-    return [{'char': '\0', 'str': "",
-             'Atom': None, 'Module': None}[t]] * n
+    if t == 'char':
+        return ['\0'] * n
+    elif t == 'str':
+        return [""] * n
+    elif t == 'Atom':
+        return [ArrayAtom() for i in range(n)]
+    elif t == 'Module':
+        return [None] * n
+    assert False, 'Unknown array type %s' % t
+
 fgetc = lambda f: f.read(1)
 def fread(buf, sz, n, f):
     for i in range(n):
