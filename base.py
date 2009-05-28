@@ -80,10 +80,15 @@ def match_try(atom, ast):
         return [atom] + capture_args if capture_args is not None else None
     assert False, "Unknown match case: %s" % ast
 
+match_asts = {}
+
 def match(atom, *cases):
     # Try all the cases, find the first that doesn't fail
     for (case, f) in cases:
-        ast = compiler.parse(case, mode='eval').node
+        ast = match_asts.get(case)
+        if ast is None:
+            ast = compiler.parse(case, mode='eval').node
+            match_asts[case] = ast
         call_args = match_try(atom, ast)
         if call_args is not None:
             return f(*call_args)
