@@ -12,6 +12,11 @@ def identifier(bootkey, name, subs=None):
     assert name not in context.syms, "Symbol '%s' conflicts" % (name,)
     s = symref(bootkey, [symname(name)] + (subs or []))
     context.syms[name] = s
+    missing_refs = context.missingRefs.get(name)
+    if missing_refs is not None:
+        for ref in missing_refs:
+            ref.refAtom = s
+        del context.missingRefs[name]
     return s
 
 add_sym('var')
@@ -22,6 +27,12 @@ def ident_ref(nm, create):
         if nm in context.syms:
             return (Ref(context.syms[nm], context.module, []), False)
         context = context.prevContext
+    if not create:
+        context = CUR_CONTEXT
+        fwd_ref = Ref(nm, context.module, [])
+        context.missingRefs[nm] = context.missingRefs.get(nm, []) + [fwd_ref]
+        return (fwd_ref, False)
+
     assert create, "Unknown symbol %s" % (nm,)
     return (identifier('var', nm), True)
 
@@ -38,10 +49,15 @@ def inside_scope(f):
     def new_scope(*args, **kwargs):
         global CUR_CONTEXT
         prev = CUR_CONTEXT
-        context = ConvertContext(prev.indent + 1, {}, prev.module, prev)
+        context = ConvertContext(prev.indent + 1, {}, {}, prev.module, prev)
         CUR_CONTEXT = context
         r = f(context, *args, **kwargs)
         CUR_CONTEXT = prev
+        missing = {}
+        for k in set(context.missingRefs).union(set(prev.missingRefs)):
+            missing[k] = context.missingRefs.get(k, []) \
+                         + prev.missingRefs.get(k, [])
+        prev.missingRefs = missing
         return r
     return new_scope
 
@@ -611,6 +627,7 @@ def conv_while(s, context):
 
 ConvertContext = DT('ConvertContext', ('indent', int),
                                       ('syms', {str: Atom}),
+                                      ('missingRefs', {str: Atom}),
                                       ('module', 'atom.Module'),
                                       ('prevContext', None))
 
@@ -623,10 +640,12 @@ def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
     mod = Module_(filename, None, [])
-    context = ConvertContext(-1, boot_sym_names, boot_mod, None)
+    context = ConvertContext(-1, boot_sym_names, {}, boot_mod, None)
     global CUR_CONTEXT
     CUR_CONTEXT = context
     mod.roots = conv_stmts(stmts, context, module=mod)
+    assert not context.missingRefs, "Symbols not found: " + \
+                                    ', '.join(context.missingRefs)
     return mod
 
 def escape(text):

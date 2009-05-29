@@ -50,3 +50,7 @@ print match(ns, ("every(_, 0)", lambda: "every(...) failed"),
                 ("_",           lambda: "every(...) OK!"))
 print match(ns, ("all(ls, l==0)", lambda ls: "all(...) OK! %s" % ls),
                 ("_",             lambda: "all(...) failed!"))
+
+def one(k): return two(k)
+def two(k): return k + k
+print one(10)
