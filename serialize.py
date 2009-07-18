@@ -47,6 +47,8 @@ def read_expected(f, s):
     buf = hint(stringify(buf))
     assert buf == s, 'Expected "%s", got "%s"' % (s, buf)
 
+module_header = '"";4\n1;1\n"%s"\n2;1\n%d\n3;%d'
+
 def read_header(f):
     read_expected(f, '"";4\n1;1\n"')
     nm, nmlen = read_str(f)
@@ -117,7 +119,7 @@ Module = DT('Module', ('modName', 'str'), ('modDigest', 'str'),
 loaded_modules = {}
 
 def load_module(digest):
-    f = fopen("mods/%s" % (digest,), "r")
+    f = fopen("mods/%s" % (digest,), "rb")
     nm, ln, ndeps, ds, nroots = read_header(f)
     dmods = array('Module', ndeps + 1)
     for i in range(ndeps):
@@ -142,6 +144,58 @@ def load_module(digest):
     assert ix == ln, "load_module: Atom count mismatch"
     loaded_modules[digest] = mod
     return mod
+
+def scan_atoms(atom, orig_module, deps):
+    mod, subs = match(mod, ('Int(_, s)', lambda s: (None, s)),
+                           ('Str(_, s)', lambda s: (None, s)),
+                           ('Ref(_, m, s)', tuple2))
+    if mod is not None and mod is not orig_module:
+        if mod.modDigest is None:
+            save_module(mod)
+        deps[mod.modDigest] = mod
+    natoms = 1
+    for sub in subs:
+        natoms += scan_atoms(sub, orig_module, deps)
+    return natoms
+
+def data_line(data, line):
+    fwrite(data[0], line)
+    fputc(data[0], '\n')
+    data[1].update(line)
+    data[1].update('\n')
+
+def write_atom(ix, atoms, data, depixs):
+    pass
+
+def save_module(mod):
+    nm, dg, ln, atoms, rs = match(mod, ("Module(n, d, l, a, r)", tuple5))
+    if dg is not None:
+        return
+    natoms = 7
+    deps = {}
+    for r in rs:
+        natoms += scan_atoms(atoms[r-1], mod, deps)
+    ndeps = len(deps)
+    natoms += ndeps
+    temp = "/tmp/serialize"
+    data = (fopen(temp, 'wb'), sha256())
+    data_line(data, module_header % (nm, natoms, ndeps))
+    depixs = {}
+    ix = 1
+    for dep in sorted(deps.keys()):
+        data_line(data, '"%s"' % (dep.modDigest,))
+        depixs[dep] = ix
+        ix += 1
+    nroots = len(rs)
+    data_line(data, '4;%d' % (nroots,))
+    for r in rs:
+        write_atom(r, atoms, data, depixs)
+    fclose(data[0])
+    digest = data[1].hexdigest()
+    system('mv -f -- %s mods/%s' % (temp, digest))
+    system('ln -s -- %s mods/%s' % (digest, nm))
+    mod.modAtomCount = natoms
+    mod.modDigest = digest
 
 load_module("serialize.py")
 

@@ -15,7 +15,10 @@ def array(t, n):
         return [None] * n
     assert False, 'Unknown array type %s' % t
 
+from os import system
 fgetc = lambda f: f.read(1)
+fputc = lambda f, c: f.write(c)
+fwrite = lambda f, d: f.write(d)
 def fread(buf, sz, n, f):
     for i in range(n):
         buf[i] = f.read(sz)
@@ -23,7 +26,6 @@ def fread(buf, sz, n, f):
 fopen = open
 fclose = lambda f: f.close()
 sizeof = len
-range = range
 hint = lambda x: x
 def stringify(buf):
     try:
@@ -32,11 +34,17 @@ def stringify(buf):
         assert False, 'buf is not null-terminated'
     return ''.join(buf[:n])
 
+from hashlib import sha256
+
 builtins = dict((k, v) for k, v in locals().iteritems()
                        if not k.startswith('__'))
 
-# Builtins that are a part of the compiler
-builtins.update({'None': None, 'True': True, 'False': False, '_ix': None})
+builtins.update(dict((b, __builtins__[b]) for b in [
+    'None', 'True', 'False', 'sorted', 'getattr', 'ord', 'range', 'len',
+    ]))
+
+builtins.update(dict((dummy, None) for dummy in [
+    '_ix', 'hexdigest', 'keys', 'update']))
 
 def bi_print(s): print s
 
@@ -45,24 +53,20 @@ def make_record():
         pass
     return Record
 
-builtinFuncs = {'+': lambda x, y: x + y, '-': lambda x, y: x - y,
-                '*': lambda x, y: x * y, '%': lambda x, y: x % y,
-                'negate': lambda x: -x,
-                '==': lambda x, y: x == y, '!=': lambda x, y: x != y,
-                '<': lambda x, y: x < y, '>': lambda x, y: x > y,
-                '<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y,
-                'is': lambda x, y: x is y, 'is not': lambda x, y: x is not y,
-                'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
-                'slice': lambda l, d, u: l[d:u], 'len': lambda x: len(x),
+import operator as o
+builtins.update({'+': o.add, '-': o.sub, '*': o.mul, '%': o.mod,
+                'negate': o.neg, '==': o.eq, '!=': o.ne, '<': o.lt, '>': o.gt,
+                '<=': o.le, '>=': o.ge, 'is': o.is_, 'is not': o.is_not,
+                'in': o.contains, 'not in': lambda x, y: x not in y,
+                'slice': o.getslice,
                 'print': bi_print,
-                'object': make_record, 'getattr': getattr,
-                'identity': lambda x: x, 'ord': ord,
+                'object': make_record,
+                'identity': lambda x: x,
                 'tuple2': lambda x, y: (x, y),
                 'tuple3': lambda x, y, z: (x, y, z),
                 'tuple4': lambda w, x, y, z: (w, x, y, z),
                 'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
                 'to_void': lambda p: p,
-                }
-builtins.update(builtinFuncs)
+                })
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
