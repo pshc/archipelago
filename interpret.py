@@ -21,8 +21,9 @@ Function = DT('Function', ('funcName', str),
                           ('argBindings', [Atom]),
                           ('funcStmts', [Atom]))
 
-CTORS = {}
-CTOR_FIELDS = []
+CTORS = {'Int': 0, 'Str': 1, 'Ref': 2}
+CTOR_FIELDS = [('_ix', 'intVal', 'subs'), ('_ix', 'strVal', 'subs'),
+               ('_ix', 'refAtom', 'refMod', 'subs')]
 
 SCOPE_END = -2
 SCOPE_BREAK = -3
@@ -96,7 +97,9 @@ def assign_sub(c, sub, op, val, scope):
 
 def assign_attr(obj, attr, op, val, scope):
     dest = dest_scope(obj, scope).syms[obj]
-    nm = getident(attr)
+    assert getident(attr) == 'field', 'Must getattr on a field, not %s' % (
+            getident(attr),)
+    nm = getname(attr)
     if op == EQUALS:
         setattr(dest, nm, val)
         return
@@ -137,7 +140,9 @@ def expr_genexpr(op, subs, scope):
     return results
 
 def expr_getattr(op, subs, scope):
-    return getattr(eval_expr(subs[0], scope), getident(subs[1]))
+    assert getident(subs[1]) == 'field', \
+            'Assigning to something other than a field'
+    return getattr(eval_expr(subs[0], scope), getname(subs[1]))
 
 def expr_lambda(op, subs, scope):
     (args, expr) = match(subs, ('sized(every(args, arg==key("var")), \
@@ -180,8 +185,50 @@ def match_capture(v, pat, e):
     r.append((v, e))
     return r
 
+def is_wildcard_match(ast):
+    return isinstance(ast, Name) and ast.name == '_'
+
+def skip_subs(mod, ix):
+    ix += 1
+    atom = mod.modAtoms[ix]
+    for i in range(atom.nsubs):
+        ix = skip_subs(mod, ix)
+    return ix
+
+def match_array_atom(nm, astargs, e):
+    (mod, n) = e
+    atom = mod.modAtoms[n]
+    ix = atom._ix
+    assert 0 <= ix < 3, "Bad ArrayAtom index: %d" % ix
+    subix = 1
+    if ix == 0 and nm == 'Int':
+        args = pat_match(astargs[0], atom.val)
+    elif ix == 1 and nm == 'Str':
+        args = pat_match(astargs[0], atom.ptr)
+    elif ix == 2 and nm == 'Ref':
+        args = pat_match(astargs[0], atom.ptr.modAtoms[atom.val])
+        if args is None: return None
+        args2 = pat_match(astargs[1], atom.ptr)
+        if args2 is None: return None
+        args += args2
+        subix = 2
+    else:
+        return None
+    # Subs are expensive to traverse; do it lazily
+    def subatoms(count, ix):
+        for i in range(count):
+            yield (mod, ix + 1)
+            if i < count - 1:
+                ix = skip_subs(mod, ix)
+    # Unfortunately, we can't actually do this since calling next() on a
+    # generator modifies it... so evaluate the list anyway
+    args2 = pat_match(astargs[subix], list(subatoms(atom.nsubs, n)))
+    return None if args2 is None else args + args2
+
 def match_ctor(ctor, args, e):
     nm = getident(ctor)
+    if isinstance(e, tuple) and hasattr(e[0], 'modAtoms'):
+        return match_array_atom(nm, args, e)
     if CTORS[nm] != e._ix:
         return None
     fs = CTOR_FIELDS[e._ix]
@@ -359,12 +406,17 @@ def stmt_assert(stmt, scope):
     assert eval_expr(stmt.subs[0], scope), eval_expr(stmt.subs[1], scope)
     return scope
 
+def shorten(s):
+    if len(s) > 140:
+        return s[:140] + '...'
+    return s
+
 def list_scope(scope):
     additional = ''
     p = scope.prevScope
     if p is not None and p.scopeInfo is not None:
         additional = '\nUnder scope %s:\n%s' % (p.scopeInfo, list_scope(p))
-    return '\n'.join('\t%s\t%s' % (getname(k), v)
+    return '\n'.join('\t%s\t%s' % (getname(k), shorten(str(v)))
                                    for k, v in scope.syms.iteritems()) \
            + additional
 
@@ -533,6 +585,8 @@ def test(filename):
     system('rm -f -- mods/*')
     serialize_module(module)
     print 'Serialized'
+    serialize_module(ast.convert_file('test.py'))
+    print 'Serialized test.py'
     run_module(module)
 
 try:

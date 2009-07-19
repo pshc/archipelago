@@ -1,8 +1,24 @@
 # "Standard library" builtins
+import base as __base
+
+(Atom, Int, Str, Ref) = __base.ADT('Atom',
+                            'Int', ('intVal', int), ('subs', ['Atom']),
+                            'Str', ('strVal', str), ('subs', ['Atom']),
+                            'Ref', ('refAtom', 'Atom'), ('refMod', 'Module'),
+                                   ('subs', ['Atom']))
+
 class ArrayAtom:
     __slots__ = ('_ix', 'val', 'ptr', 'nsubs')
     def __init__(self):
-        self._ix = self.val = self.ptr = self.nsubs = 0
+        self._ix = -1
+        self.val = self.ptr = self.nsubs = 0
+    def __repr__(self):
+        d = {'ix': self._ix, 'val': self.val, 'ptr': self.ptr, 'n': self.nsubs}
+        if self._ix == 2:
+            d['modNm'] = self.ptr.modName
+        return {-1: '<null atom>', 2: 'ref(%(val)d, %(modNm)s, %(n)d)',
+                1: 'str(%(ptr)s, %(n)d)', 0: 'int(%(val)d, %(n)d)'} \
+               .get(self._ix, 'wtf(%(ix)d)') % d
 
 def array(t, n):
     if t == 'char':
@@ -44,7 +60,7 @@ builtins.update(dict((b, __builtins__[b]) for b in [
     ]))
 
 builtins.update(dict((dummy, None) for dummy in [
-    '_ix', 'hexdigest', 'keys', 'update']))
+    'hexdigest', 'keys', 'update']))
 
 def bi_print(s): print s
 

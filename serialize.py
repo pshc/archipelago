@@ -80,25 +80,28 @@ def read_atom(f, ix, natoms, atoms, dmods):
     atom = atoms[ix]
     if c == char('"'):
         s, slen = read_str(f)
-        atom._ix = 2
+        atom._ix = 1
         atom.val = slen
         atom.ptr = to_void(s)
         c = fgetc(f)
     elif (char('0') <= c and c <= char('9')) or c == char('-'):
         i, c = read_int(f, c)
-        atom._ix = 1
+        atom._ix = 0
         atom.val = i
         atom.ptr = None
     elif c == char('s'):
         i, c = read_int(f, char('0'))
-        atom._ix = 3
+        atom._ix = 2
         atom.val = i
+        print 'setting %d' % i
+        atom.val = i
+        print 'got %d' % atom.val
         atom.ptr = to_void(dmods[0])
     elif c == char('r'):
         i, c = read_int(f, char('0'))
         assert c == char(' '), "read_atom: Expected space in ref"
         m, c = read_int(f, char('0'))
-        atom._ix = 3
+        atom._ix = 2
         atom.val = i
         atom.ptr = to_void(dmods[m])
     else:
@@ -196,6 +199,18 @@ def save_module(mod):
     system('ln -s -- %s mods/%s' % (digest, nm))
     mod.modAtomCount = natoms
     mod.modDigest = digest
+
+def print_atom(atom, indent):
+    t, ss = match(atom, ("Str(s, ss)", tuple2),
+                        ("Int(n, ss)", tuple2),
+                        ("Ref(r, m, ss)", lambda r, m, ss: ("ref", ss)))
+    print "%s%s" % ('  ' * indent, t)
+    for s in ss:
+        print_atom(s, indent + 1)
+
+test_mod = load_module("test.py")
+print test_mod.modAtoms
+print_atom((test_mod, 1), 0)
 
 load_module("serialize.py")
 

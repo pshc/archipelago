@@ -2,13 +2,7 @@
 from os import system
 from hashlib import sha256
 from base import *
-from builtins import builtins
-
-(Atom, Int, Str, Ref) = ADT('Atom',
-                            'Int', ('intVal', int), ('subs', ['Atom']),
-                            'Str', ('strVal', str), ('subs', ['Atom']),
-                            'Ref', ('refAtom', 'Atom'), ('refMod', 'Module'),
-                                   ('subs', ['Atom']))
+from builtins import Atom, Int, Str, Ref, builtins
 
 Module = DT('Module',
             ('name', str), ('digest', str), ('roots', [Atom]))
@@ -72,6 +66,7 @@ def escape_str(s):
                              else c for c in s),)
 
 def serialize_module(module):
+    already_serialized = module.digest is not None
     def init_serialize(atom, (natoms, selfindices, modset)):
         selfindices[atom] = natoms
         m = getattr(atom, 'refMod', None)
@@ -88,6 +83,9 @@ def serialize_module(module):
     for atom, i in atomixs.iteritems():
         refmap[atom] = "s%d" % (i + base + 1,)
         selfixs[atom] = i + base + 1
+    if already_serialized:
+        print '%s is already serialized' % (module.name,)
+        return selfixs
     deps = ""
     for m, mod in enumerate(modset):
         ixs = serialize_module(mod)
