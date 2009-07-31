@@ -93,9 +93,7 @@ def read_atom(f, ix, natoms, atoms, dmods):
         i, c = read_int(f, char('0'))
         atom._ix = 2
         atom.val = i
-        print 'setting %d' % i
         atom.val = i
-        print 'got %d' % atom.val
         atom.ptr = to_void(dmods[0])
     elif c == char('r'):
         i, c = read_int(f, char('0'))

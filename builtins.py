@@ -13,12 +13,12 @@ class ArrayAtom:
         self._ix = -1
         self.val = self.ptr = self.nsubs = 0
     def __repr__(self):
-        d = {'ix': self._ix, 'val': self.val, 'ptr': self.ptr, 'n': self.nsubs}
+        d = {'ix': self._ix, 'val': self.val, 'ptr': self.ptr}
         if self._ix == 2:
             d['modNm'] = self.ptr.modName
-        return {-1: '<null atom>', 2: 'ref(%(val)d, %(modNm)s, %(n)d)',
-                1: 'str(%(ptr)s, %(n)d)', 0: 'int(%(val)d, %(n)d)'} \
-               .get(self._ix, 'wtf(%(ix)d)') % d
+        s = {-1: '(null', 2: 'ref(%(val)d@%(modNm)s', 1: 'str(%(ptr)r',
+                0: 'int(%(val)d'}.get(self._ix, 'wtf(%(ix)d') % d
+        return s + (', %d)' % self.nsubs if self.nsubs else ')')
 
 def array(t, n):
     if t == 'char':

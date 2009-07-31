@@ -2,7 +2,7 @@
 import ast
 from atom import *
 from base import *
-from builtins import builtins
+from builtins import builtins, ArrayAtom
 import types
 
 ScopeInfo, FuncScope, CaseScope, WhileScope, ForScope = ADT('ScopeInfo',
@@ -97,9 +97,14 @@ def assign_sub(c, sub, op, val, scope):
 
 def assign_attr(obj, attr, op, val, scope):
     dest = dest_scope(obj, scope).syms[obj]
-    assert getident(attr) == 'field', 'Must getattr on a field, not %s' % (
-            getident(attr),)
-    nm = getname(attr)
+    f = getident(attr)
+    if f == 'field':
+        nm = getname(attr)
+    elif f == 'symbol':
+        nm = getname(attr)
+        assert nm in ArrayAtom.__slots__, 'Unknown builtin attr: %s' % (nm,)
+    else:
+        assert False, 'Must getattr on a field, not %s' % (f,)
     if op == EQUALS:
         setattr(dest, nm, val)
         return
@@ -120,7 +125,7 @@ def do_assign(dest, op, val, scope):
                     lambda bs: assign_tuple(bs, op, val, scope)),
                 ('key("subscript", cons(Ref(d, _, _), cons (ix, _)))',
                     lambda d, ix: assign_sub(d, ix, op, val, scope)),
-                ('key("attr", cons(Ref(o, _, _), cons(a, _)))',
+                ('key("attr", cons(Ref(o, _, _), cons(Ref(a, _, _), _)))',
                     lambda o, a: assign_attr(o, a, op, val, scope)))
     return scope
 
@@ -140,9 +145,15 @@ def expr_genexpr(op, subs, scope):
     return results
 
 def expr_getattr(op, subs, scope):
-    assert getident(subs[1]) == 'field', \
-            'Assigning to something other than a field'
-    return getattr(eval_expr(subs[0], scope), getname(subs[1]))
+    attr = match(subs[1], ('Ref(f, _, _)', identity))
+    f = getident(attr)
+    if f == 'field':
+        nm = getname(attr)
+    elif f in ArrayAtom.__slots__:
+        nm = f
+    else:
+        assert False, 'getattr on something other than a field: %s' % (f,)
+    return getattr(eval_expr(subs[0], scope), nm)
 
 def expr_lambda(op, subs, scope):
     (args, expr) = match(subs, ('sized(every(args, arg==key("var")), \
