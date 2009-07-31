@@ -72,6 +72,37 @@ def read_header(f):
     assert nl == char('\n'), "read_header: Expected newline (#4)"
     return (nm, ln, ndeps, ds, nroots)
 
+def set_atom_str(atom, s, length, nchildren):
+    atom._ix = 1
+    atom.val = length
+    atom.ptr = to_void(s)
+    atom.nsubs = nchildren
+
+def set_atom_int(atom, n, nchildren):
+    atom._ix = 0
+    atom.val = n
+    atom.ptr = None
+    atom.nsubs = nchildren
+
+def set_atom_ref(atom, ix, mod, nchildren):
+    atom._ix = 2
+    atom.val = ix
+    atom.ptr = to_void(mod)
+    atom.nsubs = nchildren
+
+def fill_header(nm, ln, ndeps, ds, nroots, atoms):
+    set_atom_str(atoms[1], "", 0, 4)
+    set_atom_int(atoms[2], 1, 1)
+    set_atom_str(atoms[3], nm, len(nm), 0)
+    set_atom_int(atoms[4], 2, 1)
+    set_atom_int(atoms[5], ln, 0)
+    set_atom_int(atoms[6], 3, ndeps)
+    for i in range(ndeps):
+        d = ds[i]
+        set_atom_str(atoms[7 + i], d, len(d), 0)
+    set_atom_int(atoms[7 + ndeps], 4, nroots)
+    return 7 + ndeps
+
 def read_atom(f, ix, natoms, atoms, dmods):
     c = fgetc(f)
     subs = []
@@ -80,28 +111,19 @@ def read_atom(f, ix, natoms, atoms, dmods):
     atom = atoms[ix]
     if c == char('"'):
         s, slen = read_str(f)
-        atom._ix = 1
-        atom.val = slen
-        atom.ptr = to_void(s)
+        set_atom_str(atom, s, slen, 0)
         c = fgetc(f)
     elif (char('0') <= c and c <= char('9')) or c == char('-'):
         i, c = read_int(f, c)
-        atom._ix = 0
-        atom.val = i
-        atom.ptr = None
+        set_atom_int(atom, i, 0)
     elif c == char('s'):
         i, c = read_int(f, char('0'))
-        atom._ix = 2
-        atom.val = i
-        atom.val = i
-        atom.ptr = to_void(dmods[0])
+        set_atom_ref(atom, i, dmods[0], 0)
     elif c == char('r'):
         i, c = read_int(f, char('0'))
         assert c == char(' '), "read_atom: Expected space in ref"
         m, c = read_int(f, char('0'))
-        atom._ix = 2
-        atom.val = i
-        atom.ptr = to_void(dmods[m])
+        set_atom_ref(atom, i, dmods[m], 0)
     else:
         assert False, "read_atom: Bad atom type '%c'" % (c,)
     subcount = 0
@@ -131,7 +153,7 @@ def load_module(digest):
     atoms = array('Atom', ln + 1)
     mod = Module(nm, digest, ln, atoms, rs)
     dmods[0] = mod
-    ix = 7 + ndeps
+    ix = fill_header(nm, ln, ndeps, ds, nroots, atoms)
     for i in range(nroots):
         rs[i] = ix + 1
         ix = read_atom(f, ix, ln, atoms, dmods)
