@@ -245,7 +245,10 @@ def match_ctor(ctor, args, e):
     fs = CTOR_FIELDS[e._ix]
     rs = []
     for f, a in zip(fs, args):
-        r = pat_match(a, getattr(e, getname(f)))
+        # XXX: This doesn't work for ArrayAtoms
+        if not isinstance(f, basestring):
+            f = getname(f)
+        r = pat_match(a, getattr(e, f))
         if r is None:
             return None
         rs += r

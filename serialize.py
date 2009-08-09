@@ -168,17 +168,17 @@ def load_module(digest):
     loaded_modules[digest] = mod
     return mod
 
-def scan_atoms(atom, orig_module, deps):
-    mod, subs = match(mod, ('Int(_, s)', lambda s: (None, s)),
-                           ('Str(_, s)', lambda s: (None, s)),
-                           ('Ref(_, m, s)', tuple2))
+def scan_atoms(atom, orig_module, ds):
+    mod, subs = match(atom, ('Int(_, s)', lambda s: (None, s)),
+                            ('Str(_, s)', lambda s: (None, s)),
+                            ('Ref(_, m, s)', tuple2))
     if mod is not None and mod is not orig_module:
         if mod.modDigest is None:
             save_module(mod)
-        deps[mod.modDigest] = mod
+        ds[mod.modDigest] = mod
     natoms = 1
     for sub in subs:
-        natoms += scan_atoms(sub, orig_module, deps)
+        natoms += scan_atoms(sub, orig_module, ds)
     return natoms
 
 def data_line(data, line):
@@ -195,17 +195,17 @@ def save_module(mod):
     if dg is not None:
         return
     natoms = 7
-    deps = {}
+    ds = {}
     for r in rs:
-        natoms += scan_atoms(atoms[r-1], mod, deps)
-    ndeps = len(deps)
+        natoms += scan_atoms(atoms[r-1], mod, ds)
+    ndeps = len(ds)
     natoms += ndeps
     temp = "/tmp/serialize"
     data = (fopen(temp, 'wb'), sha256())
     data_line(data, module_header % (nm, natoms, ndeps))
     depixs = {}
     ix = 1
-    for dep in sorted(deps.keys()):
+    for dep in sorted(ds.keys()):
         data_line(data, '"%s"' % (dep.modDigest,))
         depixs[dep] = ix
         ix += 1
@@ -232,6 +232,13 @@ test_mod = load_module("test.py")
 print test_mod.modAtoms
 print_atom((test_mod, 1), 0)
 
-load_module("serialize.py")
+s = load_module("serialize.py")
+print 'name: %s' % (s.modName,)
+print '#atoms: %d' % (s.modAtomCount,)
+
+print 'resaving...'
+s.modDigest = None
+save_module(s)
+print 'digest: %s' % (s.modDigest,)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
