@@ -199,13 +199,6 @@ def match_capture(v, pat, e):
 def is_wildcard_match(ast):
     return isinstance(ast, Name) and ast.name == '_'
 
-def skip_subs(mod, ix):
-    ix += 1
-    atom = mod.modAtoms[ix]
-    for i in range(atom.nsubs):
-        ix = skip_subs(mod, ix)
-    return ix
-
 def match_array_atom(nm, astargs, e):
     (mod, n) = e
     atom = mod.modAtoms[n]
@@ -225,15 +218,16 @@ def match_array_atom(nm, astargs, e):
         subix = 2
     else:
         return None
-    # Subs are expensive to traverse; do it lazily
-    def subatoms(count, ix):
-        for i in range(count):
-            yield (mod, ix + 1)
-            if i < count - 1:
-                ix = skip_subs(mod, ix)
-    # Unfortunately, we can't actually do this since calling next() on a
-    # generator modifies it... so evaluate the list anyway
-    args2 = pat_match(astargs[subix], list(subatoms(atom.nsubs, n)))
+    # Walk subatoms
+    ss = []
+    if atom.hassubs:
+        sx = n + 1
+        while sx:
+            ss.append((mod, sx))
+            nx = mod.modAtoms[sx].nsibling
+            assert not nx or nx > sx, "Bad next-sibling pointer"
+            sx = nx
+    args2 = pat_match(astargs[subix], ss)
     return None if args2 is None else args + args2
 
 def match_ctor(ctor, args, e):

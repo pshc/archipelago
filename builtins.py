@@ -8,17 +8,17 @@ import base as __base
                                    ('subs', ['Atom']))
 
 class ArrayAtom:
-    __slots__ = ('_ix', 'val', 'ptr', 'nsubs')
+    __slots__ = ('_ix', 'val', 'ptr', 'nsibling', 'hassubs')
     def __init__(self):
         self._ix = -1
-        self.val = self.ptr = self.nsubs = 0
+        self.val = self.ptr = self.nsibling = self.hassubs = 0
     def __repr__(self):
         d = {'ix': self._ix, 'val': self.val, 'ptr': self.ptr}
         if self._ix == 2:
             d['modNm'] = self.ptr.modName
-        s = {-1: '(null', 2: 'ref(%(val)d@%(modNm)s', 1: 'str(%(ptr)r',
-                0: 'int(%(val)d'}.get(self._ix, 'wtf(%(ix)d') % d
-        return s + (', %d)' % self.nsubs if self.nsubs else ')')
+        s = {-1: '(null)', 2: '%(val)d@%(modNm)s', 1: '%(ptr)r',
+                0: '%(val)d'}.get(self._ix, 'wtf(%(ix)d)') % d
+        return s
 
 def array(t, n):
     if t == 'char':
@@ -60,7 +60,7 @@ builtins.update(dict((b, __builtins__[b]) for b in [
     ]))
 
 builtins.update(dict((dummy, None) for dummy in [
-    '_ix', 'val', 'ptr', 'nsubs',
+    '_ix', 'val', 'ptr', 'nsibling', 'hassubs',
     'hexdigest', 'keys', 'update']))
 
 def bi_print(s): print s

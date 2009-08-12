@@ -72,35 +72,38 @@ def read_header(f):
     assert nl == char('\n'), "read_header: Expected newline (#4)"
     return (nm, ln, ndeps, ds, nroots)
 
-def set_atom_str(atom, s, length, nchildren):
+def set_atom_str(atom, s, length, has_subs, next_sibling):
     atom._ix = 1
     atom.val = length
     atom.ptr = to_void(s)
-    atom.nsubs = nchildren
+    atom.hassubs = has_subs
+    atom.nsibling = next_sibling
 
-def set_atom_int(atom, n, nchildren):
+def set_atom_int(atom, n, has_subs, next_sibling):
     atom._ix = 0
     atom.val = n
     atom.ptr = None
-    atom.nsubs = nchildren
+    atom.hassubs = has_subs
+    atom.nsibling = next_sibling
 
-def set_atom_ref(atom, ix, mod, nchildren):
+def set_atom_ref(atom, ix, mod, has_subs, next_sibling):
     atom._ix = 2
     atom.val = ix
     atom.ptr = to_void(mod)
-    atom.nsubs = nchildren
+    atom.hassubs = has_subs
+    atom.nsibling = next_sibling
 
 def fill_header(nm, ln, ndeps, ds, nroots, atoms):
-    set_atom_str(atoms[1], "", 0, 4)
-    set_atom_int(atoms[2], 1, 1)
-    set_atom_str(atoms[3], nm, len(nm), 0)
-    set_atom_int(atoms[4], 2, 1)
-    set_atom_int(atoms[5], ln, 0)
-    set_atom_int(atoms[6], 3, ndeps)
+    set_atom_str(atoms[1], "", 0, True, 0)
+    set_atom_int(atoms[2], 1, True, 4)
+    set_atom_str(atoms[3], nm, len(nm), False, 0)
+    set_atom_int(atoms[4], 2, True, 6)
+    set_atom_int(atoms[5], ln, False, 0)
+    set_atom_int(atoms[6], 3, ndeps != 0, 7 + ndeps)
     for i in range(ndeps):
         d = ds[i]
-        set_atom_str(atoms[7 + i], d, len(d), 0)
-    set_atom_int(atoms[7 + ndeps], 4, nroots)
+        set_atom_str(atoms[7 + i], d, len(d), False, 0 if i==ndeps-1 else i+1)
+    set_atom_int(atoms[7 + ndeps], 4, nroots != 0, 0)
     return 7 + ndeps
 
 def read_atom(f, ix, natoms, atoms, dmods):
@@ -111,28 +114,34 @@ def read_atom(f, ix, natoms, atoms, dmods):
     atom = atoms[ix]
     if c == char('"'):
         s, slen = read_str(f)
-        set_atom_str(atom, s, slen, 0)
+        set_atom_str(atom, s, slen, False, 0)
         c = fgetc(f)
     elif (char('0') <= c and c <= char('9')) or c == char('-'):
         i, c = read_int(f, c)
-        set_atom_int(atom, i, 0)
+        set_atom_int(atom, i, False, 0)
     elif c == char('s'):
         i, c = read_int(f, char('0'))
-        set_atom_ref(atom, i, dmods[0], 0)
+        set_atom_ref(atom, i, dmods[0], False, 0)
     elif c == char('r'):
         i, c = read_int(f, char('0'))
         assert c == char(' '), "read_atom: Expected space in ref"
         m, c = read_int(f, char('0'))
-        set_atom_ref(atom, i, dmods[m], 0)
+        set_atom_ref(atom, i, dmods[m], False, 0)
     else:
         assert False, "read_atom: Bad atom type '%c'" % (c,)
     subcount = 0
     if c == char(';'):
         subcount, c = read_int(f, char('0'))
+        atom.hassubs = True
     assert c == char('\n'), "read_atom: Expected newline, got '%c'" % (c,)
+    # prev and this are for the sibling linked list
+    prev = None
     for i in range(subcount):
+        this = ix + 1
         ix = read_atom(f, ix, natoms, atoms, dmods)
-    atom.nsubs = subcount
+        if prev is not None:
+            prev.nsibling = this
+        prev = atoms[this]
     return ix
 
 Module = DT('Module', ('modName', 'str'), ('modDigest', 'str'),
@@ -154,16 +163,16 @@ def load_module(digest):
     mod = Module(nm, digest, ln, atoms, rs)
     dmods[0] = mod
     ix = fill_header(nm, ln, ndeps, ds, nroots, atoms)
+    # Actually read the root atoms, tracking the sibling linked list
+    prev = None
     for i in range(nroots):
-        rs[i] = ix + 1
+        this = ix + 1
+        rs[i] = this
         ix = read_atom(f, ix, ln, atoms, dmods)
-    #root, natoms = read_atom(f, mod, 0, {})
+        if prev is not None:
+            prev.nsibling = this
+        prev = atoms[this]
     fclose(f)
-    #nm, ln, ds, rs = match(root,
-    #    ('Str("", cons(Int(1, cons(Str(nm, _), _)), \
-    #              cons(Int(2, cons(Int(ln, _), _)), \
-    #              cons(Int(3, sized(every(ds, Str(d, _)))) \
-    #              cons(Int(4, sized(rs)), _)))))', tuple4))
     assert ix == ln, "load_module: Atom count mismatch"
     loaded_modules[digest] = mod
     return mod
