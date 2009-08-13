@@ -64,11 +64,12 @@ builtins = dict((k, v) for k, v in locals().iteritems()
 
 builtins.update(dict((b, __builtins__[b]) for b in [
     'None', 'True', 'False', 'sorted', 'getattr', 'ord', 'range', 'len',
+    'set',
     ]))
 
 builtins.update(dict((dummy, None) for dummy in [
     '_ix', 'val', 'ptr', 'nsibling', 'hassubs',
-    'hexdigest', 'keys', 'update']))
+    'hexdigest', 'keys', 'update', 'add', 'append']))
 
 def bi_print(s): print s
 

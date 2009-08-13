@@ -29,7 +29,8 @@ SCOPE_END = -2
 SCOPE_BREAK = -3
 
 def is_builtin_func(r):
-    if isinstance(r, (types.FunctionType, types.BuiltinFunctionType)):
+    if isinstance(r, (types.FunctionType, types.BuiltinFunctionType,
+            types.TypeType)):
         return r
     return builtins.get(match(r, ('key(nm)', identity),
                                  ('_', lambda: None)))

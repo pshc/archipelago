@@ -177,17 +177,16 @@ def load_module(digest):
     loaded_modules[digest] = mod
     return mod
 
-def scan_atoms(atom, orig_module, ds):
+def scan_atoms(atom, own_atoms, ds):
+    own_atoms.add(atom)
     mod, subs = match(atom, ('Int(_, s)', lambda s: (None, s)),
                             ('Str(_, s)', lambda s: (None, s)),
                             ('Ref(_, m, s)', tuple2))
-    if mod is not None and mod is not orig_module:
-        if mod.modDigest is None:
-            save_module(mod)
+    if mod is not None:
         ds[mod.modDigest] = mod
     natoms = 1
     for sub in subs:
-        natoms += scan_atoms(sub, orig_module, ds)
+        natoms += scan_atoms(sub, own_atoms, ds)
     return natoms
 
 def data_line(data, line):
@@ -196,38 +195,39 @@ def data_line(data, line):
     data[1].update(line)
     data[1].update('\n')
 
-def write_atom(ix, atoms, data, depixs):
-    pass
+def write_atom(atom, own_atoms, data, depixs):
+    print 'write root %s' % (atom,)
 
-def save_module(mod):
-    nm, dg, ln, atoms, rs = match(mod, ("Module(n, d, l, a, r)", tuple5))
-    if dg is not None:
-        return
+def save_module(name, mod_roots):
     natoms = 7
     ds = {}
-    for r in rs:
-        natoms += scan_atoms(atoms[r-1], mod, ds)
-    ndeps = len(ds)
-    natoms += ndeps
-    temp = "/tmp/serialize"
-    data = (fopen(temp, 'wb'), sha256())
-    data_line(data, module_header % (nm, natoms, ndeps))
+    own_atoms = set()
+    print 'scanning for deps'
+    for r in mod_roots:
+        natoms += scan_atoms(r, own_atoms, ds)
+    natoms += len(ds)
+    print 'natoms: %d' % natoms
     depixs = {}
     ix = 1
+    dep_digests = []
+    print 'adding deps'
     for dep in sorted(ds.keys()):
-        data_line(data, '"%s"' % (dep.modDigest,))
+        dep_digests.append(dep.modDigest)
         depixs[dep] = ix
         ix += 1
-    nroots = len(rs)
-    data_line(data, '4;%d' % (nroots,))
-    for r in rs:
-        write_atom(r, atoms, data, depixs)
+    header = Str("", [Int(1, Str(name, [])),
+                      Int(2, Int(natoms, [])),
+                      Int(3, [Str(d, []) for d in dep_digests]),
+                      Int(4, mod_roots)])
+    temp = "/tmp/serialize"
+    data = (fopen(temp, 'wb'), sha256())
+    print 'writing'
+    write_atom(header, own_atoms, data, depixs)
     fclose(data[0])
     digest = data[1].hexdigest()
     system('mv -f -- %s mods/%s' % (temp, digest))
-    system('ln -s -- %s mods/%s' % (digest, nm))
-    mod.modAtomCount = natoms
-    mod.modDigest = digest
+    system('ln -s -- %s mods/%s' % (digest, name))
+    return digest
 
 def print_atom(atom, indent):
     t, ss = match(atom, ("Str(s, ss)", tuple2),
@@ -238,16 +238,13 @@ def print_atom(atom, indent):
         print_atom(s, indent + 1)
 
 test_mod = load_module("test.py")
+print 'name: %s' % (test_mod.modName,)
+print '#atoms: %d' % (test_mod.modAtomCount,)
 print test_mod.modAtoms
 print_atom((test_mod, 1), 0)
 
-s = load_module("serialize.py")
-print 'name: %s' % (s.modName,)
-print '#atoms: %d' % (s.modAtomCount,)
-
-print 'resaving...'
-s.modDigest = None
-save_module(s)
-print 'digest: %s' % (s.modDigest,)
+print 'saving...'
+print save_module('helloworld', [Str('hello',
+    [Str('world', []), Int(33, [])])])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
