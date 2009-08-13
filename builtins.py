@@ -52,6 +52,13 @@ def stringify(buf):
 
 from hashlib import sha256
 
+identity = lambda x: x
+tuple2   = lambda x, y: (x, y)
+tuple3   = lambda x, y, z: (x, y, z)
+tuple4   = lambda w, x, y, z: (w, x, y, z)
+tuple5   = lambda v, w, x, y, z: (v, w, x, y, z)
+to_void  = lambda p: p
+
 builtins = dict((k, v) for k, v in locals().iteritems()
                        if not k.startswith('__'))
 
@@ -78,12 +85,6 @@ builtins.update({'+': o.add, '-': o.sub, '*': o.mul, '%': o.mod,
                 'slice': o.getslice,
                 'print': bi_print,
                 'object': make_record,
-                'identity': lambda x: x,
-                'tuple2': lambda x, y: (x, y),
-                'tuple3': lambda x, y, z: (x, y, z),
-                'tuple4': lambda w, x, y, z: (w, x, y, z),
-                'tuple5': lambda v, w, x, y, z: (v, w, x, y, z),
-                'to_void': lambda p: p,
                 })
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
