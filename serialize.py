@@ -178,7 +178,7 @@ def load_module(digest):
     return mod
 
 def scan_atoms(atom, own_atoms, ds):
-    own_atoms.add(atom)
+    set_add(own_atoms, atom)
     mod, subs = match(atom, ('Int(_, s)', lambda s: (None, s)),
                             ('Str(_, s)', lambda s: (None, s)),
                             ('Ref(_, m, s)', tuple2))
@@ -192,8 +192,8 @@ def scan_atoms(atom, own_atoms, ds):
 def data_line(data, line):
     fwrite(data[0], line)
     fputc(data[0], '\n')
-    data[1].update(line)
-    data[1].update('\n')
+    sha256_update(data[1], line)
+    sha256_update(data[1], '\n')
 
 def write_atom(atom, own_atoms, data, depixs):
     print 'write root %s' % (atom,)
@@ -211,8 +211,8 @@ def save_module(name, mod_roots):
     ix = 1
     dep_digests = []
     print 'adding deps'
-    for dep in sorted(ds.keys()):
-        dep_digests.append(dep.modDigest)
+    for dep in sorted(dict_keys(ds)):
+        list_append(dep_digests, dep.modDigest)
         depixs[dep] = ix
         ix += 1
     header = Str("", [Int(1, Str(name, [])),
@@ -224,7 +224,7 @@ def save_module(name, mod_roots):
     print 'writing'
     write_atom(header, own_atoms, data, depixs)
     fclose(data[0])
-    digest = data[1].hexdigest()
+    digest = sha256_hexdigest(data[1])
     system('mv -f -- %s mods/%s' % (temp, digest))
     system('ln -s -- %s mods/%s' % (digest, name))
     return digest

@@ -51,6 +51,12 @@ def stringify(buf):
     return ''.join(buf[:n])
 
 from hashlib import sha256
+sha256_hexdigest = lambda h: h.hexdigest()
+sha256_update = lambda h, s: h.update(s)
+
+dict_keys = dict.keys
+set_add = set.add
+list_append = list.append
 
 identity = lambda x: x
 tuple2   = lambda x, y: (x, y)
@@ -67,9 +73,7 @@ builtins.update(dict((b, __builtins__[b]) for b in [
     'set',
     ]))
 
-builtins.update(dict((dummy, None) for dummy in [
-    '_ix', 'val', 'ptr', 'nsibling', 'hassubs',
-    'hexdigest', 'keys', 'update', 'add', 'append']))
+builtins.update(dict((dummy, None) for dummy in ArrayAtom.__slots__))
 
 def bi_print(s): print s
 

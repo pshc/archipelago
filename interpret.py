@@ -28,9 +28,11 @@ CTOR_FIELDS = [('_ix', 'intVal', 'subs'), ('_ix', 'strVal', 'subs'),
 SCOPE_END = -2
 SCOPE_BREAK = -3
 
+MethodDescriptorType = type(dict.keys)
+
 def is_builtin_func(r):
     if isinstance(r, (types.FunctionType, types.BuiltinFunctionType,
-            types.TypeType)):
+            types.TypeType, MethodDescriptorType)):
         return r
     return builtins.get(match(r, ('key(nm)', identity),
                                  ('_', lambda: None)))
@@ -150,8 +152,9 @@ def expr_getattr(op, subs, scope):
     f = getident(attr)
     if f == 'field':
         nm = getname(attr)
-    elif f in ArrayAtom.__slots__:
-        nm = f
+    elif f == 'symbol':
+        nm = getname(attr)
+        assert nm in ArrayAtom.__slots__, 'Unknown builtin attr: %s' % (nm,)
     else:
         assert False, 'getattr on something other than a field: %s' % (f,)
     return getattr(eval_expr(subs[0], scope), nm)
