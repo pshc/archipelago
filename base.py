@@ -7,11 +7,15 @@ algetypes = {}
 def DT(*members):
     name = members[0]
     mems = [(nm) for (nm, t) in members[1:]]
-    code = """class %s(object):
-  __slots__ = [%s]
-  def __init__(self%s):
-%s""" % (name, ', '.join(map(repr, mems)), ''.join(', %s' % m for m in mems),
-        ''.join(['    self.%s = %s\n' % (m, m) for m in mems]) or '    pass')
+    slots = ', '.join(["'_ix'"] + map(repr, mems))
+    args = ''.join(', %s' % m for m in mems)
+    ix = len(datatypes)
+    stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
+    code = """class %(name)s(object):
+  __slots__ = [%(slots)s]
+  def __init__(self%(args)s):
+    self._ix = %(ix)d
+%(stmts)s""" % locals()
     exec code
     dt = datatypes[name] = eval(name)
     return dt
