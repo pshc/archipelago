@@ -9,7 +9,9 @@ CUR_CONTEXT = None
 def identifier(bootkey, name, subs=None):
     global CUR_CONTEXT
     context = CUR_CONTEXT
-    assert name not in context.syms, "Symbol '%s' conflicts" % (name,)
+    if name in context.syms:
+        assert False, "Symbol '%s' already in context\n" % (name,) + \
+                '\n'.join('\t'+str(s) for s in context.syms)
     s = symref(bootkey, [symname(name)] + (subs or []))
     context.syms[name] = s
     missing_refs = context.missingRefs.get(name)
