@@ -215,8 +215,8 @@ def save_module(name, mod_roots):
         list_append(dep_digests, dep.modDigest)
         depixs[dep] = ix
         ix += 1
-    header = Str("", [Int(1, Str(name, [])),
-                      Int(2, Int(natoms, [])),
+    header = Str("", [Int(1, [Str(name, [])]),
+                      Int(2, [Int(natoms, [])]),
                       Int(3, [Str(d, []) for d in dep_digests]),
                       Int(4, mod_roots)])
     temp = "/tmp/serialize"
