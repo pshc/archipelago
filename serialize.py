@@ -197,17 +197,17 @@ def load_module(digest):
     loaded_modules[digest] = mod
     return mod
 
-def scan_atoms(atom, own_atoms, ds):
-    set_add(own_atoms, atom)
+def scan_atoms(atom, ix, own_atoms, ds):
+    own_atoms[atom] = ix
+    ix += 1
     mod, subs = match(atom, ('Int(_, s)', lambda s: (None, s)),
                             ('Str(_, s)', lambda s: (None, s)),
                             ('Ref(_, m, s)', tuple2))
     if mod is not None:
         ds[mod.modDigest] = mod
-    natoms = 1
     for sub in subs:
-        natoms += scan_atoms(sub, own_atoms, ds)
-    return natoms
+        ix = scan_atoms(sub, ix, own_atoms, ds)
+    return ix
 
 def data_line(data, line):
     fwrite(data[0], line)
@@ -215,25 +215,31 @@ def data_line(data, line):
     sha256_update(data[1], line)
     sha256_update(data[1], '\n')
 
-def write_atom(atom, own_atoms, data, depixs):
+def ref_str(atom, mod, own_atoms, own_offset, depixs):
+    assert mod is None and atom in own_atoms, "Only self-refs implemented"
+    return "s%d" % (own_atoms[atom] + own_offset,)
+
+def write_atom(atom, own_atoms, own_offset, data, depixs):
     s, ss = match(atom, ('Int(i, ss)', lambda i, ss: ("%d" % (i,), ss)),
                         ('Str(s, ss)', lambda s, ss: ('"%s"'%(escape(s),),ss)),
-                        ('Ref(a, m, ss)', lambda a, m, ss: ("<ref>", ss)))
+                        ('Ref(a, m, ss)', lambda a, m, ss:
+            (ref_str(a, m, own_atoms, own_offset, depixs), ss)))
     nsubs = len(ss)
     if nsubs > 0:
         s = "%s;%d" % (s, nsubs)
     data_line(data, s)
     for sub in ss:
-        write_atom(sub, own_atoms, data, depixs)
+        write_atom(sub, own_atoms, own_offset, data, depixs)
 
 def save_module(name, mod_roots):
-    natoms = 7
     ds = {}
-    own_atoms = set()
+    own_atoms = {}
     print 'scanning for deps'
+    natoms = 0
     for r in mod_roots:
-        natoms += scan_atoms(r, own_atoms, ds)
-    natoms += len(ds)
+        natoms = scan_atoms(r, natoms, own_atoms, ds)
+    offset = 7 + len(ds)
+    natoms += offset
     print 'natoms: %d' % natoms
     depixs = {}
     print 'adding deps'
@@ -251,7 +257,7 @@ def save_module(name, mod_roots):
     temp = "/tmp/serialize"
     data = (fopen(temp, 'wb'), sha256())
     print 'writing'
-    write_atom(header, own_atoms, data, depixs)
+    write_atom(header, own_atoms, offset + 1, data, depixs)
     fclose(data[0])
     digest = sha256_hexdigest(data[1])
     system('mv -f -- %s mods/%s' % (temp, digest))
@@ -273,7 +279,8 @@ def print_atom(atom, indent):
 #print_atom((test_mod, 1), 0)
 
 print 'saving...'
+own = Str('world', [])
 print save_module('helloworld', [Str('hello\n',
-    [Str('"world"', []), Int(33, [])])])
+    [own, Int(33, []), Ref(own, None, [])])])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
