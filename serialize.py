@@ -238,11 +238,11 @@ def print_atom(atom, indent):
     for s in ss:
         print_atom(s, indent + 1)
 
-test_mod = load_module("test.py")
-print 'name: %s' % (test_mod.modName,)
-print '#atoms: %d' % (test_mod.modAtomCount,)
-print test_mod.modAtoms
-print_atom((test_mod, 1), 0)
+#test_mod = load_module("test.py")
+#print 'name: %s' % (test_mod.modName,)
+#print '#atoms: %d' % (test_mod.modAtomCount,)
+#print test_mod.modAtoms
+#print_atom((test_mod, 1), 0)
 
 print 'saving...'
 print save_module('helloworld', [Str('hello',
