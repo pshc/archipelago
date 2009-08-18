@@ -19,6 +19,28 @@ def read_int(f, first):
 escape_src = r'"n\tr0bafv'
 escape_dest = '"\n\\\t\r\0\b\a\f\v'
 
+def escape(s):
+    slen = len(s)
+    buf = array('char', 81)
+    si = 0
+    n = 0
+    while si < slen and n < sizeof(buf) - 1:
+        c = s[si]
+        if c in escape_dest:
+            for i in range(len(escape_dest)):
+                if c == escape_dest[i]:
+                    buf[n] = char('\\')
+                    buf[n+1] = escape_src[i]
+                    n += 1
+                    break
+        else:
+            buf[n] = c
+        n += 1
+        si += 1
+    assert n != sizeof(buf) - 1, "TODO: String literal %s is too long" % buf
+    buf[n] = char('\0')
+    return hint(stringify(buf))
+
 def read_str(f):
     buf = array('char', 81)
     n = 0
@@ -36,8 +58,7 @@ def read_str(f):
         n += 1
     assert n != sizeof(buf) - 1, "TODO: String literal %s is too long" % buf
     buf[n] = char('\0')
-    buf = hint(stringify(buf))
-    return (buf, n)
+    return (hint(stringify(buf)), n)
 
 def read_expected(f, s):
     n = len(s)
@@ -108,7 +129,6 @@ def fill_header(nm, ln, ndeps, ds, nroots, atoms):
 
 def read_atom(f, ix, natoms, atoms, dmods):
     c = fgetc(f)
-    subs = []
     atom = None
     ix += 1
     atom = atoms[ix]
@@ -196,7 +216,15 @@ def data_line(data, line):
     sha256_update(data[1], '\n')
 
 def write_atom(atom, own_atoms, data, depixs):
-    print 'write root %s' % (atom,)
+    s, ss = match(atom, ('Int(i, ss)', lambda i, ss: ("%d" % (i,), ss)),
+                        ('Str(s, ss)', lambda s, ss: ('"%s"'%(escape(s),),ss)),
+                        ('Ref(a, m, ss)', lambda a, m, ss: ("<ref>", ss)))
+    nsubs = len(ss)
+    if nsubs > 0:
+        s = "%s;%d" % (s, nsubs)
+    data_line(data, s)
+    for sub in ss:
+        write_atom(sub, own_atoms, data, depixs)
 
 def save_module(name, mod_roots):
     natoms = 7
@@ -245,7 +273,7 @@ def print_atom(atom, indent):
 #print_atom((test_mod, 1), 0)
 
 print 'saving...'
-print save_module('helloworld', [Str('hello',
-    [Str('world', []), Int(33, [])])])
+print save_module('helloworld', [Str('hello\n',
+    [Str('"world"', []), Int(33, [])])])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

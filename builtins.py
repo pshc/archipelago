@@ -82,7 +82,8 @@ def make_record():
     return Record
 
 import operator as o
-builtins.update({'+': o.add, '-': o.sub, '*': o.mul, '%': o.mod,
+builtins.update({'+': o.add, '-': o.sub, '*': o.mul,
+                '/': o.div, '//': o.floordiv, '%': o.mod,
                 'negate': o.neg, '==': o.eq, '!=': o.ne, '<': o.lt, '>': o.gt,
                 '<=': o.le, '>=': o.ge, 'is': o.is_, 'is not': o.is_not,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
