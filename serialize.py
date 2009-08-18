@@ -208,12 +208,13 @@ def save_module(name, mod_roots):
     natoms += len(ds)
     print 'natoms: %d' % natoms
     depixs = {}
-    ix = 1
-    dep_digests = []
     print 'adding deps'
-    for dep in sorted(dict_keys(ds)):
-        list_append(dep_digests, dep.modDigest)
-        depixs[dep] = ix
+    dep_digests = dict_keys(ds)
+    list_sort(dep_digests)
+    ix = 1
+    for dep in dep_digests:
+        depmod = ds[dep]
+        depixs[depmod] = ix
         ix += 1
     header = Str("", [Int(1, [Str(name, [])]),
                       Int(2, [Int(natoms, [])]),

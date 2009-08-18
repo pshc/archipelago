@@ -56,7 +56,7 @@ sha256_update = lambda h, s: h.update(s)
 
 dict_keys = dict.keys
 set_add = set.add
-list_append = list.append
+list_append, list_sort = list.append, list.sort
 
 identity = lambda x: x
 tuple2   = lambda x, y: (x, y)
@@ -69,8 +69,7 @@ builtins = dict((k, v) for k, v in locals().iteritems()
                        if not k.startswith('__'))
 
 builtins.update(dict((b, __builtins__[b]) for b in [
-    'None', 'True', 'False', 'sorted', 'getattr', 'ord', 'range', 'len',
-    'set',
+    'None', 'True', 'False', 'getattr', 'ord', 'range', 'len', 'set',
     ]))
 
 builtins.update(dict((dummy, None) for dummy in ArrayAtom.__slots__))
