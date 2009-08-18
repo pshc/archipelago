@@ -9,7 +9,8 @@ ScopeInfo, FuncScope, CaseScope, WhileScope, ForScope = ADT('ScopeInfo',
         'FuncScope', ('calledFuncName', str), ('returnValue', Atom),
         'CaseScope',
         'WhileScope', ('loopCond', Atom), ('whileBody', [Atom]),
-        'ForScope', ('forVar', Atom), ('loopList', []), ('forBody', [Atom]))
+        'ForScope', ('forVar', Atom), ('loopList', []), ('loopPos', int),
+                    ('forBody', [Atom]))
 
 Scope = DT('Scope', ('syms', {Atom: Atom}),
                     ('scopeInfo', ScopeInfo),
@@ -449,7 +450,7 @@ def stmt_assign(stmt, scope):
     return scope
 
 def enclosing_loop(scope):
-    return match(scope.scopeInfo, ('ForScope(_, _, _)', lambda: scope),
+    return match(scope.scopeInfo, ('ForScope(_, _, _, _)', lambda: scope),
                                   ('WhileScope(_, _, _)', lambda: scope),
                                   ('CaseScope()',
                                       lambda: enclosing_loop(scope.prevScope)),
@@ -503,7 +504,7 @@ def stmt_for(stmt, scope):
     a, ls, body = match(stmt.subs,
         ('cons(a, cons(ls, contains(key("body", sized(body)))))', tuple3))
     items = eval_expr(ls, scope)
-    for_scope = new_scope({}, ForScope(a, items, body), body, scope)
+    for_scope = new_scope({}, ForScope(a, items, 0, body), body, scope)
     for_scope.stmtsPos = SCOPE_END
     return for_scope
 
@@ -554,10 +555,11 @@ def loop_while(cond, scope):
         return True
     return False
 
-def loop_for(var, list, scope):
-    if len(list) > 0:
-        do_assign(var, EQUALS, list.pop(0), scope)
+def loop_for(var, list, pos, scope):
+    if pos < len(list):
+        do_assign(var, EQUALS, list[pos], scope)
         scope.stmtsPos = 0
+        scope.scopeInfo.loopPos = pos + 1
         return True
     return False
 
@@ -571,7 +573,8 @@ def run_scope(scope):
             break
         if scope.stmtsPos == SCOPE_BREAK or not match(scope.scopeInfo,
                 ('WhileScope(c, _)', lambda c: loop_while(c, scope)),
-                ('ForScope(v, l, _)', lambda v, l: loop_for(v, l, scope)),
+                ('ForScope(v, l, n, _)', lambda v, l, n:
+                                         loop_for(v, l, n, scope)),
                 ('CaseScope()', lambda: False)):
             scope = scope.prevScope
 
