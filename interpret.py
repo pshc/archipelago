@@ -22,8 +22,8 @@ Function = DT('Function', ('funcName', str),
                           ('funcStmts', [Atom]))
 
 CTORS = {'Int': 0, 'Str': 1, 'Ref': 2}
-CTOR_FIELDS = [('_ix', 'intVal', 'subs'), ('_ix', 'strVal', 'subs'),
-               ('_ix', 'refAtom', 'refMod', 'subs')]
+CTOR_FIELDS = [('intVal', 'subs'), ('strVal', 'subs'),
+               ('refAtom', 'refMod', 'subs')]
 
 SCOPE_END = -2
 SCOPE_BREAK = -3

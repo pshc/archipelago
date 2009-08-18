@@ -7,7 +7,7 @@ algetypes = {}
 def DT(*members):
     name = members[0]
     mems = [(nm) for (nm, t) in members[1:]]
-    slots = ', '.join(["'_ix'"] + map(repr, mems))
+    slots = ', '.join(map(repr, mems) + ['"_ix"'])
     args = ''.join(', %s' % m for m in mems)
     ix = len(datatypes)
     stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
