@@ -19,12 +19,13 @@ def read_int(f, first):
 escape_src = r'"n\tr0bafv'
 escape_dest = '"\n\\\t\r\0\b\a\f\v'
 
-def escape(s):
+def quote_str(s):
     slen = len(s)
-    buf = array('char', 81)
+    buf = array('char', 83)
+    buf[0] = char('"')
     si = 0
-    n = 0
-    while si < slen and n < sizeof(buf) - 1:
+    n = 1
+    while si < slen and n < sizeof(buf) - 2:
         c = s[si]
         if c in escape_dest:
             for i in range(len(escape_dest)):
@@ -37,8 +38,9 @@ def escape(s):
             buf[n] = c
         n += 1
         si += 1
-    assert n != sizeof(buf) - 1, "TODO: String literal %s is too long" % buf
-    buf[n] = char('\0')
+    assert n < sizeof(buf) - 2, "TODO: String literal %s is too long" % buf
+    buf[n] = char('"')
+    buf[n+1] = char('\0')
     return hint(stringify(buf))
 
 def read_str(f):
@@ -221,7 +223,7 @@ def ref_str(atom, mod, own_atoms, own_offset, depixs):
 
 def write_atom(atom, own_atoms, own_offset, data, depixs):
     s, ss = match(atom, ('Int(i, ss)', lambda i, ss: ("%d" % (i,), ss)),
-                        ('Str(s, ss)', lambda s, ss: ('"%s"'%(escape(s),),ss)),
+                        ('Str(s, ss)', lambda s, ss: (quote_str(s),ss)),
                         ('Ref(a, m, ss)', lambda a, m, ss:
             (ref_str(a, m, own_atoms, own_offset, depixs), ss)))
     nsubs = len(ss)
@@ -265,22 +267,20 @@ def save_module(name, mod_roots):
     return digest
 
 def print_atom(atom, indent):
-    t, ss = match(atom, ("Str(s, ss)", tuple2),
+    t, ss = match(atom, ("Str(s, ss)", lambda s, ss: (quote_str(s), ss)),
                         ("Int(n, ss)", tuple2),
                         ("Ref(r, m, ss)", lambda r, m, ss: ("ref", ss)))
     print "%s%s" % ('  ' * indent, t)
     for s in ss:
         print_atom(s, indent + 1)
 
-#test_mod = load_module("test.py")
-#print 'name: %s' % (test_mod.modName,)
-#print '#atoms: %d' % (test_mod.modAtomCount,)
-#print test_mod.modAtoms
-#print_atom((test_mod, 1), 0)
-
 print 'saving...'
 own = Str('world', [])
 print save_module('helloworld', [Str('hello\n',
     [own, Int(33, []), Ref(own, None, [])])])
+
+print 'loading...'
+test_mod = load_module("helloworld")
+print_atom((test_mod, 1), 0)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
