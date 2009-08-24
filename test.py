@@ -3,54 +3,50 @@ from base import DT, ADT
 Pair = DT('Pair', ('first', None), ('second', None))
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', None), 'Nothing')
 
+a = 10
+buf = ""
+while a > 4:
+    a = a - 1
+    buf = "%s%d" % (buf, a)
+assert buf == "987654" and a == 4
 def foo(bar, baz):
     print baz
     return bar + bar
-a = 10
-while a > 4:
-    print a
-    a = a - 1
+assert foo(42, "OK") == 84
 greeting = [(True, "ello"), (True, "friend")]
 greeting[1] = (False, "world")
+buf = ""
 for b, c in greeting:
     if b:
-        print 'h'
-    print c
-    while 0:
+        buf = "%sh" % (buf,)
+    buf = "%s%s" % (buf, c)
+    while True:
         break
     continue
-    print "!!!"
-if a == 5:
-    print 'INCORRECT'
-elif a == 4:
-    print foo(a, 'YES')
-    print a
-else:
-    print 'NO'
+    print "continue FAIL"
+assert buf == "helloworld"
 p = Pair(1, 2)
-print p.first
-print p.second
+assert p.first == 1 and p.second == 2
 p.first = 4
-print p.first
-print p.second
+assert p.first == 4 and p.second == 2
 
-n, j = Nothing(), Just("just value")
-print match(n, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
-print match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "nothing"))
+n, j = Nothing(), Just("OK")
+print match(n, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "OK"))
+print match(j, ("Just(msg)", lambda m: m), ("Nothing()", lambda: "match FAIL"))
 
 def fac(n):
     if n == 0:
         return 1
     return n * fac(n - 1)
-
-print fac(5)
+assert fac(5) == 120
 
 ns = [0, 2, 0, 0, 1]
-print match(ns, ("every(_, 0)", lambda: "every(...) failed"),
-                ("_",           lambda: "every(...) OK!"))
-print match(ns, ("all(ls, l==0)", lambda ls: "all(...) OK! %s" % ls),
-                ("_",             lambda: "all(...) failed!"))
+print match(ns, ("every(_, 0)",  lambda: "every(...) FAILED"),
+                ("_",            lambda: "OK"))
+print match(ns, ("all(_, l==0)", lambda: "OK"),
+                ("_",            lambda: "all(...) FAILED"))
 
 def one(k): return two(k)
 def two(k): return k + k
-print one(10)
+assert one(10) == 20
+# vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
