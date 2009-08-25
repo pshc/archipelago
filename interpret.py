@@ -244,7 +244,6 @@ def match_ctor(ctor, args, e):
     fs = CTOR_FIELDS[e._ix]
     rs = []
     for f, a in zip(fs, args):
-        # XXX: This doesn't work for ArrayAtoms
         if not isinstance(f, basestring):
             f = getname(f)
         r = pat_match(a, getattr(e, f))
@@ -600,8 +599,8 @@ def test(filename):
     system('rm -f -- mods/*')
     serialize_module(module)
     print 'Serialized'
-    serialize_module(ast.convert_file('test.py'))
-    print 'Serialized test.py'
+    serialize_module(ast.convert_file('short.py'))
+    print 'Serialized short.py'
     run_module(module)
 
 try:

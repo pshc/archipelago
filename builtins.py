@@ -49,6 +49,7 @@ def stringify(buf):
     except ValueError:
         assert False, 'buf is not null-terminated'
     return ''.join(buf[:n])
+to_atom = lambda m, n: (m, n)
 
 from hashlib import sha256
 sha256_hexdigest = lambda h: h.hexdigest()

@@ -274,13 +274,23 @@ def print_atom(atom, indent):
     for s in ss:
         print_atom(s, indent + 1)
 
-print 'saving...'
-own = Str('world', [])
-print save_module('helloworld', [Str('hello\n',
-    [own, Int(33, []), Ref(own, None, [])])])
+def c_decl(a):
+    nm = match(a, ("key('DT', _) and named(nm)", identity))
+    print 'DT named %s' % (nm,)
+
+def convert_mod_to_c(m):
+    (nm, dg, ac, atoms, rs) = match(m, ('Module(a,b,c,d,e)', tuple5))
+    for r in rs:
+        c_decl(hint(to_atom(m, r)))
+
+#print 'saving...'
+#own = Str('world', [])
+#print save_module('helloworld', [Str('hello\n',
+#    [own, Int(33, []), Ref(own, None, [])])])
 
 print 'loading...'
-test_mod = load_module("helloworld")
-print_atom((test_mod, 1), 0)
+test_mod = load_module("short.py")
+print 'conversion to C:'
+convert_mod_to_c(test_mod)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
