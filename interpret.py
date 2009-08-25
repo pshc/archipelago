@@ -204,6 +204,16 @@ def match_capture(v, pat, e):
 def is_wildcard_match(ast):
     return isinstance(ast, Name) and ast.name == '_'
 
+def array_atom_subs(a):
+    (mod, n) = a
+    if mod.modAtoms[n].hassubs:
+        n = n + 1
+        while n:
+            yield (mod, n)
+            nx = mod.modAtoms[n].nsibling
+            assert not nx or nx > n, "Bad next-sibling pointer"
+            n = nx
+
 def match_array_atom(nm, astargs, e):
     (mod, n) = e
     atom = mod.modAtoms[n]
@@ -224,14 +234,7 @@ def match_array_atom(nm, astargs, e):
     else:
         return None
     # Walk subatoms
-    ss = []
-    if atom.hassubs:
-        sx = n + 1
-        while sx:
-            ss.append((mod, sx))
-            nx = mod.modAtoms[sx].nsibling
-            assert not nx or nx > sx, "Bad next-sibling pointer"
-            sx = nx
+    ss = list(array_atom_subs(e)) if atom.hassubs else []
     args2 = pat_match(astargs[subix], ss)
     return None if args2 is None else args + args2
 
