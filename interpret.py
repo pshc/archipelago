@@ -209,7 +209,7 @@ def array_atom_impostor(a):
     aa = mod.modAtoms[n]
     ix = aa._ix
     assert 0 <= ix < 3, "Bad ArrayAtom index: %d" % ix
-    ss = array_atom_subs(a)
+    ss = list(array_atom_subs(a)) # XXX: Is there no way to do this lazily?
     if ix == 0:
         return Int(aa.val, ss)
     elif ix == 1:
@@ -227,31 +227,8 @@ def array_atom_subs(a):
             assert not nx or nx > n, "Bad next-sibling pointer"
             n = nx
 
-def match_array_ref(a, m, astargs):
-    args = pat_match(astargs[0], a)
-    if args is not None:
-        args2 = pat_match(astargs[1], m)
-        if args2 is not None:
-            return (args + args2, 2)
-    return (None, 0)
-
-def match_array_atom(nm, astargs, e):
-    atom = array_atom_impostor(e)
-    (args, subix) = match((atom, nm),
-            ("(Int(n, _), 'Int')", lambda n: (pat_match(astargs[0], n), 1)),
-            ("(Str(s, _), 'Str')", lambda s: (pat_match(astargs[0], s), 1)),
-            ("(Ref(a, m, _), 'Ref')", lambda a, m:
-                match_array_ref(a, m, astargs)),
-            ("_", lambda: (None, 0)))
-    if args is not None:
-        args2 = pat_match(astargs[subix], list(atom.subs))
-        if args2 is not None:
-            return args + args2
-
 def match_ctor(ctor, args, e):
     nm = getident(ctor)
-    if isinstance(e, tuple) and hasattr(e[0], 'modAtoms'):
-        return match_array_atom(nm, args, e)
     if CTORS[nm] != e._ix:
         return None
     fs = CTOR_FIELDS[e._ix]
@@ -329,6 +306,8 @@ def match_named2(np, sp, e):
     return None if sr is None else nr + sr
 
 def pat_match(pat, e):
+    if isinstance(e, tuple) and hasattr(e[0], 'modAtoms'):
+        e = array_atom_impostor(e)
     return match(pat,
             ('Int(i, _)', lambda i: [] if i == e else None),
             ('Str(s, _)', lambda s: [] if s == e else None),
