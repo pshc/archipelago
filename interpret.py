@@ -204,6 +204,19 @@ def match_capture(v, pat, e):
 def is_wildcard_match(ast):
     return isinstance(ast, Name) and ast.name == '_'
 
+def array_atom_impostor(a):
+    (mod, n) = a
+    aa = mod.modAtoms[n]
+    ix = aa._ix
+    assert 0 <= ix < 3, "Bad ArrayAtom index: %d" % ix
+    ss = array_atom_subs(a)
+    if ix == 0:
+        return Int(aa.val, ss)
+    elif ix == 1:
+        return Str(aa.ptr, ss)
+    else: # ix == 2
+        return Ref(aa.ptr.modAtoms[aa.val], aa.ptr, ss)
+
 def array_atom_subs(a):
     (mod, n) = a
     if mod.modAtoms[n].hassubs:
@@ -214,29 +227,26 @@ def array_atom_subs(a):
             assert not nx or nx > n, "Bad next-sibling pointer"
             n = nx
 
+def match_array_ref(a, m, astargs):
+    args = pat_match(astargs[0], a)
+    if args is not None:
+        args2 = pat_match(astargs[1], m)
+        if args2 is not None:
+            return (args + args2, 2)
+    return (None, 0)
+
 def match_array_atom(nm, astargs, e):
-    (mod, n) = e
-    atom = mod.modAtoms[n]
-    ix = atom._ix
-    assert 0 <= ix < 3, "Bad ArrayAtom index: %d" % ix
-    subix = 1
-    if ix == 0 and nm == 'Int':
-        args = pat_match(astargs[0], atom.val)
-    elif ix == 1 and nm == 'Str':
-        args = pat_match(astargs[0], atom.ptr)
-    elif ix == 2 and nm == 'Ref':
-        args = pat_match(astargs[0], atom.ptr.modAtoms[atom.val])
-        if args is None: return None
-        args2 = pat_match(astargs[1], atom.ptr)
-        if args2 is None: return None
-        args += args2
-        subix = 2
-    else:
-        return None
-    # Walk subatoms
-    ss = list(array_atom_subs(e)) if atom.hassubs else []
-    args2 = pat_match(astargs[subix], ss)
-    return None if args2 is None else args + args2
+    atom = array_atom_impostor(e)
+    (args, subix) = match((atom, nm),
+            ("(Int(n, _), 'Int')", lambda n: (pat_match(astargs[0], n), 1)),
+            ("(Str(s, _), 'Str')", lambda s: (pat_match(astargs[0], s), 1)),
+            ("(Ref(a, m, _), 'Ref')", lambda a, m:
+                match_array_ref(a, m, astargs)),
+            ("_", lambda: (None, 0)))
+    if args is not None:
+        args2 = pat_match(astargs[subix], list(atom.subs))
+        if args2 is not None:
+            return args + args2
 
 def match_ctor(ctor, args, e):
     nm = getident(ctor)
