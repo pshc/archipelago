@@ -62,6 +62,16 @@ def match_try(atom, ast):
     elif isinstance(ast, Const):
         # Literal match
         return [] if ast.value == atom else None
+    elif isinstance(ast, Tuple):
+        if not isinstance(atom, tuple) or len(atom) != len(ast.nodes):
+            return None
+        tuple_args = []
+        for a, node in zip(atom, ast.nodes):
+            args = match_try(a, node)
+            if args is None:
+                return None
+            tuple_args += args
+        return tuple_args
     elif isinstance(ast, Or):
         # First that doesn't fail
         for case in ast.nodes:
