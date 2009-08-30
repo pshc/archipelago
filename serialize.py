@@ -274,9 +274,14 @@ def print_atom(atom, indent):
     for s in ss:
         print_atom(s, indent + 1)
 
-def c_decl(a):
-    nm = match(a, ("key('DT', _) and named(nm)", identity))
+def c_dt(fs, nm):
     print 'DT named %s' % (nm,)
+    for f in fs:
+        print ' field %s' % (f,)
+
+def c_decl(a):
+    return match(a, ("key('DT', all(fs, key('field') and named(fname)))"
+                     " and named(nm)", c_dt))
 
 def convert_mod_to_c(m):
     (nm, dg, ac, atoms, rs) = match(m, ('Module(a,b,c,d,e)', tuple5))

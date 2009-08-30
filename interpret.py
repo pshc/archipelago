@@ -322,7 +322,7 @@ def match_named(np, sp, e):
     for s in e.subs:
         s = normalize_atom(s)
         if bootstrap_name(s) == 'name':
-            nr = pat_match(np, s.subs[0])
+            nr = pat_match(np, normalize_atom(s.subs[0]).strVal)
             if nr is not None:
                 if sp is None:
                     return nr
