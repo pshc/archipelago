@@ -178,6 +178,16 @@ def expr_ternary(op, subs, scope):
 def expr_tuplelit(op, subs, scope):
     return tuple(eval_exprs(match(subs, ('sized(items)', identity)), scope))
 
+def match_tuplelit(ps, es):
+    if len(ps) == len(es):
+        rs = []
+        for p, e in zip(ps, es):
+            r = pat_match(p, e)
+            if r is None:
+                return None
+            rs += r
+        return rs
+
 def match_or(ps, e):
     for p in ps:
         r = pat_match(p, e)
@@ -342,6 +352,7 @@ def pat_match(pat, e):
             ('Int(i, _)', lambda i: [] if i == e else None),
             ('Str(s, _)', lambda s: [] if s == e else None),
             ('v==key("var", _)', lambda v: [(v, e)]),
+            ('key("tuplelit", sized(ps))', lambda ps: match_tuplelit(ps, e)),
             ('key("wildcard", _)', lambda: []),
             ('key("ctor", cons(c, sized(args)))',
                 lambda c, args: match_ctor(c, args, e)),

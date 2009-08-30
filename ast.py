@@ -221,6 +221,9 @@ def conv_match_try(ast, bs):
     elif isinstance(ast, Const):
         va, vt = conv_const(ast)
         return va
+    elif isinstance(ast, Tuple):
+        return symref('tuplelit', [int_len(ast.nodes)]
+                                  + [conv_match_try(n, bs) for n in ast.nodes])
     elif isinstance(ast, Or):
         return symref('or', [int_len(ast.nodes)]
                             + [conv_match_try(n, bs) for n in ast.nodes])
