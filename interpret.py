@@ -215,7 +215,7 @@ def array_atom_impostor(a):
     elif ix == 1:
         return Str(aa.ptr, ss)
     else: # ix == 2
-        return Ref(aa.ptr.modAtoms[aa.val], aa.ptr, ss)
+        return Ref((aa.ptr, aa.val), aa.ptr, ss)
 
 def array_atom_subs(a):
     (mod, n) = a
@@ -247,26 +247,24 @@ def match_contains(p, es):
         r = pat_match(p, e)
         if r is not None:
             return r
-    return None
 
 def match_cons(hp, tp, e):
-    h, t = match(e, ('cons(h, t)', tuple2))
-    hr = pat_match(hp, e)
-    if hr is None:
-        return None
-    tr = pat_match(tp, e)
-    return None if tr is None else hr + tr
+    if len(e):
+        car = pat_match(hp, e[0])
+        if car is not None:
+            cdr = pat_match(tp, map(normalize_atom, e[1:]))
+            if cdr is not None:
+                return car + cdr
 
 def match_all(v, p, es):
     rs = []
     all_singular = True
     for e in es:
         r = pat_match(p, e)
-        if r is None:
-            continue
-        if len(r) != 1:
-            all_singular = False
-        rs.append([val for var, val in r])
+        if r is not None:
+            if len(r) != 1:
+                all_singular = False
+            rs.append([val for var, val in r])
     return [(v, [r[0] for r in rs] if all_singular else rs)]
 
 def match_every(v, p, es):
@@ -281,33 +279,65 @@ def match_every(v, p, es):
         rs.append([val for var, val in r])
     return [(v, [r[0] for r in rs] if all_singular else rs)]
 
-def match_sized2(hp, tp, e):
-    h, t = match(e, ('sized(h, t)', tuple2))
-    hr = pat_match(hp, h)
-    if hr is None:
-        return None
-    tr = pat_match(tp, t)
-    return None if tr is None else hr + tr
+def match_sized(hp, tp, e):
+    l = len(e)
+    if l > 0:
+        n = normalize_atom(e[0])
+        if hasattr(n, 'intVal'):
+            n = n.intVal
+            if l > n + 1:
+                h = pat_match(hp, e[1:n+1])
+                if h is not None:
+                    if tp is None:
+                        return h
+                    t = pat_match(tp, e[n+1:])
+                    if t is not None:
+                        return h + t
 
-def match_key2(kp, sp, e):
-    k, s = match(e, ('key(k, s)', tuple2))
-    kr = pat_match(kp, k)
-    if kr is None:
-        return None
-    sr = pat_match(sp, s)
-    return None if sr is None else kr + sr
+_bootstrap_index = {}
+def bootstrap_name(aa):
+    # XXX: Assumes ->symbol ->name "name goes here" structure
+    if hasattr(aa, 'refAtom'):
+        (mod, n) = aa.refAtom
+        if mod.modName == 'bootstrap':
+            nm = _bootstrap_index.get(n)
+            if nm is None:
+                a = normalize_atom(aa.refAtom)
+                nm = normalize_atom(normalize_atom(a.subs[0]).subs[0]).strVal
+                _bootstrap_index[n] = nm
+            return nm
 
-def match_named2(np, sp, e):
-    n, s = match(e, ('named(n, s)', tuple2))
-    nr = pat_match(np, n) # oshi
-    if nr is None:
-        return None
-    sr = pat_match(sp, s)
-    return None if sr is None else nr + sr
+def match_key(kp, sp, e):
+    k = bootstrap_name(e)
+    if k is not None:
+        kr = pat_match(kp, k)
+        if kr is not None:
+            if sp is None:
+                return kr
+            sr = pat_match(sp, map(normalize_atom, e.subs))
+            if sr is not None:
+                return kr + sr
+
+def match_named(np, sp, e):
+    for s in e.subs:
+        s = normalize_atom(s)
+        if bootstrap_name(s) == 'name':
+            nr = pat_match(np, s.subs[0])
+            if nr is not None:
+                if sp is None:
+                    return nr
+                sr = pat_match(sp, map(normalize_atom, e.subs))
+                if sr is not None:
+                    return nr + sr
+            break
+
+def normalize_atom(a):
+    if isinstance(a, tuple) and hasattr(a[0], 'modAtoms'):
+        return array_atom_impostor(a)
+    return a
 
 def pat_match(pat, e):
-    if isinstance(e, tuple) and hasattr(e[0], 'modAtoms'):
-        e = array_atom_impostor(e)
+    e = normalize_atom(e)
     return match(pat,
             ('Int(i, _)', lambda i: [] if i == e else None),
             ('Str(s, _)', lambda s: [] if s == e else None),
@@ -320,18 +350,19 @@ def pat_match(pat, e):
             ('key("capture", cons(v, cons(p, _)))',
                 lambda v, p: match_capture(v, p, e)),
             ('key("sized1", cons(p, _))',
-                lambda p: match(e, ('sized(s)', lambda s: try_match(p, s)))),
+                lambda p: match_sized(p, None, e)),
             ('key("sized2", cons(p, cons(q, _)))',
-                lambda p, q: match_sized2(p, q, e)),
+                lambda p, q: match_sized(p, q, e)),
             ('key("key1", cons(p, _))',
-                lambda p: match(e, ('key(k)', lambda k: try_match(p, k)))),
+                lambda p: match_key(p, None, e)),
             ('key("key2", cons(p, cons(q, _)))',
-                lambda p, q: match_key2(p, q, e)),
+                lambda p, q: match_key(p, q, e)),
             ('key("named1", cons(p, _))',
-                lambda p: match(e, ('named(n)', lambda n: try_match(p, n)))),
+                lambda p: match_named(p, None, e)),
             ('key("named2", cons(p, cons(q, _)))',
-                lambda p, q: match_named2(p, q, e)),
-            ('key("contains1", cons(p, _))', lambda p: match_contains(p, e)),
+                lambda p, q: match_named(p, q, e)),
+            ('key("contains1", cons(p, _))',
+                lambda p: match_contains(p, e)),
             ('key("cons2", cons(h, cons(t, _)))',
                 lambda h, t: match_cons(h, t, e)),
             ('key("all2", cons(v, cons(p, _)))',
