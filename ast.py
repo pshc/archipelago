@@ -148,7 +148,6 @@ def make_dt(left, args):
     (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                                  sized(cons(Str(nm, _), _)))))', tuple2))
     fa = identifier('DT', dt_nm, [identifier('field', nm) for nm in nms])
-    print dt_nm, nms
     return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
 
 def replace_refs(mapping, e):
