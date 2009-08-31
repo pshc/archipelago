@@ -3,9 +3,9 @@ from atom import *
 from base import *
 from builtins import *
 
-Env = DT('Env', ('envTable', {Atom: Atom}))
+Env = DT('Env', ('envTable', {Atom: Atom}), ('envIndex', int))
 
-map(add_sym, 'type,void,int,bool,char,str,func,typevar'.split(','))
+map(add_sym, 'type,void,int,bool,char,str,func,typevar,varindex'.split(','))
 
 voidT = lambda: symref('void', [])
 intT = lambda: symref('int', [])
@@ -15,7 +15,9 @@ strT = lambda: symref('str', [])
 fnT = lambda args, ret: symref('func', [Int(len(args)+1, [])] + args + [ret])
 
 def fresh(env):
-    return symref('typevar', [])
+    i = env.envIndex
+    env.envIndex = i + 1
+    return symref('typevar', [symref('varindex', [Int(i, [])])])
 
 basic_types = set(['void', 'int', 'bool', 'char', 'str'])
 
@@ -78,7 +80,7 @@ def infer_stmt(a, env):
         ("otherwise", lambda e: unknown_infer(e, env)))
 
 def infer_types(roots):
-    env = Env({})
+    env = Env({}, 1)
     for r in roots:
         infer_stmt(r, env)
     for a, t in env.envTable.iteritems():
