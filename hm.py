@@ -29,7 +29,7 @@ def typevars_equal(u, v):
     return eq
 
 def unification_failure(e1, e2, env):
-    assert ok, "Could not unify %r with %r" % (e1, e2)
+    assert False, "Could not unify %r with %r" % (e1, e2)
 
 def apply_substs(substs, t):
     return substs.get(t, t)
@@ -87,6 +87,9 @@ def infer_call(f, args, env):
 def infer_builtin(k, env):
     if k == '+':
         return fnT([intT(), intT()], intT())
+    elif k == 'print':
+        return fnT([strT()], voidT())
+    assert False, "Unknown type for builtin '%s'" % (k,)
 
 def unknown_infer(a, env):
     assert False, 'Unknown type for:\n%s' % (a,)
