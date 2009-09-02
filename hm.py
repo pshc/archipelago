@@ -21,6 +21,8 @@ def fresh(env):
     env.envIndex = i + 1
     return symref('typevar', [symref('varindex', [Int(i, [])])])
 
+is_typevar = lambda v: match(v, ("key('typevar')", lambda: True),
+                                ("_", lambda: False))
 typevar_index = lambda v: match(v, ("key('typevar', cons(key('varindex', "
                                     "cons(Int(ix, _), _)), _))", identity))
 def typevars_equal(u, v):
@@ -73,22 +75,29 @@ def free_vars(v):
                     ("key(k)", lambda k: set() if k in basic_types else
                         free_vars_unknown(k)))
 
+basic_types = ['void', 'int', 'bool', 'char', 'str']
+
 def unify_funcs(f1, args1, f2, args2, env):
     if len(args1) != len(args2):
         unification_failure(f1, f2, env)
     substs = {}
     for a1, a2 in zip(args1, args2):
+        apply_substs(substs, a1)
+        apply_substs(substs, a2)
         substs = compose_substs(substs, unify(a1, a2, env), env)
     return substs
 
-basic_types = ['void', 'int', 'bool', 'char', 'str']
+def unify_bind(v, e, env):
+    if is_typevar(e) and typevars_equal(v, e):
+        return {}
+    if v in free_vars(e):
+        unification_failure(v, e, env)
+    return {v: e}
 
 def unify(e1, e2, env):
     return match((e1, e2),
-        ("(key('typevar'), key('typevar'))", lambda:
-            {} if typevars_equal(e1, e2) else {e1: e2}),
-        ("(key('typevar'), _)", lambda: {e1: e2}),
-        ("(_, key('typevar'))", lambda: {e2: e1}),
+        ("(key('typevar'), _)", lambda: unify_bind(e1, e2, env)),
+        ("(_, key('typevar'))", lambda: unify_bind(e2, e1, env)),
         ("(key('func', sized(a1)), key('func', sized(a2)))",
             lambda a1, a2: unify_funcs(e1, a1, e2, a2, env)),
         # These two must be last
