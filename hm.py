@@ -29,6 +29,11 @@ def typevars_equal(u, v):
     return eq
 
 def unification_failure(e1, e2, env):
+    # XXX: This is very conservative about using bogus constraints
+    substs = env.envSubsts
+    normalize_substs(substs)
+    e1 = apply_substs(substs, e1)
+    e2 = apply_substs(substs, e2)
     assert False, "Could not unify %r with %r" % (e1, e2)
 
 def apply_substs(substs, t):
