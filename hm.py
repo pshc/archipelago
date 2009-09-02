@@ -53,8 +53,6 @@ def apply_substs(substs, t):
 def compose_substs(s1, s2, env):
     s3 = s1.copy()
     for k, v in s2.iteritems():
-        if k in s1:
-            unify(s1[k], v, env) # This doesn't seem like the right place...
         s3[k] = apply_substs(s1, v)
     return s3
 
