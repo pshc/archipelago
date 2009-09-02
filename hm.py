@@ -99,7 +99,7 @@ def infer_expr(a, env):
         ("key(k)", lambda k: infer_builtin(k, env)),
         ("Ref(v==key('var'), _, _)", lambda v: get_type(v, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
-    set_type(a, t, env)
+    #set_type(a, t, env) # Much too noisy
     return t
 
 def infer_DT(fs, nm, env):
