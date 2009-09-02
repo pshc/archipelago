@@ -89,6 +89,8 @@ def infer_call(f, args, env):
 def infer_builtin(k, env):
     if k == '+':
         return fnT([intT(), intT()], intT())
+    elif k == '%':
+        return fnT([strT(), intT()], strT()) # Bogus!
     elif k == 'print':
         return fnT([strT()], voidT())
     assert False, "Unknown type for builtin '%s'" % (k,)
