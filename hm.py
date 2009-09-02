@@ -36,8 +36,17 @@ def unification_failure(e1, e2, env):
     e2 = apply_substs(substs, e2)
     assert False, "Could not unify %r with %r" % (e1, e2)
 
+def apply_substs_to_func(substs, f, args):
+    # Where is your mapM_ now??
+    for a in args:
+        apply_substs(substs, a)
+    return f
+
 def apply_substs(substs, t):
-    return substs.get(t, t)
+    return match(t, ("key('typevar')", lambda: substs.get(t, t)),
+                    ("key('func', sized(args))", lambda args:
+                     apply_substs_to_func(substs, t, args)),
+                    ("_", lambda: t))
 
 def compose_substs(s1, s2, env):
     s3 = s1.copy()
