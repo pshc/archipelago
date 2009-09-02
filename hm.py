@@ -66,6 +66,9 @@ def unify(e1, e2, env):
 def set_type(e, t, env):
     env.envTable[e] = t
 
+def get_type(e, env):
+    return env.envTable[e]
+
 def incorporate_substs(substs, env):
     """Actually insert the substs into the environment.
 
@@ -94,6 +97,7 @@ def infer_expr(a, env):
         ("Str(_, _)", strT),
         ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
         ("key(k)", lambda k: infer_builtin(k, env)),
+        ("Ref(v==key('var'), _, _)", lambda v: get_type(v, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
     set_type(a, t, env)
     return t
@@ -102,12 +106,15 @@ def infer_DT(fs, nm, env):
     print 'DT', nm
 
 def infer_assign(a, e, env):
-    newvar = match(a, ("key('var')", lambda: True), ("_", lambda: False))
-    assert newvar
-    t = fresh(env)
+    newvar = match(a, ("key('var')", lambda: True),
+                      ("Ref(key('var'), _, _)", lambda: False))
+    if newvar:
+        t = fresh(env)
+        set_type(a, t, env)
+    else:
+        t = get_type(a.refAtom, env)
     substs = unify(t, infer_expr(e, env), env)
     incorporate_substs(substs, env)
-    set_type(a, t, env)
 
 def infer_stmt(a, env):
     match(a,
@@ -140,13 +147,17 @@ def infer_types(roots):
     for a, t in env.envTable.iteritems():
         a.subs.append(symref('type', [apply_substs(env.envSubsts, t)]))
 
+def write_mod_repr(filename, m):
+    f = fopen(filename, 'w')
+    for r in m.roots:
+        fwrite(f, repr(r))
+    fclose(f)
+
 if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')
+    write_mod_repr('hello', short)
     infer_types(short.roots)
-    f = fopen('hello', 'w')
-    for r in short.roots:
-        fwrite(f, repr(r))
-    fclose(f)
+    write_mod_repr('hello', short)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
