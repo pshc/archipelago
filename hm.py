@@ -47,6 +47,23 @@ def compose_substs(s1, s2, env):
         s3[k] = apply_substs(s1, v)
     return s3
 
+def free_vars_in_func(args):
+    # Not bother with reduce and union for ease of C conversion
+    fvs = set()
+    for a in args:
+        fvs.update(free_vars(a))
+    return fvs
+
+def free_vars_unknown(k):
+    assert False, "Unexpected type '%s' while finding free vars" % (k,)
+    return set()
+
+def free_vars(v):
+    return match(v, ("key('typevar')", lambda: set([v])),
+                    ("key('func', sized(args))", free_vars_in_func),
+                    ("key(k)", lambda k: set() if k in basic_types else
+                        free_vars_unknown(k)))
+
 def unify_funcs(f1, args1, f2, args2, env):
     if len(args1) != len(args2):
         unification_failure(f1, f2, env)
