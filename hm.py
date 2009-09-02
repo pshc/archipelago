@@ -34,9 +34,11 @@ def unification_failure(e1, e2, env):
 def apply_substs(substs, t):
     return substs.get(t, t)
 
-def compose_substs(s1, s2):
+def compose_substs(s1, s2, env):
     s3 = s1.copy()
     for k, v in s2.iteritems():
+        if k in s1:
+            unify(s1[k], v, env) # This doesn't seem like the right place...
         s3[k] = apply_substs(s1, v)
     return s3
 
@@ -45,7 +47,7 @@ def unify_funcs(f1, args1, f2, args2, env):
         unification_failure(f1, f2, env)
     substs = {}
     for a1, a2 in zip(args1, args2):
-        substs = compose_substs(substs, unify(a1, a2, env))
+        substs = compose_substs(substs, unify(a1, a2, env), env)
     return substs
 
 basic_types = ['void', 'int', 'bool', 'char', 'str']
@@ -75,7 +77,7 @@ def incorporate_substs(substs, env):
     For now, I'm doing this only once the substitutions hit statement level...
     is it better to do this for all expressions? And what about normalization?
     """
-    env.envSubsts = compose_substs(env.envSubsts, substs)
+    env.envSubsts = compose_substs(env.envSubsts, substs, env)
 
 def infer_call(f, args, env):
     ft = infer_expr(f, env)
