@@ -65,7 +65,7 @@ def compose_substs(s1, s2, env):
 
 def free_vars_in_substs(substs):
     fvs = set()
-    for k, s in substs:
+    for k, s in substs.iteritems():
         fvs.update(free_vars(s))
     return fvs
 
@@ -117,24 +117,26 @@ def unify(e1, e2, env):
         ("_", lambda: unification_failure(e1, e2, env)))
 
 def set_type(e, t, env):
+    """Type should already be generalized."""
     env.envTable[e] = t
 
 def get_type(e, env):
-    return env.envTable[e]
+    return instantiate_type(env.envTable[e], env)
 
 def typevars_to_refs(t, vs):
     return map_type_vars(lambda t, vs: Ref(t, None, []) if t in vs else t,
             t, vs)
 
 def generalize_type(t, substs):
-    gen_vars = free_vars(t).difference(free_vars_in_env(substs))
-    return symref('type', typevars_to_refs(t, gen_vars) + list(gen_vars))
+    gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
+    return symref('type', [typevars_to_refs(t, gen_vars)] + list(gen_vars))
 
 def instantiate_type(t, env):
-    vs = match(t, ("key('type', cons(_, all(vs, key('typevar'))))", identity))
+    vs = match(t, ("key('type', cons(_, all(vs, t==key('typevar'))))", identity))
     vs_prime = [fresh(env) for v in vs]
     t_prime = apply_substs(dict(zip(vs, vs_prime)), t)
-    return symref('type', [t_prime] + vs_prime)
+    #return symref('type', [t_prime] + vs_prime)
+    return t_prime
 
 def incorporate_substs(substs, env):
     """Actually insert the substs into the environment.
@@ -171,7 +173,6 @@ def infer_expr(a, env):
         ("key(k)", lambda k: infer_builtin(k, env)),
         ("Ref(v==key('var'), _, _)", lambda v: get_type(v, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
-    #set_type(a, t, env) # Much too noisy
     return t
 
 def infer_DT(fs, nm, env):
@@ -180,12 +181,10 @@ def infer_DT(fs, nm, env):
 def infer_assign(a, e, env):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _, _)", lambda: False))
-    if newvar:
-        t = fresh(env)
-        set_type(a, t, env)
-    else:
-        t = get_type(a.refAtom, env)
+    t = fresh(env) if newvar else get_type(a.refAtom, env)
     substs = unify(t, infer_expr(e, env), env)
+    if newvar:
+        set_type(a, generalize_type(t, substs), env)
     incorporate_substs(substs, env)
 
 def infer_stmt(a, env):
