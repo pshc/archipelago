@@ -30,6 +30,16 @@ def typevars_equal(u, v):
     assert eq == (typevar_index(u) == typevar_index(v)) # a true debug assert
     return eq
 
+def map_type_vars(f, t, data):
+    """Applies f to every typevar in the given type."""
+    return match(t, ("key('typevar')", lambda: f(t, data)),
+                    ("Ref(r==key('typevar'), m, ss)",
+                        lambda r, m, ss: Ref(f(r, data), m, ss)),
+                    ("key('func', sized(args))",
+                        lambda args: symref('func', [Int(len(args), [])] +
+                            [map_type_vars(f, a, data) for a in args])),
+                    ("_", lambda: t))
+
 def unification_failure(e1, e2, env):
     # XXX: This is very conservative about using bogus constraints
     substs = env.envSubsts
@@ -45,12 +55,7 @@ def apply_substs_to_env(substs, env):
         env[k] = apply_substs(substs, env[k])
 
 def apply_substs(substs, t):
-    # Weird combination of modifying in place while returning a new type
-    return match(t, ("key('typevar')", lambda: substs.get(t, t)),
-                    ("key('func', sized(args))", lambda args:
-                     symref('func', [Int(len(args), [])] +
-                         [apply_substs(substs, a) for a in args])),
-                    ("_", lambda: t))
+    return map_type_vars(lambda t, s: s.get(t, t), t, substs)
 
 def compose_substs(s1, s2, env):
     s3 = s1.copy()
@@ -88,8 +93,8 @@ def unify_funcs(f1, args1, f2, args2, env):
         unification_failure(f1, f2, env)
     substs = {}
     for a1, a2 in zip(args1, args2):
-        apply_substs(substs, a1)
-        apply_substs(substs, a2)
+        a1 = apply_substs(substs, a1)
+        a2 = apply_substs(substs, a2)
         substs = compose_substs(substs, unify(a1, a2, env), env)
     return substs
 
@@ -116,6 +121,20 @@ def set_type(e, t, env):
 
 def get_type(e, env):
     return env.envTable[e]
+
+def typevars_to_refs(t, vs):
+    return map_type_vars(lambda t, vs: Ref(t, None, []) if t in vs else t,
+            t, vs)
+
+def generalize_type(t, substs):
+    gen_vars = free_vars(t).difference(free_vars_in_env(substs))
+    return symref('type', typevars_to_refs(t, gen_vars) + list(gen_vars))
+
+def instantiate_type(t, env):
+    vs = match(t, ("key('type', cons(_, all(vs, key('typevar'))))", identity))
+    vs_prime = [fresh(env) for v in vs]
+    t_prime = apply_substs(dict(zip(vs, vs_prime)), t)
+    return symref('type', [t_prime] + vs_prime)
 
 def incorporate_substs(substs, env):
     """Actually insert the substs into the environment.
