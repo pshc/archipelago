@@ -3,8 +3,8 @@ from atom import *
 from base import *
 from builtins import *
 
-Env = DT('Env', ('envTable', {Atom: Atom}),
-                ('envSubsts', {Atom: Atom}),
+Env = DT('Env', ('envTable', {Atom: Atom}), # maps AST nodes to typevars
+                ('envSubsts', {Atom: Atom}), # maps typevars to types
                 ('envIndex', int))
 
 map(add_sym, 'type,void,int,bool,char,str,func,typevar,varindex'.split(','))
@@ -38,16 +38,18 @@ def unification_failure(e1, e2, env):
     e2 = apply_substs(substs, e2)
     assert False, "Could not unify %r with %r" % (e1, e2)
 
-def apply_substs_to_func(substs, f, args):
-    # Where is your mapM_ now??
-    for a in args:
-        apply_substs(substs, a)
-    return f
+def apply_substs_to_env(substs, env):
+    """Modifies in place."""
+    ks = dict_keys(env)
+    for k in ks:
+        env[k] = apply_substs(substs, env[k])
 
 def apply_substs(substs, t):
+    # Weird combination of modifying in place while returning a new type
     return match(t, ("key('typevar')", lambda: substs.get(t, t)),
                     ("key('func', sized(args))", lambda args:
-                     apply_substs_to_func(substs, t, args)),
+                     symref('func', [Int(len(args), [])] +
+                         [apply_substs(substs, a) for a in args])),
                     ("_", lambda: t))
 
 def compose_substs(s1, s2, env):
@@ -55,6 +57,12 @@ def compose_substs(s1, s2, env):
     for k, v in s2.iteritems():
         s3[k] = apply_substs(s1, v)
     return s3
+
+def free_vars_in_substs(substs):
+    fvs = set()
+    for k, s in substs:
+        fvs.update(free_vars(s))
+    return fvs
 
 def free_vars_in_func(args):
     # Not bother with reduce and union for ease of C conversion
