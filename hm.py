@@ -146,6 +146,8 @@ def infer_builtin(k, env):
         t = TFunc([TStr(), TInt()], TStr()) # Bogus!
     elif k == 'print':
         t = TFunc([TStr()], TVoid())
+    elif k in ['True', 'False']:
+        t = TBool()
     else:
         assert False, "Unknown type for builtin '%s'" % (k,)
     return (t, {})
@@ -180,13 +182,31 @@ def infer_exprstmt(e, env):
     t, substs = infer_expr(e, env)
     return substs
 
+def infer_cond(cases, env):
+    s = {}
+    for t, b in cases:
+        if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
+            tt, ts = infer_expr(t, env)
+            s = compose_substs(ts, s)
+            s = compose_substs(unify(tt, TBool(), env), s)
+        s = compose_substs(infer_stmts(b, env), s)
+    return s
+
 def infer_stmt(a, env):
     return match(a,
         ("key('DT', all(fs, key('field') and named(fnm)))"
             " and named(nm)", lambda fs, nm: infer_DT(fs, nm, env)),
         ("key('=', cons(a, cons(e, _)))", lambda a, e: infer_assign(a,e,env)),
         ("key('exprstmt', cons(e, _))", lambda e: infer_exprstmt(e, env)),
+        ("key('cond', all(cases, key('case', cons(t, sized(b)))))",
+            lambda cases: infer_cond(cases, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
+
+def infer_stmts(ss, env):
+    substs = {}
+    for s in ss:
+        substs = compose_substs(infer_stmt(s, env), substs)
+    return substs
 
 def type_to_atoms(t, m):
     return match(t,
@@ -211,9 +231,7 @@ def scheme_to_atoms(t):
 
 def infer_types(roots):
     env = Env({}, 1)
-    substs = {}
-    for r in roots:
-        substs = compose_substs(infer_stmt(r, env), substs)
+    substs = infer_stmts(roots, env)
     for a, t in env.envTable.iteritems():
         apply_substs_to_scheme(substs, t)
         a.subs.append(scheme_to_atoms(t))
