@@ -175,11 +175,14 @@ def do_repr(s, r, indent):
                 label = '->%s' % (s.refAtom.subs[0].subs[0].strVal)
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
-    else:
+    elif hasattr(s, 'strVal'):
         label = repr(s.strVal)
+    else:
+        label = repr(type(s))
     r.append('  ' * indent + label)
-    for sub in s.subs:
-        do_repr(sub, r, indent + 1)
+    if hasattr(s, 'subs'):
+        for sub in s.subs:
+            do_repr(sub, r, indent + 1)
 
 def atom_repr(s):
     r = []
