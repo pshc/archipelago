@@ -3,50 +3,47 @@ from atom import *
 from base import *
 from builtins import *
 
-Env = DT('Env', ('envTable', {Atom: Atom}), # maps AST nodes to typevars
-                ('envSubsts', {Atom: Atom}), # maps typevars to types
+Type, TVar, TInt, TStr, TBool, TVoid, TFunc = ADT('Type',
+        'TVar', ('varIndex', int),
+        'TInt', 'TStr', 'TBool', 'TVoid',
+        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
+
+Scheme = DT('Scheme', ('schemeVars', [Type]), ('schemeType', Type))
+
+Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
                 ('envIndex', int))
 
-map(add_sym, 'type,void,int,bool,char,str,func,typevar,varindex'.split(','))
-
-voidT = lambda: symref('void', [])
-intT = lambda: symref('int', [])
-boolT = lambda: symref('bool', [])
-charT = lambda: symref('char', [])
-strT = lambda: symref('str', [])
-fnT = lambda args, ret: symref('func', [Int(len(args)+1, [])] + args + [ret])
+map(add_sym, 'type,void,int,bool,char,str,func,typevar'.split(','))
 
 def fresh(env):
     i = env.envIndex
     env.envIndex = i + 1
-    return symref('typevar', [symref('varindex', [Int(i, [])])])
+    return TVar(i)
 
-is_typevar = lambda v: match(v, ("key('typevar')", lambda: True),
+is_typevar = lambda v: match(v, ("TVar(_)", lambda: True),
                                 ("_", lambda: False))
-typevar_index = lambda v: match(v, ("key('typevar', cons(key('varindex', "
-                                    "cons(Int(ix, _), _)), _))", identity))
 def typevars_equal(u, v):
-    eq = u is v
-    assert eq == (typevar_index(u) == typevar_index(v)) # a true debug assert
-    return eq
+    return u.varIndex == v.varIndex
 
 def map_type_vars(f, t, data):
     """Applies f to every typevar in the given type."""
-    return match(t, ("key('typevar')", lambda: f(t, data)),
-                    ("Ref(r==key('typevar'), m, ss)",
-                        lambda r, m, ss: Ref(f(r, data), m, ss)),
-                    ("key('func', sized(args))",
-                        lambda args: symref('func', [Int(len(args), [])] +
-                            [map_type_vars(f, a, data) for a in args])),
+    return match(t, ("TVar(_)", lambda: f(t, data)),
+                    ("TFunc(args, ret)", lambda args, ret:
+                        TFunc([map_type_vars(f, a, data) for a in args],
+                              map_type_vars(f, ret, data))),
                     ("_", lambda: t))
 
 def unification_failure(e1, e2, env):
-    # XXX: This is very conservative about using bogus constraints
-    substs = env.envSubsts
-    normalize_substs(substs)
-    e1 = apply_substs(substs, e1)
-    e2 = apply_substs(substs, e2)
     assert False, "Could not unify %r with %r" % (e1, e2)
+
+def apply_substs_to_scheme(substs, scheme):
+    """Modifies in place."""
+    vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
+    s = substs.copy()
+    for v in vs:
+        if v in s:
+            del s[v]
+    scheme.schemeType = apply_substs(s, t)
 
 def apply_substs_to_env(substs, env):
     """Modifies in place."""
@@ -57,7 +54,7 @@ def apply_substs_to_env(substs, env):
 def apply_substs(substs, t):
     return map_type_vars(lambda t, s: s.get(t, t), t, substs)
 
-def compose_substs(s1, s2, env):
+def compose_substs(s1, s2):
     s3 = s1.copy()
     for k, v in s2.iteritems():
         s3[k] = apply_substs(s1, v)
@@ -69,34 +66,30 @@ def free_vars_in_substs(substs):
         fvs.update(free_vars(s))
     return fvs
 
-def free_vars_in_func(args):
+def free_vars_in_func(args, ret):
     # Not bother with reduce and union for ease of C conversion
     fvs = set()
     for a in args:
         fvs.update(free_vars(a))
+    fvs.update(free_vars(ret))
     return fvs
 
-def free_vars_unknown(k):
-    assert False, "Unexpected type '%s' while finding free vars" % (k,)
-    return set()
-
 def free_vars(v):
-    return match(v, ("key('typevar')", lambda: set([v])),
-                    ("key('func', sized(args))", free_vars_in_func),
-                    ("key(k)", lambda k: set() if k in basic_types else
-                        free_vars_unknown(k)))
+    return match(v, ("TVar(_)", lambda: set([v])),
+                    ("TFunc(args, ret)", free_vars_in_func),
+                    ("_", lambda: set()))
 
-basic_types = ['void', 'int', 'bool', 'char', 'str']
-
-def unify_funcs(f1, args1, f2, args2, env):
+def unify_funcs(f1, args1, ret1, f2, args2, ret2, env):
     if len(args1) != len(args2):
         unification_failure(f1, f2, env)
-    substs = {}
+    s = {}
     for a1, a2 in zip(args1, args2):
-        a1 = apply_substs(substs, a1)
-        a2 = apply_substs(substs, a2)
-        substs = compose_substs(substs, unify(a1, a2, env), env)
-    return substs
+        a1 = apply_substs(s, a1)
+        a2 = apply_substs(s, a2)
+        s = compose_substs(s, unify(a1, a2, env))
+    ret1 = apply_substs(s, ret1)
+    ret2 = apply_substs(s, ret2)
+    return compose_substs(s, unify(ret1, ret2, env))
 
 def unify_bind(v, e, env):
     if is_typevar(e) and typevars_equal(v, e):
@@ -107,116 +100,123 @@ def unify_bind(v, e, env):
 
 def unify(e1, e2, env):
     return match((e1, e2),
-        ("(key('typevar'), _)", lambda: unify_bind(e1, e2, env)),
-        ("(_, key('typevar'))", lambda: unify_bind(e2, e1, env)),
-        ("(key('func', sized(a1)), key('func', sized(a2)))",
-            lambda a1, a2: unify_funcs(e1, a1, e2, a2, env)),
+        ("(TVar(_), _)", lambda: unify_bind(e1, e2, env)),
+        ("(_, TVar(_))", lambda: unify_bind(e2, e1, env)),
+        ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
+            unify_funcs(e1, a1, r1, e2, a2, r2, env)),
         # These two must be last
-        ("(key(s), key(t))", lambda s, t: {} if s == t and s in basic_types
-                             else unification_failure(e1, e2, env)),
+        ("(TInt(), TInt())", lambda: {}),
+        ("(TStr(), TStr())", lambda: {}),
+        ("(TBool(), TBool())", lambda: {}),
+        ("(TVoid(), TVoid())", lambda: {}),
         ("_", lambda: unification_failure(e1, e2, env)))
 
-def set_type(e, t, env):
-    """Type should already be generalized."""
-    env.envTable[e] = t
+def set_type(e, t, env, substs):
+    env.envTable[e] = generalize_type(apply_substs(substs, t), substs)
 
 def get_type(e, env):
     return instantiate_type(env.envTable[e], env)
 
-def typevars_to_refs(t, vs):
-    return map_type_vars(lambda t, vs: Ref(t, None, []) if t in vs else t,
-            t, vs)
-
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
-    return symref('type', [typevars_to_refs(t, gen_vars)] + list(gen_vars))
+    return Scheme(gen_vars, t)
 
-def instantiate_type(t, env):
-    vs = match(t, ("key('type', cons(_, all(vs, t==key('typevar'))))", identity))
+def instantiate_type(scheme, env):
+    vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
     vs_prime = [fresh(env) for v in vs]
     t_prime = apply_substs(dict(zip(vs, vs_prime)), t)
-    #return symref('type', [t_prime] + vs_prime)
     return t_prime
 
-def incorporate_substs(substs, env):
-    """Actually insert the substs into the environment.
-
-    For now, I'm doing this only once the substitutions hit statement level...
-    is it better to do this for all expressions? And what about normalization?
-    """
-    env.envSubsts = compose_substs(env.envSubsts, substs, env)
-
 def infer_call(f, args, env):
-    ft = infer_expr(f, env)
+    ft, s = infer_expr(f, env)
     retT = fresh(env)
-    substs = unify(ft, fnT([infer_expr(a, env) for a in args], retT), env)
-    incorporate_substs(substs, env)
-    return retT
+    argTs = []
+    for a in args:
+        at, s2 = infer_expr(a, env)
+        list_append(argTs, at)
+        s = compose_substs(s, s2)
+    s2 = unify(ft, TFunc(argTs, retT), env)
+    return (retT, compose_substs(s, s2))
 
 def infer_builtin(k, env):
+    t = None
     if k == '+':
-        return fnT([intT(), intT()], intT())
+        t = TFunc([TInt(), TInt()], TInt())
     elif k == '%':
-        return fnT([strT(), intT()], strT()) # Bogus!
+        t = TFunc([TStr(), TInt()], TStr()) # Bogus!
     elif k == 'print':
-        return fnT([strT()], voidT())
-    assert False, "Unknown type for builtin '%s'" % (k,)
+        t = TFunc([TStr()], TVoid())
+    else:
+        assert False, "Unknown type for builtin '%s'" % (k,)
+    return (t, {})
 
 def unknown_infer(a, env):
     assert False, 'Unknown type for:\n%s' % (a,)
 
 def infer_expr(a, env):
-    t = match(a,
-        ("Int(_, _)", intT),
-        ("Str(_, _)", strT),
+    return match(a,
+        ("Int(_, _)", lambda: (TInt(), {})),
+        ("Str(_, _)", lambda: (TStr(), {})),
         ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
         ("key(k)", lambda k: infer_builtin(k, env)),
-        ("Ref(v==key('var'), _, _)", lambda v: get_type(v, env)),
+        ("Ref(v==key('var'), _, _)", lambda v: (get_type(v, env), {})),
         ("otherwise", lambda e: unknown_infer(e, env)))
-    return t
 
 def infer_DT(fs, nm, env):
     print 'DT', nm
+    return {}
 
 def infer_assign(a, e, env):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _, _)", lambda: False))
     t = fresh(env) if newvar else get_type(a.refAtom, env)
-    substs = unify(t, infer_expr(e, env), env)
+    et, substs = infer_expr(e, env)
+    substs = compose_substs(substs, unify(t, et, env))
     if newvar:
-        set_type(a, generalize_type(t, substs), env)
-    incorporate_substs(substs, env)
+        set_type(a, t, env, substs)
+    return substs
+
+def infer_exprstmt(e, env):
+    t, substs = infer_expr(e, env)
+    return substs
 
 def infer_stmt(a, env):
-    match(a,
+    return match(a,
         ("key('DT', all(fs, key('field') and named(fnm)))"
             " and named(nm)", lambda fs, nm: infer_DT(fs, nm, env)),
         ("key('=', cons(a, cons(e, _)))", lambda a, e: infer_assign(a,e,env)),
-        ("key('exprstmt', cons(e, _))", lambda e: infer_expr(e, env)),
+        ("key('exprstmt', cons(e, _))", lambda e: infer_exprstmt(e, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
 
-def normalize_substs(substs):
-    """TODO: Correctness... is this even guaranteed to terminate?
-             This problem might even be NP-complete AFAIR"""
-    changed = True
-    ks = dict_keys(substs) # Caution due to dict modification inside loop
-    while changed:
-        changed = False
-        for k in ks:
-            v = substs[k]
-            if v in substs: # v must be a typevar to be in substs
-                v_prime = substs[v]
-                if v is not v_prime:
-                    substs[k] = v_prime
-                    changed = True
+def type_to_atoms(t, m):
+    return match(t,
+        ("TVar(n)", lambda n: Ref(m[n], None, [])),
+        ("TInt()", lambda: symref('int', [])),
+        ("TStr()", lambda: symref('str', [])),
+        ("TBool()", lambda: symref('bool', [])),
+        ("TVoid()", lambda: symref('void', [])),
+        ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
+            + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])))
+
+def scheme_to_atoms(t):
+    tvars = []
+    c = ord('a')
+    m = {}
+    for v in t.schemeVars:
+        a = symref('typevar', [symname(chr(c))])
+        list_append(tvars, a)
+        m[v.varIndex] = a
+        c += 1
+    return symref('type', [type_to_atoms(t.schemeType, m)] + tvars)
 
 def infer_types(roots):
-    env = Env({}, {}, 1)
+    env = Env({}, 1)
+    substs = {}
     for r in roots:
-        infer_stmt(r, env)
-    normalize_substs(env.envSubsts)
+        substs = compose_substs(infer_stmt(r, env), substs)
     for a, t in env.envTable.iteritems():
-        a.subs.append(symref('type', [apply_substs(env.envSubsts, t)]))
+        apply_substs_to_scheme(substs, t)
+        a.subs.append(scheme_to_atoms(t))
 
 def write_mod_repr(filename, m):
     f = fopen(filename, 'w')
