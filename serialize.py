@@ -263,7 +263,7 @@ def save_module(name, mod_roots):
     fclose(data[0])
     digest = sha256_hexdigest(data[1])
     system('mv -f -- %s mods/%s' % (temp, digest))
-    system('ln -s -- %s mods/%s' % (digest, name))
+    system('ln -sf -- %s mods/%s' % (digest, name))
     return digest
 
 def print_atom(atom, indent):

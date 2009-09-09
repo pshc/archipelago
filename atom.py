@@ -41,10 +41,8 @@ def symname(name):
 def getname(sym):
     return match(sym, ('named(nm)', identity))
 
-def _make_type(t):
-    if isinstance(t, type):
-        t = t()
-    return scheme_to_atoms(Scheme([], t))
+def _fix_type(t):
+    return t() if isinstance(t, type) else t
 
 def builtin_type_to_atoms(name):
     t = builtins_types.get(name)
@@ -53,10 +51,11 @@ def builtin_type_to_atoms(name):
     if isinstance(t, tuple):
         if None in t:
             return None
-        t = symref('func', [int_len(t)] + [_make_type(a) for a in t])
+        args, ret = t[:-1], t[-1]
+        t = TFunc(map(_fix_type, args), _fix_type(ret))
     else:
-        t = _make_type(t)
-    return t
+        t = _fix_type(t)
+    return scheme_to_atoms(Scheme([], t))
 
 def add_sym(name):
     if name in boot_sym_names:
@@ -64,7 +63,7 @@ def add_sym(name):
     subs = [Ref(b_name, boot_mod, [Str(name, [])])]
     t = builtin_type_to_atoms(name)
     if t is not None:
-        subs.append(symref('type', [t]))
+        subs.append(t)
     node = Ref(b_symbol, boot_mod, subs)
     boot_syms.append(node)
     boot_sym_names[name] = node
@@ -97,6 +96,22 @@ def scheme_to_atoms(t):
     s = symref('type', [type_to_atoms(t.schemeType, m)])
     s.subs += [m[k] for k in sorted(m.keys())]
     return s
+
+def atoms_to_type(a, m):
+    return match(a,
+        ("Ref(v==key('typevar'), _, _)", lambda v: m[v]),
+        ("key('int')", lambda: TInt()),
+        ("key('str')", lambda: TStr()),
+        ("key('bool')", lambda: TBool()),
+        ("key('void')", lambda: TVoid()),
+        ("key('func', sized(args))", lambda args:
+            TFunc([atoms_to_type(arg, m) for arg in args[:-1]],
+                atoms_to_type(args[-1], m))))
+
+def atoms_to_scheme(a):
+    t, vs = match(a, ("key('type', cons(t, all(vs, key('typevar'))))", tuple2))
+    tvs = [TVar(n) for n, v in enumerate(vs)]
+    return Scheme(tvs, atoms_to_type(t, dict(zip(vs, tvs))))
 
 add_sym('length')
 add_sym('deps')
@@ -169,7 +184,7 @@ def serialize_module(module):
     f.close()
     module.digest = hash.digest().encode('hex')
     system('mv -f -- %s mods/%s' % (temp, module.digest))
-    system('ln -s -- %s mods/%s' % (module.digest, module.name))
+    system('ln -sf -- %s mods/%s' % (module.digest, module.name))
     return selfixs
 
 @matcher('sized')

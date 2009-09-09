@@ -46,7 +46,7 @@ def free_vars_in_substs(substs):
     return fvs
 
 def free_vars_in_func(args, ret):
-    # Not bother with reduce and union for ease of C conversion
+    # Don't bother with reduce and union for ease of C conversion
     fvs = set()
     for a in args:
         fvs.update(free_vars(a))
@@ -102,9 +102,8 @@ def generalize_type(t, substs):
 
 def instantiate_type(scheme, env):
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    vs_prime = [fresh(env) for v in vs]
-    t_prime = apply_substs(dict(zip(vs, vs_prime)), t)
-    return t_prime
+    vs_substs = [(v, fresh(env)) for v in vs]
+    return apply_substs(dict(vs_substs), t)
 
 def infer_call(f, args, env):
     ft, s = infer_expr(f, env)
@@ -117,20 +116,6 @@ def infer_call(f, args, env):
     s2 = unify(ft, TFunc(argTs, retT), env)
     return (retT, compose_substs(s, s2))
 
-def infer_builtin(k, env):
-    t = None
-    if k == '+':
-        t = TFunc([TInt(), TInt()], TInt())
-    elif k == '%':
-        t = TFunc([TStr(), TInt()], TStr()) # Bogus!
-    elif k == 'print':
-        t = TFunc([TStr()], TVoid())
-    elif k in ['True', 'False']:
-        t = TBool()
-    else:
-        assert False, "Unknown type for builtin '%s'" % (k,)
-    return (t, {})
-
 def unknown_infer(a, env):
     assert False, 'Unknown type for:\n%s' % (a,)
 
@@ -139,8 +124,9 @@ def infer_expr(a, env):
         ("Int(_, _)", lambda: (TInt(), {})),
         ("Str(_, _)", lambda: (TStr(), {})),
         ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
-        ("key(k)", lambda k: infer_builtin(k, env)),
         ("Ref(v==key('var'), _, _)", lambda v: (get_type(v, env), {})),
+        ("Ref(key('symbol', contains(t==key('type'))), _, _)",
+            lambda t: (instantiate_type(atoms_to_scheme(t), env), {})),
         ("otherwise", lambda e: unknown_infer(e, env)))
 
 def infer_DT(fs, nm, env):
