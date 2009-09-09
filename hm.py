@@ -2,36 +2,15 @@
 from atom import *
 from base import *
 from builtins import *
-
-Type, TVar, TInt, TStr, TBool, TVoid, TFunc = ADT('Type',
-        'TVar', ('varIndex', int),
-        'TInt', 'TStr', 'TBool', 'TVoid',
-        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
-
-Scheme = DT('Scheme', ('schemeVars', [Type]), ('schemeType', Type))
+from types_builtin import *
 
 Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
                 ('envIndex', int))
-
-map(add_sym, 'type,void,int,bool,char,str,func,typevar'.split(','))
 
 def fresh(env):
     i = env.envIndex
     env.envIndex = i + 1
     return TVar(i)
-
-is_typevar = lambda v: match(v, ("TVar(_)", lambda: True),
-                                ("_", lambda: False))
-def typevars_equal(u, v):
-    return u.varIndex == v.varIndex
-
-def map_type_vars(f, t, data):
-    """Applies f to every typevar in the given type."""
-    return match(t, ("TVar(_)", lambda: f(t, data)),
-                    ("TFunc(args, ret)", lambda args, ret:
-                        TFunc([map_type_vars(f, a, data) for a in args],
-                              map_type_vars(f, ret, data))),
-                    ("_", lambda: t))
 
 def unification_failure(e1, e2, env):
     assert False, "Could not unify %r with %r" % (e1, e2)
@@ -208,27 +187,6 @@ def infer_stmts(ss, env):
         substs = compose_substs(infer_stmt(s, env), substs)
     return substs
 
-def type_to_atoms(t, m):
-    return match(t,
-        ("TVar(n)", lambda n: Ref(m[n], None, [])),
-        ("TInt()", lambda: symref('int', [])),
-        ("TStr()", lambda: symref('str', [])),
-        ("TBool()", lambda: symref('bool', [])),
-        ("TVoid()", lambda: symref('void', [])),
-        ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
-            + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])))
-
-def scheme_to_atoms(t):
-    tvars = []
-    c = ord('a')
-    m = {}
-    for v in t.schemeVars:
-        a = symref('typevar', [symname(chr(c))])
-        list_append(tvars, a)
-        m[v.varIndex] = a
-        c += 1
-    return symref('type', [type_to_atoms(t.schemeType, m)] + tvars)
-
 def infer_types(roots):
     env = Env({}, 1)
     substs = infer_stmts(roots, env)
@@ -248,5 +206,6 @@ if __name__ == '__main__':
     write_mod_repr('hello', short)
     infer_types(short.roots)
     write_mod_repr('hello', short)
+    serialize_module(short)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

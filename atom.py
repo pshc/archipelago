@@ -3,6 +3,7 @@ from os import system
 from hashlib import sha256
 from base import *
 from builtins import Atom, Int, Str, Ref, builtins
+from types_builtin import *
 
 Module = DT('Module',
             ('name', str), ('digest', str), ('roots', [Atom]))
@@ -18,19 +19,6 @@ boot_syms = boot_mod.roots
 boot_syms += [b_symbol, b_name]
 boot_sym_names = {'symbol': b_symbol, 'name': b_name}
 boot_sym_names_rev = {b_symbol: 'symbol', b_name: 'name'}
-
-def add_sym(name):
-    if name in boot_sym_names:
-        return
-    node = Ref(b_symbol, boot_mod, [Ref(b_name, boot_mod, [Str(name, [])])])
-    boot_syms.append(node)
-    boot_sym_names[name] = node
-    boot_sym_names_rev[node] = name
-
-add_sym('length')
-add_sym('deps')
-add_sym('roots')
-map(add_sym, builtins)
 
 def int_len(list):
     return Int(len(list), [])
@@ -52,6 +40,70 @@ def symname(name):
 
 def getname(sym):
     return match(sym, ('named(nm)', identity))
+
+def _make_type(t):
+    if isinstance(t, type):
+        t = t()
+    return scheme_to_atoms(Scheme([], t))
+
+def builtin_type_to_atoms(name):
+    t = builtins_types.get(name)
+    if t is None:
+        return None
+    if isinstance(t, tuple):
+        if None in t:
+            return None
+        t = symref('func', [int_len(t)] + [_make_type(a) for a in t])
+    else:
+        t = _make_type(t)
+    return t
+
+def add_sym(name):
+    if name in boot_sym_names:
+        return
+    subs = [Ref(b_name, boot_mod, [Str(name, [])])]
+    t = builtin_type_to_atoms(name)
+    if t is not None:
+        subs.append(symref('type', [t]))
+    node = Ref(b_symbol, boot_mod, subs)
+    boot_syms.append(node)
+    boot_sym_names[name] = node
+    boot_sym_names_rev[node] = name
+
+def _fresh_tvar(num):
+    nm = chr(ord('a') + num)
+    return symref('typevar', [symname(nm)])
+
+def _tvar_to_ref(n, m):
+    if n not in m:
+        # Just make it anyway
+        m[n] = _fresh_tvar(len(m))
+    return m[n]
+
+def type_to_atoms(t, m):
+    return match(t,
+        ("TVar(n)", lambda n: Ref(_tvar_to_ref(n, m), None, [])),
+        ("TInt()", lambda: symref('int', [])),
+        ("TStr()", lambda: symref('str', [])),
+        ("TBool()", lambda: symref('bool', [])),
+        ("TVoid()", lambda: symref('void', [])),
+        ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
+            + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])))
+
+def scheme_to_atoms(t):
+    m = {}
+    for n, v in enumerate(t.schemeVars):
+        m[v.varIndex] = _fresh_tvar(n)
+    s = symref('type', [type_to_atoms(t.schemeType, m)])
+    s.subs += [m[k] for k in sorted(m.keys())]
+    return s
+
+add_sym('length')
+add_sym('deps')
+add_sym('roots')
+add_sym('type')
+map(add_sym, 'void,int,bool,char,str,func,typevar'.split(','))
+map(add_sym, builtins)
 
 def walk_atoms(atoms, ret, f):
     for atom in atoms:
@@ -163,7 +215,6 @@ def match_named(atom, ast):
             n = match_try(atom.subs, ast.args[1])
             return None if n is None else m + n
     return None
-
 
 def do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
