@@ -157,6 +157,13 @@ def infer_cond(cases, env):
         s = compose_substs(infer_stmts(b, env), s)
     return s
 
+def infer_assert(tst, msg, env):
+    tstt, s = infer_expr(tst, env)
+    s = compose_substs(unify(tstt, TBool(), env), s)
+    msgt, s2 = infer_expr(msg, env)
+    s = compose_substs(s2, s)
+    return compose_substs(unify(msgt, TStr(), env), s)
+
 def infer_stmt(a, env):
     return match(a,
         ("key('DT', all(fs, key('field') and named(fnm)))"
@@ -165,6 +172,8 @@ def infer_stmt(a, env):
         ("key('exprstmt', cons(e, _))", lambda e: infer_exprstmt(e, env)),
         ("key('cond', all(cases, key('case', cons(t, sized(b)))))",
             lambda cases: infer_cond(cases, env)),
+        ("key('assert', cons(t, cons(m, _)))",
+            lambda t, m: infer_assert(t, m, env)),
         ("otherwise", lambda e: unknown_infer(e, env)))
 
 def infer_stmts(ss, env):
