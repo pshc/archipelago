@@ -10,15 +10,15 @@ Module = DT('Module',
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
-b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
-b_name = Ref(b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
-b_symbol.refAtom = b_symbol
-b_symbol.subs[0].refAtom = b_name
-b_name.subs[0].refAtom = b_name
-boot_syms = boot_mod.roots
-boot_syms += [b_symbol, b_name]
-boot_sym_names = {'symbol': b_symbol, 'name': b_name}
-boot_sym_names_rev = {b_symbol: 'symbol', b_name: 'name'}
+_b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
+_b_name = Ref(_b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
+_b_symbol.refAtom = _b_symbol
+_b_symbol.subs[0].refAtom = _b_name
+_b_name.subs[0].refAtom = _b_name
+_boot_syms = boot_mod.roots
+_boot_syms += [_b_symbol, _b_name]
+boot_sym_names = {'symbol': _b_symbol, 'name': _b_name}
+boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 
 def int_len(list):
     return Int(len(list), [])
@@ -60,12 +60,12 @@ def builtin_type_to_atoms(name):
 def add_sym(name):
     if name in boot_sym_names:
         return
-    subs = [Ref(b_name, boot_mod, [Str(name, [])])]
+    subs = [Ref(_b_name, boot_mod, [Str(name, [])])]
     t = builtin_type_to_atoms(name)
     if t is not None:
         subs.append(t)
-    node = Ref(b_symbol, boot_mod, subs)
-    boot_syms.append(node)
+    node = Ref(_b_symbol, boot_mod, subs)
+    _boot_syms.append(node)
     boot_sym_names[name] = node
     boot_sym_names_rev[node] = name
 
@@ -188,7 +188,7 @@ def serialize_module(module):
     return selfixs
 
 @matcher('sized')
-def match_sized(atom, ast):
+def _match_sized(atom, ast):
     # specific to atoms; matches int(n) followed by n items
     assert 1 <= len(ast.args) <= 2
     assert isinstance(atom, list), "Expected list for 'sized"
@@ -205,7 +205,7 @@ def match_sized(atom, ast):
     return None
 
 @matcher('key')
-def match_key(atom, ast):
+def _match_key(atom, ast):
     assert 1 <= len(ast.args) <= 2
     if isinstance(atom, Ref):
         key = boot_sym_names_rev.get(atom.refAtom)
@@ -218,7 +218,7 @@ def match_key(atom, ast):
     return None
 
 @matcher('named')
-def match_named(atom, ast):
+def _match_named(atom, ast):
     assert 1 <= len(ast.args) <= 2
     for sub in atom.subs:
         if isinstance(sub, Ref) and sub.refAtom is boot_sym_names['name']:
@@ -231,13 +231,13 @@ def match_named(atom, ast):
             return None if n is None else m + n
     return None
 
-def do_repr(s, r, indent):
+def _do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
         label = '<ref>'
         if s.refMod is boot_mod:
             label = s.refAtom.subs[0].subs[0].strVal
         elif s.refAtom.subs:
-            if getattr(s.refAtom.subs[0], 'refAtom', None) is b_name:
+            if getattr(s.refAtom.subs[0], 'refAtom', None) is _b_name:
                 label = '->%s' % (s.refAtom.subs[0].subs[0].strVal)
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
@@ -248,11 +248,11 @@ def do_repr(s, r, indent):
     r.append('  ' * indent + label)
     if hasattr(s, 'subs'):
         for sub in s.subs:
-            do_repr(sub, r, indent + 1)
+            _do_repr(sub, r, indent + 1)
 
 def atom_repr(s):
     r = []
-    do_repr(s, r, 0)
+    _do_repr(s, r, 0)
     r.append('')
     return '\n'.join(r)
 

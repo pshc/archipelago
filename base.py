@@ -1,15 +1,15 @@
 import compiler
 from compiler.ast import *
 
-datatypes = {}
-algetypes = {}
+DATATYPES = {}
+ALGETYPES = {}
 
 def DT(*members):
     name = members[0]
     mems = [(nm) for (nm, t) in members[1:]]
     slots = ', '.join(map(repr, mems) + ['"_ix"'])
     args = ''.join(', %s' % m for m in mems)
-    ix = len(datatypes)
+    ix = len(DATATYPES)
     stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
     code = """class %(name)s(object):
   __slots__ = [%(slots)s]
@@ -17,7 +17,7 @@ def DT(*members):
     self._ix = %(ix)d
 %(stmts)s""" % locals()
     exec code
-    dt = datatypes[name] = eval(name)
+    dt = DATATYPES[name] = eval(name)
     return dt
 
 def ADT(*ctors):
@@ -25,7 +25,7 @@ def ADT(*ctors):
     tname = ctors.pop(0)
     exec 'class %s(object): ctors = []' % (tname,)
     data = [eval(tname)]
-    algetypes[tname] = data[0]
+    ALGETYPES[tname] = data[0]
     while ctors:
         ctor = ctors.pop(0)
         members = []
@@ -40,8 +40,8 @@ named_match_dispatch = {}
 
 def match_try(atom, ast):
     if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
-        if ast.node.name in datatypes:
-            dt = datatypes[ast.node.name]
+        if ast.node.name in DATATYPES:
+            dt = DATATYPES[ast.node.name]
             if atom.__class__ != dt:
                 return None
             # Found a matching constructor; now match its args recursively
@@ -116,7 +116,7 @@ def matcher(name):
     return takes_func
 
 @matcher('contains')
-def match_contains(atom, ast):
+def _match_contains(atom, ast):
     # Do any members of the list match?
     assert len(ast.args) == 1
     assert isinstance(atom, list), "Expected list for 'contains"
@@ -127,7 +127,7 @@ def match_contains(atom, ast):
     return None
 
 @matcher('cons')
-def match_cons(atom, ast):
+def _match_cons(atom, ast):
     # Matches args to (head, tail)
     assert len(ast.args) == 2
     assert isinstance(atom, list), "Expected list for 'cons"
@@ -140,7 +140,7 @@ def match_cons(atom, ast):
     return None
 
 @matcher('all')
-def match_all(atom, ast):
+def _match_all(atom, ast):
     assert len(ast.args) == 2
     assert isinstance(ast.args[0], Name)
     assert isinstance(atom, list)
@@ -157,7 +157,7 @@ def match_all(atom, ast):
     return [[r[0] for r in results] if all_singular else results]
 
 @matcher('every')
-def match_every(atom, ast):
+def _match_every(atom, ast):
     assert len(ast.args) == 2
     assert isinstance(ast.args[0], Name)
     assert isinstance(atom, list)

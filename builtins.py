@@ -75,9 +75,9 @@ builtins.update(dict((b, __builtins__[b]) for b in [
 
 builtins.update(dict((dummy, None) for dummy in ArrayAtom.__slots__))
 
-def bi_print(s): print s
+def _bi_print(s): print s
 
-def make_record():
+def _make_record():
     class Record(object):
         pass
     return Record
@@ -89,8 +89,8 @@ builtins.update({'+': o.add, '-': o.sub, '*': o.mul,
                 '<=': o.le, '>=': o.ge, 'is': o.is_, 'is not': o.is_not,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
                 'slice': o.getslice,
-                'print': bi_print,
-                'object': make_record,
+                'print': _bi_print,
+                'object': _make_record,
                 })
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
