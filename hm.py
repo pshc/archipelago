@@ -45,27 +45,36 @@ def free_vars_in_substs(substs):
         fvs.update(free_vars(s))
     return fvs
 
-def free_vars_in_func(args, ret):
+def free_vars_in_tuple(ts):
     # Don't bother with reduce and union for ease of C conversion
     fvs = set()
-    for a in args:
-        fvs.update(free_vars(a))
+    for t in ts:
+        fvs.update(free_vars(t))
+    return fvs
+
+def free_vars_in_func(args, ret):
+    fvs = free_vars_in_tuple(args)
     fvs.update(free_vars(ret))
     return fvs
 
 def free_vars(v):
     return match(v, ("TVar(_)", lambda: set([v])),
+                    ("TTuple(ts)", free_vars_in_tuple),
                     ("TFunc(args, ret)", free_vars_in_func),
                     ("_", lambda: set()))
 
-def unify_funcs(f1, args1, ret1, f2, args2, ret2, env):
-    if len(args1) != len(args2):
-        unification_failure(f1, f2, env)
+def unify_tuples(t1, list1, t2, list2, env):
+    if len(list1) != len(list2):
+        unification_failure(t1, t2, env)
     s = {}
-    for a1, a2 in zip(args1, args2):
+    for a1, a2 in zip(list1, list2):
         a1 = apply_substs(s, a1)
         a2 = apply_substs(s, a2)
         s = compose_substs(s, unify(a1, a2, env))
+    return s
+
+def unify_funcs(f1, args1, ret1, f2, args2, ret2, env):
+    s = unify_tuples(f1, args1, f2, args2, env)
     ret1 = apply_substs(s, ret1)
     ret2 = apply_substs(s, ret2)
     return compose_substs(s, unify(ret1, ret2, env))
@@ -81,9 +90,10 @@ def unify(e1, e2, env):
     return match((e1, e2),
         ("(TVar(_), _)", lambda: unify_bind(e1, e2, env)),
         ("(_, TVar(_))", lambda: unify_bind(e2, e1, env)),
+        ("(TTuple(t1), TTuple(t2))",
+            lambda t1, t2: unify_tuples(e1, t1, e2, t2, env)),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
             unify_funcs(e1, a1, r1, e2, a2, r2, env)),
-        # These two must be last
         ("(TInt(), TInt())", lambda: {}),
         ("(TStr(), TStr())", lambda: {}),
         ("(TBool(), TBool())", lambda: {}),
@@ -105,6 +115,15 @@ def instantiate_type(scheme, env):
     vs_substs = [(v, fresh(env)) for v in vs]
     return apply_substs(dict(vs_substs), t)
 
+def infer_tuple(ts, env):
+    s = {}
+    tupTs = []
+    for t in ts:
+        tt, s2 = infer_expr(t, env)
+        list_append(tupTs, tt)
+        s = compose_substs(s, s2)
+    return (TTuple(tupTs), s)
+
 def infer_call(f, args, env):
     ft, s = infer_expr(f, env)
     retT = fresh(env)
@@ -123,6 +142,7 @@ def infer_expr(a, env):
     return match(a,
         ("Int(_, _)", lambda: (TInt(), {})),
         ("Str(_, _)", lambda: (TStr(), {})),
+        ("key('tuplelit', sized(ts))", lambda ts: infer_tuple(ts, env)),
         ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
         ("Ref(v==key('var'), _, _)", lambda v: (get_type(v, env), {})),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",

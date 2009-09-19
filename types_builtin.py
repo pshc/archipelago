@@ -1,8 +1,9 @@
 from base import *
 
-Type, TVar, TInt, TStr, TBool, TVoid, TFunc = ADT('Type',
+Type, TVar, TInt, TStr, TBool, TVoid, TTuple, TFunc = ADT('Type',
         'TVar', ('varIndex', int),
         'TInt', 'TStr', 'TBool', 'TVoid',
+        'TTuple', ('tupleTypes', ['Type']),
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
 
 def map_type_vars(f, t, data):
@@ -11,6 +12,8 @@ def map_type_vars(f, t, data):
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a, data) for a in args],
                               map_type_vars(f, ret, data))),
+                    ("TTuple(ts)", lambda ts:
+                        TTuple([map_type_vars(f, t, data) for t in ts])),
                     ("_", lambda: t))
 
 is_typevar = lambda v: match(v, ("TVar(_)", lambda: True),
@@ -25,7 +28,6 @@ TChar = None
 TDict = None
 TList = None
 TSet = None
-TTuple = None
 TNullable = None
 
 TFile = None
@@ -50,7 +52,7 @@ builtins_types = {
     'list_append': (TList, TVar(1), TVoid),
     'list_sort': (TList, TVoid),
     'identity': (TVar(1), TVar(1)),
-    'tuple2': (TVar(1), TVar(2), TTuple),
+    'tuple2': (TVar(1), TVar(2), TTuple([TVar(1), TVar(2)])),
     # etc to tuple5
     'None': TNullable,
     'True': TBool, 'False': TBool,

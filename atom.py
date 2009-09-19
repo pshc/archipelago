@@ -86,6 +86,8 @@ def type_to_atoms(t, m):
         ("TStr()", lambda: symref('str', [])),
         ("TBool()", lambda: symref('bool', [])),
         ("TVoid()", lambda: symref('void', [])),
+        ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
+            + [type_to_atoms(a, m) for a in ts])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
             + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])))
 
@@ -104,6 +106,8 @@ def atoms_to_type(a, m):
         ("key('str')", lambda: TStr()),
         ("key('bool')", lambda: TBool()),
         ("key('void')", lambda: TVoid()),
+        ("key('tuple', sized(ts))", lambda ts:
+            TTuple([atoms_to_type(t, m) for t in ts])),
         ("key('func', sized(args))", lambda args:
             TFunc([atoms_to_type(arg, m) for arg in args[:-1]],
                 atoms_to_type(args[-1], m))))
@@ -117,7 +121,7 @@ add_sym('length')
 add_sym('deps')
 add_sym('roots')
 add_sym('type')
-map(add_sym, 'void,int,bool,char,str,func,typevar'.split(','))
+map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
 map(add_sym, builtins)
 
 def walk_atoms(atoms, ret, f):
