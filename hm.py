@@ -87,6 +87,7 @@ def unify_bind(v, e, env):
     return {v: e}
 
 def unify(e1, e2, env):
+    fail = lambda: unification_failure(e1, e2, env)
     return match((e1, e2),
         ("(TVar(_), _)", lambda: unify_bind(e1, e2, env)),
         ("(_, TVar(_))", lambda: unify_bind(e2, e1, env)),
@@ -96,12 +97,22 @@ def unify(e1, e2, env):
             unify_funcs(e1, a1, r1, e2, a2, r2, env)),
         ("(TInt(), TInt())", lambda: {}),
         ("(TStr(), TStr())", lambda: {}),
+        ("(TChar(), TChar())", lambda: {}),
         ("(TBool(), TBool())", lambda: {}),
         ("(TVoid(), TVoid())", lambda: {}),
         # XXX: Hacky extension
         ("(TTuple(_), TAnyTuple())", lambda: {}),
         ("(TAnyTuple(), TTuple(_))", lambda: {}),
-        ("_", lambda: unification_failure(e1, e2, env)))
+        # Not-so-hacky extension
+        ("(TNullable(), TNullable())", lambda: {}),
+        ("(_, TNullable())", lambda: unify(e2, e1, env)),
+        ("(TNullable(), TInt())", fail),
+        ("(TNullable(), TChar())", fail),
+        ("(TNullable(), TBool())", fail),
+        ("(TNullable(), TVoid())", fail),
+        ("(TNullable(), _)", lambda: {e1: e2}),
+        # Mismatch
+        ("_", lambda: fail))
 
 def set_type(e, t, env, substs):
     env.envTable[e] = generalize_type(apply_substs(substs, t), substs)
@@ -145,6 +156,7 @@ def infer_expr(a, env):
     return match(a,
         ("Int(_, _)", lambda: (TInt(), {})),
         ("Str(_, _)", lambda: (TStr(), {})),
+        ("key('char')", lambda: (TChar(), {})),
         ("key('tuplelit', sized(ts))", lambda ts: infer_tuple(ts, env)),
         ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
         ("Ref(v==key('var'), _, _)", lambda v: (get_type(v, env), {})),

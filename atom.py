@@ -84,8 +84,10 @@ def type_to_atoms(t, m):
         ("TVar(n)", lambda n: Ref(_tvar_to_ref(n, m), None, [])),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
+        ("TChar()", lambda: symref('char', [])),
         ("TBool()", lambda: symref('bool', [])),
         ("TVoid()", lambda: symref('void', [])),
+        ("TNullable()", lambda: symref('nullable', [])),
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
             + [type_to_atoms(a, m) for a in ts])),
         ("TAnyTuple()", lambda: symref('tuple*', [])),
@@ -105,8 +107,10 @@ def atoms_to_type(a, m):
         ("Ref(v==key('typevar'), _, _)", lambda v: m[v]),
         ("key('int')", lambda: TInt()),
         ("key('str')", lambda: TStr()),
+        ("key('char')", lambda: TChar()),
         ("key('bool')", lambda: TBool()),
         ("key('void')", lambda: TVoid()),
+        ("key('nullable')", lambda: TNullable()),
         ("key('tuple', sized(ts))", lambda ts:
             TTuple([atoms_to_type(t, m) for t in ts])),
         ("key('tuple*')", lambda: TAnyTuple()),
@@ -123,7 +127,7 @@ add_sym('length')
 add_sym('deps')
 add_sym('roots')
 add_sym('type')
-map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
+map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*') # TEMP
 map(add_sym, builtins)
 

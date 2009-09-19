@@ -1,8 +1,11 @@
 from base import *
 
-Type, TVar, TInt, TStr, TBool, TVoid, TTuple, TAnyTuple, TFunc = ADT('Type',
+Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
+    TTuple, TAnyTuple, TFunc \
+    = ADT('Type',
         'TVar', ('varIndex', int),
-        'TInt', 'TStr', 'TBool', 'TVoid',
+        'TInt', 'TStr', 'TChar', 'TBool',
+        'TVoid', 'TNullable',
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple', # XXX: Hacky extension
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
@@ -25,11 +28,9 @@ def typevars_equal(u, v):
 Scheme = DT('Scheme', ('schemeVars', [Type]), ('schemeType', Type))
 
 # TODO
-TChar = None
 TDict = None
 TList = None
 TSet = None
-TNullable = None
 
 TFile = None
 THash = None
