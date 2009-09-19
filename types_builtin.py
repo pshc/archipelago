@@ -1,9 +1,10 @@
 from base import *
 
-Type, TVar, TInt, TStr, TBool, TVoid, TTuple, TFunc = ADT('Type',
+Type, TVar, TInt, TStr, TBool, TVoid, TTuple, TAnyTuple, TFunc = ADT('Type',
         'TVar', ('varIndex', int),
         'TInt', 'TStr', 'TBool', 'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
+        'TAnyTuple', # XXX: Hacky extension
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
 
 def map_type_vars(f, t, data):
@@ -63,7 +64,7 @@ builtins_types = {
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
     '//': (TInt, TInt, TInt),
-    '%': (TStr, TInt, TStr), # bogus!
+    '%': (TStr, TAnyTuple, TStr),
     'negate': (TInt, TInt),
     '==': (TVar(1), TVar(1), TBool), '!=': (TVar(1), TVar(1), TBool),
     '<': (TInt, TInt, TInt), '>': (TInt, TInt, TInt),

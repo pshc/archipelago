@@ -98,6 +98,9 @@ def unify(e1, e2, env):
         ("(TStr(), TStr())", lambda: {}),
         ("(TBool(), TBool())", lambda: {}),
         ("(TVoid(), TVoid())", lambda: {}),
+        # XXX: Hacky extension
+        ("(TTuple(_), TAnyTuple())", lambda: {}),
+        ("(TAnyTuple(), TTuple(_))", lambda: {}),
         ("_", lambda: unification_failure(e1, e2, env)))
 
 def set_type(e, t, env, substs):

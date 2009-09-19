@@ -88,6 +88,7 @@ def type_to_atoms(t, m):
         ("TVoid()", lambda: symref('void', [])),
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
             + [type_to_atoms(a, m) for a in ts])),
+        ("TAnyTuple()", lambda: symref('tuple*', [])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
             + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])))
 
@@ -108,6 +109,7 @@ def atoms_to_type(a, m):
         ("key('void')", lambda: TVoid()),
         ("key('tuple', sized(ts))", lambda ts:
             TTuple([atoms_to_type(t, m) for t in ts])),
+        ("key('tuple*')", lambda: TAnyTuple()),
         ("key('func', sized(args))", lambda args:
             TFunc([atoms_to_type(arg, m) for arg in args[:-1]],
                 atoms_to_type(args[-1], m))))
@@ -122,6 +124,7 @@ add_sym('deps')
 add_sym('roots')
 add_sym('type')
 map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
+add_sym('tuple*') # TEMP
 map(add_sym, builtins)
 
 def walk_atoms(atoms, ret, f):

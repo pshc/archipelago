@@ -1,6 +1,6 @@
 a = 1 + 2
 a = a + 3
-print 'a = %d' % a
+print 'a = %d' % (a,)
 if True:
     print 'ok'
 else:
