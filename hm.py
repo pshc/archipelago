@@ -87,6 +87,7 @@ def unify_bind(v, e, env):
     return {v: e}
 
 def unify(e1, e2, env):
+    same = lambda: {}
     fail = lambda: unification_failure(e1, e2, env)
     return match((e1, e2),
         ("(TVar(_), _)", lambda: unify_bind(e1, e2, env)),
@@ -95,16 +96,16 @@ def unify(e1, e2, env):
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, env)),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
             unify_funcs(e1, a1, r1, e2, a2, r2, env)),
-        ("(TInt(), TInt())", lambda: {}),
-        ("(TStr(), TStr())", lambda: {}),
-        ("(TChar(), TChar())", lambda: {}),
-        ("(TBool(), TBool())", lambda: {}),
-        ("(TVoid(), TVoid())", lambda: {}),
+        ("(TInt(), TInt())", same),
+        ("(TStr(), TStr())", same),
+        ("(TChar(), TChar())", same),
+        ("(TBool(), TBool())", same),
+        ("(TVoid(), TVoid())", same),
         # XXX: Hacky extension
-        ("(TTuple(_), TAnyTuple())", lambda: {}),
-        ("(TAnyTuple(), TTuple(_))", lambda: {}),
+        ("(TTuple(_), TAnyTuple())", same),
+        ("(TAnyTuple(), TTuple(_))", same),
         # Not-so-hacky extension
-        ("(TNullable(), TNullable())", lambda: {}),
+        ("(TNullable(), TNullable())", same),
         ("(_, TNullable())", lambda: unify(e2, e1, env)),
         ("(TNullable(), TInt())", fail),
         ("(TNullable(), TChar())", fail),
