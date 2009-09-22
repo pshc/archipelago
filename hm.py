@@ -225,12 +225,6 @@ def infer_types(roots):
         apply_substs_to_scheme(substs, t)
         a.subs.append(scheme_to_atoms(t))
 
-def write_mod_repr(filename, m):
-    f = fopen(filename, 'w')
-    for r in m.roots:
-        fwrite(f, repr(r))
-    fclose(f)
-
 if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')

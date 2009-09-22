@@ -1,7 +1,7 @@
 all: tada
 
 tada:
-	./hm.py
+	./c.py
 
 serialize:
 	./interpret.py serialize.py

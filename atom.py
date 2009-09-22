@@ -198,6 +198,11 @@ def serialize_module(module):
     system('ln -sf -- %s mods/%s' % (module.digest, module.name))
     return selfixs
 
+def write_mod_repr(filename, m):
+    with file(filename, 'w') as f:
+        for r in m.roots:
+            f.write(repr(r))
+
 @matcher('sized')
 def _match_sized(atom, ast):
     # specific to atoms; matches int(n) followed by n items
