@@ -11,8 +11,22 @@ def c_type(ta):
         ("TTuple(_)", lambda: 'struct tuple'),
         ("TNullable()", lambda: 'void *'))
 
+def c_defref(nm, ss):
+    return match(ss,
+        ("contains(key('unaryop', cons(Str(s, _), _)))",
+            lambda s: '%s%%s' % (s,)),
+        ("contains(key('binaryop', cons(Str(s, _), _)))",
+            lambda s: '%%s %s %%s' % (s.replace('%', '%%'),)),
+        ("contains(key('crepr', cons(Str(s, _), _)))", identity),
+        ("_", lambda: nm))
+
 def c_call(f, args):
-    return '%s(%s)' % (c_expr(f), ', '.join(c_expr(a) for a in args))
+    cf = c_expr(f)
+    cargs = map(c_expr, args)
+    if cf.startswith('%'): # op
+        return cf % tuple(cargs)
+    else:
+        return '%s(%s)' % (cf, ', '.join(cargs))
 
 def c_tuple(ts):
     return '{%s}' % (', '.join(c_expr(t) for t in ts),)
@@ -21,7 +35,7 @@ def c_expr(e):
     return match(e,
         ("Int(i, _)", lambda i: "%d" % (i,)),
         ("Str(s, _)", lambda s: escape_str(s)),
-        ("Ref(named(nm, contains(key('type'))), _, _)", identity),
+        ("Ref(named(nm, ss==contains(key('type'))), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
         ("key('tuplelit', sized(ts))", c_tuple))
 
