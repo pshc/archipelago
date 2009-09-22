@@ -91,10 +91,14 @@ def conv_exprs(elist):
 
 # EXPRESSIONS
 
+add_sym('binaryop')
+add_sym('unaryop')
+add_sym('crepr')
+
 for (cls, op) in {Add: '+', Sub: '-', Mul: '*', Div: '/', FloorDiv: '//',
-                  Mod: '%', Power: '**', Bitand: '&', Bitor: '|', Bitxor: '^',
+                  Mod: '%', Bitand: '&', Bitor: '|', Bitxor: '^',
                   LeftShift: '<<', RightShift: '>>'}.iteritems():
-    add_sym(op)
+    add_sym(op, extra_prop='binaryop', extra_str=op.replace('//','/'))
     @expr(cls)
     def binop(e, o=op):
         (la, lt) = conv_expr(e.left)
@@ -105,14 +109,14 @@ for (cls, (op, sym)) in {UnaryAdd: ('+', 'positive'),
                          UnarySub: ('-', 'negate'),
                          Not: ('not ', 'not'),
                          Invert: ('~', 'invert')}.iteritems():
-    add_sym(sym)
+    add_sym(sym, extra_prop='unaryop', extra_str=op.replace('not ', '!'))
     @expr(cls)
     def unaop(e, o=op, s=sym):
         (a, t) = conv_expr(e.expr)
         return (symcall(s, [a]), o + t)
 del cls, op
 
-add_sym('and')
+add_sym('and', extra_prop='binaryop', extra_str='&&')
 @expr(And)
 def conv_and(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
@@ -261,8 +265,9 @@ def conv_callfunc(e):
     (fa, ft) = conv_expr(e.node)
     return (symref('call', [fa, int_len(argsa)] + argsa), ft + argstt)
 
-map(add_sym, ['<', '>', '==', '!=', '<=', '>=',
-              'is', 'is not', 'in', 'not in'])
+map(lambda s: add_sym(s, extra_prop='binaryop', extra_str=s),
+    ['<', '>', '==', '!=', '<=', '>='])
+map(add_sym, ['is', 'is not', 'in', 'not in'])
 @expr(Compare)
 def conv_compare(e):
     assert len(e.ops) == 1
@@ -271,7 +276,7 @@ def conv_compare(e):
     op = e.ops[0][0]
     return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
 
-add_sym('null')
+add_sym('null', extra_prop='crepr', extra_str='NULL')
 @expr(Const)
 def conv_const(e):
     v = e.value
@@ -372,7 +377,7 @@ def conv_listcomp(e):
 def conv_name(e):
     return (refs_existing(e.name), e.name)
 
-add_sym('or')
+add_sym('or', extra_prop='binaryop', extra_str='||')
 @expr(Or)
 def conv_or(e):
     (exprsa, exprst) = conv_exprs(e.nodes)

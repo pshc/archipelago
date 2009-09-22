@@ -57,17 +57,21 @@ def builtin_type_to_atoms(name):
         t = _fix_type(t)
     return scheme_to_atoms(Scheme([], t))
 
-def add_sym(name):
-    if name in boot_sym_names:
-        return
-    subs = [Ref(_b_name, boot_mod, [Str(name, [])])]
-    t = builtin_type_to_atoms(name)
-    if t is not None:
-        subs.append(t)
-    node = Ref(_b_symbol, boot_mod, subs)
-    _boot_syms.append(node)
-    boot_sym_names[name] = node
-    boot_sym_names_rev[node] = name
+def add_sym(name, extra_prop=None, extra_str=None):
+    if name not in boot_sym_names:
+        subs = [Ref(_b_name, boot_mod, [Str(name, [])])]
+        t = builtin_type_to_atoms(name)
+        if t is not None:
+            subs.append(t)
+        node = Ref(_b_symbol, boot_mod, subs)
+        _boot_syms.append(node)
+        boot_sym_names[name] = node
+        boot_sym_names_rev[node] = name
+    else:
+        subs = boot_sym_names[name].subs
+    if extra_prop and boot_sym_names[extra_prop] not in subs:
+        ss = [Str(extra_str, [])] if extra_str else []
+        subs.append(symref(extra_prop, ss))
 
 def _fresh_tvar(num):
     nm = chr(ord('a') + num)
