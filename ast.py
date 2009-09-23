@@ -276,7 +276,6 @@ def conv_compare(e):
     op = e.ops[0][0]
     return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
 
-add_sym('null', extra_prop='crepr', extra_str='NULL')
 @expr(Const)
 def conv_const(e):
     v = e.value
@@ -284,8 +283,6 @@ def conv_const(e):
         return (Int(v, []), str(v))
     elif isinstance(v, str):
         return (Str(v, []), repr(v))
-    elif v is None:
-        return (symref('null', []), 'None')
     assert False, 'Unknown literal %s' % (e,)
 
 add_sym('dictlit')
@@ -610,8 +607,12 @@ def conv_printnl(s, context):
     return [symref('exprstmt', [symcall('print', exprsa)])]
 
 add_sym('return')
+add_sym('returnnothing')
 @stmt(Return)
 def conv_return(s, context):
+    if s.value is None:
+        cout(context, 'return')
+        return [symref('returnnothing', [])]
     (vala, valt) = conv_expr(s.value)
     cout(context, 'return %s', valt)
     return [symref('return', [vala])]

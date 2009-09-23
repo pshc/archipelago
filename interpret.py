@@ -556,7 +556,10 @@ def stmt_return(stmt, scope):
                                        ('_', lambda: False)):
             break
         this_frame = this_frame.prevScope
-    this_frame.scopeInfo.returnValue = eval_expr(stmt.subs[0], scope)
+    ret = None
+    if match(stmt, ('key("return")', lambda: True), ('_', lambda: False)):
+        ret = eval_expr(stmt.subs[0], scope)
+    this_frame.scopeInfo.returnValue = ret
     this_frame.stmtsPos = SCOPE_BREAK
     return this_frame
 
@@ -578,7 +581,7 @@ stmt_dispatch = {
         'exprstmt': stmt_exprstmt,
         'for': stmt_for,
         'func': stmt_func,
-        'return': stmt_return,
+        'return': stmt_return, 'returnnothing': stmt_return,
         'while': stmt_while,
     }
 
