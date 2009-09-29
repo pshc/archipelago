@@ -610,7 +610,7 @@ add_sym('return')
 add_sym('returnnothing')
 @stmt(Return)
 def conv_return(s, context):
-    if s.value is None:
+    if isinstance(s.value, Const) and s.value.value is None:
         cout(context, 'return')
         return [symref('returnnothing', [])]
     (vala, valt) = conv_expr(s.value)

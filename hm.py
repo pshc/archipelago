@@ -219,11 +219,11 @@ def infer_func(f, args, body, env):
 
 def infer_return(e, env):
     retT = list_head(env.envRetTypes)
-    if e is None:
+    if e is not None:
         t, s = infer_expr(e, env)
         return compose_substs(unify(retT, t), s)
     else:
-        return unify(retT, TVoid())
+        return unify(retT, TVoid(), env)
 
 def infer_stmt(a, env):
     return match(a,
