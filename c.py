@@ -9,7 +9,8 @@ def c_type(ta):
         ("TInt()", lambda: 'int'),
         ("TStr()", lambda: 'char *'),
         ("TTuple(_)", lambda: 'struct tuple'),
-        ("TNullable()", lambda: 'void *'))
+        ("TNullable()", lambda: 'void *'),
+        ("TVar(_)", lambda: 'void *'))
 
 def c_defref(nm, ss):
     return match(ss,
@@ -53,18 +54,32 @@ def c_cond(cs):
     for (t, b) in cs:
         s = ''
         if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
-            s = '%s (%s) {\n' % ('if' if first else 'else if', c_expr(t))
+            s = '%s (%s) {\n' % ('if' if first else '\nelse if', c_expr(t))
             first = False
         else:
             assert not first
-            s = 'else {\n'
+            s = '\nelse {\n'
         list_append(ss, s)
         ss += c_body(b)
-        list_append(ss, '\n}\n')
+        list_append(ss, '}')
     return ''.join(ss)
 
 def c_assert(t, m):
     return "assert(%s, %s);" % (c_expr(t), c_expr(m))
+
+def c_args(args):
+    return ', '.join(match(a,
+        ("named(nm, contains(t==key('type')))",
+            lambda nm, t: "%s %s" % (c_type(t), nm))) for a in args)
+
+def c_func(t, args, body, nm):
+    # Wow this is bad
+    t_ = atoms_to_scheme(t).schemeType
+    retT = c_type(scheme_to_atoms(Scheme([], t_.funcRet)))
+    c = ['%s %s(%s) {\n' % (retT, nm, c_args(args))]
+    c += c_body(body)
+    list_append(c, '}\n')
+    return ''.join(c)
 
 def c_stmt(s):
     return match(s,
@@ -72,10 +87,13 @@ def c_stmt(s):
         ("key('=', cons(a, cons(e, _)))", c_assign),
         ("key('cond', all(cs, key('case', cons(t, sized(b)))))", c_cond),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
-        ("key('DT') and named(nm)", lambda nm: "struct %s {};" % (nm,)))
+        ("key('DT') and named(nm)", lambda nm: "struct %s {};" % (nm,)),
+        ("key('func', contains(t==key('type')) "
+                 "and contains(key('args', sized(a))) "
+                 "and contains(key('body', sized(b)))) and named(nm)", c_func))
 
 def c_body(ss):
-    return [c_stmt(s) for s in ss]
+    return ['%s\n' % c_stmt(s) for s in ss]
 
 def generate_c(mod):
     rs = [Str(s, []) for s in c_body(mod.roots)]
@@ -83,7 +101,6 @@ def generate_c(mod):
 
 def _write_c_strs(f, atom):
     fwrite(f, atom.strVal)
-    fputc(f, '\n')
     for sub in atom.subs:
         _write_c_strs(f, sub)
 

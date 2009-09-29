@@ -1,8 +1,12 @@
+def ok(n):
+    n = n + 3
+    print 'n = %d' % (n,)
 a = 1 + 2
-a = a + 3
-print 'a = %d' % (a,)
+ok(a)
 if True:
     print 'ok'
+elif False:
+    print 'what'
 else:
     print 'no'
 assert True, 'WHAT'

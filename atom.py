@@ -123,7 +123,8 @@ def atoms_to_type(a, m):
                 atoms_to_type(args[-1], m))))
 
 def atoms_to_scheme(a):
-    t, vs = match(a, ("key('type', cons(t, all(vs, key('typevar'))))", tuple2))
+    t, vs = match(a,
+            ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
     tvs = [TVar(n) for n, v in enumerate(vs)]
     return Scheme(tvs, atoms_to_type(t, dict(zip(vs, tvs))))
 
