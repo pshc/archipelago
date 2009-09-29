@@ -92,6 +92,7 @@ def c_stmt(s):
         ("key('func', contains(t==key('type')) "
                  "and contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),
+        ("key('return', cons(e, _))", lambda e: "return %s;" % (c_expr(e),)),
         ("key('returnnothing')", lambda: "return;"))
 
 def c_body(ss):

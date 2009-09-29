@@ -6,7 +6,7 @@ from types_builtin import *
 
 Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
                 ('envIndex', int),
-                ('envRetTypes', [Type]))
+                ('envRetTypes', [(Type, bool)]))
 
 def fresh(env):
     i = env.envIndex
@@ -213,18 +213,23 @@ def infer_func(f, args, body, env):
     retT = fresh(env)
     set_type(f, TFunc(argTs, retT), env, {})
     # Push ret type so that "return"s in the body can be unified
-    list_prepend(env.envRetTypes, retT)
+    list_prepend(env.envRetTypes, (retT, False))
     s = infer_stmts(body, env)
-    list_pop_front(env.envRetTypes)
+    (rt, returned) = list_pop_front(env.envRetTypes)
+    if not returned:
+        s = compose_substs(unify(retT, TVoid(), env), s)
     return s
 
 def infer_return(e, env):
-    retT = list_head(env.envRetTypes)
+    retT, returned = list_head(env.envRetTypes)
     if e is not None:
         t, s = infer_expr(e, env)
-        return compose_substs(unify(retT, t), s)
-    else:
-        return unify(retT, TVoid(), env)
+        if not returned:
+            # Record that some value was returned in this function
+            list_pop_front(env.envRetTypes)
+            list_prepend(env.envRetTypes, (retT, True))
+        return compose_substs(unify(retT, t, env), s)
+    return {}
 
 def infer_stmt(a, env):
     return match(a,

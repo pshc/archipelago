@@ -1,6 +1,7 @@
 def ok(n):
     n = n + 3
     print 'n = %d' % (n,)
+    return n
 a = 1 + 2
 ok(a)
 if True:
