@@ -20,9 +20,9 @@ def apply_substs_to_scheme(substs, scheme):
     """Modifies in place."""
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
     s = substs.copy()
-    for v in vs:
-        if v in s:
-            del s[v]
+    #for v in vs:
+    #    if v in s:
+    #        del s[v]
     scheme.schemeType = apply_substs(s, t)
 
 def apply_substs_to_env(substs, env):
@@ -130,8 +130,9 @@ def generalize_type(t, substs):
 
 def instantiate_type(scheme, env):
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    vs_substs = [(v, fresh(env)) for v in vs]
-    return apply_substs(dict(vs_substs), t)
+    return t
+    #vs_substs = [(v, fresh(env)) for v in vs]
+    #return apply_substs(dict(vs_substs), t)
 
 def infer_tuple(ts, env):
     s = {}
