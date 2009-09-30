@@ -31,8 +31,16 @@ def apply_substs_to_env(substs, env):
     for k in ks:
         env[k] = apply_substs(substs, env[k])
 
+def _apply_to_var(t, s):
+    """Ugh."""
+    for k, v in s.iteritems():
+        if k is t or match((k, t), ("(TVar(a), TVar(b))", lambda a, b: a == b),
+                                   ("_", lambda: False)):
+            return v
+    return t
+
 def apply_substs(substs, t):
-    return map_type_vars(lambda t, s: s.get(t, t), t, substs)
+    return map_type_vars(_apply_to_var, t, substs)
 
 def compose_substs(s1, s2):
     s3 = s1.copy()
@@ -107,6 +115,8 @@ def unify(e1, e2, env):
         # XXX: Hacky extension
         ("(TTuple(_), TAnyTuple())", same),
         ("(TAnyTuple(), TTuple(_))", same),
+        ("(TAnyTuple(), _)", fail),
+        ("(_, TAnyTuple())", fail),
         # Not-so-hacky extension
         ("(TNullable(), TNullable())", same),
         ("(_, TNullable())", lambda: unify(e2, e1, env)),
