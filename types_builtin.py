@@ -5,14 +5,17 @@ Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     = ADT('Type',
         'TVar', ('varIndex', int),
         'TInt', 'TStr', 'TChar', 'TBool',
-        'TVoid', 'TNullable',
+        'TVoid',
+        'TNullable', ('nullType', 'Type'),
         'TTuple', ('tupleTypes', ['Type']),
-        'TAnyTuple', # XXX: Hacky extension
+        'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
 
 def map_type_vars(f, t, data):
     """Applies f to every typevar('s index) in the given type."""
     return match(t, ("TVar(n)", lambda n: f(n, data)),
+                    ("TNullable(v)", lambda v:
+                        TNullable(map_type_vars(f, v, data))),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a, data) for a in args],
                               map_type_vars(f, ret, data))),
@@ -51,7 +54,7 @@ builtins_types = {
     'identity': (TVar(1), TVar(1)),
     'tuple2': (TVar(1), TVar(2), TTuple([TVar(1), TVar(2)])),
     # etc to tuple5
-    'None': TNullable,
+    'None': TNullable(TVar(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
     'len': (TList, TInt),

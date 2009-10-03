@@ -2,6 +2,8 @@ def ok(n):
     n = n + 3
     print 'n = %d' % (n,)
     return n
+def ident(val):
+    return val
 a = 1 + 2
 ok(a)
 if True:

@@ -67,6 +67,7 @@ def free_vars_in_func(args, ret):
 
 def free_vars(v):
     return match(v, ("TVar(n)", lambda n: set([n])),
+                    ("TNullable(t)", free_vars),
                     ("TTuple(ts)", free_vars_in_tuple),
                     ("TFunc(args, ret)", free_vars_in_func),
                     ("_", lambda: set()))
@@ -109,14 +110,13 @@ def unify(e1, e2):
         ("(TChar(), TChar())", same),
         ("(TBool(), TBool())", same),
         ("(TVoid(), TVoid())", same),
-        # XXX: Hacky extension
         ("(TTuple(_), TAnyTuple())", same),
         ("(TAnyTuple(), TTuple(_))", same),
         ("(TAnyTuple(), _)", fail),
         ("(_, TAnyTuple())", fail),
         # Not-so-hacky extension
-        ("(TNullable(), TNullable())", same),
-        ("(_, TNullable())", lambda: unify(e2, e1)),
+        ("(TNullable(t1), TNullable(t2))", unify),
+        ("(_, TNullable(_))", lambda: unify(e2, e1)),
         ("(TNullable(), TInt())", fail),
         ("(TNullable(), TChar())", fail),
         ("(TNullable(), TBool())", fail),

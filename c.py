@@ -53,15 +53,18 @@ def commas(ss):
             cat(s, ', ')
     return ss
 
-def c_type(ta):
+def c_type(t):
+    return match(t,
+        ("TInt()", lambda: str_('int')),
+        ("TStr()", lambda: str_('char *')),
+        ("TTuple(_)", lambda: str_('struct tuple')),
+        ("TNullable(v)", c_type),
+        ("TVar(_)", lambda: str_('void *')),
+        ("TVoid()", lambda: str_('void')))
+
+def c_scheme(ta):
     t = atoms_to_scheme(ta)
-    return str_(match(t.schemeType,
-        ("TInt()", lambda: 'int'),
-        ("TStr()", lambda: 'char *'),
-        ("TTuple(_)", lambda: 'struct tuple'),
-        ("TNullable()", lambda: 'void *'),
-        ("TVar(_)", lambda: 'void *'),
-        ("TVoid()", lambda: 'void')))
+    return c_type(t.schemeType)
 
 def c_defref(nm, ss):
     return match(ss,
@@ -95,7 +98,7 @@ def c_assign(a, e):
     ce = c_expr(e)
     ca = match(a,
         ("key('var', contains(t==key('type'))) and named(nm)",
-            lambda t, nm: cat(c_type(t), ' %s' % nm)),
+            lambda t, nm: cat(c_scheme(t), ' %s' % nm)),
         ("Ref(named(nm, contains(key('type'))), _, _)", str_))
     indent(cats(ca, [str_(' = '), ce, semi()]))
 
@@ -117,13 +120,13 @@ def c_assert(t, m):
 
 def c_args(args):
     return commas([match(a, ("named(nm, contains(t==key('type')))",
-                         lambda nm, t: cat(c_type(t), ' %s' % (nm,))))
+                         lambda nm, t: cat(c_scheme(t), ' %s' % (nm,))))
                    for a in args])
 
 def c_func(t, args, body, nm):
     # Wow this is bad
     t_ = atoms_to_scheme(t).schemeType
-    retT = c_type(scheme_to_atoms(Scheme([], t_.funcRet)))
+    retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
     blank_line()
     indent(Str('', [retT, str_(' %s(' % (nm,))]
                           + c_args(args) + [str_(') {')]))

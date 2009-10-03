@@ -91,7 +91,7 @@ def type_to_atoms(t, m):
         ("TChar()", lambda: symref('char', [])),
         ("TBool()", lambda: symref('bool', [])),
         ("TVoid()", lambda: symref('void', [])),
-        ("TNullable()", lambda: symref('nullable', [])),
+        ("TNullable(v)", lambda v: symref('nullable', [type_to_atoms(v, m)])),
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
             + [type_to_atoms(a, m) for a in ts])),
         ("TAnyTuple()", lambda: symref('tuple*', [])),
@@ -114,7 +114,8 @@ def atoms_to_type(a, m):
         ("key('char')", lambda: TChar()),
         ("key('bool')", lambda: TBool()),
         ("key('void')", lambda: TVoid()),
-        ("key('nullable')", lambda: TNullable()),
+        ("key('nullable', cons(v, _))",
+            lambda v: TNullable(atoms_to_type(v, m))),
         ("key('tuple', sized(ts))", lambda ts:
             TTuple([atoms_to_type(t, m) for t in ts])),
         ("key('tuple*')", lambda: TAnyTuple()),
@@ -133,7 +134,7 @@ add_sym('deps')
 add_sym('roots')
 add_sym('type')
 map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
-add_sym('tuple*') # TEMP
+add_sym('tuple*')
 map(add_sym, builtins)
 
 def walk_atoms(atoms, ret, f):
