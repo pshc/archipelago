@@ -130,7 +130,8 @@ def get_type(e):
     return ENV.envTable[e]
 
 def generalize_type(t, substs):
-    gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
+    #gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
+    gen_vars = []
     return Scheme(gen_vars, t)
 
 def instantiate_type(scheme):
