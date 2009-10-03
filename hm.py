@@ -21,11 +21,11 @@ def unification_failure(e1, e2):
 
 def apply_substs_to_scheme(substs, scheme):
     """Modifies in place."""
-    vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
+    ns, t = match(scheme, ("Scheme(vs, t)", tuple2))
     s = substs.copy()
-    #for v in vs:
-    #    if v in s:
-    #        del s[v]
+    for n in ns:
+        if n in s:
+            del s[n]
     scheme.schemeType = apply_substs(s, t)
 
 def apply_substs_to_env(substs, env):
@@ -35,7 +35,7 @@ def apply_substs_to_env(substs, env):
         env[k] = apply_substs(substs, env[k])
 
 def apply_substs(substs, t):
-    return map_type_vars(lambda t, s: s.get(t, t), t, substs)
+    return map_type_vars(lambda n, s: s.get(n, TVar(n)), t, substs)
 
 def compose_substs(s1, s2):
     s3 = s1.copy()
@@ -64,7 +64,7 @@ def free_vars_in_func(args, ret):
     return fvs
 
 def free_vars(v):
-    return match(v, ("TVar(_)", lambda: set([v])),
+    return match(v, ("TVar(n)", lambda n: set([n])),
                     ("TTuple(ts)", free_vars_in_tuple),
                     ("TFunc(args, ret)", free_vars_in_func),
                     ("_", lambda: set()))
@@ -85,19 +85,19 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     ret2 = apply_substs(s, ret2)
     return compose_substs(s, unify(ret1, ret2))
 
-def unify_bind(v, e):
-    if is_typevar(e) and typevars_equal(v, e):
+def unify_bind(n, e):
+    if match(e, ("TVar(n2)", lambda n2: n == n2), ("_", lambda: False)):
         return {}
-    if v in free_vars(e):
-        unification_failure(v, e)
-    return {v: e}
+    if n in free_vars(e):
+        unification_failure(TVar(n), e)
+    return {n: e}
 
 def unify(e1, e2):
     same = lambda: {}
     fail = lambda: unification_failure(e1, e2)
     return match((e1, e2),
-        ("(TVar(_), _)", lambda: unify_bind(e1, e2)),
-        ("(_, TVar(_))", lambda: unify_bind(e2, e1)),
+        ("(TVar(n1), _)", lambda n1: unify_bind(n1, e2)),
+        ("(_, TVar(n2))", lambda n2: unify_bind(n2, e1)),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2)),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
@@ -117,7 +117,7 @@ def unify(e1, e2):
         ("(TNullable(), TChar())", fail),
         ("(TNullable(), TBool())", fail),
         ("(TNullable(), TVoid())", fail),
-        ("(TNullable(), _)", lambda: {e1: e2}),
+        ("(TNullable(), _)", lambda: {e1: e2}), # XXX: WHAT
         # Mismatch
         ("_", fail))
 
@@ -127,7 +127,7 @@ def set_type(e, t, substs):
 
 def get_type(e):
     global ENV
-    return instantiate_type(ENV.envTable[e])
+    return ENV.envTable[e]
 
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
@@ -135,9 +135,8 @@ def generalize_type(t, substs):
 
 def instantiate_type(scheme):
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    return t
-    #vs_substs = [(v, fresh()) for v in vs]
-    #return apply_substs(dict(vs_substs), t)
+    vs_substs = [(v, fresh()) for v in vs]
+    return apply_substs(dict(vs_substs), t)
 
 def infer_tuple(ts):
     s = {}
@@ -169,8 +168,10 @@ def infer_expr(a):
         ("key('char')", lambda: (TChar(), {})),
         ("key('tuplelit', sized(ts))", infer_tuple),
         ("key('call', cons(f, sized(s)))", infer_call),
-        ("Ref(v==key('var' or 'func'), _, _)",
-            lambda v: (get_type(v), {})),
+        ("Ref(v==key('var'), _, _)",
+            lambda v: (get_type(v).schemeType, {})),
+        ("Ref(f==key('func'), _, _)",
+            lambda f: (instantiate_type(get_type(f)), {})),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",
             lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
         ("otherwise", unknown_infer))
@@ -182,7 +183,7 @@ def infer_DT(fs, nm):
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _, _)", lambda: False))
-    t = fresh() if newvar else get_type(a.refAtom)
+    t = fresh() if newvar else get_type(a.refAtom).schemeType
     et, substs = infer_expr(e)
     substs = compose_substs(substs, unify(t, et))
     if newvar:

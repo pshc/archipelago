@@ -100,8 +100,8 @@ def type_to_atoms(t, m):
 
 def scheme_to_atoms(t):
     m = {}
-    for n, v in enumerate(t.schemeVars):
-        m[v.varIndex] = _fresh_tvar(n)
+    for ctr, n in enumerate(t.schemeVars):
+        m[n] = _fresh_tvar(ctr)
     s = symref('type', [type_to_atoms(t.schemeType, m)])
     s.subs += [m[k] for k in sorted(m.keys())]
     return s
