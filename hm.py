@@ -6,7 +6,9 @@ from types_builtin import *
 
 Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
                 ('envIndex', int),
-                ('envRetTypes', [(Type, bool)]))
+                ('envRetType', Type),
+                ('envReturned', bool),
+                ('envPrev', 'Env'))
 
 ENV = None
 
@@ -129,11 +131,14 @@ def set_type(e, t, substs):
 
 def get_type(e):
     global ENV
+    env = ENV
+    while e not in env.envTable:
+        env = env.envPrev
+        assert env is not None, '%s not found in env' % (e,)
     return ENV.envTable[e]
 
 def generalize_type(t, substs):
-    #gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
-    gen_vars = []
+    gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
     return Scheme(gen_vars, t)
 
 def instantiate_type(scheme):
@@ -216,30 +221,37 @@ def infer_assert(tst, msg):
 
 def infer_func(f, args, body):
     global ENV
-    #argTs = [Scheme([], fresh()) for arg in args]
+    # Enter func env
+    retT = fresh()
+    outerEnv = ENV
+    funcEnv = Env({}, outerEnv.envIndex, retT, False, outerEnv)
+    ENV = funcEnv
+    # Prepare func env
+    funcT = fresh()
+    set_type(f, funcT, {})
     argTs = [fresh() for arg in args]
     for a, t in zip(args, argTs):
         set_type(a, t, {})
-    retT = fresh()
-    set_type(f, TFunc(argTs, retT), {})
-    # Push ret type so that "return"s in the body can be unified
-    list_prepend(ENV.envRetTypes, (retT, False))
+    # Do the stmts
     s = infer_stmts(body)
-    (rt, returned) = list_pop_front(ENV.envRetTypes)
-    if not returned:
-        s = compose_substs(unify(retT, TVoid()), s)
+    # Exit func env
+    outerEnv.envIndex = funcEnv.envIndex
+    ENV = outerEnv
+    # Update our outer env
+    if not funcEnv.envReturned:
+        retT = TVoid()
+    s = compose_substs(unify(funcT, TFunc(argTs, retT)), s)
+    set_type(f, funcT, s)
+    for a, t in zip(args, argTs):
+        set_type(a, t, s)
     return s
 
 def infer_return(e):
     global ENV
-    retT, returned = list_head(ENV.envRetTypes)
     if e is not None:
         t, s = infer_expr(e)
-        if not returned:
-            # Record that some value was returned in this function
-            list_pop_front(ENV.envRetTypes)
-            list_prepend(ENV.envRetTypes, (retT, True))
-        return compose_substs(unify(retT, t), s)
+        ENV.envReturned = True
+        return compose_substs(unify(ENV.envRetType, t), s)
     return {}
 
 def infer_stmt(a):
@@ -264,7 +276,7 @@ def infer_stmts(ss):
 
 def infer_types(roots):
     global ENV
-    ENV = Env({}, 1, [])
+    ENV = Env({}, 1, None, False, None)
     substs = infer_stmts(roots)
     for a, t in ENV.envTable.iteritems():
         apply_substs_to_scheme(substs, t)
