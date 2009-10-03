@@ -117,11 +117,11 @@ def unify(e1, e2):
         # Not-so-hacky extension
         ("(TNullable(t1), TNullable(t2))", unify),
         ("(_, TNullable(_))", lambda: unify(e2, e1)),
-        ("(TNullable(), TInt())", fail),
-        ("(TNullable(), TChar())", fail),
-        ("(TNullable(), TBool())", fail),
-        ("(TNullable(), TVoid())", fail),
-        ("(TNullable(), _)", lambda: {e1: e2}), # XXX: WHAT
+        ("(TNullable(_), TInt())", fail),
+        ("(TNullable(_), TChar())", fail),
+        ("(TNullable(_), TBool())", fail),
+        ("(TNullable(_), TVoid())", fail),
+        ("(TNullable(v), t)", unify),
         # Mismatch
         ("_", fail))
 
