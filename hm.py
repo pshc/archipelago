@@ -8,12 +8,15 @@ Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
                 ('envIndex', int),
                 ('envRetTypes', [(Type, bool)]))
 
-def fresh(env):
-    i = env.envIndex
-    env.envIndex = i + 1
+ENV = None
+
+def fresh():
+    global ENV
+    i = ENV.envIndex
+    ENV.envIndex = i + 1
     return TVar(i)
 
-def unification_failure(e1, e2, env):
+def unification_failure(e1, e2):
     assert False, "Could not unify %r with %r" % (e1, e2)
 
 def apply_substs_to_scheme(substs, scheme):
@@ -66,39 +69,39 @@ def free_vars(v):
                     ("TFunc(args, ret)", free_vars_in_func),
                     ("_", lambda: set()))
 
-def unify_tuples(t1, list1, t2, list2, env):
+def unify_tuples(t1, list1, t2, list2):
     if len(list1) != len(list2):
-        unification_failure(t1, t2, env)
+        unification_failure(t1, t2)
     s = {}
     for a1, a2 in zip(list1, list2):
         a1 = apply_substs(s, a1)
         a2 = apply_substs(s, a2)
-        s = compose_substs(s, unify(a1, a2, env))
+        s = compose_substs(s, unify(a1, a2))
     return s
 
-def unify_funcs(f1, args1, ret1, f2, args2, ret2, env):
-    s = unify_tuples(f1, args1, f2, args2, env)
+def unify_funcs(f1, args1, ret1, f2, args2, ret2):
+    s = unify_tuples(f1, args1, f2, args2)
     ret1 = apply_substs(s, ret1)
     ret2 = apply_substs(s, ret2)
-    return compose_substs(s, unify(ret1, ret2, env))
+    return compose_substs(s, unify(ret1, ret2))
 
-def unify_bind(v, e, env):
+def unify_bind(v, e):
     if is_typevar(e) and typevars_equal(v, e):
         return {}
     if v in free_vars(e):
-        unification_failure(v, e, env)
+        unification_failure(v, e)
     return {v: e}
 
-def unify(e1, e2, env):
+def unify(e1, e2):
     same = lambda: {}
-    fail = lambda: unification_failure(e1, e2, env)
+    fail = lambda: unification_failure(e1, e2)
     return match((e1, e2),
-        ("(TVar(_), _)", lambda: unify_bind(e1, e2, env)),
-        ("(_, TVar(_))", lambda: unify_bind(e2, e1, env)),
+        ("(TVar(_), _)", lambda: unify_bind(e1, e2)),
+        ("(_, TVar(_))", lambda: unify_bind(e2, e1)),
         ("(TTuple(t1), TTuple(t2))",
-            lambda t1, t2: unify_tuples(e1, t1, e2, t2, env)),
+            lambda t1, t2: unify_tuples(e1, t1, e2, t2)),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
-            unify_funcs(e1, a1, r1, e2, a2, r2, env)),
+            unify_funcs(e1, a1, r1, e2, a2, r2)),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -109,7 +112,7 @@ def unify(e1, e2, env):
         ("(TAnyTuple(), TTuple(_))", same),
         # Not-so-hacky extension
         ("(TNullable(), TNullable())", same),
-        ("(_, TNullable())", lambda: unify(e2, e1, env)),
+        ("(_, TNullable())", lambda: unify(e2, e1)),
         ("(TNullable(), TInt())", fail),
         ("(TNullable(), TChar())", fail),
         ("(TNullable(), TBool())", fail),
@@ -118,146 +121,148 @@ def unify(e1, e2, env):
         # Mismatch
         ("_", fail))
 
-def set_type(e, t, env, substs):
-    env.envTable[e] = generalize_type(apply_substs(substs, t), substs)
+def set_type(e, t, substs):
+    global ENV
+    ENV.envTable[e] = generalize_type(apply_substs(substs, t), substs)
 
-def get_type(e, env):
-    return instantiate_type(env.envTable[e], env)
+def get_type(e):
+    global ENV
+    return instantiate_type(ENV.envTable[e])
 
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
     return Scheme(gen_vars, t)
 
-def instantiate_type(scheme, env):
+def instantiate_type(scheme):
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
     return t
-    #vs_substs = [(v, fresh(env)) for v in vs]
+    #vs_substs = [(v, fresh()) for v in vs]
     #return apply_substs(dict(vs_substs), t)
 
-def infer_tuple(ts, env):
+def infer_tuple(ts):
     s = {}
     tupTs = []
     for t in ts:
-        tt, s2 = infer_expr(t, env)
+        tt, s2 = infer_expr(t)
         list_append(tupTs, tt)
         s = compose_substs(s, s2)
     return (TTuple(tupTs), s)
 
-def infer_call(f, args, env):
-    ft, s = infer_expr(f, env)
-    retT = fresh(env)
+def infer_call(f, args):
+    ft, s = infer_expr(f)
+    retT = fresh()
     argTs = []
     for a in args:
-        at, s2 = infer_expr(a, env)
+        at, s2 = infer_expr(a)
         list_append(argTs, at)
         s = compose_substs(s, s2)
-    s2 = unify(ft, TFunc(argTs, retT), env)
+    s2 = unify(ft, TFunc(argTs, retT))
     return (retT, compose_substs(s, s2))
 
-def unknown_infer(a, env):
+def unknown_infer(a):
     assert False, 'Unknown infer_expr case:\n%s' % (a,)
 
-def infer_expr(a, env):
+def infer_expr(a):
     return match(a,
         ("Int(_, _)", lambda: (TInt(), {})),
         ("Str(_, _)", lambda: (TStr(), {})),
         ("key('char')", lambda: (TChar(), {})),
-        ("key('tuplelit', sized(ts))", lambda ts: infer_tuple(ts, env)),
-        ("key('call', cons(f, sized(s)))", lambda f, s: infer_call(f, s, env)),
+        ("key('tuplelit', sized(ts))", infer_tuple),
+        ("key('call', cons(f, sized(s)))", infer_call),
         ("Ref(v==key('var' or 'func'), _, _)",
-            lambda v: (get_type(v, env), {})),
+            lambda v: (get_type(v), {})),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",
-            lambda t: (instantiate_type(atoms_to_scheme(t), env), {})),
-        ("otherwise", lambda e: unknown_infer(e, env)))
+            lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
+        ("otherwise", unknown_infer))
 
-def infer_DT(fs, nm, env):
+def infer_DT(fs, nm):
     print 'DT', nm
     return {}
 
-def infer_assign(a, e, env):
+def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _, _)", lambda: False))
-    t = fresh(env) if newvar else get_type(a.refAtom, env)
-    et, substs = infer_expr(e, env)
-    substs = compose_substs(substs, unify(t, et, env))
+    t = fresh() if newvar else get_type(a.refAtom)
+    et, substs = infer_expr(e)
+    substs = compose_substs(substs, unify(t, et))
     if newvar:
-        set_type(a, t, env, substs)
+        set_type(a, t, substs)
     return substs
 
-def infer_exprstmt(e, env):
-    t, substs = infer_expr(e, env)
+def infer_exprstmt(e):
+    t, substs = infer_expr(e)
     return substs
 
-def infer_cond(cases, env):
+def infer_cond(cases):
     s = {}
     for t, b in cases:
         if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
-            tt, ts = infer_expr(t, env)
+            tt, ts = infer_expr(t)
             s = compose_substs(ts, s)
-            s = compose_substs(unify(tt, TBool(), env), s)
-        s = compose_substs(infer_stmts(b, env), s)
+            s = compose_substs(unify(tt, TBool()), s)
+        s = compose_substs(infer_stmts(b), s)
     return s
 
-def infer_assert(tst, msg, env):
-    tstt, s = infer_expr(tst, env)
-    s = compose_substs(unify(tstt, TBool(), env), s)
-    msgt, s2 = infer_expr(msg, env)
+def infer_assert(tst, msg):
+    tstt, s = infer_expr(tst)
+    s = compose_substs(unify(tstt, TBool()), s)
+    msgt, s2 = infer_expr(msg)
     s = compose_substs(s2, s)
-    return compose_substs(unify(msgt, TStr(), env), s)
+    return compose_substs(unify(msgt, TStr()), s)
 
-def infer_func(f, args, body, env):
-    #argTs = [Scheme([], fresh(env)) for arg in args]
-    argTs = [fresh(env) for arg in args]
+def infer_func(f, args, body):
+    global ENV
+    #argTs = [Scheme([], fresh()) for arg in args]
+    argTs = [fresh() for arg in args]
     for a, t in zip(args, argTs):
-        set_type(a, t, env, {})
-    retT = fresh(env)
-    set_type(f, TFunc(argTs, retT), env, {})
+        set_type(a, t, {})
+    retT = fresh()
+    set_type(f, TFunc(argTs, retT), {})
     # Push ret type so that "return"s in the body can be unified
-    list_prepend(env.envRetTypes, (retT, False))
-    s = infer_stmts(body, env)
-    (rt, returned) = list_pop_front(env.envRetTypes)
+    list_prepend(ENV.envRetTypes, (retT, False))
+    s = infer_stmts(body)
+    (rt, returned) = list_pop_front(ENV.envRetTypes)
     if not returned:
-        s = compose_substs(unify(retT, TVoid(), env), s)
+        s = compose_substs(unify(retT, TVoid()), s)
     return s
 
-def infer_return(e, env):
-    retT, returned = list_head(env.envRetTypes)
+def infer_return(e):
+    global ENV
+    retT, returned = list_head(ENV.envRetTypes)
     if e is not None:
-        t, s = infer_expr(e, env)
+        t, s = infer_expr(e)
         if not returned:
             # Record that some value was returned in this function
-            list_pop_front(env.envRetTypes)
-            list_prepend(env.envRetTypes, (retT, True))
-        return compose_substs(unify(retT, t, env), s)
+            list_pop_front(ENV.envRetTypes)
+            list_prepend(ENV.envRetTypes, (retT, True))
+        return compose_substs(unify(retT, t), s)
     return {}
 
-def infer_stmt(a, env):
+def infer_stmt(a):
     return match(a,
         ("key('DT', all(fs, key('field') and named(fnm)))"
-            " and named(nm)", lambda fs, nm: infer_DT(fs, nm, env)),
-        ("key('=', cons(a, cons(e, _)))", lambda a, e: infer_assign(a,e,env)),
-        ("key('exprstmt', cons(e, _))", lambda e: infer_exprstmt(e, env)),
-        ("key('cond', all(cases, key('case', cons(t, sized(b)))))",
-            lambda cases: infer_cond(cases, env)),
-        ("key('assert', cons(t, cons(m, _)))",
-            lambda t, m: infer_assert(t, m, env)),
-        ("key('func', contains(key('args', sized(args))) and \
-                      contains(key('body', sized(body))))",
-            lambda args, body: infer_func(a, args, body, env)),
-        ("key('return', cons(e, _))", lambda e: infer_return(e, env)),
-        ("key('returnnothing')", lambda: infer_return(None, env)),
-        ("otherwise", lambda e: unknown_infer(e, env)))
+            " and named(nm)", infer_DT),
+        ("key('=', cons(a, cons(e, _)))", infer_assign),
+        ("key('exprstmt', cons(e, _))", infer_exprstmt),
+        ("key('cond', all(cases, key('case', cons(t, sized(b)))))",infer_cond),
+        ("key('assert', cons(t, cons(m, _)))", infer_assert),
+        ("f==key('func', contains(key('args', sized(args))) and \
+                         contains(key('body', sized(body))))", infer_func),
+        ("key('return', cons(e, _))", infer_return),
+        ("key('returnnothing')", lambda: infer_return(None)),
+        ("otherwise", unknown_infer))
 
-def infer_stmts(ss, env):
+def infer_stmts(ss):
     substs = {}
     for s in ss:
-        substs = compose_substs(infer_stmt(s, env), substs)
+        substs = compose_substs(infer_stmt(s), substs)
     return substs
 
 def infer_types(roots):
-    env = Env({}, 1, [])
-    substs = infer_stmts(roots, env)
-    for a, t in env.envTable.iteritems():
+    global ENV
+    ENV = Env({}, 1, [])
+    substs = infer_stmts(roots)
+    for a, t in ENV.envTable.iteritems():
         apply_substs_to_scheme(substs, t)
         a.subs.append(scheme_to_atoms(t))
 
