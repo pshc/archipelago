@@ -41,9 +41,10 @@ def apply_substs(substs, t):
 
 def compose_substs(s1, s2):
     s3 = s1.copy()
-    if not isinstance(s2, dict):
-        assert False
+    assert isinstance(s2, dict)
     for k, v in s2.iteritems():
+        if k in s1:
+            s3 = compose_substs(s3, unify(v, s1[k]))
         s3[k] = apply_substs(s1, v)
     return s3
 
