@@ -39,12 +39,12 @@ def apply_substs_to_env(substs, env):
 def apply_substs(substs, t):
     return map_type_vars(lambda n, s: s.get(n, TVar(n)), t, substs)
 
-def compose_substs(s1, s2):
+def compose(s1, s2):
     s3 = s1.copy()
     assert isinstance(s2, dict)
     for k, v in s2.iteritems():
         if k in s1:
-            s3 = compose_substs(s3, unify(v, s1[k]))
+            s3 = compose(s3, unify(v, s1[k]))
         s3[k] = apply_substs(s1, v)
     return s3
 
@@ -80,14 +80,14 @@ def unify_tuples(t1, list1, t2, list2):
     for a1, a2 in zip(list1, list2):
         a1 = apply_substs(s, a1)
         a2 = apply_substs(s, a2)
-        s = compose_substs(s, unify(a1, a2))
+        s = compose(s, unify(a1, a2))
     return s
 
 def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     s = unify_tuples(f1, args1, f2, args2)
     ret1 = apply_substs(s, ret1)
     ret2 = apply_substs(s, ret2)
-    return compose_substs(s, unify(ret1, ret2))
+    return compose(s, unify(ret1, ret2))
 
 def unify_bind(n, e):
     if match(e, ("TVar(n2)", lambda n2: n == n2), ("_", lambda: False)):
@@ -153,7 +153,7 @@ def infer_tuple(ts):
     for t in ts:
         tt, s2 = infer_expr(t)
         list_append(tupTs, tt)
-        s = compose_substs(s, s2)
+        s = compose(s, s2)
     return (TTuple(tupTs), s)
 
 def infer_call(f, args):
@@ -163,9 +163,9 @@ def infer_call(f, args):
     for a in args:
         at, s2 = infer_expr(a)
         list_append(argTs, at)
-        s = compose_substs(s, s2)
+        s = compose(s, s2)
     s2 = unify(ft, TFunc(argTs, retT))
-    return (retT, compose_substs(s, s2))
+    return (retT, compose(s, s2))
 
 def unknown_infer(a):
     assert False, 'Unknown infer_expr case:\n%s' % (a,)
@@ -194,7 +194,7 @@ def infer_assign(a, e):
                       ("Ref(key('var'), _, _)", lambda: False))
     t = fresh() if newvar else get_type(a.refAtom).schemeType
     et, substs = infer_expr(e)
-    substs = compose_substs(substs, unify(t, et))
+    substs = compose(substs, unify(t, et))
     if newvar:
         set_type(a, t, substs)
     return substs
@@ -208,17 +208,17 @@ def infer_cond(cases):
     for t, b in cases:
         if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
             tt, ts = infer_expr(t)
-            s = compose_substs(ts, s)
-            s = compose_substs(unify(tt, TBool()), s)
-        s = compose_substs(infer_stmts(b), s)
+            s = compose(ts, s)
+            s = compose(unify(tt, TBool()), s)
+        s = compose(infer_stmts(b), s)
     return s
 
 def infer_assert(tst, msg):
     tstt, s = infer_expr(tst)
-    s = compose_substs(unify(tstt, TBool()), s)
+    s = compose(unify(tstt, TBool()), s)
     msgt, s2 = infer_expr(msg)
-    s = compose_substs(s2, s)
-    return compose_substs(unify(msgt, TStr()), s)
+    s = compose(s2, s)
+    return compose(unify(msgt, TStr()), s)
 
 def infer_func(f, args, body):
     global ENV
@@ -241,7 +241,7 @@ def infer_func(f, args, body):
     # Update our outer env
     if not funcEnv.envReturned:
         retT = TVoid()
-    s = compose_substs(unify(funcT, TFunc(argTs, retT)), s)
+    s = compose(unify(funcT, TFunc(argTs, retT)), s)
     set_type(f, funcT, s)
     for a, t in zip(args, argTs):
         set_type(a, t, s)
@@ -252,7 +252,7 @@ def infer_return(e):
     if e is not None:
         t, s = infer_expr(e)
         ENV.envReturned = True
-        return compose_substs(unify(ENV.envRetType, t), s)
+        return compose(unify(ENV.envRetType, t), s)
     return {}
 
 def infer_stmt(a):
@@ -272,7 +272,7 @@ def infer_stmt(a):
 def infer_stmts(ss):
     substs = {}
     for s in ss:
-        substs = compose_substs(infer_stmt(s), substs)
+        substs = compose(infer_stmt(s), substs)
     return substs
 
 def infer_types(roots):
