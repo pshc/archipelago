@@ -4,6 +4,8 @@ def ok(n):
     return n
 def ident(val):
     return val
+while False:
+    inside = 1
 a = 1 + 2
 ok(a)
 if True:

@@ -23,8 +23,8 @@ def indent(s):
     else:
         stmt(Str('  ' * i, [s, str_('\n')]))
     return None
-def blank_line():
-    stmt(str_('\n'))
+def blank_line(): stmt(str_('\n'))
+def close_brace(): indent(str_('}'))
 
 def bracket(before, c, after):
     assert isinstance(before, basestring)
@@ -113,7 +113,12 @@ def c_cond(cs):
             assert not first
             indent(str_('else {'))
         c_body(b)
-        indent(str_('}'))
+        close_brace()
+
+def c_while(test, body):
+    indent(bracket('while (', c_expr(test), ') {'))
+    c_body(body)
+    close_brace()
 
 def c_assert(t, m):
     indent(Str("assert(", [c_expr(t), comma(), c_expr(m), str_(');')]))
@@ -131,7 +136,7 @@ def c_func(t, args, body, nm):
     indent(Str('', [retT, str_(' %s(' % (nm,))]
                           + c_args(args) + [str_(') {')]))
     c_body(body)
-    indent(str_('}'))
+    close_brace()
 
 def c_stmt(s):
     match(s,
@@ -139,6 +144,7 @@ def c_stmt(s):
             lambda e: indent(cat(c_expr(e), ';'))),
         ("key('=', cons(a, cons(e, _)))", c_assign),
         ("key('cond', all(cs, key('case', cons(t, sized(b)))))", c_cond),
+        ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
         ("key('DT') and named(nm)",
             lambda nm: indent(str_("struct %s {};" % (nm,)))),

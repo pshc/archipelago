@@ -168,7 +168,7 @@ def infer_call(f, args):
     return (retT, compose(s, s2))
 
 def unknown_infer(a):
-    assert False, 'Unknown infer_expr case:\n%s' % (a,)
+    assert False, 'Unknown infer case:\n%s' % (a,)
 
 def infer_expr(a):
     return match(a,
@@ -212,6 +212,11 @@ def infer_cond(cases):
             s = compose(unify(tt, TBool()), s)
         s = compose(infer_stmts(b), s)
     return s
+
+def infer_while(test, body):
+    tt, s = infer_expr(test)
+    s = compose(unify(tt, TBool()), s)
+    return compose(infer_stmts(body), s)
 
 def infer_assert(tst, msg):
     tstt, s = infer_expr(tst)
@@ -262,6 +267,7 @@ def infer_stmt(a):
         ("key('=', cons(a, cons(e, _)))", infer_assign),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
         ("key('cond', all(cases, key('case', cons(t, sized(b)))))",infer_cond),
+        ("key('while', cons(t, contains(key('body', sized(b)))))",infer_while),
         ("key('assert', cons(t, cons(m, _)))", infer_assert),
         ("f==key('func', contains(key('args', sized(args))) and \
                          contains(key('body', sized(body))))", infer_func),
