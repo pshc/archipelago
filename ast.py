@@ -163,7 +163,7 @@ def make_dt(left, args):
     (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                              sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
     fields = []
-    fa = symref('DT', [symname(nm+'_t'), identifier('ctor', nm, fields)])
+    fa = symref('DT', [symname(nm), identifier('ctor', nm, fields)])
     fields += [identifier('field', fnm,
                           [symref('type', [conv_type(t, dt=fa)])])
                for (fnm, t) in fs]

@@ -259,8 +259,13 @@ def _do_repr(s, r, indent):
         if s.refMod is boot_mod:
             label = s.refAtom.subs[0].subs[0].strVal
         elif s.refAtom.subs:
-            if getattr(s.refAtom.subs[0], 'refAtom', None) is _b_name:
-                label = '->%s' % (s.refAtom.subs[0].subs[0].strVal)
+            for sub in s.refAtom.subs:
+                if getattr(sub, 'refAtom', None) is _b_name:
+                    label = '->%s' % (sub.subs[0].strVal,)
+                    if getattr(s.refAtom, 'refMod', None) is boot_mod:
+                        label = '%s (%s)' % (label,
+                                s.refAtom.refAtom.subs[0].subs[0].strVal)
+                    break
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
     elif hasattr(s, 'strVal'):
