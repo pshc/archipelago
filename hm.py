@@ -185,8 +185,16 @@ def infer_expr(a):
             lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
         ("otherwise", unknown_infer))
 
-def infer_DT(fs, nm):
-    print 'DT', nm
+def infer_DT(dt, cs, nm):
+    dtT = fresh() # TODO
+    for c, cnm in cs:
+        fieldTs = []
+        for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
+            t = match(f, ("key('field', contains(t==key('type')))", identity))
+            list_append(fieldTs, atoms_to_scheme(t).schemeType)
+        # This is wrong; should only hold the type in the env,
+        # not set it in the atoms
+        #set_type(c, TFunc(fieldTs, dtT), {})
     return {}
 
 def infer_assign(a, e):
@@ -262,8 +270,8 @@ def infer_return(e):
 
 def infer_stmt(a):
     return match(a,
-        ("key('DT', all(fs, key('field') and named(fnm)))"
-            " and named(nm)", infer_DT),
+        ("dt==key('DT', all(cs, c==key('ctor') and named(cnm))) and named(nm)",
+         infer_DT),
         ("key('=', cons(a, cons(e, _)))", infer_assign),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
         ("key('cond', all(cases, key('case', cons(t, sized(b)))))",infer_cond),

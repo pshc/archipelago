@@ -12,7 +12,10 @@ def identifier(bootkey, name, subs=None):
     if name in context.syms:
         assert False, "Symbol '%s' already in context\n" % (name,) + \
                 '\n'.join('\t'+str(s) for s in context.syms)
-    s = symref(bootkey, [symname(name)] + (subs or []))
+    if subs is None:
+        subs = []
+    subs.insert(0, symname(name))
+    s = symref(bootkey, subs)
     context.syms[name] = s
     missing_refs = context.missingRefs.get(name)
     if missing_refs is not None:
@@ -83,6 +86,13 @@ def make_grammar_decorator(default_dispatch):
         return dispatch_index.get(nd.__class__, default_dispatch)(nd, *args)
     return (decorator, dispatch)
 
+def conv_type(t, dt=None):
+    def unknown():
+        assert False, 'Unknown type: %r' % (t,)
+    return match(t,
+        ("key('str' or 'int')", lambda: t),
+        ("_", unknown))
+
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
 (expr, conv_expr) = make_grammar_decorator(unknown_expr)
 
@@ -147,12 +157,17 @@ def make_adt(left, args):
 
 
 add_sym('DT')
+add_sym('ctor')
 add_sym('field')
 def make_dt(left, args):
-    (dt_nm, nms) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
-                                 sized(cons(Str(nm, _), _)))))', tuple2))
-    fa = identifier('DT', dt_nm, [identifier('field', nm) for nm in nms])
-    return ([fa], '%s = DT(%s)' % (dt_nm, ', '.join(nms)))
+    (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
+                             sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
+    fields = []
+    fa = symref('DT', [symname(nm+'_t'), identifier('ctor', nm, fields)])
+    fields += [identifier('field', fnm,
+                          [symref('type', [conv_type(t, dt=fa)])])
+               for (fnm, t) in fs]
+    return ([fa], '%s = DT(%s)' % (nm, ', '.join(map(fst, fs))))
 
 def replace_refs(mapping, e):
     ra = getattr(e, 'refAtom', None)

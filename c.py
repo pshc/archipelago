@@ -123,6 +123,19 @@ def c_while(test, body):
 def c_assert(t, m):
     indent(Str("assert(", [c_expr(t), comma(), c_expr(m), str_(');')]))
 
+def c_DT(cs, nm):
+    indent(bracket('struct ', str_(nm), ' {'))
+    global CENV
+    CENV.cenvIndent += 1
+    assert len(cs) == 1, "TEMP"
+    for c in cs:
+        cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))", tuple2))
+        for f in fs:
+            fnm, t = match(f, ("named(nm, contains(t==key('type')))", tuple2))
+            indent(cat(c_scheme(t), ' %s;' % (fnm,)))
+    CENV.cenvIndent -= 1
+    indent(str_('};'))
+
 def c_args(args):
     return commas([match(a, ("named(nm, contains(t==key('type')))",
                          lambda nm, t: cat(c_scheme(t), ' %s' % (nm,))))
@@ -146,8 +159,7 @@ def c_stmt(s):
         ("key('cond', all(cs, key('case', cons(t, sized(b)))))", c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
-        ("key('DT') and named(nm)",
-            lambda nm: indent(str_("struct %s {};" % (nm,)))),
+        ("key('DT', all(cs, c==key('ctor'))) and named(nm)", c_DT),
         ("key('func', contains(t==key('type')) "
                  "and contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),
