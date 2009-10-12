@@ -86,11 +86,18 @@ def make_grammar_decorator(default_dispatch):
         return dispatch_index.get(nd.__class__, default_dispatch)(nd, *args)
     return (decorator, dispatch)
 
-def conv_type(t, dt=None):
+def conv_type(t, tvars, dt=None):
     def unknown():
         assert False, 'Unknown type: %r' % (t,)
+    def type_str(s):
+        if len(s) == 1:
+            if s not in tvars:
+                tvars[s] = symref('typevar', [symname(s)])
+            return Ref(tvars[s], None, [])
+        unknown()
     return match(t,
         ("key('str' or 'int')", lambda: t),
+        ("Str(s, _)", type_str),
         ("_", unknown))
 
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
@@ -137,23 +144,25 @@ add_sym('ctor')
 def make_adt(left, args):
     adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
     ctors = []
+    adt = identifier('ADT', adt_nm, ctors)
     ctor_nms = []
+    tvars = {}
     while args:
         ctor = match(args.pop(0), ('Str(s, _)', identity))
         members = []
         while args:
-            nm = match(args[0], ('Str(_, _)', lambda: False),
-                                ('key("tuplelit", sized(cons(Str(nm, _), _)))',
-                                    identity))
-            if not nm:
+            nm, t = match(args[0], ('Str(_, _)', lambda: (None, None)),
+                                   ('key("tuplelit", sized(cons(Str(nm, _), \
+                                     cons(t, _))))', tuple2))
+            if nm is None:
                 break
-            members.append(nm)
+            members.append(identifier('field', nm,
+                    [symref('type', [conv_type(t, tvars, dt=adt)])]))
             args.pop(0)
-        members = [identifier('field', nm) for nm in members]
         ctor_nms.append(ctor)
         ctors.append(identifier('ctor', ctor, members))
-    return ([identifier('ADT', adt_nm, ctors)],
-            '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
+    adt.subs += tvars.values()
+    return ([adt], '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
 
 
 add_sym('DT')
@@ -163,10 +172,13 @@ def make_dt(left, args):
     (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                              sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
     fields = []
-    fa = symref('DT', [symname(nm), identifier('ctor', nm, fields)])
+    dtsubs = [symname(nm), identifier('ctor', nm, fields)]
+    fa = symref('DT', dtsubs)
+    tvars = {}
     fields += [identifier('field', fnm,
-                          [symref('type', [conv_type(t, dt=fa)])])
+                          [symref('type', [conv_type(t, tvars, dt=fa)])])
                for (fnm, t) in fs]
+    dtsubs += tvars.values()
     return ([fa], '%s = DT(%s)' % (nm, ', '.join(map(fst, fs))))
 
 def replace_refs(mapping, e):
