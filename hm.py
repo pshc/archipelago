@@ -4,7 +4,7 @@ from base import *
 from builtins import *
 from types_builtin import *
 
-Env = DT('Env', ('envTable', {Atom: Scheme}), # maps AST nodes to type schemes
+Env = DT('Env', ('envTable', {Atom: (Scheme, bool)}),
                 ('envIndex', int),
                 ('envRetType', Type),
                 ('envReturned', bool),
@@ -126,9 +126,10 @@ def unify(e1, e2):
         # Mismatch
         ("_", fail))
 
-def set_type(e, t, substs):
+def set_type(e, t, substs, augment_ast):
     global ENV
-    ENV.envTable[e] = generalize_type(apply_substs(substs, t), substs)
+    ENV.envTable[e] = (generalize_type(apply_substs(substs, t), substs),
+                       augment_ast)
 
 def get_type(e):
     global ENV
@@ -136,7 +137,8 @@ def get_type(e):
     while e not in env.envTable:
         env = env.envPrev
         assert env is not None, '%s not found in env' % (e,)
-    return ENV.envTable[e]
+    t, augment = ENV.envTable[e]
+    return t
 
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
@@ -179,7 +181,7 @@ def infer_expr(a):
         ("key('call', cons(f, sized(s)))", infer_call),
         ("Ref(v==key('var'), _, _)",
             lambda v: (get_type(v).schemeType, {})),
-        ("Ref(f==key('func'), _, _)",
+        ("Ref(f==key('func' or 'ctor'), _, _)",
             lambda f: (instantiate_type(get_type(f)), {})),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",
             lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
@@ -194,9 +196,7 @@ def infer_DT(dt, cs, vs, nm):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t, m)))
             list_append(fieldTs, t)
-        # This is wrong; should only hold the type in the env,
-        # not set it in the atoms
-        #set_type(c, TFunc(fieldTs, dtT), {})
+        set_type(c, TFunc(fieldTs, dtT), {}, False)
     return {}
 
 def infer_assign(a, e):
@@ -206,7 +206,7 @@ def infer_assign(a, e):
     et, substs = infer_expr(e)
     substs = compose(substs, unify(t, et))
     if newvar:
-        set_type(a, t, substs)
+        set_type(a, t, substs, True)
     return substs
 
 def infer_exprstmt(e):
@@ -244,10 +244,10 @@ def infer_func(f, args, body):
     ENV = funcEnv
     # Prepare func env
     funcT = fresh()
-    set_type(f, funcT, {})
+    set_type(f, funcT, {}, False)
     argTs = [fresh() for arg in args]
     for a, t in zip(args, argTs):
-        set_type(a, t, {})
+        set_type(a, t, {}, False)
     # Do the stmts
     s = infer_stmts(body)
     # Exit func env
@@ -257,9 +257,9 @@ def infer_func(f, args, body):
     if not funcEnv.envReturned:
         retT = TVoid()
     s = compose(unify(funcT, TFunc(argTs, retT)), s)
-    set_type(f, funcT, s)
+    set_type(f, funcT, s, True)
     for a, t in zip(args, argTs):
-        set_type(a, t, s)
+        set_type(a, t, s, True)
     return s
 
 def infer_return(e):
@@ -295,9 +295,10 @@ def infer_types(roots):
     global ENV
     ENV = Env({}, 1, None, False, None)
     substs = infer_stmts(roots)
-    for a, t in ENV.envTable.iteritems():
-        apply_substs_to_scheme(substs, t)
-        a.subs.append(scheme_to_atoms(t))
+    for a, (t, augment) in ENV.envTable.iteritems():
+        if augment:
+            apply_substs_to_scheme(substs, t)
+            a.subs.append(scheme_to_atoms(t))
 
 if __name__ == '__main__':
     import ast

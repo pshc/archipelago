@@ -94,6 +94,7 @@ def c_expr(e):
         ("Int(i, _)", lambda i: str_("%d" % (i,))),
         ("Str(s, _)", lambda s: str_(escape_str(s))),
         ("Ref(named(nm, ss==contains(key('type'))), _, _)", c_defref),
+        ("Ref(named(nm) and key('ctor', ss))", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
         ("key('tuplelit', sized(ts))", c_tuple))
 
