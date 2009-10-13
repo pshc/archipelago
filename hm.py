@@ -106,6 +106,7 @@ def unify(e1, e2):
             lambda t1, t2: unify_tuples(e1, t1, e2, t2)),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
             unify_funcs(e1, a1, r1, e2, a2, r2)),
+        ("(TData(a), TData(b))", lambda a, b: {} if a is b else fail()),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -188,7 +189,7 @@ def infer_expr(a):
         ("otherwise", unknown_infer))
 
 def infer_DT(dt, cs, vs, nm):
-    dtT = fresh() # TODO
+    dtT = TData(dt)
     m = dict((v, fresh()) for v in vs)
     for c in cs:
         fieldTs = []

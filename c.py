@@ -60,7 +60,8 @@ def _c_type(t):
         ("TTuple(_)", lambda: str_('struct tuple')),
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: str_('void *')),
-        ("TVoid()", lambda: str_('void')))
+        ("TVoid()", lambda: str_('void')),
+        ("TData(named(nm))", lambda nm: bracket('struct ', str_(nm), ' *')))
 
 def c_type(t, tvars):
     return _c_type(atoms_to_type(t, dict((v, TVar(0)) for v in tvars)))

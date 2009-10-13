@@ -1,7 +1,7 @@
 from base import *
 
 Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
-    TTuple, TAnyTuple, TFunc \
+    TTuple, TAnyTuple, TFunc, TData \
     = ADT('Type',
         'TVar', ('varIndex', int),
         'TInt', 'TStr', 'TChar', 'TBool',
@@ -9,7 +9,8 @@ Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
         'TNullable', ('nullType', 'Type'),
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
-        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'))
+        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
+        'TData', ('dataAtom', 'Atom'))
 
 def map_type_vars(f, t, data):
     """Applies f to every typevar('s index) in the given type."""
