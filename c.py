@@ -53,18 +53,21 @@ def commas(ss):
             cat(s, ', ')
     return ss
 
-def c_type(t):
+def _c_type(t):
     return match(t,
         ("TInt()", lambda: str_('int')),
         ("TStr()", lambda: str_('char *')),
         ("TTuple(_)", lambda: str_('struct tuple')),
-        ("TNullable(v)", c_type),
+        ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: str_('void *')),
         ("TVoid()", lambda: str_('void')))
 
+def c_type(t, tvars):
+    return _c_type(atoms_to_type(t, dict((v, TVar(0)) for v in tvars)))
+
 def c_scheme(ta):
     t = atoms_to_scheme(ta)
-    return c_type(t.schemeType)
+    return _c_type(t.schemeType)
 
 def c_defref(nm, ss):
     return match(ss,
@@ -123,18 +126,33 @@ def c_while(test, body):
 def c_assert(t, m):
     indent(Str("assert(", [c_expr(t), comma(), c_expr(m), str_(');')]))
 
-def c_DT(cs, nm):
-    indent(bracket('struct ', str_(nm), ' {'))
+def c_DT(cs, vs, nm):
     global CENV
-    CENV.cenvIndent += 1
-    assert len(cs) == 1, "TEMP"
+    discrim = len(cs) > 1
+    blank_line()
+    if discrim:
+        indent(bracket('struct ', str_(nm), ' {'))
+        CENV.cenvIndent += 1
+        indent(brackets('enum { ', commas([str_(getname(c)) for c in cs]),
+                        ' } ix;'))
+        indent(str_('union {'))
+        CENV.cenvIndent += 1
     for c in cs:
         cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))", tuple2))
+        indent(str_('struct {') if discrim
+               else bracket('struct ', str_(cnm), ' {'))
+        CENV.cenvIndent += 1
         for f in fs:
-            fnm, t = match(f, ("named(nm, contains(t==key('type')))", tuple2))
-            indent(cat(c_scheme(t), ' %s;' % (fnm,)))
-    CENV.cenvIndent -= 1
-    indent(str_('};'))
+            fnm, t = match(f, ("named(nm, contains(key('type', cons(t, _))))",
+                               tuple2))
+            indent(cat(c_type(t, vs), ' %s;' % (fnm,)))
+        CENV.cenvIndent -= 1
+        indent(bracket('} ', str_(cnm), ';') if discrim else str_('};'))
+    if discrim:
+        CENV.cenvIndent -= 1
+        indent(str_('} c;'))
+        CENV.cenvIndent -= 1
+        indent(str_('};'))
 
 def c_args(args):
     return commas([match(a, ("named(nm, contains(t==key('type')))",
@@ -159,7 +177,8 @@ def c_stmt(s):
         ("key('cond', all(cs, key('case', cons(t, sized(b)))))", c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
-        ("key('DT', all(cs, c==key('ctor'))) and named(nm)", c_DT),
+        ("key('DT', all(cs, c==key('ctor'))\
+                and all(vs, v==key('typevar'))) and named(nm)", c_DT),
         ("key('func', contains(t==key('type')) "
                  "and contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),

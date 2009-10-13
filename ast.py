@@ -139,12 +139,12 @@ def conv_and(e):
     (exprsa, exprst) = conv_exprs(e.nodes)
     return (symref('and', [int_len(exprsa)] + exprsa), ' and '.join(exprst))
 
-add_sym('ADT')
+add_sym('DT')
 add_sym('ctor')
 def make_adt(left, args):
     adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
     ctors = []
-    adt = identifier('ADT', adt_nm, ctors)
+    adt = identifier('DT', adt_nm, ctors)
     ctor_nms = []
     tvars = {}
     while args:

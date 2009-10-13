@@ -185,13 +185,15 @@ def infer_expr(a):
             lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
         ("otherwise", unknown_infer))
 
-def infer_DT(dt, cs, nm):
+def infer_DT(dt, cs, vs, nm):
     dtT = fresh() # TODO
-    for c, cnm in cs:
+    m = dict((v, fresh()) for v in vs)
+    for c in cs:
         fieldTs = []
         for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
-            t = match(f, ("key('field', contains(t==key('type')))", identity))
-            list_append(fieldTs, atoms_to_scheme(t).schemeType)
+            t = match(f, ("key('field', contains(key('type', cons(t, _))))",
+                          lambda t: atoms_to_type(t, m)))
+            list_append(fieldTs, t)
         # This is wrong; should only hold the type in the env,
         # not set it in the atoms
         #set_type(c, TFunc(fieldTs, dtT), {})
@@ -270,8 +272,8 @@ def infer_return(e):
 
 def infer_stmt(a):
     return match(a,
-        ("dt==key('DT', all(cs, c==key('ctor') and named(cnm))) and named(nm)",
-         infer_DT),
+        ("dt==key('DT', all(cs, c==key('ctor'))\
+                    and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
         ("key('=', cons(a, cons(e, _)))", infer_assign),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
         ("key('cond', all(cases, key('case', cons(t, sized(b)))))",infer_cond),
