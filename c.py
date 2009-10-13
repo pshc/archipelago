@@ -139,22 +139,47 @@ def c_DT(cs, vs, nm):
                         ' } ix;'))
         indent(str_('union {'))
         CENV.cenvIndent += 1
+    # The actual struct(s)
+    ctors = []
     for c in cs:
         cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))", tuple2))
         indent(str_('struct {') if discrim
                else bracket('struct ', str_(cnm), ' {'))
         CENV.cenvIndent += 1
+        fields = []
         for f in fs:
             fnm, t = match(f, ("named(nm, contains(key('type', cons(t, _))))",
                                tuple2))
-            indent(cat(c_type(t, vs), ' %s;' % (fnm,)))
+            ct = c_type(t, vs)
+            indent(Str('', [ct, bracket(' ', str_(fnm), ';')]))
+            fields.append((ct, fnm))
         CENV.cenvIndent -= 1
         indent(bracket('} ', str_(cnm), ';') if discrim else str_('};'))
+        ctors.append((cnm, fields))
     if discrim:
         CENV.cenvIndent -= 1
         indent(str_('} c;'))
         CENV.cenvIndent -= 1
         indent(str_('};'))
+    # Ctor functions
+    for (cnm, fields) in ctors:
+        indent(brackets('struct %s * %s(' % (nm, cnm),
+                        commas([Str('', [ct, str_(' %s' % fnm)])
+                                for (ct, fnm) in fields]),
+                       ') {'))
+        CENV.cenvIndent += 1
+        indent(Str('struct ', map(str_, [nm, ' * s = malloc(sizeof(struct ',
+                                         nm, '));'])))
+        if discrim:
+            indent(bracket('s->ix = ', str_(cnm), ';'))
+        for (ct, fnm) in fields:
+            if discrim:
+                indent(Str('s->c.', map(str_, [cnm,'.',fnm,' = ',fnm,';'])))
+            else:
+                indent(Str('s->', map(str_, [fnm, ' = ', fnm, ';'])))
+        indent(str_('return s;'))
+        CENV.cenvIndent -= 1
+        close_brace()
 
 def c_args(args):
     return commas([match(a, ("named(nm, contains(t==key('type')))",
