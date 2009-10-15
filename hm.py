@@ -141,6 +141,18 @@ def get_type(e):
     t, augment = ENV.envTable[e]
     return t
 
+def in_new_env(f, data):
+    global ENV
+    outerEnv = ENV
+    ENV = Env({}, outerEnv.envIndex, None, False, outerEnv)
+
+    ret = f(ENV, data)
+
+    outerEnv.envIndex = ENV.envIndex
+    ENV = outerEnv
+    return ret
+
+
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
     return Scheme(gen_vars, t)
@@ -236,28 +248,25 @@ def infer_assert(tst, msg):
     s = compose(s2, s)
     return compose(unify(msgt, TStr()), s)
 
-def infer_func(f, args, body):
-    global ENV
-    # Enter func env
+def _inside_func_env(env, info):
     retT = fresh()
-    outerEnv = ENV
-    funcEnv = Env({}, outerEnv.envIndex, retT, False, outerEnv)
-    ENV = funcEnv
-    # Prepare func env
+    env.envRetType = retT
+    f, args, body = info
     funcT = fresh()
     set_type(f, funcT, {}, False)
     argTs = [fresh() for arg in args]
     for a, t in zip(args, argTs):
         set_type(a, t, {}, False)
-    # Do the stmts
+
     s = infer_stmts(body)
-    # Exit func env
-    outerEnv.envIndex = funcEnv.envIndex
-    ENV = outerEnv
-    # Update our outer env
-    if not funcEnv.envReturned:
+
+    if not env.envReturned:
         retT = TVoid()
     s = compose(unify(funcT, TFunc(argTs, retT)), s)
+    return (s, funcT, argTs)
+
+def infer_func(f, args, body):
+    s, funcT, argTs = in_new_env(_inside_func_env, (f, args, body))
     set_type(f, funcT, s, True)
     for a, t in zip(args, argTs):
         set_type(a, t, s, True)
