@@ -138,7 +138,7 @@ def get_type(e):
     while e not in env.envTable:
         env = env.envPrev
         assert env is not None, '%s not found in env' % (e,)
-    t, augment = ENV.envTable[e]
+    t, augment = env.envTable[e]
     return t
 
 def in_new_env(f, data):
@@ -182,6 +182,39 @@ def infer_call(f, args):
     s2 = unify(ft, TFunc(argTs, retT))
     return (retT, compose(s, s2))
 
+def pat_var(v):
+    t = fresh()
+    set_type(v, t, {}, True)
+    return (t, {})
+
+def pat_ctor(ctor, args):
+    ct = get_type(ctor).schemeType
+    fieldTs, dt = match(ct, ("TFunc(fs, dt)", tuple2))
+    s = {}
+    for a, ft in zip(args, fieldTs):
+        argT, s2 = infer_pat(a)
+        s = compose(unify(argT, ft), compose(s, s2))
+    return (dt, s)
+
+def infer_pat(p):
+    return match(p,
+        ("key('wildcard')", lambda: (fresh(), {})),
+        ("v==key('var')", pat_var),
+        ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor))
+
+def infer_match(e, cs):
+    et, s = infer_expr(e)
+    retT = fresh()
+    for c in cs:
+        cp, ce = match(c, ("key('case', cons(p, cons(e, _)))", tuple2))
+        def infer_case(env, s):
+            pt, s2 = infer_pat(cp)
+            s = compose(unify(et, pt), compose(s, s2))
+            t, s2 = infer_expr(ce)
+            return compose(unify(t, retT), compose(s, s2))
+        s = in_new_env(infer_case, s)
+    return (retT, s)
+
 def unknown_infer(a):
     assert False, 'Unknown infer case:\n%s' % (a,)
 
@@ -192,6 +225,7 @@ def infer_expr(a):
         ("key('char')", lambda: (TChar(), {})),
         ("key('tuplelit', sized(ts))", infer_tuple),
         ("key('call', cons(f, sized(s)))", infer_call),
+        ("key('match', cons(e, all(cs, c==key('case'))))", infer_match),
         ("Ref(v==key('var'), _, _)",
             lambda v: (get_type(v).schemeType, {})),
         ("Ref(f==key('func' or 'ctor'), _, _)",
