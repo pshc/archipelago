@@ -4,18 +4,23 @@ from base import *
 from builtins import *
 from types_builtin import *
 
-Env = DT('Env', ('envTable', {Atom: (Scheme, bool)}),
-                ('envIndex', int),
+OmniEnv = DT('OmniEnv', ('omniTable', {Atom: Scheme}),
+                        ('omniIndex', int))
+
+Env = DT('Env', ('envTable', {Atom: Scheme}),
                 ('envRetType', Type),
                 ('envReturned', bool),
                 ('envPrev', 'Env'))
+
+GlobalEnv = DT('GlobalEnv', ('omniEnv', OmniEnv),
+                            ('curEnv', Env))
 
 ENV = None
 
 def fresh():
     global ENV
-    i = ENV.envIndex
-    ENV.envIndex = i + 1
+    i = ENV.omniEnv.omniIndex
+    ENV.omniEnv.omniIndex = i + 1
     return TVar(i)
 
 def unification_failure(e1, e2):
@@ -129,29 +134,28 @@ def unify(e1, e2):
 
 def set_type(e, t, substs, augment_ast):
     global ENV
-    ENV.envTable[e] = (generalize_type(apply_substs(substs, t), substs),
-                       augment_ast)
+    gt = generalize_type(apply_substs(substs, t), substs)
+    ENV.curEnv.envTable[e] = gt
+    if augment_ast:
+        ENV.omniEnv.omniTable[e] = gt
 
 def get_type(e):
     global ENV
-    env = ENV
+    env = ENV.curEnv
     while e not in env.envTable:
         env = env.envPrev
         assert env is not None, '%s not found in env' % (e,)
-    t, augment = env.envTable[e]
-    return t
+    return env.envTable[e]
 
 def in_new_env(f, data):
     global ENV
-    outerEnv = ENV
-    ENV = Env({}, outerEnv.envIndex, None, False, outerEnv)
+    outerEnv = ENV.curEnv
+    ENV.curEnv = Env({}, None, False, outerEnv)
 
-    ret = f(ENV, data)
+    ret = f(ENV.curEnv, data)
 
-    outerEnv.envIndex = ENV.envIndex
-    ENV = outerEnv
+    ENV.curEnv = outerEnv
     return ret
-
 
 def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
@@ -313,8 +317,8 @@ def infer_return(e):
     global ENV
     if e is not None:
         t, s = infer_expr(e)
-        ENV.envReturned = True
-        return compose(unify(ENV.envRetType, t), s)
+        ENV.curEnv.envReturned = True
+        return compose(unify(ENV.curEnv.envRetType, t), s)
     return {}
 
 def infer_stmt(a):
@@ -341,12 +345,11 @@ def infer_stmts(ss):
 
 def infer_types(roots):
     global ENV
-    ENV = Env({}, 1, None, False, None)
+    ENV = GlobalEnv(OmniEnv({}, 1), Env({}, None, False, None))
     substs = infer_stmts(roots)
-    for a, (t, augment) in ENV.envTable.iteritems():
-        if augment:
-            apply_substs_to_scheme(substs, t)
-            a.subs.append(scheme_to_atoms(t))
+    for a, t in ENV.omniEnv.omniTable.iteritems():
+        apply_substs_to_scheme(substs, t)
+        a.subs.append(scheme_to_atoms(t))
 
 if __name__ == '__main__':
     import ast
