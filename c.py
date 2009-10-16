@@ -107,17 +107,18 @@ def c_assign(a, e):
         ("Ref(named(nm, contains(key('type'))), _, _)", str_))
     indent(cats(ca, [str_(' = '), ce, semi()]))
 
-def c_cond(cs):
-    first = True
+def c_cond(subs, cs):
+    if_ = 'if ('
     for (t, b) in cs:
-        if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
-            kw = 'if' if first else 'else if'
-            indent(Str(kw, [str_(' ('), c_expr(t), str_(') {')]))
-            first = False
-        else:
-            assert not first
-            indent(str_('else {'))
+        indent(bracket(if_, c_expr(t), ') {'))
         c_body(b)
+        close_brace()
+        if_ = 'else if ('
+    else_ = match(subs, ("contains(key('else', sized(body)))", identity),
+                        ("_", lambda: None))
+    if else_ is not None:
+        indent(str_('else {'))
+        c_body(else_)
         close_brace()
 
 def c_while(test, body):
@@ -201,7 +202,7 @@ def c_stmt(s):
         ("key('exprstmt', cons(e, _))",
             lambda e: indent(cat(c_expr(e), ';'))),
         ("key('=', cons(a, cons(e, _)))", c_assign),
-        ("key('cond', all(cs, key('case', cons(t, sized(b)))))", c_cond),
+        ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
         ("key('DT', all(cs, c==key('ctor'))\

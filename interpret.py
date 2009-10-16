@@ -498,9 +498,12 @@ def stmt_cond(stmt, scope):
     cases = match(stmt.subs, ('all(cs, key("case", cons(test, sized(body))))',
                               identity))
     for (tst, body) in cases:
-        if match(tst, ('key("else")', lambda: True),
-                      ('t', lambda t: eval_expr(t, scope))):
+        if eval_expr(tst, scope):
             return new_scope({}, CaseScope(), body, scope)
+    else_ = match(stmt.subs, ('contains(key("else", sized(body)))', identity),
+                             ('_', lambda: None))
+    if else_ is not None:
+        return new_scope({}, CaseScope(), else_, scope)
     return scope
 
 def stmt_continue(stmt, scope):

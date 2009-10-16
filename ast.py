@@ -607,8 +607,7 @@ def conv_if(s, context):
     if s.else_:
         cout(context, 'else:')
         stmts = conv_stmts(s.else_, context)
-        conds.append(symref('case', [symref('else', []), int_len(stmts)]
-                                    + stmts))
+        conds.append(symref('else', [int_len(stmts)] + stmts))
     return [symref('cond', conds)]
 
 def import_names(nms):

@@ -226,14 +226,17 @@ def infer_exprstmt(e):
     t, substs = infer_expr(e)
     return substs
 
-def infer_cond(cases):
+def infer_cond(subs, cases):
     s = {}
     for t, b in cases:
-        if match(t, ("key('else')", lambda: False), ("_", lambda: True)):
-            tt, ts = infer_expr(t)
-            s = compose(ts, s)
-            s = compose(unify(tt, TBool()), s)
+        tt, ts = infer_expr(t)
+        s = compose(ts, s)
+        s = compose(unify(tt, TBool()), s)
         s = compose(infer_stmts(b), s)
+    else_ = match(subs, ('contains(key("else", sized(body)))', identity),
+                        ('_', lambda: None))
+    if else_ is not None:
+        s = compose(infer_stmts(else_), s)
     return s
 
 def infer_while(test, body):
@@ -286,7 +289,8 @@ def infer_stmt(a):
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
         ("key('=', cons(a, cons(e, _)))", infer_assign),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
-        ("key('cond', all(cases, key('case', cons(t, sized(b)))))",infer_cond),
+        ("key('cond', subs and all(cases, key('case', cons(t, sized(b)))))",
+            infer_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))",infer_while),
         ("key('assert', cons(t, cons(m, _)))", infer_assert),
         ("f==key('func', contains(key('args', sized(args))) and \
