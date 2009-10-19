@@ -10,8 +10,6 @@ CEnv = DT('CEnv', ('cenvIndent', int),
 # using the type system.
 CENV = None
 
-def str_(st):
-    return Str(st, [])
 def stmt(s):
     global CENV
     list_append(CENV.cenvStmts, s)
@@ -95,7 +93,7 @@ def c_expr(e):
         ("Int(i, _)", lambda i: str_("%d" % (i,))),
         ("Str(s, _)", lambda s: str_(escape_str(s))),
         ("Ref(named(nm, ss==contains(key('type'))), _, _)", c_defref),
-        ("Ref(named(nm) and key('ctor', ss))", c_defref),
+        ("Ref(named(nm) and key('ctor', ss), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
         ("key('tuplelit', sized(ts))", c_tuple))
 

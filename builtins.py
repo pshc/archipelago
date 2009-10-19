@@ -31,6 +31,9 @@ def array(t, n):
         return [None] * n
     assert False, 'Unknown array type %s' % t
 
+def str_(st):
+    return Str(st, [])
+
 from os import system
 fgetc = lambda f: f.read(1)
 fputc = lambda f, c: f.write(c)

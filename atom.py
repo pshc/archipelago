@@ -154,6 +154,7 @@ def escape_str(s):
 def serialize_module(module):
     already_serialized = module.digest is not None
     def init_serialize(atom, (natoms, selfindices, modset)):
+        assert hasattr(atom, 'subs'), "Expected atom, got: %s" % (atom,)
         selfindices[atom] = natoms
         m = getattr(atom, 'refMod', None)
         if m is not None and m is not module:
