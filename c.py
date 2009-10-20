@@ -2,242 +2,251 @@
 from base import *
 from atom import *
 from builtins import *
+import sys
 
 CEnv = DT('CEnv', ('cenvIndent', int),
-                  ('cenvStmts', [Atom]),
+                  ('cenvHandle', None),
                   ('cenvOuterEnv', 'CEnv'))
 # The final version of this will thread this state through the functions
 # using the type system.
 CENV = None
 
-def stmt(s):
+def out(s):
     global CENV
-    list_append(CENV.cenvStmts, s)
-def indent(s):
+    assert isinstance(s, basestring), "Expected string, got: %s" % (s,)
+    sys.stdout.write(s)
+    fwrite(CENV.cenvHandle, s)
+def indent():
     global CENV
-    i = CENV.cenvIndent
-    if i == 0:
-        stmt(cat(s, '\n'))
-    else:
-        stmt(Str('  ' * i, [s, str_('\n')]))
-    return None
-def blank_line(): stmt(str_('\n'))
-def close_brace(): indent(str_('}'))
+    out('  ' * CENV.cenvIndent)
+def open_brace():
+    out(') {\n')
+def close_brace():
+    indent()
+    out('}\n')
+def semicolon():
+    out(';\n')
 
-def bracket(before, c, after):
-    assert isinstance(before, basestring)
-    assert isinstance(after, basestring)
-    return Str(before, [c, str_(after)])
-def brackets(before, ss, after):
-    assert isinstance(before, basestring)
-    assert isinstance(after, basestring)
-    return Str(before, ss + [str_(after)])
-def cat(a, after):
-    assert isinstance(after, basestring)
-    list_append(a.subs, str_(after))
-    return a
-def cats(a, ss):
-    assert isinstance(ss, list)
-    a.subs += ss
-    return a
-def semi(): return str_(';')
-def comma(): return str_(', ')
-def commas(ss):
-    assert isinstance(ss, list)
-    n = len(ss)
-    for s in ss:
+def comma_exprs(es):
+    n = len(es)
+    for e in es:
+        c_expr(e)
         n -= 1
         if n > 0:
-            cat(s, ', ')
-    return ss
+            out(', ')
 
-def _c_type(t):
-    return match(t,
-        ("TInt()", lambda: str_('int')),
-        ("TStr()", lambda: str_('char *')),
-        ("TTuple(_)", lambda: str_('struct tuple')),
-        ("TNullable(v)", _c_type),
-        ("TVar(_)", lambda: str_('void *')),
-        ("TVoid()", lambda: str_('void')),
-        ("TData(named(nm))", lambda nm: bracket('struct ', str_(nm), ' *')))
+def parens(f): out('('); f(); out(')')
+def brackets(f): out('{'); f(); out('}')
 
-def c_type(t, tvars):
-    return _c_type(atoms_to_type(t, dict((v, TVar(0)) for v in tvars)))
+def c_ptr(t): c_type(t); out('*')
+def c_structref(s): out('struct '); out(s)
 
-def c_scheme(ta):
-    t = atoms_to_scheme(ta)
-    return _c_type(t.schemeType)
+def c_struct(s, k, fs):
+    out(k)
+    out(' ')
+    nm = match(s, ("named(nm)", identity), ("_", lambda: None))
+    if nm is not None:
+        out(nm)
+        out(' ')
+    out('{\n')
+    c_body(fs)
+    indent()
+    out('}')
 
-def c_defref(nm, ss):
-    return match(ss,
-        ("contains(k==key('unaryop' or 'binaryop' or 'crepr'))", identity),
-        ("_", lambda: str_(nm)))
+def c_type(t):
+    match(t,
+        ("key(prim==('int' or 'char' or 'tuple' or 'void'))", out),
+        ("key('ptr', cons(t, _))", c_ptr),
+        ("key('structref', cons(Str(s, _), _))", c_structref),
+        ("s==key(k==('struct' or 'union' or 'enum'), "
+                "all(fs, f==key('field' or 'implicitconst')))", c_struct))
+
+def typed_name(t, nm):
+    c_type(t)
+    out(' ')
+    out(nm)
+
+unary_ops = {'negate': '-'}
+binary_ops = {'+': ' + ', '%': ' % ', '.': '.', '->': '->'}
 
 def c_call(f, args):
-    cf = c_expr(f)
-    cargs = [c_expr(a) for a in args]
-    return match(cf,
-        ("key('unaryop', cons(s, _))",
-            lambda s: cats(s, cargs)),
-        ("key('binaryop', cons(Str(s, _), _))",
-            lambda s: cats(cargs[0], [str_(' %s ' % (s,)), cargs[1]])),
-        ("key('crepr', cons(s, _))",
-            lambda s: cats(s, [brackets('(', commas(cargs), ')')])),
-        ("_", lambda: cats(cf, [brackets('(', commas(cargs), ')')])))
+    s = match(f, ('Str(s, _)', identity), ('_', lambda: None))
+    n = len(args)
+    if s is None: # Not just a named function... parens to be safe
+        parens(lambda: c_expr(f))
+    elif n == 1 and s in unary_ops:
+        out(unary_ops[s])
+        c_expr(args[0])
+        return
+    elif n == 2 and s in binary_ops:
+        # TODO: Operator precedence
+        c_expr(args[0])
+        out(binary_ops[s])
+        c_expr(args[1])
+        return
+    elif n == 3 and s == '?:':
+        c_expr(args[0])
+        out(' ? ')
+        c_expr(args[1])
+        out(' : ')
+        c_expr(args[2])
+        return
+    else:
+        out(s)
+    parens(lambda: comma_exprs(args))
 
-def c_tuple(ts):
-    return brackets('{', commas(map(c_expr, ts)), '}')
+def c_sizeof(t):
+    out('sizeof(')
+    c_type(t)
+    out(')')
+
+def c_op(op, ss):
+    if op in unary_ops:
+        out(unary_ops[op])
+        c_expr(ss[0])
+    elif op in binary_ops:
+        c_expr(ss[0])
+        out(binary_ops[op])
+        c_expr(ss[1])
+    elif op == ':?':
+        c_expr(ss[0])
+        out(' ? ')
+        c_expr(ss[1])
+        out(' : ')
+        c_expr(ss[2])
+    else:
+        assert False, 'Unknown C op: %s' % (op,)
 
 def c_expr(e):
-    return match(e,
-        ("Int(i, _)", lambda i: str_("%d" % (i,))),
-        ("Str(s, _)", lambda s: str_(escape_str(s))),
-        ("Ref(named(nm, ss==contains(key('type'))), _, _)", c_defref),
-        ("Ref(named(nm) and key('ctor', ss), _, _)", c_defref),
+    match(e,
+        ("Int(i, _)", lambda i: out("%d" % (i,))),
+        ("Str(s, _)", out),
+        ("key('strlit', cons(Str(s, _), _))",
+            lambda s: out(escape_str(s))),
         ("key('call', cons(f, sized(args)))", c_call),
-        ("key('tuplelit', sized(ts))", c_tuple))
+        ("key('tuplelit', sized(ts))",
+            lambda ts: brackets(lambda: comma_exprs(ts))),
+        ("key('sizeof', cons(t, _))", c_sizeof),
+        ("key(op, ss)", c_op))
+
+def c_exprstmt(e):
+    indent()
+    c_expr(e)
+    out(';\n')
 
 def c_assign(a, e):
-    ce = c_expr(e)
-    ca = match(a,
-        ("key('var', contains(t==key('type'))) and named(nm)",
-            lambda t, nm: cat(c_scheme(t), ' %s' % nm)),
-        ("Ref(named(nm, contains(key('type'))), _, _)", str_))
-    indent(cats(ca, [str_(' = '), ce, semi()]))
+    indent()
+    c_expr(a)
+    out(' = ')
+    c_expr(e)
+    semicolon()
 
-def c_cond(subs, cs):
+def c_decl(t):
+    indent()
+    c_type(t)
+    semicolon()
+
+def c_vardecl(nm, t):
+    indent()
+    typed_name(t, nm)
+    semicolon()
+
+def c_vardefn(nm, t, e):
+    indent()
+    typed_name(t, nm)
+    out(' = ')
+    c_expr(e)
+    semicolon()
+
+def c_if(subs, cs):
     if_ = 'if ('
     for (t, b) in cs:
-        indent(bracket(if_, c_expr(t), ') {'))
+        indent()
+        out(if_)
+        c_expr(t)
+        open_brace()
         c_body(b)
         close_brace()
         if_ = 'else if ('
     else_ = match(subs, ("contains(key('else', sized(body)))", identity),
                         ("_", lambda: None))
     if else_ is not None:
-        indent(str_('else {'))
+        indent()
+        out('else {\n')
         c_body(else_)
         close_brace()
 
 def c_while(test, body):
-    indent(bracket('while (', c_expr(test), ') {'))
+    indent()
+    out('while (')
+    c_expr(test)
+    open_brace()
     c_body(body)
     close_brace()
 
-def c_assert(t, m):
-    indent(Str("assert(", [c_expr(t), comma(), c_expr(m), str_(');')]))
-
-def c_DT(cs, vs, nm):
-    global CENV
-    discrim = len(cs) > 1
-    blank_line()
-    if discrim:
-        indent(bracket('struct ', str_(nm), ' {'))
-        CENV.cenvIndent += 1
-        indent(brackets('enum { ', commas([str_(getname(c)) for c in cs]),
-                        ' } ix;'))
-        indent(str_('union {'))
-        CENV.cenvIndent += 1
-    # The actual struct(s)
-    ctors = []
-    for c in cs:
-        cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))", tuple2))
-        indent(str_('struct {') if discrim
-               else bracket('struct ', str_(cnm), ' {'))
-        CENV.cenvIndent += 1
-        fields = []
-        for f in fs:
-            fnm, t = match(f, ("named(nm, contains(key('type', cons(t, _))))",
-                               tuple2))
-            ct = c_type(t, vs)
-            indent(Str('', [ct, bracket(' ', str_(fnm), ';')]))
-            fields.append((ct, fnm))
-        CENV.cenvIndent -= 1
-        indent(bracket('} ', str_(cnm), ';') if discrim else str_('};'))
-        ctors.append((cnm, fields))
-    if discrim:
-        CENV.cenvIndent -= 1
-        indent(str_('} c;'))
-        CENV.cenvIndent -= 1
-        indent(str_('};'))
-    # Ctor functions
-    for (cnm, fields) in ctors:
-        indent(brackets('struct %s * %s(' % (nm, cnm),
-                        commas([Str('', [ct, str_(' %s' % fnm)])
-                                for (ct, fnm) in fields]),
-                       ') {'))
-        CENV.cenvIndent += 1
-        indent(Str('struct ', map(str_, [nm, ' * s = malloc(sizeof(struct ',
-                                         nm, '));'])))
-        if discrim:
-            indent(bracket('s->ix = ', str_(cnm), ';'))
-        for (ct, fnm) in fields:
-            if discrim:
-                indent(Str('s->c.', map(str_, [cnm,'.',fnm,' = ',fnm,';'])))
-            else:
-                indent(Str('s->', map(str_, [fnm, ' = ', fnm, ';'])))
-        indent(str_('return s;'))
-        CENV.cenvIndent -= 1
-        close_brace()
-
-def c_args(args):
-    return commas([match(a, ("named(nm, contains(t==key('type')))",
-                         lambda nm, t: cat(c_scheme(t), ' %s' % (nm,))))
-                   for a in args])
-
-def c_func(t, args, body, nm):
-    # Wow this is bad
-    t_ = atoms_to_scheme(t).schemeType
-    retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
-    blank_line()
-    indent(Str('', [retT, str_(' %s(' % (nm,))]
-                          + c_args(args) + [str_(') {')]))
+def c_func(retT, nm, args, body):
+    indent()
+    typed_name(retT, nm)
+    out('(')
+    n = len(args)
+    for a in args:
+        match(a, ("key('arg', cons(t, cons(Str(nm, _), _)))", typed_name))
+        n -= 1
+        if n > 0:
+            out(', ')
+    open_brace()
     c_body(body)
     close_brace()
+
+def c_return(e):
+    indent()
+    out('return')
+    if e is not None:
+        out(' ')
+        c_expr(e)
+    semicolon()
+
+def c_field(t, nm):
+    indent()
+    typed_name(t, nm)
+    semicolon()
+
+def c_implicitconst(nm):
+    indent()
+    out(nm)
+    out(',\n')
 
 def c_stmt(s):
     match(s,
-        ("key('exprstmt', cons(e, _))",
-            lambda e: indent(cat(c_expr(e), ';'))),
+        ("key('exprstmt', cons(e, _))", c_exprstmt),
         ("key('=', cons(a, cons(e, _)))", c_assign),
-        ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
-        ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
-        ("key('assert', cons(t, cons(m, _)))", c_assert),
-        ("key('DT', all(cs, c==key('ctor'))\
-                and all(vs, v==key('typevar'))) and named(nm)", c_DT),
-        ("key('func', contains(t==key('type')) "
-                 "and contains(key('args', sized(a))) "
-                 "and contains(key('body', sized(b)))) and named(nm)", c_func),
-        ("key('return', cons(e, _))",
-            lambda e: indent(bracket("return ", c_expr(e), ';'))),
-        ("key('returnnothing')", lambda: indent(str_("return;"))))
+        ("key('decl', cons(t, _))", c_decl),
+        ("key('vardecl', cons(Str(nm, _), cons(t, _)))", c_vardecl),
+        ("key('vardefn', cons(Str(nm, _), cons(t, cons(e, _))))", c_vardefn),
+        ("key('if', ss and all(cs, key('case', cons(t, sized(b)))))", c_if),
+        ("key('while', cons(t, sized(b)))", c_while),
+        ("key('func', cons(retT, cons(Str(nm, _), "
+                 "contains(key('args', sized(a))) and "
+                 "contains(key('body', sized(b))))))", c_func),
+        ("key('return', cons(e, _))", c_return),
+        ("key('returnnothing')", lambda: c_return(None)),
+        ("key('field', cons(t, cons(Str(nm, _), _)))", c_field),
+        ("key('implicitconst', cons(Str(nm, _), _))", c_implicitconst))
 
 def c_body(ss):
     global CENV
     corig = CENV
-    CENV = CEnv(corig.cenvIndent + 1, [], corig)
+    CENV = CEnv(corig.cenvIndent + 1, corig.cenvHandle, corig)
     for s in ss:
         c_stmt(s)
     assert corig is CENV.cenvOuterEnv
-    corig.cenvStmts += CENV.cenvStmts
     CENV = corig
 
-def generate_c(mod):
-    global CENV
-    CENV = CEnv(-1, [], None)
-    c_body(mod.roots)
-    return Module("c_" + mod.name, None, CENV.cenvStmts)
-
-def _write_c_strs(f, atom):
-    assert isinstance(atom, Str), "Need Str, got: %s" % (atom,)
-    fwrite(f, atom.strVal)
-    for sub in atom.subs:
-        _write_c_strs(f, sub)
-
 def write_c_file(filename, mod):
+    global CENV
     f = fopen(filename, 'w')
-    for root in mod.roots:
-        _write_c_strs(f, root)
+    CENV = CEnv(-1, f, None)
+    c_body(mod.roots)
     fclose(f)
 
 if __name__ == '__main__':
@@ -248,11 +257,13 @@ if __name__ == '__main__':
     hm.infer_types(short.roots)
     write_mod_repr('hello', short)
     print 'Inferred types.'
-    c = generate_c(short)
+    print
+    print 'Generating C...'
+    print '==============='
+    from mogrify import mogrify
+    c = mogrify(short)
+    write_mod_repr('hello', c)
     write_c_file('world', c)
-    print 'Generated C.'
-    print '============'
-    print file('world').read()
     serialize_module(short)
     serialize_module(c)
 

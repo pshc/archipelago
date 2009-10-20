@@ -110,7 +110,6 @@ def conv_exprs(elist):
 
 add_sym('binaryop')
 add_sym('unaryop')
-add_sym('crepr')
 
 for (cls, op) in {Add: '+', Sub: '-', Mul: '*', Div: '/', FloorDiv: '//',
                   Mod: '%', Bitand: '&', Bitor: '|', Bitxor: '^',

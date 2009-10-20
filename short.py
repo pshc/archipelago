@@ -21,5 +21,6 @@ c = 'ok'
 Pair = DT('Pair', ('first', int), ('second', int))
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 m = Just(1)
+#match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

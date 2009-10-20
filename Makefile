@@ -1,7 +1,7 @@
 all: tada
 
 tada:
-	./mogrify.py
+	./c.py
 
 serialize:
 	./interpret.py serialize.py
