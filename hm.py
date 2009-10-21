@@ -206,7 +206,7 @@ def infer_pat(p):
         ("v==key('var')", pat_var),
         ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor))
 
-def infer_match(e, cs):
+def infer_match(m, e, cs):
     et, s = infer_expr(e)
     retT = fresh()
     for c in cs:
@@ -217,6 +217,9 @@ def infer_match(e, cs):
             t, s2 = infer_expr(ce)
             return compose(unify(t, retT), compose(s, s2))
         s = in_new_env(infer_case, s)
+    # Help out C transmogrification with some extra type annotations
+    set_type(m, retT, s, True)
+    set_type(e, et, s, True)
     return (retT, s)
 
 def unknown_infer(a):
@@ -229,7 +232,7 @@ def infer_expr(a):
         ("key('char')", lambda: (TChar(), {})),
         ("key('tuplelit', sized(ts))", infer_tuple),
         ("key('call', cons(f, sized(s)))", infer_call),
-        ("key('match', cons(e, all(cs, c==key('case'))))", infer_match),
+        ("m==key('match', cons(e, all(cs, c==key('case'))))", infer_match),
         ("Ref(v==key('var'), _, _)",
             lambda v: (get_type(v).schemeType, {})),
         ("Ref(f==key('func' or 'ctor'), _, _)",

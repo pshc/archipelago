@@ -33,6 +33,8 @@ def array(t, n):
 
 def str_(st):
     return Str(st, [])
+def int_(n):
+    return Int(n, [])
 
 from os import system
 fgetc = lambda f: f.read(1)

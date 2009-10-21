@@ -69,17 +69,62 @@ def c_tuple(ts):
     f = 'tuple%d' % (len(ts),) # TODO
     return callnamed(f, map(c_expr, ts))
 
+def global_scope():
+    global CSCOPE
+    scope = CSCOPE
+    while scope.csOuterScope is not None:
+        scope = scope.csOuterScope
+    return scope
+
+def strlit(s):
+    return csym('strlit', [str_(s)])
+
+def assert_false(msg_e):
+    return csym('exprstmt', [callnamed('assert', [int_(0), msg_e])])
+
+def c_match(e, retT, cs):
+    eT = match(e.subs, ("contains(t==key('type'))", identity))
+    fnm = 'matcher'
+    sf = surrounding_func()
+    if sf is not None:
+        fnm = '%s_%s' % (sf.csFunc, fnm)
+    args = [csym('arg', [c_scheme(eT), str_('expr')])]
+    if_ = csym('if', []) # TODO
+    body = [if_, assert_false(strlit('%s failed' % (fnm,)))]
+    f = make_func(c_scheme(retT), fnm, args, body, [csym_('static')])
+    list_append(global_scope().csStmts, f)
+    return callnamed(fnm, [c_expr(e)])
+
 def c_expr(e):
     return match(e,
-        ("Int(i, _)", lambda i: Int(i, [])),
-        ("Str(s, _)", lambda s: csym('strlit', [str_(s)])),
+        ("Int(i, _)", int_),
+        ("Str(s, _)", strlit),
         ("r==Ref(named(nm, contains(key('type'))), _, _)", c_defref),
         ("r==Ref(named(nm) and key('ctor'), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
-        ("key('tuplelit', sized(ts))", c_tuple))
+        ("key('tuplelit', sized(ts))", c_tuple),
+        ("key('match', cons(e, contains(retT==key('type')) "
+                       "and all(cs, c==key('case'))))", c_match))
 
 def is_func_scope(scope):
     return scope.csFunc is not None
+
+def surrounding_func():
+    global CSCOPE
+    func = CSCOPE
+    while func is not None and not is_func_scope(func):
+        func = func.csOuterScope
+    return func
+
+def stmt_after_vardecls(stmt, scope):
+    i = 0
+    while i < len(scope.csStmts) and is_decl_or_defn(scope.csStmts[i]):
+        i += 1
+    scope.csStmts.insert(i, stmt)
+
+def is_decl_or_defn(s):
+    return match(s, ("key('vardecl' or 'vardefn')", lambda: True),
+                    ("_", lambda: False))
 
 def c_assign(a, e):
     ce = c_expr(e)
@@ -89,28 +134,18 @@ def c_assign(a, e):
             lambda nm: (nm, False)))
     if needs_decl:
         ct = match(a, ("key('var', contains(t==key('type')))", c_scheme))
-        global CSCOPE
-        func = CSCOPE
         definition = lambda: stmt(csym('vardefn', [str_(nm), ct, ce]))
-        is_decl_or_defn = lambda s: match(s,
-                ("key('vardecl' or 'vardefn')", lambda: True),
-                ("_", lambda: False))
         # Check to see if we can set this right where we declare it
-        if is_func_scope(func):
-            can_assign_now = True
-            if all(map(is_decl_or_defn, func.csStmts)):
-                definition()
-                return
+        global CSCOPE
+        if is_func_scope(CSCOPE) and all(map(is_decl_or_defn, CSCOPE.csStmts)):
+            definition()
+            return
         # Otherwise find a suitable place to declare this variable
-        while not is_func_scope(func):
-            if func.csOuterScope is None: # global?
-                definition()
-                return
-            func = func.csOuterScope
-        i = 0
-        while i < len(func.csStmts) and is_decl_or_defn(func.csStmts[i]):
-            i += 1
-        func.csStmts.insert(i, csym('vardecl', [str_(nm), ct]))
+        func = surrounding_func()
+        if func is None:
+            definition()
+            return
+        stmt_after_vardecls(csym('vardecl', [str_(nm), ct]), func)
     stmt(csym('=', [str_(nm), ce]))
 
 def c_cond(subs, cs):
@@ -180,24 +215,24 @@ def c_DT(cs, vs, nm):
                 s = csym('=', [csym('->', [var(), field()]), field()])
             list_append(setup, s)
         list_append(setup, csym('return', [var()]))
-        stmt(csym('func', [cptr(retT()), str_(cnm),
-                csym('args', [int_len(args)] + args),
-                csym('body', [int_len(setup)] + setup)]))
+        stmt(make_func(cptr(retT()), cnm, args, setup, []))
 
 def c_args(args):
     return [match(a, ("named(nm, contains(t==key('type')))",
                       lambda nm, t: csym('arg', [c_scheme(t), str_(nm)])))
             for a in args]
 
+def make_func(retT, nm, args, body, extra_attrs):
+    return csym('func', [retT, str_(nm), csym('args', [int_len(args)] + args),
+                         csym('body', [int_len(body)] + body)] + extra_attrs)
+
 def c_func(t, args, body, nm):
     # Wow this is bad
     t_ = atoms_to_scheme(t).schemeType
     retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
-
+    ca = c_args(args)
     cb = c_body(body, nm)
-    stmt(csym('func', [retT, str_(nm),
-            csym('args', [int_len(args)] + c_args(args)),
-            csym('body', [int_len(cb)] + cb)]))
+    stmt(make_func(retT, nm, ca, cb, []))
 
 def c_stmt(s):
     match(s,
@@ -234,8 +269,9 @@ def c_body(ss, funcinfo):
 def mogrify(mod):
     global CSCOPE
     CSCOPE = CScope([], None, None)
-    ss = c_body(mod.roots, None)
-    return Module("c_" + mod.name, None, ss)
+    for s in mod.roots:
+        c_stmt(s)
+    return Module("c_" + mod.name, None, CSCOPE.csStmts)
 
 if __name__ == '__main__':
     import ast

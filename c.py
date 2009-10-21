@@ -184,8 +184,11 @@ def c_while(test, body):
     c_body(body)
     close_brace()
 
-def c_func(retT, nm, args, body):
+def c_func(ss, retT, nm, args, body):
     indent()
+    if match(ss, ("contains(key('static'))", lambda: True),
+                 ("_", lambda: False)):
+        out('static ')
     typed_name(retT, nm)
     out('(')
     n = len(args)
@@ -225,7 +228,7 @@ def c_stmt(s):
         ("key('vardefn', cons(Str(nm, _), cons(t, cons(e, _))))", c_vardefn),
         ("key('if', ss and all(cs, key('case', cons(t, sized(b)))))", c_if),
         ("key('while', cons(t, sized(b)))", c_while),
-        ("key('func', cons(retT, cons(Str(nm, _), "
+        ("key('func', ss==cons(retT, cons(Str(nm, _), "
                  "contains(key('args', sized(a))) and "
                  "contains(key('body', sized(b))))))", c_func),
         ("key('return', cons(e, _))", c_return),
@@ -262,7 +265,6 @@ if __name__ == '__main__':
     print '==============='
     from mogrify import mogrify
     c = mogrify(short)
-    write_mod_repr('hello', c)
     write_c_file('world', c)
     serialize_module(short)
     serialize_module(c)
