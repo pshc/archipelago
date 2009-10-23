@@ -62,7 +62,7 @@ def c_type(t):
         ("key('ptr', cons(t, _))", c_ptr),
         ("key('structref', cons(s, _))", c_structref),
         ("s==key(k==('struct' or 'union' or 'enum'), "
-                "all(fs, f==key('field' or 'implicitconst')))", c_struct))
+                "all(fs, f==key('field' or 'enumerator')))", c_struct))
 
 def typed_name(t, nm):
     c_type(t)
@@ -220,7 +220,7 @@ def c_field(t, nm):
     typed_name(t, nm)
     semicolon()
 
-def c_implicitconst(nm):
+def c_enumerator(nm):
     indent()
     out_Str(nm)
     out(',\n')
@@ -240,7 +240,7 @@ def c_stmt(s):
         ("key('return', cons(e, _))", c_return),
         ("key('returnnothing')", lambda: c_return(None)),
         ("key('field', cons(t, cons(nm, _)))", c_field),
-        ("key('implicitconst', cons(nm, _))", c_implicitconst))
+        ("key('enumerator', cons(nm, _))", c_enumerator))
 
 def c_body(ss):
     global CENV

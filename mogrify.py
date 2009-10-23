@@ -233,7 +233,7 @@ def c_DT(dt, cs, vs, nm):
     enumsym = lambda cnm: str_('%s%s' % (nm, cnm))
     if discrim:
         # Generate our extra struct-around-union-around-ctors
-        enum = csym('enum', [csym('implicitconst', [enumsym(getname(c))])
+        enum = csym('enum', [csym('enumerator', [enumsym(getname(c))])
                              for c in cs])
         union = csym('union', structs)
         stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
