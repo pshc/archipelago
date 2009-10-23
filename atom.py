@@ -15,8 +15,8 @@ _b_name = Ref(_b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
 _b_symbol.refAtom = _b_symbol
 _b_symbol.subs[0].refAtom = _b_name
 _b_name.subs[0].refAtom = _b_name
-_boot_syms = boot_mod.roots
-_boot_syms += [_b_symbol, _b_name]
+boot_syms = boot_mod.roots
+boot_syms += [_b_symbol, _b_name]
 boot_sym_names = {'symbol': _b_symbol, 'name': _b_name}
 boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 
@@ -64,7 +64,7 @@ def add_sym(name, extra_prop=None, extra_str=None):
         if t is not None:
             subs.append(t)
         node = Ref(_b_symbol, boot_mod, subs)
-        _boot_syms.append(node)
+        boot_syms.append(node)
         boot_sym_names[name] = node
         boot_sym_names_rev[node] = name
     else:
@@ -261,6 +261,8 @@ def _do_repr(s, r, indent):
         label = '<ref>'
         if s.refMod is boot_mod:
             label = s.refAtom.subs[0].subs[0].strVal
+        elif hasattr(s.refAtom, 'strVal'):
+            label = '->%r' % (s.refAtom.strVal,)
         elif s.refAtom.subs:
             for sub in s.refAtom.subs:
                 if getattr(sub, 'refAtom', None) is _b_name:

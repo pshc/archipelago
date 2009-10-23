@@ -5,6 +5,8 @@ from builtins import *
 
 CScope = DT('CScope', ('csStmts', [Atom]),
                       ('csFunc', str),
+                      ('csIdentifierAtoms', {Atom: Atom}),
+                      ('csStructNameAtoms', {Atom: Atom}),
                       ('csOuterScope', 'CScope'))
 CSCOPE = None
 
@@ -36,7 +38,7 @@ def _c_type(t):
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TVoid()", lambda: csym_('void')),
-        ("TData(named(nm))", lambda nm: cptr(csym('structref', [str_(nm)]))))
+        ("TData(a)", lambda a: cptr(struct_ref(a))))
 
 def c_type(t, tvars):
     return _c_type(atoms_to_type(t, dict((v, TVar(0)) for v in tvars)))
@@ -50,10 +52,49 @@ def as_c_op(a):
                      "_, _)", identity),
                     ("_", lambda: None))
 
-def c_defref(r, nm):
+def set_identifier(atom, nm):
+    global CSCOPE
+    assert isinstance(nm, basestring)
+    s = str_(nm)
+    assert atom not in CSCOPE.csIdentifierAtoms
+    CSCOPE.csIdentifierAtoms[atom] = s
+    return s
+
+# Bleh duplication
+def set_struct_name(atom, nm):
+    global CSCOPE
+    assert isinstance(nm, basestring)
+    s = str_(nm)
+    assert atom not in CSCOPE.csStructNameAtoms
+    CSCOPE.csStructNameAtoms[atom] = s
+    return csym('name', [s])
+
+def identifier_ref(a):
+    global CSCOPE
+    scope = CSCOPE
+    while scope is not None:
+        s = scope.csIdentifierAtoms.get(a)
+        if s is not None:
+            return Ref(s, None, [])
+        scope = scope.csOuterScope
+    if a in boot_syms:
+        return str_(getname(a))
+    assert False, '%r not in identifier scope' % (a,)
+
+def struct_ref(a):
+    global CSCOPE
+    scope = CSCOPE
+    while scope is not None:
+        s = scope.csStructNameAtoms.get(a)
+        if s is not None:
+            return csym('structref', [Ref(s, None, [])])
+        scope = scope.csOuterScope
+    assert False, '%r not in struct name scope' % (a,)
+
+def c_defref(r, a):
     # TODO
     assert as_c_op(r) is None, "Can't pass around built-in C op %s" % (nm,)
-    return str_(nm)
+    return identifier_ref(a)
 
 def callnamed(nm, args):
     return csym('call', [str_(nm), int_len(args)] + args)
@@ -88,10 +129,11 @@ def c_match(e, retT, cs):
     sf = surrounding_func()
     if sf is not None:
         fnm = '%s_%s' % (sf.csFunc, fnm)
-    args = [csym('arg', [c_scheme(eT), str_('expr')])]
+    arg = csym('arg', [c_scheme(eT)])
+    arg.subs.append(set_identifier(arg, 'expr'))
     if_ = csym('if', []) # TODO
     body = [if_, assert_false(strlit('%s failed' % (fnm,)))]
-    f = make_func(c_scheme(retT), fnm, args, body, [csym_('static')])
+    f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
     list_append(global_scope().csStmts, f)
     return callnamed(fnm, [c_expr(e)])
 
@@ -99,8 +141,8 @@ def c_expr(e):
     return match(e,
         ("Int(i, _)", int_),
         ("Str(s, _)", strlit),
-        ("r==Ref(named(nm, contains(key('type'))), _, _)", c_defref),
-        ("r==Ref(named(nm) and key('ctor'), _, _)", c_defref),
+        ("r==Ref(a==named(_, contains(key('type'))), _, _)", c_defref),
+        ("r==Ref(a==named(_) and key('ctor'), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match', cons(e, contains(retT==key('type')) "
@@ -128,13 +170,14 @@ def is_decl_or_defn(s):
 
 def c_assign(a, e):
     ce = c_expr(e)
-    nm, needs_decl = match(a,
-        ("key('var') and named(nm)", lambda nm: (nm, True)),
-        ("Ref(named(nm, contains(key('type'))), _, _)",
-            lambda nm: (nm, False)))
+    nm, var, needs_decl = match(a,
+        ("key('var') and named(nm)", lambda nm: (nm, a, True)),
+        ("Ref(v==named(nm, contains(key('type'))), _, _)",
+            lambda v, nm: (nm, v, False)))
     if needs_decl:
+        s = set_identifier(var, nm)
         ct = match(a, ("key('var', contains(t==key('type')))", c_scheme))
-        definition = lambda: stmt(csym('vardefn', [str_(nm), ct, ce]))
+        definition = lambda: stmt(csym('vardefn', [s, ct, ce]))
         # Check to see if we can set this right where we declare it
         global CSCOPE
         if is_func_scope(CSCOPE) and all(map(is_decl_or_defn, CSCOPE.csStmts)):
@@ -145,8 +188,8 @@ def c_assign(a, e):
         if func is None:
             definition()
             return
-        stmt_after_vardecls(csym('vardecl', [str_(nm), ct]), func)
-    stmt(csym('=', [str_(nm), ce]))
+        stmt_after_vardecls(csym('vardecl', [s, ct]), func)
+    stmt(csym('=', [identifier_ref(var), ce]))
 
 def c_cond(subs, cs):
     cases = []
@@ -170,7 +213,7 @@ def c_while(t, body):
 def c_assert(t, m):
     stmt(csym('exprstmt', [callnamed('assert', [c_expr(t), c_expr(m)])]))
 
-def c_DT(cs, vs, nm):
+def c_DT(dt, cs, vs, nm):
     discrim = len(cs) > 1
     ctors = []
     structs = []
@@ -184,24 +227,24 @@ def c_DT(cs, vs, nm):
             list_append(structs, csym('field', [csym('struct', cfields),
                                                 str_(cnm)]))
         else:
-            stmt(csym('decl', [csym('struct', [symname(cnm)] + cfields)]))
-        ctors.append((cnm, fields))
+            stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm)]
+                                              + cfields)]))
+        ctors.append((c, cnm, fields))
     enumsym = lambda cnm: str_('%s%s' % (nm, cnm))
     if discrim:
         # Generate our extra struct-around-union-around-ctors
         enum = csym('enum', [csym('implicitconst', [enumsym(getname(c))])
                              for c in cs])
         union = csym('union', structs)
-        stmt(csym('decl', [csym('struct', [symname(nm),
+        stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
                 csym('field', [enum, str_('ix')]),
                 csym('field', [union, str_('s')])])]))
     # Ctor functions
-    retT = lambda: csym('structref', [str_(nm)])
-    for (cnm, fields) in ctors:
+    for (ctor, cnm, fields) in ctors:
         var = lambda: str_(cnm.lower())
         args = [csym('arg', [t, str_(anm)]) for (t, anm) in fields]
-        setup = [csym('vardefn', [var(), cptr(retT()),
-                callnamed('malloc', [csym('sizeof', [retT()])])])]
+        setup = [csym('vardefn', [var(), cptr(struct_ref(dt)),
+                callnamed('malloc', [csym('sizeof', [struct_ref(dt)])])])]
         if discrim:
             list_append(setup, csym('=', [csym('->', [var(), str_('ix')]),
                                           enumsym(cnm)]))
@@ -215,24 +258,27 @@ def c_DT(cs, vs, nm):
                 s = csym('=', [csym('->', [var(), field()]), field()])
             list_append(setup, s)
         list_append(setup, csym('return', [var()]))
-        stmt(make_func(cptr(retT()), cnm, args, setup, []))
+        stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, setup, []))
 
 def c_args(args):
     return [match(a, ("named(nm, contains(t==key('type')))",
-                      lambda nm, t: csym('arg', [c_scheme(t), str_(nm)])))
+             lambda nm, t: csym('arg', [c_scheme(t), set_identifier(a, nm)])))
             for a in args]
 
-def make_func(retT, nm, args, body, extra_attrs):
-    return csym('func', [retT, str_(nm), csym('args', [int_len(args)] + args),
-                         csym('body', [int_len(body)] + body)] + extra_attrs)
+def make_func(f, retT, nm, args, body, extra_attrs):
+    fa = csym('func', [])
+    s = set_identifier(f if f is not None else fa, nm)
+    fa.subs = [retT, s, csym('args', [int_len(args)] + args),
+               csym('body', [int_len(body)] + body)] + extra_attrs
+    return fa
 
-def c_func(t, args, body, nm):
+def c_func(f, t, args, body, nm):
     # Wow this is bad
     t_ = atoms_to_scheme(t).schemeType
     retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
     ca = c_args(args)
     cb = c_body(body, nm)
-    stmt(make_func(retT, nm, ca, cb, []))
+    stmt(make_func(f, retT, nm, ca, cb, []))
 
 def c_stmt(s):
     match(s,
@@ -242,9 +288,9 @@ def c_stmt(s):
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
-        ("key('DT', all(cs, c==key('ctor'))\
+        ("dt==key('DT', all(cs, c==key('ctor'))\
                 and all(vs, v==key('typevar'))) and named(nm)", c_DT),
-        ("key('func', contains(t==key('type')) "
+        ("f==key('func', contains(t==key('type')) "
                  "and contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),
         ("key('return', cons(e, _))",
@@ -258,7 +304,7 @@ def stmt(s):
 def c_body(ss, funcinfo):
     global CSCOPE
     outer = CSCOPE
-    CSCOPE = CScope([], funcinfo, outer)
+    CSCOPE = CScope([], funcinfo, {}, {}, outer)
     for s in ss:
         c_stmt(s)
     assert outer is CSCOPE.csOuterScope
@@ -268,7 +314,7 @@ def c_body(ss, funcinfo):
 
 def mogrify(mod):
     global CSCOPE
-    CSCOPE = CScope([], None, None)
+    CSCOPE = CScope([], None, {}, {}, None)
     for s in mod.roots:
         c_stmt(s)
     return Module("c_" + mod.name, None, CSCOPE.csStmts)

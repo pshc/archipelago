@@ -38,8 +38,11 @@ def comma_exprs(es):
 def parens(f): out('('); f(); out(')')
 def brackets(f): out('{'); f(); out('}')
 
+def out_Str(s):
+    match(s, ("Str(s, _)", out), ("Ref(Str(s, _), _, _)", out))
+
 def c_ptr(t): c_type(t); out('*')
-def c_structref(s): out('struct '); out(s)
+def c_structref(s): out('struct '); out_Str(s)
 
 def c_struct(s, k, fs):
     out(k)
@@ -57,20 +60,22 @@ def c_type(t):
     match(t,
         ("key(prim==('int' or 'char' or 'tuple' or 'void'))", out),
         ("key('ptr', cons(t, _))", c_ptr),
-        ("key('structref', cons(Str(s, _), _))", c_structref),
+        ("key('structref', cons(s, _))", c_structref),
         ("s==key(k==('struct' or 'union' or 'enum'), "
                 "all(fs, f==key('field' or 'implicitconst')))", c_struct))
 
 def typed_name(t, nm):
     c_type(t)
     out(' ')
-    out(nm)
+    out_Str(nm)
 
 unary_ops = {'negate': '-'}
 binary_ops = {'+': ' + ', '%': ' % ', '.': '.', '->': '->'}
 
 def c_call(f, args):
-    s = match(f, ('Str(s, _)', identity), ('_', lambda: None))
+    s = match(f, ('Str(s, _)', identity),
+                 ('Ref(Str(s, _), _, _)', identity),
+                 ('_', lambda: None))
     n = len(args)
     if s is None: # Not just a named function... parens to be safe
         parens(lambda: c_expr(f))
@@ -121,6 +126,7 @@ def c_expr(e):
     match(e,
         ("Int(i, _)", lambda i: out("%d" % (i,))),
         ("Str(s, _)", out),
+        ("Ref(Str(s, _), _, _)", out),
         ("key('strlit', cons(Str(s, _), _))",
             lambda s: out(escape_str(s))),
         ("key('call', cons(f, sized(args)))", c_call),
@@ -193,7 +199,7 @@ def c_func(ss, retT, nm, args, body):
     out('(')
     n = len(args)
     for a in args:
-        match(a, ("key('arg', cons(t, cons(Str(nm, _), _)))", typed_name))
+        match(a, ("key('arg', cons(t, cons(nm, _)))", typed_name))
         n -= 1
         if n > 0:
             out(', ')
@@ -216,7 +222,7 @@ def c_field(t, nm):
 
 def c_implicitconst(nm):
     indent()
-    out(nm)
+    out_Str(nm)
     out(',\n')
 
 def c_stmt(s):
@@ -224,17 +230,17 @@ def c_stmt(s):
         ("key('exprstmt', cons(e, _))", c_exprstmt),
         ("key('=', cons(a, cons(e, _)))", c_assign),
         ("key('decl', cons(t, _))", c_decl),
-        ("key('vardecl', cons(Str(nm, _), cons(t, _)))", c_vardecl),
-        ("key('vardefn', cons(Str(nm, _), cons(t, cons(e, _))))", c_vardefn),
+        ("key('vardecl', cons(nm, cons(t, _)))", c_vardecl),
+        ("key('vardefn', cons(nm, cons(t, cons(e, _))))", c_vardefn),
         ("key('if', ss and all(cs, key('case', cons(t, sized(b)))))", c_if),
         ("key('while', cons(t, sized(b)))", c_while),
-        ("key('func', ss==cons(retT, cons(Str(nm, _), "
+        ("key('func', ss==cons(retT, cons(nm, "
                  "contains(key('args', sized(a))) and "
                  "contains(key('body', sized(b))))))", c_func),
         ("key('return', cons(e, _))", c_return),
         ("key('returnnothing')", lambda: c_return(None)),
-        ("key('field', cons(t, cons(Str(nm, _), _)))", c_field),
-        ("key('implicitconst', cons(Str(nm, _), _))", c_implicitconst))
+        ("key('field', cons(t, cons(nm, _)))", c_field),
+        ("key('implicitconst', cons(nm, _))", c_implicitconst))
 
 def c_body(ss):
     global CENV
@@ -265,6 +271,7 @@ if __name__ == '__main__':
     print '==============='
     from mogrify import mogrify
     c = mogrify(short)
+    write_mod_repr('hello', c)
     write_c_file('world', c)
     serialize_module(short)
     serialize_module(c)
