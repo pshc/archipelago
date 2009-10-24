@@ -1,7 +1,7 @@
 def ok(n):
-    n = n + 3
-    print 'n = %d' % (n,)
-    return n
+    s = n + 3
+    print 's = %d' % (s,)
+    return s
 def ident(val):
     return val
 while False:

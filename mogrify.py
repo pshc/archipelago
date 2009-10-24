@@ -52,12 +52,14 @@ def as_c_op(a):
                      "_, _)", identity),
                     ("_", lambda: None))
 
-def set_identifier(atom, nm):
-    global CSCOPE
+def set_identifier(atom, nm, scope):
+    if scope is None:
+        global CSCOPE
+        scope = CSCOPE
     assert isinstance(nm, basestring)
     s = str_(nm)
-    assert atom not in CSCOPE.csIdentifierAtoms
-    CSCOPE.csIdentifierAtoms[atom] = s
+    assert atom not in scope.csIdentifierAtoms
+    scope.csIdentifierAtoms[atom] = s
     return s
 
 # Bleh duplication
@@ -130,7 +132,7 @@ def c_match(e, retT, cs):
     if sf is not None:
         fnm = '%s_%s' % (sf.csFunc, fnm)
     arg = csym('arg', [c_scheme(eT)])
-    arg.subs.append(set_identifier(arg, 'expr'))
+    arg.subs.append(set_identifier(arg, 'expr', None))
     if_ = csym('if', []) # TODO
     body = [if_, assert_false(strlit('%s failed' % (fnm,)))]
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
@@ -175,19 +177,20 @@ def c_assign(a, e):
         ("Ref(v==named(nm, contains(key('type'))), _, _)",
             lambda v, nm: (nm, v, False)))
     if needs_decl:
-        s = set_identifier(var, nm)
         ct = match(a, ("key('var', contains(t==key('type')))", c_scheme))
-        definition = lambda: stmt(csym('vardefn', [s, ct, ce]))
+        definition = lambda s: stmt(csym('vardefn', [s, ct, ce]))
         # Check to see if we can set this right where we declare it
         global CSCOPE
         if is_func_scope(CSCOPE) and all(map(is_decl_or_defn, CSCOPE.csStmts)):
-            definition()
+            definition(set_identifier(var, nm, CSCOPE))
             return
         # Otherwise find a suitable place to declare this variable
         func = surrounding_func()
         if func is None:
-            definition()
+            definition(set_identifier(var, nm, global_scope()))
             return
+        # Declare it at the top of the function, but set it back here
+        s = set_identifier(var, nm, func)
         stmt_after_vardecls(csym('vardecl', [s, ct]), func)
     stmt(csym('=', [identifier_ref(var), ce]))
 
@@ -260,24 +263,27 @@ def c_DT(dt, cs, vs, nm):
         list_append(setup, csym('return', [var()]))
         stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, setup, []))
 
-def c_args(args):
-    return [match(a, ("named(nm, contains(t==key('type')))",
-             lambda nm, t: csym('arg', [c_scheme(t), set_identifier(a, nm)])))
-            for a in args]
-
 def make_func(f, retT, nm, args, body, extra_attrs):
     fa = csym('func', [])
-    s = set_identifier(f if f is not None else fa, nm)
+    s = set_identifier(f if f is not None else fa, nm, None)
     fa.subs = [retT, s, csym('args', [int_len(args)] + args),
                csym('body', [int_len(body)] + body)] + extra_attrs
     return fa
+
+def _setup_func(scope, nm, args, cargs):
+    scope.csFunc = nm
+    idents = {}
+    for a in args:
+        nm, t = match(a, ("named(nm, contains(t==key('type')))", tuple2))
+        carg = csym('arg', [c_scheme(t), set_identifier(a, nm, scope)])
+        list_append(cargs, carg)
 
 def c_func(f, t, args, body, nm):
     # Wow this is bad
     t_ = atoms_to_scheme(t).schemeType
     retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
-    ca = c_args(args)
-    cb = c_body(body, nm)
+    ca = []
+    cb = c_body(body, lambda scope: _setup_func(scope, nm, args, ca))
     stmt(make_func(f, retT, nm, ca, cb, []))
 
 def c_stmt(s):
@@ -301,10 +307,12 @@ def stmt(s):
     global CSCOPE
     list_append(CSCOPE.csStmts, s)
 
-def c_body(ss, funcinfo):
+def c_body(ss, scope_func):
     global CSCOPE
     outer = CSCOPE
-    CSCOPE = CScope([], funcinfo, {}, {}, outer)
+    CSCOPE = CScope([], None, {}, {}, outer)
+    if scope_func is not None:
+        scope_func(CSCOPE)
     for s in ss:
         c_stmt(s)
     assert outer is CSCOPE.csOuterScope
