@@ -518,6 +518,8 @@ def conv_continue(s, context):
 add_sym('exprstmt')
 @stmt(Discard)
 def conv_discard(s, context):
+    if isinstance(s.expr, Const) and s.expr.value is None:
+        return []
     (ea, et) = conv_expr(s.expr)
     cout(context, '%s', et)
     return [symref('exprstmt', [ea])]
