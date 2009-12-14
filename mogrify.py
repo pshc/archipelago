@@ -4,7 +4,7 @@ from atom import *
 from builtins import *
 
 CScope = DT('CScope', ('csStmts', [Atom]),
-                      ('csFunc', str),
+                      ('csFuncName', str),
                       ('csIdentifierAtoms', {Atom: Atom}),
                       ('csStructNameAtoms', {Atom: Atom}),
                       ('csOuterScope', 'CScope'))
@@ -99,7 +99,12 @@ def c_defref(r, a):
     return identifier_ref(a)
 
 def callnamed(nm, args):
+    assert isinstance(nm, basestring)
     return csym('call', [str_(nm), int_len(args)] + args)
+
+def callnamedref(nm_atom, args):
+    assert isinstance(nm_atom, Str)
+    return csym('call', [Ref(nm_atom, None, []), int_len(args)] + args)
 
 def c_call(f, args):
     op = as_c_op(f)
@@ -127,17 +132,17 @@ def assert_false(msg_e):
 
 def c_match(e, retT, cs):
     eT = match(e.subs, ("contains(t==key('type'))", identity))
-    fnm = 'matcher'
+    fnm = str_('matcher')
     sf = surrounding_func()
     if sf is not None:
-        fnm = '%s_%s' % (sf.csFunc, fnm)
+        fnm.strVal = '%s_%s' % (sf.csFuncName, fnm.strVal)
     arg = csym('arg', [c_scheme(eT)])
     arg.subs.append(set_identifier(arg, 'expr', None))
     if_ = csym('if', []) # TODO
-    body = [if_, assert_false(strlit('%s failed' % (fnm,)))]
+    body = [if_, assert_false(strlit('%s failed' % (fnm.strVal,)))]
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
     list_append(global_scope().csStmts, f)
-    return callnamed(fnm, [c_expr(e)])
+    return callnamedref(fnm, [c_expr(e)])
 
 def c_expr(e):
     return match(e,
@@ -151,7 +156,7 @@ def c_expr(e):
                        "and all(cs, c==key('case'))))", c_match))
 
 def is_func_scope(scope):
-    return scope.csFunc is not None
+    return scope.csFuncName is not None
 
 def surrounding_func():
     global CSCOPE
@@ -222,56 +227,77 @@ def c_DT(dt, cs, vs, nm):
     structs = []
     # Convert ctors to structs
     for c in cs:
-        cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))", tuple2))
+        cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))",
+                            lambda cnm, fs: (str_(cnm), fs)))
         fields = [match(f, ("named(nm, contains(key('type', cons(t, _))))",
-                            lambda fnm, t: (c_type(t, vs), fnm))) for f in fs]
-        cfields = [csym('field', [t, str_(fnm)]) for (t, fnm) in fields]
+                            lambda fnm, t: (c_type(t, vs), str_(fnm))))
+                  for f in fs]
+        cfields = [csym('field', [t, fnm]) for (t, fnm) in fields]
         if discrim:
             list_append(structs, csym('field', [csym('struct', cfields),
-                                                str_(cnm)]))
+                                                Ref(cnm, None, [])]))
         else:
             stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm)]
                                               + cfields)]))
         ctors.append((c, cnm, fields))
     enumsym = lambda cnm: str_('%s%s' % (nm, cnm))
+    discrim_union = discrim_ix = None
     if discrim:
         # Generate our extra struct-around-union-around-ctors
         enum = csym('enum', [csym('enumerator', [enumsym(getname(c))])
                              for c in cs])
         union = csym('union', structs)
+        s_atom = str_('s')
+        ix_atom = str_('ix')
+        discrim_union = lambda: Ref(s_atom, None, [])
+        discrim_ix = lambda: Ref(ix_atom, None, [])
         stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
-                csym('field', [enum, str_('ix')]),
-                csym('field', [union, str_('s')])])]))
+                csym('field', [enum, s_atom]),
+                csym('field', [union, ix_atom])])]))
     # Ctor functions
     for (ctor, cnm, fields) in ctors:
-        var = lambda: str_(cnm.lower())
-        args = [csym('arg', [t, str_(anm)]) for (t, anm) in fields]
-        setup = [csym('vardefn', [var(), cptr(struct_ref(dt)),
+        ctorref = lambda: Ref(cnm, None, [])
+        varnm = str_(cnm.strVal.lower())
+        var = lambda: Ref(varnm, None, [])
+        argnms = {}
+        setup = [csym('vardefn', [varnm, cptr(struct_ref(dt)),
                 callnamed('malloc', [csym('sizeof', [struct_ref(dt)])])])]
         if discrim:
-            list_append(setup, csym('=', [csym('->', [var(), str_('ix')]),
-                                          enumsym(cnm)]))
+            list_append(setup, csym('=', [csym('->',
+                    [var(), discrim_ix()]), enumsym(cnm.strVal)]))
         # Set all the fields from ctor args
+        args = []
         for (ct, fnm) in fields:
-            field = lambda: str_(fnm)
+            argnm = str_(fnm.strVal)
+            # Check for name conflicts; this should be done more generally
+            while argnm.strVal == varnm.strVal:
+                argnm.strVal = argnm.strVal + '_'
+            # Add the arg and assign it
+            list_append(args, csym('arg', [ct, argnm]))
+            fieldref = Ref(fnm, None, [])
+            argref = Ref(argnm, None, [])
             if discrim:
-                s = csym('=', [csym('.', [csym('.', [csym('->',
-                    [var(), str_('s')]), str_(cnm)]), field()]), field()])
+                s = csym('=', [csym('.', [csym('.', [csym('->', [var(),
+                    discrim_union()]), ctorref()]), fieldref]), argref])
             else:
-                s = csym('=', [csym('->', [var(), field()]), field()])
+                s = csym('=', [csym('->', [var(), fieldref]), argref])
             list_append(setup, s)
         list_append(setup, csym('return', [var()]))
         stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, setup, []))
 
 def make_func(f, retT, nm, args, body, extra_attrs):
+    global CSCOPE
     fa = csym('func', [])
-    s = set_identifier(f if f is not None else fa, nm, None)
-    fa.subs = [retT, s, csym('args', [int_len(args)] + args),
+    atom = f if f is not None else fa
+    assert isinstance(nm, Str)
+    assert atom not in CSCOPE.csIdentifierAtoms
+    CSCOPE.csIdentifierAtoms[atom] = nm
+    fa.subs = [retT, nm, csym('args', [int_len(args)] + args),
                csym('body', [int_len(body)] + body)] + extra_attrs
     return fa
 
 def _setup_func(scope, nm, args, cargs):
-    scope.csFunc = nm
+    scope.csFuncName = nm
     idents = {}
     for a in args:
         nm, t = match(a, ("named(nm, contains(t==key('type')))", tuple2))
@@ -284,7 +310,7 @@ def c_func(f, t, args, body, nm):
     retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
     ca = []
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, ca))
-    stmt(make_func(f, retT, nm, ca, cb, []))
+    stmt(make_func(f, retT, str_(nm), ca, cb, []))
 
 def c_stmt(s):
     match(s,
