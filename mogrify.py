@@ -114,6 +114,12 @@ def c_call(f, args):
     op = as_c_op(f)
     if op is not None:
         return csym(op, map(c_expr, args))
+    # big hack comin' up
+    elif match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
+        fstr = c_expr(args[0])
+        args = match(args[1], ('key("tuplelit", sized(args))', identity))
+        return csym('call', [c_expr(f), int_(len(args)+1), fstr]
+                + map(c_expr, args))
     else:
         return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
 
@@ -353,7 +359,8 @@ def c_body(ss, scope_func):
 def mogrify(mod):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
-    stmt(csym('includesys', [str_('stdlib.h')]))
+    for dep in ['stdio.h', 'stdlib.h']:
+        stmt(csym('includesys', [str_(dep)]))
     for s in mod.roots:
         c_stmt(s)
     return Module("c_" + mod.name, None, CSCOPE.csStmts)

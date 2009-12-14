@@ -629,9 +629,20 @@ add_sym('print')
 @stmt(Printnl)
 def conv_printnl(s, context):
     assert s.dest is None
-    (exprsa, exprst) = conv_exprs(s.nodes)
-    cout(context, 'print %s', ', '.join(exprst))
-    return [symref('exprstmt', [symcall('print', exprsa)])]
+    node = s.nodes[0]
+    if isinstance(node, Const):
+        exprsa = [Str(node.value+'\n', []),
+                symref('tuplelit', [Int(0, [])])]
+        exprst = repr(node.value)
+    elif isinstance(node, Mod):
+        format = s.nodes[0].left.value
+        argsa, argst = conv_expr(s.nodes[0].right)
+        exprsa = [Str(format+'\n', []), argsa]
+        exprst = '%r %% %s' % (format, argst)
+    else:
+        assert False, "Unexpected print form: %s" % s
+    cout(context, 'print %s', exprst)
+    return [symref('exprstmt', [symcall('printf', exprsa)])]
 
 add_sym('return')
 add_sym('returnnothing')

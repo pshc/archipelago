@@ -83,7 +83,7 @@ builtins.update(dict((b, __builtins__[b]) for b in [
 
 builtins.update(dict((dummy, None) for dummy in ArrayAtom.__slots__))
 
-def _bi_print(s): print s
+def _printf(s, tup): print s % tup
 
 def _make_record():
     class Record(object):
@@ -97,7 +97,7 @@ builtins.update({'+': o.add, '-': o.sub, '*': o.mul,
                 '<=': o.le, '>=': o.ge, 'is': o.is_, 'is not': o.is_not,
                 'in': lambda x, y: x in y, 'not in': lambda x, y: x not in y,
                 'slice': o.getslice,
-                'print': _bi_print,
+                'printf': _printf,
                 'object': _make_record,
                 })
 
