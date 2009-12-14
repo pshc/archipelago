@@ -133,6 +133,7 @@ def c_expr(e):
         ("key('tuplelit', sized(ts))",
             lambda ts: brackets(lambda: comma_exprs(ts))),
         ("key('sizeof', cons(t, _))", c_sizeof),
+        ("key('NULL')", lambda: out("NULL")), # XXX: stupid special case
         ("key(op, ss)", c_op))
 
 def c_exprstmt(e):
@@ -225,6 +226,11 @@ def c_enumerator(nm):
     out_Str(nm)
     out(',\n')
 
+def c_include(filename, angle_brackets):
+    out('#include <' if angle_brackets else '#include "')
+    out_Str(filename)
+    out('>\n' if angle_brackets else '"\n')
+
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))", c_exprstmt),
@@ -240,7 +246,10 @@ def c_stmt(s):
         ("key('return', cons(e, _))", c_return),
         ("key('returnnothing')", lambda: c_return(None)),
         ("key('field', cons(t, cons(nm, _)))", c_field),
-        ("key('enumerator', cons(nm, _))", c_enumerator))
+        ("key('enumerator', cons(nm, _))", c_enumerator),
+        ("key('includesys', cons(file, _))", lambda f: c_include(f, True)),
+        ("key('includelocal', cons(file, _))", lambda f: c_include(f, False)),
+        )
 
 def c_body(ss):
     global CENV
@@ -272,7 +281,7 @@ if __name__ == '__main__':
     from mogrify import mogrify
     c = mogrify(short)
     write_mod_repr('hello', c)
-    write_c_file('world', c)
+    write_c_file('world.c', c)
     serialize_module(short)
     serialize_module(c)
 

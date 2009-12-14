@@ -96,7 +96,11 @@ def struct_ref(a):
 def c_defref(r, a):
     # TODO
     assert as_c_op(r) is None, "Can't pass around built-in C op %s" % (nm,)
-    return identifier_ref(a)
+    return match(r, # XXX: special cases, blah
+            ("key('True')", lambda: int_(1)),
+            ("key('False')", lambda: int_(0)),
+            ("key('None')", lambda: csym('NULL', [])),
+            ("_", lambda: identifier_ref(a)))
 
 def callnamed(nm, args):
     assert isinstance(nm, basestring)
@@ -252,8 +256,8 @@ def c_DT(dt, cs, vs, nm):
         discrim_union = lambda: Ref(s_atom, None, [])
         discrim_ix = lambda: Ref(ix_atom, None, [])
         stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
-                csym('field', [enum, s_atom]),
-                csym('field', [union, ix_atom])])]))
+                csym('field', [enum, ix_atom]),
+                csym('field', [union, s_atom])])]))
     # Ctor functions
     for (ctor, cnm, fields) in ctors:
         ctorref = lambda: Ref(cnm, None, [])
@@ -349,6 +353,7 @@ def c_body(ss, scope_func):
 def mogrify(mod):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
+    stmt(csym('includesys', [str_('stdlib.h')]))
     for s in mod.roots:
         c_stmt(s)
     return Module("c_" + mod.name, None, CSCOPE.csStmts)
