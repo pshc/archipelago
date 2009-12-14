@@ -4,6 +4,8 @@ def ok(n):
     return s
 def ident(val):
     return val
+Pair = DT('Pair', ('first', int), ('second', int))
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
         inside = 1
@@ -19,8 +21,6 @@ def main():
     t = (1, 2)
     c = None
     c = 'ok'
-    Pair = DT('Pair', ('first', int), ('second', int))
-    Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
     m = Just(1)
     match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
     return 0
