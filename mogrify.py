@@ -119,7 +119,7 @@ def c_defref(r, a):
     return match(r, # XXX: special cases, blah
             ("key('True')", lambda: int_(1)),
             ("key('False')", lambda: int_(0)),
-            ("key('None')", lambda: csym('NULL', [])),
+            ("key('None')", lambda: csym_('NULL')),
             ("_", lambda: identifier_ref(a)))
 
 def callnamed(nm, args):
@@ -129,6 +129,10 @@ def callnamed(nm, args):
 def callnamedref(nm_atom, args):
     assert isinstance(nm_atom, Str)
     return csym('call', [nmref(nm_atom), int_len(args)] + args)
+
+# Binary operator shortcut
+def bop(a, op, b):
+    return csym(op, [a, b])
 
 def c_call(f, args):
     op = as_c_op(f)
@@ -154,14 +158,14 @@ def c_tuple(ts):
         nm = str_('tuple%d' % (n,))
         args = []
         body, var = vardefn_malloced('tup', tupleT(),
-                csym('*', [csym('sizeof', [tupleT()]), int_(n)]))
+                bop(csym('sizeof', [tupleT()]), '*', int_(n)))
         i = 0
         while i < n:
             argnm = str_('t%d' % (i,))
             arg = csym('arg', [cptr(csym_('void')), argnm])
             list_append(args, arg)
-            list_append(body, csym('=', [
-                csym('subscript', [var(), int_(i)]), nmref(argnm)]))
+            list_append(body,
+                bop(csym('subscript', [var(), int_(i)]), '=', nmref(argnm)))
             i += 1
         list_append(body, csym('return', [var()]))
         f = make_func(None, cptr(tupleT()), nm, args, body, [csym_('static')])
@@ -190,8 +194,6 @@ CMatch = DT('CMatch', ('cmDecls', {str: (Atom, Atom, Atom)}),
                       ('cmAssigns', [Atom]),
                       ('cmCurExpr', Atom))
 CMATCH = None
-
-def bop(a, op, b): return csym(op, [a, b])
 
 # TODO: Need a DT-scanning pre-pass to get the real enum/field names
 def c_match_ctor(c, args):
@@ -322,7 +324,7 @@ def c_assign(a, e):
         # Declare it at the top of the function, but set it back here
         s = set_identifier(var, nm, func)
         stmt_after_vardecls(csym('vardecl', [s, ct]), func)
-    stmt(csym('=', [identifier_ref(var), ce]))
+    stmt(bop(identifier_ref(var), '=', ce))
 
 def c_cond(subs, cs):
     cases = []
@@ -389,8 +391,8 @@ def c_DT(dt, cs, vs, nm):
                                      csym('sizeof', [struct_ref(dt)]))
         argnms = {}
         if discrim:
-            list_append(body, csym('=', [csym('->',
-                    [var(), discrim_ix()]), enumsym(cnm.strVal)]))
+            list_append(body, bop(bop(var(), '->', discrim_ix()),
+                                  '=', enumsym(cnm.strVal)))
         # Set all the fields from ctor args
         args = []
         for (ct, fnm) in fields:
@@ -401,13 +403,12 @@ def c_DT(dt, cs, vs, nm):
             # Add the arg and assign it
             list_append(args, csym('arg', [ct, argnm]))
             fieldref = nmref(fnm)
-            argref = nmref(argnm)
             if discrim:
-                s = csym('=', [csym('.', [csym('.', [csym('->', [var(),
-                    discrim_union()]), ctorref()]), fieldref]), argref])
+                s = bop(bop(bop(var(), '->', discrim_union()),
+                            '.', ctorref()), '.', fieldref)
             else:
-                s = csym('=', [csym('->', [var(), fieldref]), argref])
-            list_append(body, s)
+                s = bop(var(), '->', fieldref)
+            list_append(body, bop(s, '=', nmref(argnm)))
         list_append(body, csym('return', [var()]))
         stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, body, []))
 
