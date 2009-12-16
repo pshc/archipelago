@@ -12,7 +12,7 @@ CSCOPE = None
 
 CGlobal = DT('CGlobal', ('cgIncludes', set([str])),
                         ('cgTupleFuncs', {int: (Atom, Atom)}),
-                        ('cgTupleTypeName', Atom))
+                        ('cgTupleType', Atom))
 CGLOBAL = None
 
 def add_include(filename):
@@ -48,7 +48,7 @@ def _c_type(t):
     return match(t,
         ("TInt()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: cptr(nmref(CGLOBAL.cgTupleTypeName))),
+        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TVoid()", lambda: csym_('void')),
@@ -148,7 +148,7 @@ def c_call(f, args):
 def c_tuple(ts):
     n = len(ts)
     global CGLOBAL
-    tupleT = lambda: nmref(CGLOBAL.cgTupleTypeName)
+    tupleT = lambda: Ref(CGLOBAL.cgTupleType, None, [])
     if n not in CGLOBAL.cgTupleFuncs:
         add_include('stdlib.h')
         nm = str_('tuple%d' % (n,))
@@ -406,16 +406,14 @@ def mogrify(mod):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
-    # TODO: Probably should point directly at the typedef rather than
-    #       just the typedef's name Str
-    CGLOBAL = CGlobal(set(), {}, str_('tuple'))
+    CGLOBAL = CGlobal(set(), {},
+            csym('typedef', [cptr(csym_('void')), str_('tuple')]))
     for s in mod.roots:
         c_stmt(s)
     incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
     tup_funcs = [f for (nm, f) in CGLOBAL.cgTupleFuncs.itervalues()]
     if len(tup_funcs) > 0:
-        list_prepend(tup_funcs, csym('typedef',
-            [cptr(csym_('void')), CGLOBAL.cgTupleTypeName]))
+        list_prepend(tup_funcs, CGLOBAL.cgTupleType)
     cstmts = incls + tup_funcs + CSCOPE.csStmts
     return Module("c_" + mod.name, None, cstmts)
 

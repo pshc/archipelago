@@ -58,10 +58,10 @@ def c_struct(s, k, fs):
 
 def c_type(t):
     match(t,
-        ("key(prim==('int' or 'char' or 'tuple' or 'void'))", out),
-        ("Ref(Str(s, _), _, _)", out),
+        ("key(prim==('int' or 'char' or 'void'))", out),
         ("key('ptr', cons(t, _))", c_ptr),
         ("key('structref', cons(s, _))", c_structref),
+        ("Ref(key('typedef', cons(_, cons(nm, _))), _, _)", out_Str),
         ("s==key(k==('struct' or 'union' or 'enum'), "
                 "all(fs, f==key('field' or 'enumerator')))", c_struct))
 
