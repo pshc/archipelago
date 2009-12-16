@@ -71,7 +71,7 @@ def typed_name(t, nm):
     out_Str(nm)
 
 unary_ops = {'negate': '-'}
-binary_ops = {'+': ' + ', '*': ' * ', '.': '.', '->': '->'}
+binary_ops = {'+': ' + ', '*': ' * ', '.': '.', '->': '->', '==': ' == '}
 
 def c_call(f, args):
     s = match(f, ('Str(s, _)', identity),

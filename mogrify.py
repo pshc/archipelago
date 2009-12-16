@@ -40,7 +40,7 @@ def cname(nm):
     return csym('name', [Str(nm, [])])
 
 def nmref(atom):
-    assert isinstance(atom, Str)
+    assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
     return Ref(atom, None, [])
 
 def _c_type(t):
@@ -185,6 +185,54 @@ def assert_false(msg_e):
     # TODO: Use msg_e
     return csym('exprstmt', [callnamed('assert', [int_(0)])])
 
+CMatch = DT('CMatch', ('cmDecls', {str: (Atom, Atom, Atom)}),
+                      ('cmConds', [Atom]),
+                      ('cmAssigns', [Atom]),
+                      ('cmCurExpr', Atom))
+CMATCH = None
+
+def bop(a, op, b): return csym(op, [a, b])
+
+# TODO: Need a DT-scanning pre-pass to get the real enum/field names
+def c_match_ctor(c, args):
+    global CMATCH
+    # Check index
+    ctorname = getname(c)
+    old_expr = CMATCH.cmCurExpr
+    test = bop(bop(old_expr, '->', str_('ix')), '==', str_(ctorname))
+    list_append(CMATCH.cmConds, test)
+    fields = match(c, ("key('ctor', all(fs, key('field') and named(nm)))",
+                       identity))
+    for arg, fieldname in zip(args, fields):
+        # TODO: cmCurExpr will be duplicated across the AST... ugh...
+        CMATCH.cmCurExpr = bop(bop(bop(old_expr, '->', str_('s')),
+                               '.', str_(ctorname)), '.', str_(fieldname))
+        c_match_case(arg)
+    CMATCH.cmCurExpr = old_expr
+
+def c_match_var(v, t, nm):
+    global CMATCH
+    while nm in CMATCH.cmDecls:
+        nm += '_'
+    varnm = str_(nm)
+    CMATCH.cmDecls[nm] = (v, varnm, csym('vardecl', [varnm, c_scheme(t)]))
+    list_append(CMATCH.cmAssigns, bop(nmref(varnm), '=', CMATCH.cmCurExpr))
+
+def c_match_case(case):
+    match(case,
+            ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
+            ("v==key('var', contains(t==key('type'))) and named(nm)",
+                c_match_var))
+
+def and_together(conds):
+    if len(conds) == 0:
+        return int_(1)
+    elif len(conds) == 1:
+        return conds[0]
+    else:
+        c = conds.pop(0)
+        return bop(c, '&&', and_together(conds))
+
 def c_match(e, retT, cs):
     eT = match(e.subs, ("contains(t==key('type'))", identity))
     fnm = str_('matcher')
@@ -192,9 +240,31 @@ def c_match(e, retT, cs):
     if sf is not None:
         fnm.strVal = '%s_%s' % (sf.csFuncName, fnm.strVal)
     arg = csym('arg', [c_scheme(eT)])
-    arg.subs.append(set_identifier(arg, 'expr', None))
-    if_ = csym('if', []) # TODO
-    body = [if_, assert_false(strlit('%s failed' % (fnm.strVal,)))]
+    argnm = set_identifier(arg, 'expr', None)
+    list_append(arg.subs, argnm)
+    # Convert each case to an if statement, with some decls for match vars
+    cases = []
+    decls = []
+    global CMATCH
+    for c in cs:
+        m, b = match(c, ("key('case', cons(m, cons(b, _)))", tuple2))
+        CMATCH = CMatch({}, [], [], argnm)
+        c_match_case(m)
+        matchvars = {}
+        for orig_var, var_nm, new_var in CMATCH.cmDecls.itervalues():
+            matchvars[orig_var] = var_nm
+            list_append(decls, new_var)
+        # Convert the success expr with the match vars bound to their decls
+        global CSCOPE
+        old_scope = CSCOPE
+        CSCOPE = CScope([], fnm.strVal, matchvars, {}, old_scope)
+        stmts = CMATCH.cmAssigns + [csym('return', [c_expr(b)])]
+        CSCOPE = old_scope
+        test = and_together(CMATCH.cmConds)
+        list_append(cases, csym('case', [test, int_len(stmts)] + stmts))
+    # Phew! Finally, create our match function
+    body = decls + [csym('if', cases),
+                    assert_false(strlit('%s failed' % (fnm.strVal,)))]
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
     list_append(global_scope().csStmts, f)
     return callnamedref(fnm, [c_expr(e)])
