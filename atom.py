@@ -279,6 +279,7 @@ def _do_repr(s, r, indent):
         label = repr(type(s))
     r.append('  ' * indent + label)
     if hasattr(s, 'subs'):
+        assert isinstance(s.subs, list), "Expected list, not %s" % (s.subs,)
         for sub in s.subs:
             _do_repr(sub, r, indent + 1)
 

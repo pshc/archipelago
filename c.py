@@ -59,6 +59,7 @@ def c_struct(s, k, fs):
 def c_type(t):
     match(t,
         ("key(prim==('int' or 'char' or 'tuple' or 'void'))", out),
+        ("Ref(Str(s, _), _, _)", out),
         ("key('ptr', cons(t, _))", c_ptr),
         ("key('structref', cons(s, _))", c_structref),
         ("s==key(k==('struct' or 'union' or 'enum'), "
@@ -70,7 +71,7 @@ def typed_name(t, nm):
     out_Str(nm)
 
 unary_ops = {'negate': '-'}
-binary_ops = {'+': ' + ', '%': ' % ', '.': '.', '->': '->'}
+binary_ops = {'+': ' + ', '*': ' * ', '.': '.', '->': '->'}
 
 def c_call(f, args):
     s = match(f, ('Str(s, _)', identity),
@@ -113,6 +114,11 @@ def c_op(op, ss):
         c_expr(ss[0])
         out(binary_ops[op])
         c_expr(ss[1])
+    elif op == 'subscript':
+        c_expr(ss[0])
+        out('[')
+        c_expr(ss[1])
+        out(']')
     elif op == ':?':
         c_expr(ss[0])
         out(' ? ')
@@ -163,6 +169,14 @@ def c_vardefn(nm, t, e):
     typed_name(t, nm)
     out(' = ')
     c_expr(e)
+    semicolon()
+
+def c_typedef(t, nm):
+    indent()
+    out('typedef ')
+    c_type(t)
+    out(' ')
+    out_Str(nm)
     semicolon()
 
 def c_if(subs, cs):
@@ -238,6 +252,7 @@ def c_stmt(s):
         ("key('decl', cons(t, _))", c_decl),
         ("key('vardecl', cons(nm, cons(t, _)))", c_vardecl),
         ("key('vardefn', cons(nm, cons(t, cons(e, _))))", c_vardefn),
+        ("key('typedef', cons(t, cons(nm, _)))", c_typedef),
         ("key('if', ss and all(cs, key('case', cons(t, sized(b)))))", c_if),
         ("key('while', cons(t, sized(b)))", c_while),
         ("key('func', ss==cons(retT, cons(nm, "

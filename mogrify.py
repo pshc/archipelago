@@ -10,6 +10,15 @@ CScope = DT('CScope', ('csStmts', [Atom]),
                       ('csOuterScope', 'CScope'))
 CSCOPE = None
 
+CGlobal = DT('CGlobal', ('cgIncludes', set([str])),
+                        ('cgTupleFuncs', {int: (Atom, Atom)}),
+                        ('cgTupleTypeName', Atom))
+CGLOBAL = None
+
+def add_include(filename):
+    global CGLOBAL
+    set_add(CGLOBAL.cgIncludes, filename)
+
 def csym(name, subs):
     """
     This is what it should look like:
@@ -31,10 +40,11 @@ def cname(nm):
     return csym('name', [Str(nm, [])])
 
 def _c_type(t):
+    global CGLOBAL
     return match(t,
         ("TInt()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: csym_('tuple')),
+        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleTypeName, None, []))),
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TVoid()", lambda: csym_('void')),
@@ -93,6 +103,12 @@ def struct_ref(a):
         scope = scope.csOuterScope
     assert False, '%r not in struct name scope' % (a,)
 
+def vardefn_malloced(nm, t, t_size):
+    add_include('stdlib.h')
+    nm_atom = str_(nm)
+    setup = csym('vardefn', [nm_atom, cptr(t), callnamed('malloc', [t_size])])
+    return ([setup], lambda: Ref(nm_atom, None, []))
+
 def c_defref(r, a):
     # TODO
     assert as_c_op(r) is None, "Can't pass around built-in C op %s" % (nm,)
@@ -116,6 +132,7 @@ def c_call(f, args):
         return csym(op, map(c_expr, args))
     # big hack comin' up
     elif match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
+        add_include('stdio.h')
         fstr = c_expr(args[0])
         args = match(args[1], ('key("tuplelit", sized(args))', identity))
         return csym('call', [c_expr(f), int_(len(args)+1), fstr]
@@ -123,9 +140,31 @@ def c_call(f, args):
     else:
         return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
 
+# Currently boxed and void*'d to hell... hmmm...
 def c_tuple(ts):
-    f = 'tuple%d' % (len(ts),) # TODO
-    return callnamed(f, map(c_expr, ts))
+    n = len(ts)
+    global CGLOBAL
+    tupleT = lambda: Ref(CGLOBAL.cgTupleTypeName, None, [])
+    if n not in CGLOBAL.cgTupleFuncs:
+        add_include('stdlib.h')
+        nm = str_('tuple%d' % (n,))
+        args = []
+        body, var = vardefn_malloced('tup', tupleT(),
+                csym('*', [csym('sizeof', [tupleT()]), int_(n)]))
+        i = 0
+        while i < n:
+            argnm = str_('t%d' % (i,))
+            arg = csym('arg', [cptr(csym_('void')), argnm])
+            list_append(args, arg)
+            list_append(body, csym('=', [
+                csym('subscript', [var(), int_(i)]), Ref(argnm, None, [])]))
+            i += 1
+        list_append(body, csym('return', [var()]))
+        f = make_func(None, cptr(tupleT()), nm, args, body, [csym_('static')])
+        CGLOBAL.cgTupleFuncs[n] = (nm, f)
+    else:
+        nm, f = CGLOBAL.cgTupleFuncs[n]
+    return callnamedref(nm, map(c_expr, ts))
 
 def global_scope():
     global CSCOPE
@@ -138,7 +177,9 @@ def strlit(s):
     return csym('strlit', [str_(s)])
 
 def assert_false(msg_e):
-    return csym('exprstmt', [callnamed('assert', [int_(0), msg_e])])
+    add_include('assert.h')
+    # TODO: Use msg_e
+    return csym('exprstmt', [callnamed('assert', [int_(0)])])
 
 def c_match(e, retT, cs):
     eT = match(e.subs, ("contains(t==key('type'))", identity))
@@ -229,7 +270,9 @@ def c_while(t, body):
     stmt(csym('while', [ct, int_len(cb)] + cb))
 
 def c_assert(t, m):
-    stmt(csym('exprstmt', [callnamed('assert', [c_expr(t), c_expr(m)])]))
+    add_include('assert.h')
+    # TODO: Use m
+    stmt(csym('exprstmt', [callnamed('assert', [c_expr(t)])]))
 
 def c_DT(dt, cs, vs, nm):
     discrim = len(cs) > 1
@@ -267,20 +310,19 @@ def c_DT(dt, cs, vs, nm):
     # Ctor functions
     for (ctor, cnm, fields) in ctors:
         ctorref = lambda: Ref(cnm, None, [])
-        varnm = str_(cnm.strVal.lower())
-        var = lambda: Ref(varnm, None, [])
+        varnm = cnm.strVal.lower()
+        body, var = vardefn_malloced(varnm, struct_ref(dt),
+                                     csym('sizeof', [struct_ref(dt)]))
         argnms = {}
-        setup = [csym('vardefn', [varnm, cptr(struct_ref(dt)),
-                callnamed('malloc', [csym('sizeof', [struct_ref(dt)])])])]
         if discrim:
-            list_append(setup, csym('=', [csym('->',
+            list_append(body, csym('=', [csym('->',
                     [var(), discrim_ix()]), enumsym(cnm.strVal)]))
         # Set all the fields from ctor args
         args = []
         for (ct, fnm) in fields:
             argnm = str_(fnm.strVal)
             # Check for name conflicts; this should be done more generally
-            while argnm.strVal == varnm.strVal:
+            while argnm.strVal == varnm:
                 argnm.strVal = argnm.strVal + '_'
             # Add the arg and assign it
             list_append(args, csym('arg', [ct, argnm]))
@@ -291,9 +333,9 @@ def c_DT(dt, cs, vs, nm):
                     discrim_union()]), ctorref()]), fieldref]), argref])
             else:
                 s = csym('=', [csym('->', [var(), fieldref]), argref])
-            list_append(setup, s)
-        list_append(setup, csym('return', [var()]))
-        stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, setup, []))
+            list_append(body, s)
+        list_append(body, csym('return', [var()]))
+        stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, body, []))
 
 def make_func(f, retT, nm, args, body, extra_attrs):
     global CSCOPE
@@ -359,11 +401,19 @@ def c_body(ss, scope_func):
 def mogrify(mod):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
-    for dep in ['stdio.h', 'stdlib.h']:
-        stmt(csym('includesys', [str_(dep)]))
+    global CGLOBAL
+    # TODO: Probably should point directly at the typedef rather than
+    #       just the typedef's name Str
+    CGLOBAL = CGlobal(set(), {}, str_('tuple'))
     for s in mod.roots:
         c_stmt(s)
-    return Module("c_" + mod.name, None, CSCOPE.csStmts)
+    incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
+    tup_funcs = [f for (nm, f) in CGLOBAL.cgTupleFuncs.itervalues()]
+    if len(tup_funcs) > 0:
+        list_prepend(tup_funcs, csym('typedef',
+            [cptr(csym_('void')), CGLOBAL.cgTupleTypeName]))
+    cstmts = incls + tup_funcs + CSCOPE.csStmts
+    return Module("c_" + mod.name, None, cstmts)
 
 if __name__ == '__main__':
     import ast
