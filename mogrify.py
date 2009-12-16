@@ -39,12 +39,16 @@ def cptr(t):
 def cname(nm):
     return csym('name', [Str(nm, [])])
 
+def nmref(atom):
+    assert isinstance(atom, Str)
+    return Ref(atom, None, [])
+
 def _c_type(t):
     global CGLOBAL
     return match(t,
         ("TInt()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleTypeName, None, []))),
+        ("TTuple(_)", lambda: cptr(nmref(CGLOBAL.cgTupleTypeName))),
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TVoid()", lambda: csym_('void')),
@@ -87,7 +91,7 @@ def identifier_ref(a):
     while scope is not None:
         s = scope.csIdentifierAtoms.get(a)
         if s is not None:
-            return Ref(s, None, [])
+            return nmref(s)
         scope = scope.csOuterScope
     if a in boot_syms:
         return str_(getname(a))
@@ -99,7 +103,7 @@ def struct_ref(a):
     while scope is not None:
         s = scope.csStructNameAtoms.get(a)
         if s is not None:
-            return csym('structref', [Ref(s, None, [])])
+            return csym('structref', [nmref(s)])
         scope = scope.csOuterScope
     assert False, '%r not in struct name scope' % (a,)
 
@@ -107,7 +111,7 @@ def vardefn_malloced(nm, t, t_size):
     add_include('stdlib.h')
     nm_atom = str_(nm)
     setup = csym('vardefn', [nm_atom, cptr(t), callnamed('malloc', [t_size])])
-    return ([setup], lambda: Ref(nm_atom, None, []))
+    return ([setup], lambda: nmref(nm_atom))
 
 def c_defref(r, a):
     # TODO
@@ -124,7 +128,7 @@ def callnamed(nm, args):
 
 def callnamedref(nm_atom, args):
     assert isinstance(nm_atom, Str)
-    return csym('call', [Ref(nm_atom, None, []), int_len(args)] + args)
+    return csym('call', [nmref(nm_atom), int_len(args)] + args)
 
 def c_call(f, args):
     op = as_c_op(f)
@@ -144,7 +148,7 @@ def c_call(f, args):
 def c_tuple(ts):
     n = len(ts)
     global CGLOBAL
-    tupleT = lambda: Ref(CGLOBAL.cgTupleTypeName, None, [])
+    tupleT = lambda: nmref(CGLOBAL.cgTupleTypeName)
     if n not in CGLOBAL.cgTupleFuncs:
         add_include('stdlib.h')
         nm = str_('tuple%d' % (n,))
@@ -157,7 +161,7 @@ def c_tuple(ts):
             arg = csym('arg', [cptr(csym_('void')), argnm])
             list_append(args, arg)
             list_append(body, csym('=', [
-                csym('subscript', [var(), int_(i)]), Ref(argnm, None, [])]))
+                csym('subscript', [var(), int_(i)]), nmref(argnm)]))
             i += 1
         list_append(body, csym('return', [var()]))
         f = make_func(None, cptr(tupleT()), nm, args, body, [csym_('static')])
@@ -288,7 +292,7 @@ def c_DT(dt, cs, vs, nm):
         cfields = [csym('field', [t, fnm]) for (t, fnm) in fields]
         if discrim:
             list_append(structs, csym('field', [csym('struct', cfields),
-                                                Ref(cnm, None, [])]))
+                                                nmref(cnm)]))
         else:
             stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm)]
                                               + cfields)]))
@@ -302,14 +306,14 @@ def c_DT(dt, cs, vs, nm):
         union = csym('union', structs)
         s_atom = str_('s')
         ix_atom = str_('ix')
-        discrim_union = lambda: Ref(s_atom, None, [])
-        discrim_ix = lambda: Ref(ix_atom, None, [])
+        discrim_union = lambda: nmref(s_atom)
+        discrim_ix = lambda: nmref(ix_atom)
         stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
                 csym('field', [enum, ix_atom]),
                 csym('field', [union, s_atom])])]))
     # Ctor functions
     for (ctor, cnm, fields) in ctors:
-        ctorref = lambda: Ref(cnm, None, [])
+        ctorref = lambda: nmref(cnm)
         varnm = cnm.strVal.lower()
         body, var = vardefn_malloced(varnm, struct_ref(dt),
                                      csym('sizeof', [struct_ref(dt)]))
@@ -326,8 +330,8 @@ def c_DT(dt, cs, vs, nm):
                 argnm.strVal = argnm.strVal + '_'
             # Add the arg and assign it
             list_append(args, csym('arg', [ct, argnm]))
-            fieldref = Ref(fnm, None, [])
-            argref = Ref(argnm, None, [])
+            fieldref = nmref(fnm)
+            argref = nmref(argnm)
             if discrim:
                 s = csym('=', [csym('.', [csym('.', [csym('->', [var(),
                     discrim_union()]), ctorref()]), fieldref]), argref])
