@@ -206,10 +206,13 @@ def pat_ctor(ctor, args):
 
 def infer_pat(p):
     return match(p,
+        ("Int(_, _)", lambda: (TInt(), {})),
+        ("Str(_, _)", lambda: (TStr(), {})),
         ("key('wildcard')", lambda: (fresh(), {})),
         ("v==key('var')", pat_var),
         ("key('capture', cons(v, cons(p, _)))", pat_capture),
-        ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor))
+        ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor),
+        )
 
 def infer_match(m, e, cs):
     et, s = infer_expr(e)

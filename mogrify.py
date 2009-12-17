@@ -196,6 +196,16 @@ CMatch = DT('CMatch', ('cmDecls', {str: (Atom, Atom, Atom)}),
                       ('cmCurExpr', Atom))
 CMATCH = None
 
+def c_match_int_literal(i):
+    global CMATCH
+    list_append(CMATCH.cmConds, bop(CMATCH.cmCurExpr, '==', int_(i)))
+
+def c_match_str_literal(s):
+    global CMATCH
+    add_include('string.h')
+    list_append(CMATCH.cmConds, bop(callnamed('strcmp',
+        [CMATCH.cmCurExpr, strlit(s)]), '==', int_(0)))
+
 def c_match_ctor(c, args):
     global CMATCH
     global CGLOBAL
@@ -234,6 +244,8 @@ def c_match_capture(v, p):
 def c_match_case(case):
     match(case,
             ("key('wildcard')", lambda: None),
+            ("Int(i, _)", c_match_int_literal),
+            ("Str(s, _)", c_match_str_literal),
             ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
             ("v==key('var', contains(t==key('type'))) and named(nm)",
                 c_match_var),
