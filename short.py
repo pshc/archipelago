@@ -4,7 +4,7 @@ def ok(n):
     return s
 def ident(val):
     return val
-Pair = DT('Pair', ('first', int), ('second', str))
+Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
@@ -23,8 +23,10 @@ def main():
     c = 'ok'
     m = Just(1)
     match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
-    print "%d" % (match(Pair(1, "zero"),
-                        ("p==Pair(f, 'zero')", lambda p, f: f*10)),)
+    p = Pair(1, ('hello', 'world'))
+    print "%s world" % (match(p,
+        ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),
+        ("Pair(_, (msg, 'world'))", identity)),)
     return 0
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

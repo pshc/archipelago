@@ -206,6 +206,16 @@ def c_match_str_literal(s):
     list_append(CMATCH.cmConds, bop(callnamed('strcmp',
         [CMATCH.cmCurExpr, strlit(s)]), '==', int_(0)))
 
+def c_match_tuple(ps):
+    global CMATCH
+    old_expr = CMATCH.cmCurExpr
+    i = 0
+    for p in ps:
+        CMATCH.cmCurExpr = csym('subscript', [old_expr, int_(i)])
+        c_match_case(p)
+        i += 1
+    CMATCH.cmCurExpr = old_expr
+
 def c_match_ctor(c, args):
     global CMATCH
     global CGLOBAL
@@ -246,6 +256,7 @@ def c_match_case(case):
             ("key('wildcard')", lambda: None),
             ("Int(i, _)", c_match_int_literal),
             ("Str(s, _)", c_match_str_literal),
+            ("key('tuplelit', sized(ps))", c_match_tuple),
             ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
             ("v==key('var', contains(t==key('type'))) and named(nm)",
                 c_match_var),

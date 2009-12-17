@@ -186,6 +186,15 @@ def infer_call(f, args):
     s2 = unify(ft, TFunc(argTs, retT))
     return (retT, compose(s, s2))
 
+def pat_tuple(ps):
+    s = {}
+    tupTs = []
+    for p in ps:
+        pT, s2 = infer_pat(p)
+        s = compose(s, s2)
+        list_append(tupTs, pT)
+    return (TTuple(tupTs), s)
+
 def pat_var(v):
     t = fresh()
     set_type(v, t, {}, True)
@@ -209,6 +218,7 @@ def infer_pat(p):
         ("Int(_, _)", lambda: (TInt(), {})),
         ("Str(_, _)", lambda: (TStr(), {})),
         ("key('wildcard')", lambda: (fresh(), {})),
+        ("key('tuplelit', sized(ps))", pat_tuple),
         ("v==key('var')", pat_var),
         ("key('capture', cons(v, cons(p, _)))", pat_capture),
         ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor),
