@@ -191,6 +191,10 @@ def pat_var(v):
     set_type(v, t, {}, True)
     return (t, {})
 
+def pat_capture(v, p):
+    pat_var(v)
+    return infer_pat(p)
+
 def pat_ctor(ctor, args):
     ct = get_type(ctor).schemeType
     fieldTs, dt = match(ct, ("TFunc(fs, dt)", tuple2))
@@ -204,6 +208,7 @@ def infer_pat(p):
     return match(p,
         ("key('wildcard')", lambda: (fresh(), {})),
         ("v==key('var')", pat_var),
+        ("key('capture', cons(v, cons(p, _)))", pat_capture),
         ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor))
 
 def infer_match(m, e, cs):

@@ -23,6 +23,7 @@ def main():
     c = 'ok'
     m = Just(1)
     match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
+    print "%d" % (match(Pair(1, 0), ("p==Pair(f, _)", lambda p, f: f*10)),)
     return 0
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

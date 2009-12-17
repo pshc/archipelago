@@ -227,11 +227,17 @@ def c_match_var(v, t, nm):
     CMATCH.cmDecls[nm] = (v, varnm, csym('vardecl', [varnm, c_scheme(t)]))
     list_append(CMATCH.cmAssigns, bop(nmref(varnm), '=', CMATCH.cmCurExpr))
 
+def c_match_capture(v, p):
+    c_match_case(v)
+    c_match_case(p)
+
 def c_match_case(case):
     match(case,
+            ("key('wildcard')", lambda: None),
             ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
             ("v==key('var', contains(t==key('type'))) and named(nm)",
-                c_match_var))
+                c_match_var),
+            ("key('capture', cons(v, cons(p, _)))", c_match_capture))
 
 def and_together(conds):
     if len(conds) == 0:
