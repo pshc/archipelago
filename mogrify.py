@@ -262,6 +262,17 @@ def c_match_case(case):
                 c_match_var),
             ("key('capture', cons(v, cons(p, _)))", c_match_capture))
 
+def c_match_case_names(case):
+    return match(case,
+            ("Int(i, _)", lambda: ['int']),
+            ("Str(s, _)", lambda: ['str']),
+            ("key('tuplelit', sized(ps))",
+                lambda ps: concat_map(c_match_make_name, ps)),
+            ("key('ctor', cons(Ref(c, _, _), _))", lambda c: [getname(c)]),
+            ("named(nm) or key('capture', cons(named(nm), _))",
+                lambda nm: [nm]),
+            ("_", lambda: []))
+
 def and_together(conds):
     if len(conds) == 0:
         return int_(1)
@@ -273,10 +284,8 @@ def and_together(conds):
 
 def c_match(e, retT, cs):
     eT = match(e.subs, ("contains(t==key('type'))", identity))
-    fnm = str_('matcher')
     sf = surrounding_func()
-    if sf is not None:
-        fnm.strVal = '%s_%s' % (sf.csFuncName, fnm.strVal)
+    nms = ['match'] if sf is None else [sf.csFuncName, 'match']
     arg = csym('arg', [c_scheme(eT)])
     argnm = set_identifier(arg, 'expr', None)
     list_append(arg.subs, argnm)
@@ -288,6 +297,7 @@ def c_match(e, retT, cs):
         m, b = match(c, ("key('case', cons(m, cons(b, _)))", tuple2))
         CMATCH = CMatch({}, [], [], argnm)
         c_match_case(m)
+        list_concat(nms, c_match_case_names(m))
         matchvars = {}
         for orig_var, var_nm, new_var in CMATCH.cmDecls.itervalues():
             matchvars[orig_var] = var_nm
@@ -295,12 +305,13 @@ def c_match(e, retT, cs):
         # Convert the success expr with the match vars bound to their decls
         global CSCOPE
         old_scope = CSCOPE
-        CSCOPE = CScope([], fnm.strVal, matchvars, {}, old_scope)
+        CSCOPE = CScope([], 'matchfunc', matchvars, {}, old_scope)
         stmts = CMATCH.cmAssigns + [csym('return', [c_expr(b)])]
         CSCOPE = old_scope
         test = and_together(CMATCH.cmConds)
         list_append(cases, csym('case', [test, int_len(stmts)] + stmts))
     # Phew! Finally, create our match function
+    fnm = str_('_'.join(nms))
     body = decls + [csym('if', cases),
                     assert_false(strlit('%s failed' % (fnm.strVal,)))]
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])

@@ -192,6 +192,12 @@ def snd(t):
 def concat(lists):
     return reduce(list.__add__, lists, [])
 
+def concat_map(f, xs):
+    result = []
+    for x in xs:
+        result += f(xs)
+    return result
+
 def unzip(list):
     first = []
     second = []

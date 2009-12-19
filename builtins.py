@@ -64,6 +64,7 @@ dict_keys = dict.keys
 set_add = set.add
 list_append, list_sort = list.append, list.sort
 list_prepend = lambda l, x: l.insert(0, x)
+def list_concat(a, b): a += b
 list_pop_front = lambda l: l.pop(0)
 list_head, list_tail = lambda l: l[0], lambda l: l[1:]
 
