@@ -240,6 +240,11 @@ def infer_match(m, e, cs):
     set_type(e, et, s, True)
     return (retT, s)
 
+def infer_attr(struct, a):
+    structT, s = infer_expr(struct)
+    # TODO: s = compose(unify(a's DT, structT), s)
+    return (get_type(a).schemeType, s)
+
 def unknown_infer(a):
     assert False, 'Unknown infer case:\n%s' % (a,)
 
@@ -251,6 +256,7 @@ def infer_expr(a):
         ("key('tuplelit', sized(ts))", infer_tuple),
         ("key('call', cons(f, sized(s)))", infer_call),
         ("m==key('match', cons(e, all(cs, c==key('case'))))", infer_match),
+        ("key('attr', cons(s, cons(Ref(a, _, _), _)))", infer_attr),
         ("Ref(v==key('var'), _, _)",
             lambda v: (get_type(v).schemeType, {})),
         ("Ref(f==key('func' or 'ctor'), _, _)",
@@ -268,6 +274,7 @@ def infer_DT(dt, cs, vs, nm):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t, m)))
             list_append(fieldTs, t)
+            set_type(f, t, {}, False)
         set_type(c, TFunc(fieldTs, dtT), {}, False)
     return {}
 

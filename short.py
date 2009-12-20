@@ -24,9 +24,9 @@ def main():
     m = Just(1)
     match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
     p = Pair(1, ('hello', 'world'))
-    print "%s world" % (match(p,
+    print "%s %s" % (match(p,
         ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),
-        ("Pair(_, (msg, 'world'))", identity)),)
+        ("Pair(_, (msg, 'world'))", identity)), p.second)
     return 0
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
