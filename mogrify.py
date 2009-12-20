@@ -12,13 +12,16 @@ CSCOPE = None
 
 DtInfo = DT('DtInfo', ('diIndexName', Atom),
                       ('diUnionName', Atom))
+CtorInfo = DT('CtorInfo', ('ciDtInfo', DtInfo),
+                          ('ciEnumName', Atom),
+                          ('ciStructName', Atom))
 FieldInfo = DT('FieldInfo', ('fiDtInfo', DtInfo),
                             ('fiFieldName', Atom),
                             ('fiCtorName', Atom))
 
 CGlobal = DT('CGlobal', ('cgIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
-                        ('cgCtors', {Atom: (Atom, Atom, Atom)}),
+                        ('cgCtors', {Atom: CtorInfo}),
                         ('cgFields', {Atom: FieldInfo}),
                         ('cgTupleFuncs', {int: (Atom, Atom)}),
                         ('cgTupleType', Atom))
@@ -224,27 +227,35 @@ def c_match_tuple(ps):
         i += 1
     CMATCH.cmCurExpr = old_expr
 
+def c_field_lookup(mogrified_expr, fieldinfo):
+    fi = fieldinfo
+    if fi.fiCtorName is None:
+        return bop(mogrified_expr, '->', nmref(fi.fiFieldName))
+    else:
+        return bop(bop(bop(mogrified_expr,
+                '->', nmref(fi.fiDtInfo.diUnionName)),
+                '.', nmref(fi.fiCtorName)),
+                '.', nmref(fi.fiFieldName))
+
+def c_ctor_index_test(mogrified_expr, test_op, ctorinfo):
+    ci = ctorinfo
+    assert ci.ciEnumName
+    return bop(bop(mogrified_expr, '->', nmref(ci.ciDtInfo.diIndexName)),
+            test_op, nmref(ci.ciEnumName))
+
 def c_match_ctor(c, args):
     global CMATCH
     global CGLOBAL
     # Check index
-    dt, cixname, csname = CGLOBAL.cgCtors[c]
+    ci = CGLOBAL.cgCtors[c]
     old_expr = CMATCH.cmCurExpr
-    if cixname is not None:
-        test = bop(bop(old_expr, '->', str_('ix')), '==', nmref(cixname))
-        list_append(CMATCH.cmConds, test)
+    if ci.ciEnumName is not None:
+        list_append(CMATCH.cmConds, c_ctor_index_test(old_expr, '==', ci))
     fields = match(c, ("key('ctor', all(fs, f==key('field')))",
                        identity))
-    get_field = None
-    if csname is not None:
-        get_field = lambda old_expr, fnm: bop(bop(bop(
-            old_expr, '->', str_('s')), '.', nmref(csname)), '.', fnm)
-    else:
-        get_field = lambda old_expr, fnm: bop(old_expr, '->', fnm)
     for arg, field in zip(args, fields):
         # TODO: cmCurExpr will be duplicated across the AST... ugh...
-        fnm = CGLOBAL.cgFields[field].fiFieldName
-        CMATCH.cmCurExpr = get_field(old_expr, nmref(fnm))
+        CMATCH.cmCurExpr = c_field_lookup(old_expr, CGLOBAL.cgFields[field])
         c_match_case(arg)
     CMATCH.cmCurExpr = old_expr
 
@@ -330,12 +341,7 @@ def c_match(e, retT, cs):
 def c_attr(struct, a):
     global CGLOBAL
     fi = CGLOBAL.cgFields[a]
-    if fi.fiCtorName is None:
-        return bop(c_expr(struct), '->', nmref(fi.fiFieldName))
-    else:
-        return bop(bop(bop(c_expr(struct), '->', nmref(fi.fiCtorName)),
-                '.', nmref(fi.fiDtInfo.diUnionName)),
-                '.', nmref(fi.fiFieldName))
+    return c_field_lookup(c_expr(struct), fi)
 
 def c_expr(e):
     return match(e,
@@ -425,42 +431,38 @@ def c_DT(dt, cs, vs, nm):
     enumsyms = []
     # Convert ctors to structs
     for c in cs:
-        cnm, fs = match(c, ("named(nm, all(fs, f==key('field')))",
-                            lambda cnm, fs: (str_(cnm), fs)))
+        fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
         fields = [match(f, ("f==key('field', contains(key('type',cons(t,_))))",
                             lambda f, t: (c_type(t, vs), CGLOBAL.cgFields[f])))
                   for f in fs]
         cfields = [csym('field', [t, fi.fiFieldName]) for (t, fi) in fields]
         if discrim:
-            cdt, cixname, csname = CGLOBAL.cgCtors[c]
+            ci = CGLOBAL.cgCtors[c]
             list_append(structs, csym('field', [csym('struct', cfields),
-                                                csname]))
-            list_append(enumsyms, csym('enumerator', [cixname]))
+                                                ci.ciStructName]))
+            list_append(enumsyms, csym('enumerator', [ci.ciEnumName]))
         else:
             stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm)]
                                               + cfields)]))
-        ctors.append((c, cnm, fields))
+        ctors.append((c, fields))
     dtinfo = CGLOBAL.cgDTs[dt]
-    discrim_union = discrim_ix = None
     if discrim:
         # Generate our extra struct-around-union-around-ctors
         enum = csym('enum', enumsyms)
         union = csym('union', structs)
-        discrim_ix = lambda: nmref(dtinfo.diIndexName)
-        discrim_union = lambda: nmref(dtinfo.diUnionName)
         stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
                 csym('field', [enum, dtinfo.diIndexName]),
                 csym('field', [union, dtinfo.diUnionName])])]))
     # Ctor functions
-    for (ctor, cnm, fields) in ctors:
-        cdt, cixname, csname = CGLOBAL.cgCtors[ctor]
-        varnm = cnm.strVal.lower()
+    for (ctor, fields) in ctors:
+        ci = CGLOBAL.cgCtors[ctor]
+        ctornm = str_(getname(ctor))
+        varnm = ctornm.strVal.lower()
         body, var = vardefn_malloced(varnm, struct_ref(dt),
                                      csym('sizeof', [struct_ref(dt)]))
         argnms = {}
         if discrim:
-            list_append(body, bop(bop(var(), '->', discrim_ix()),
-                                  '=', nmref(cixname)))
+            list_append(body, c_ctor_index_test(var(), '=', ci))
         # Set all the fields from ctor args
         args = []
         for (ct, fi) in fields:
@@ -470,15 +472,10 @@ def c_DT(dt, cs, vs, nm):
                 argnm.strVal = argnm.strVal + '_'
             # Add the arg and assign it
             list_append(args, csym('arg', [ct, argnm]))
-            fieldref = nmref(fi.fiFieldName)
-            if discrim:
-                s = bop(bop(bop(var(), '->', discrim_union()),
-                            '.', nmref(csname)), '.', fieldref)
-            else:
-                s = bop(var(), '->', fieldref)
-            list_append(body, bop(s, '=', nmref(argnm)))
+            assignment = bop(c_field_lookup(var(), fi), '=', nmref(argnm))
+            list_append(body, assignment)
         list_append(body, csym('return', [var()]))
-        stmt(make_func(ctor, cptr(struct_ref(dt)), cnm, args, body, []))
+        stmt(make_func(ctor, cptr(struct_ref(dt)), ctornm, args, body, []))
 
 def make_func(f, retT, nm, args, body, extra_attrs):
     global CSCOPE
@@ -564,7 +561,7 @@ def scan_DTs(roots):
             if discrim:
                 enumname = str_(dtnm + cnm)
                 structname = str_(cnm)
-            ctors[c] = (dt, enumname, structname)
+            ctors[c] = CtorInfo(dtinfo, enumname, structname)
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
     tupleT = csym('typedef', [cptr(csym_('void')), str_('tuple')])
