@@ -3,7 +3,7 @@ from base import *
 Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData \
     = ADT('Type',
-        'TVar', ('varIndex', int),
+        'TVar', ('varAtom', 'Atom'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
         'TNullable', ('nullType', 'Type'),

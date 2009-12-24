@@ -59,6 +59,7 @@ def c_struct(s, k, fs):
 def c_type(t):
     match(t,
         ("key(prim==('int' or 'char' or 'void'))", out),
+        ("key(TODO==('somefunc_t'))", out),
         ("key('ptr', cons(t, _))", c_ptr),
         ("key('structref', cons(s, _))", c_structref),
         ("Ref(key('typedef', cons(_, cons(nm, _))), _, _)", out_Str),
@@ -290,7 +291,9 @@ if __name__ == '__main__':
     import hm
     hm.infer_types(short.roots)
     write_mod_repr('hello', short)
+    write_mod_repr('konnichiwa', short)
     print 'Inferred types.'
+    serialize_module(short)
     print
     print 'Generating C...'
     print '==============='
@@ -298,7 +301,6 @@ if __name__ == '__main__':
     c = mogrify(short)
     write_mod_repr('hello', c)
     write_c_file('world.c', c)
-    serialize_module(short)
     serialize_module(c)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -44,6 +44,11 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, type) else t
 
+def _builtin_typevar(n, m):
+    if n not in m:
+        m[n] = symref('typevar', [symname(chr(ord('a') + n - 1))])
+    return TVar(m[n])
+
 def builtin_type_to_atoms(name):
     t = builtins_types.get(name)
     if t is None:
@@ -55,7 +60,9 @@ def builtin_type_to_atoms(name):
         t = TFunc(map(_fix_type, args), _fix_type(ret))
     else:
         t = _fix_type(t)
-    return scheme_to_atoms(Scheme([], t))
+    tvars = {}
+    t = map_type_vars(_builtin_typevar, t, tvars)
+    return scheme_to_atoms(Scheme(tvars.values(), t))
 
 def add_sym(name, extra_prop=None, extra_str=None):
     if name not in boot_sym_names:
@@ -73,43 +80,29 @@ def add_sym(name, extra_prop=None, extra_str=None):
         ss = [Str(extra_str, [])] if extra_str else []
         subs.append(symref(extra_prop, ss))
 
-def _fresh_tvar(num):
-    nm = chr(ord('a') + num)
-    return symref('typevar', [symname(nm)])
-
-def _tvar_to_ref(n, m):
-    if n not in m:
-        # Just make it anyway
-        m[n] = _fresh_tvar(len(m))
-    return m[n]
-
-def type_to_atoms(t, m):
+def type_to_atoms(t):
     return match(t,
-        ("TVar(n)", lambda n: Ref(_tvar_to_ref(n, m), None, [])),
+        ("TVar(v)", lambda v: Ref(v, None, [])),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
         ("TBool()", lambda: symref('bool', [])),
         ("TVoid()", lambda: symref('void', [])),
-        ("TNullable(v)", lambda v: symref('nullable', [type_to_atoms(v, m)])),
+        ("TNullable(v)", lambda v: symref('nullable', [type_to_atoms(v)])),
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
-            + [type_to_atoms(a, m) for a in ts])),
+            + [type_to_atoms(a) for a in ts])),
         ("TAnyTuple()", lambda: symref('tuple*', [])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
-            + [type_to_atoms(a, m) for a in args] + [type_to_atoms(r, m)])),
+            + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
         ("TData(a)", lambda a: Ref(a, None, [])))
 
 def scheme_to_atoms(t):
-    m = {}
-    for ctr, n in enumerate(t.schemeVars):
-        m[n] = _fresh_tvar(ctr)
-    s = symref('type', [type_to_atoms(t.schemeType, m)])
-    s.subs += [m[k] for k in sorted(m.keys())]
+    s = symref('type', [type_to_atoms(t.schemeType)] + list(t.schemeVars))
     return s
 
-def atoms_to_type(a, m):
+def atoms_to_type(a):
     return match(a,
-        ("Ref(v==key('typevar'), _, _)", lambda v: m[v]),
+        ("Ref(v==key('typevar'), _, _)", TVar),
         ("Ref(d==key('DT'), _, _)", TData),
         ("key('int')", lambda: TInt()),
         ("key('str')", lambda: TStr()),
@@ -117,24 +110,24 @@ def atoms_to_type(a, m):
         ("key('bool')", lambda: TBool()),
         ("key('void')", lambda: TVoid()),
         ("key('nullable', cons(v, _))",
-            lambda v: TNullable(atoms_to_type(v, m))),
+            lambda v: TNullable(atoms_to_type(v))),
         ("key('tuple', sized(ts))", lambda ts:
-            TTuple([atoms_to_type(t, m) for t in ts])),
+            TTuple([atoms_to_type(t) for t in ts])),
         ("key('tuple*')", lambda: TAnyTuple()),
         ("key('func', sized(args))", lambda args:
-            TFunc([atoms_to_type(arg, m) for arg in args[:-1]],
-                atoms_to_type(args[-1], m))))
+            TFunc([atoms_to_type(arg) for arg in args[:-1]],
+                atoms_to_type(args[-1]))))
 
 def atoms_to_scheme(a):
     t, vs = match(a,
             ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
-    tvs = [TVar(n) for n, v in enumerate(vs)]
-    return Scheme(tvs, atoms_to_type(t, dict(zip(vs, tvs))))
+    return Scheme(vs, atoms_to_type(t))
 
 add_sym('length')
 add_sym('deps')
 add_sym('roots')
 add_sym('type')
+add_sym('instantiation')
 map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*')
 map(add_sym, builtins)
@@ -263,14 +256,18 @@ def _do_repr(s, r, indent):
             label = s.refAtom.subs[0].subs[0].strVal
         elif hasattr(s.refAtom, 'strVal'):
             label = '->%r' % (s.refAtom.strVal,)
-        elif s.refAtom.subs:
+        elif getattr(s.refAtom, 'subs', []):
             for sub in s.refAtom.subs:
                 if getattr(sub, 'refAtom', None) is _b_name:
                     label = '->%s' % (sub.subs[0].strVal,)
                     if getattr(s.refAtom, 'refMod', None) is boot_mod:
                         label = '%s (%s)' % (label,
                                 s.refAtom.refAtom.subs[0].subs[0].strVal)
+                    # TEMP
+                    label = '%s @%x' % (label, id(s.refAtom))
                     break
+        else:
+            assert False, "Unexpected %r as refAtom" % (s.refAtom,)
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
     elif hasattr(s, 'strVal'):

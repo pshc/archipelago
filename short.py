@@ -22,7 +22,8 @@ def main():
     c = None
     c = 'ok'
     m = Just(1)
-    match(m, ("Just(n)", identity), ("Nothing()", lambda: 0))
+    id2 = ident
+    match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
     p = Pair(1, ('hello', 'world'))
     print "%s %s" % (match(p,
         ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),

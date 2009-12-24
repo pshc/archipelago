@@ -64,10 +64,11 @@ def _c_type(t):
         ("TNullable(v)", _c_type),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TVoid()", lambda: csym_('void')),
-        ("TData(a)", lambda a: cptr(struct_ref(a))))
+        ("TData(a)", lambda a: cptr(struct_ref(a))),
+        ("TFunc(_, _)", lambda: csym_('somefunc_t'))) # TODO
 
 def c_type(t, tvars):
-    return _c_type(atoms_to_type(t, dict((v, TVar(0)) for v in tvars)))
+    return _c_type(atoms_to_type(t))
 
 def c_scheme(ta):
     t = atoms_to_scheme(ta)

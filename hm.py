@@ -5,6 +5,7 @@ from builtins import *
 from types_builtin import *
 
 OmniEnv = DT('OmniEnv', ('omniTable', {Atom: Scheme}),
+                        ('omniInsts', {Atom: [Type]}),
                         ('omniIndex', int))
 
 Env = DT('Env', ('envTable', {Atom: Scheme}),
@@ -21,7 +22,11 @@ def fresh():
     global ENV
     i = ENV.omniEnv.omniIndex
     ENV.omniEnv.omniIndex = i + 1
-    return TVar(i)
+    return TVar(symref('typevar', [symname('a%d' % (i,))]))
+
+def fresh_from(v):
+    nm = getname(v)
+    return TVar(symref('typevar', [symname("%s'" % (nm,))]))
 
 def unification_failure(e1, e2):
     assert False, "Could not unify %r with %r" % (e1, e2)
@@ -95,7 +100,7 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     return compose(s, unify(ret1, ret2))
 
 def unify_bind(n, e):
-    if match(e, ("TVar(n2)", lambda n2: n == n2), ("_", lambda: False)):
+    if match(e, ("TVar(n2)", lambda n2: n is n2), ("_", lambda: False)):
         return {}
     if n in free_vars(e):
         unification_failure(TVar(n), e)
@@ -161,10 +166,14 @@ def generalize_type(t, substs):
     gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
     return Scheme(gen_vars, t)
 
-def instantiate_type(scheme):
+def instantiate_with_type(ref, scheme):
+    global ENV
     vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    vs_substs = [(v, fresh()) for v in vs]
-    return apply_substs(dict(vs_substs), t)
+    insts = [(v, fresh_from(v)) for v in vs]
+    if len(insts) > 0:
+        assert ref not in insts
+        ENV.omniEnv.omniInsts[ref] = insts
+    return apply_substs(dict(insts), t)
 
 def infer_tuple(ts):
     s = {}
@@ -260,19 +269,18 @@ def infer_expr(a):
         ("Ref(v==key('var'), _, _)",
             lambda v: (get_type(v).schemeType, {})),
         ("Ref(f==key('func' or 'ctor'), _, _)",
-            lambda f: (instantiate_type(get_type(f)), {})),
+            lambda f: (instantiate_with_type(a, get_type(f)), {})),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",
-            lambda t: (instantiate_type(atoms_to_scheme(t)), {})),
+            lambda t: (instantiate_with_type(a, atoms_to_scheme(t)), {})),
         ("otherwise", unknown_infer))
 
 def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)
-    m = dict((v, fresh()) for v in vs)
     for c in cs:
         fieldTs = []
         for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
-                          lambda t: atoms_to_type(t, m)))
+                          lambda t: atoms_to_type(t)))
             list_append(fieldTs, t)
             set_type(f, t, {}, False)
         set_type(c, TFunc(fieldTs, dtT), {}, False)
@@ -373,11 +381,15 @@ def infer_stmts(ss):
 
 def infer_types(roots):
     global ENV
-    ENV = GlobalEnv(OmniEnv({}, 1), Env({}, None, False, None))
+    ENV = GlobalEnv(OmniEnv({}, {}, 1), Env({}, None, False, None))
     substs = infer_stmts(roots)
     for a, t in ENV.omniEnv.omniTable.iteritems():
         apply_substs_to_scheme(substs, t)
         a.subs.append(scheme_to_atoms(t))
+    for r, ts in ENV.omniEnv.omniInsts.iteritems():
+        for t, tv in ts:
+            it = type_to_atoms(apply_substs(substs, tv))
+            r.subs.append(symref('instantiation', [Ref(t, None, []), it]))
 
 if __name__ == '__main__':
     import ast
