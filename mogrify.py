@@ -55,24 +55,20 @@ def nmref(atom):
     assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
     return Ref(atom, None, [])
 
-def _c_type(t):
+def c_type(t):
     global CGLOBAL
     return match(t,
-        ("TInt()", lambda: csym_('int')),
-        ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
-        ("TNullable(v)", _c_type),
-        ("TVar(_)", lambda: cptr(csym_('void'))),
-        ("TVoid()", lambda: csym_('void')),
-        ("TData(a)", lambda a: cptr(struct_ref(a))),
-        ("TFunc(_, _)", lambda: csym_('somefunc_t'))) # TODO
-
-def c_type(t, tvars):
-    return _c_type(atoms_to_type(t))
+        ("key('int')", lambda: csym_('int')),
+        ("key('str')", lambda: cptr(csym_('char'))),
+        ("key('tuple')", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
+        ("key('nullable', cons(v, _))", c_type),
+        ("key('void')", lambda: csym_('void')),
+        ("Ref(key('typevar'), _, _)", lambda: cptr(csym_('void'))),
+        ("Ref(a==key('DT'), _, _)", lambda a: cptr(struct_ref(a))),
+        ("key('func')", lambda: csym_('somefunc_t'))) # TODO
 
 def c_scheme(ta):
-    t = atoms_to_scheme(ta)
-    return _c_type(t.schemeType)
+    return match(ta, ("key('type', cons(t, _))", c_type))
 
 def as_c_op(a):
     return match(a, ("Ref(named(nm, contains(key('unaryop' or 'binaryop'))), "
@@ -434,7 +430,7 @@ def c_DT(dt, cs, vs, nm):
     for c in cs:
         fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
         fields = [match(f, ("f==key('field', contains(key('type',cons(t,_))))",
-                            lambda f, t: (c_type(t, vs), CGLOBAL.cgFields[f])))
+                            lambda f, t: (c_type(t), CGLOBAL.cgFields[f])))
                   for f in fs]
         cfields = [csym('field', [t, fi.fiFieldName]) for (t, fi) in fields]
         if discrim:
@@ -498,9 +494,8 @@ def _setup_func(scope, nm, args, cargs):
         list_append(cargs, carg)
 
 def c_func(f, t, args, body, nm):
-    # Wow this is bad
-    t_ = atoms_to_scheme(t).schemeType
-    retT = c_scheme(scheme_to_atoms(Scheme([], t_.funcRet)))
+    fts = match(t, ("key('type', cons(key('func', sized(fts)), _))", identity))
+    retT = c_type(fts[len(fts)-1])
     ca = []
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, ca))
     stmt(make_func(f, retT, str_(nm), ca, cb, []))
