@@ -6,6 +6,7 @@ from types_builtin import *
 
 OmniEnv = DT('OmniEnv', ('omniTable', {Atom: Scheme}),
                         ('omniInsts', {Atom: [Type]}),
+                        ('omniFieldDTs', {Atom: Atom}),
                         ('omniIndex', int))
 
 Env = DT('Env', ('envTable', {Atom: Scheme}),
@@ -250,8 +251,10 @@ def infer_match(m, e, cs):
     return (retT, s)
 
 def infer_attr(struct, a):
+    global ENV
     structT, s = infer_expr(struct)
-    # TODO: s = compose(unify(a's DT, structT), s)
+    adt = ENV.omniEnv.omniFieldDTs[a]
+    s = compose(unify(TData(adt), structT), s)
     return (get_type(a).schemeType, s)
 
 def unknown_infer(a):
@@ -379,9 +382,22 @@ def infer_stmts(ss):
         substs = compose(infer_stmt(s), substs)
     return substs
 
+def setup_infer_env(roots):
+    fields = {}
+    for dt in roots:
+        cs = match(dt, ("key('DT', all(cs, c==key('ctor')))", identity),
+                       ("_", lambda: []))
+        for c in cs:
+            fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
+            for f in fs:
+                fields[f] = dt
+    omni = OmniEnv({}, {}, fields, 1)
+    env = Env({}, None, False, None)
+    return GlobalEnv(omni, env)
+
 def infer_types(roots):
     global ENV
-    ENV = GlobalEnv(OmniEnv({}, {}, 1), Env({}, None, False, None))
+    ENV = setup_infer_env(roots)
     substs = infer_stmts(roots)
     for a, t in ENV.omniEnv.omniTable.iteritems():
         apply_substs_to_scheme(substs, t)
