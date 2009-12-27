@@ -59,9 +59,11 @@ def compose(s1, s2):
         s3[k] = apply_substs(s1, v)
     return s3
 
-def free_vars_in_substs(substs):
-    fvs = set()
-    for k, s in substs.iteritems():
+def free_vars_in_env(env):
+    if env is None:
+        return set()
+    fvs = free_vars_in_env(env.envPrev)
+    for k, s in env.envTable.iteritems():
         fvs.update(free_vars(s))
     return fvs
 
@@ -140,7 +142,7 @@ def unify(e1, e2):
 
 def set_type(e, t, substs, augment_ast):
     global ENV
-    gt = generalize_type(apply_substs(substs, t), substs)
+    gt = generalize_type(apply_substs(substs, t))
     ENV.curEnv.envTable[e] = gt
     if augment_ast:
         ENV.omniEnv.omniTable[e] = gt
@@ -163,8 +165,10 @@ def in_new_env(f, data):
     ENV.curEnv = outerEnv
     return ret
 
-def generalize_type(t, substs):
-    gen_vars = free_vars(t).difference(free_vars_in_substs(substs))
+def generalize_type(t):
+    global ENV
+    evs = free_vars_in_env(ENV.curEnv)
+    gen_vars = free_vars(t).difference(evs)
     return Scheme(gen_vars, t)
 
 def instantiate_with_type(ref, scheme):
