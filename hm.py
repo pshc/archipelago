@@ -41,12 +41,6 @@ def apply_substs_to_scheme(substs, scheme):
             del s[n]
     scheme.schemeType = apply_substs(s, t)
 
-def apply_substs_to_env(substs, env):
-    """Modifies in place."""
-    ks = dict_keys(env)
-    for k in ks:
-        env[k] = apply_substs(substs, env[k])
-
 def apply_substs(substs, t):
     return map_type_vars(lambda n, s: s.get(n, TVar(n)), t, substs)
 
@@ -140,12 +134,14 @@ def unify(e1, e2):
         # Mismatch
         ("_", fail))
 
-def set_type(e, t, substs, augment_ast):
+def set_scheme(e, sc, augment_ast):
     global ENV
-    gt = generalize_type(apply_substs(substs, t))
-    ENV.curEnv.envTable[e] = gt
+    ENV.curEnv.envTable[e] = sc
     if augment_ast:
-        ENV.omniEnv.omniTable[e] = gt
+        ENV.omniEnv.omniTable[e] = sc
+
+def set_type(e, t, augment_ast):
+    return set_scheme(e, Scheme([], t), augment_ast)
 
 def get_type(e):
     global ENV
@@ -211,7 +207,7 @@ def pat_tuple(ps):
 
 def pat_var(v):
     t = fresh()
-    set_type(v, t, {}, True)
+    set_scheme(v, Scheme([t.varAtom], t), True)
     return (t, {})
 
 def pat_capture(v, p):
@@ -250,8 +246,8 @@ def infer_match(m, e, cs):
             return compose(unify(t, retT), compose(s, s2))
         s = in_new_env(infer_case, s)
     # Help out C transmogrification with some extra type annotations
-    set_type(m, retT, s, True)
-    set_type(e, et, s, True)
+    set_type(m, apply_substs(s, retT), True)
+    set_type(e, apply_substs(s, et), True)
     return (retT, s)
 
 def infer_attr(struct, a):
@@ -289,8 +285,9 @@ def infer_DT(dt, cs, vs, nm):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t)))
             list_append(fieldTs, t)
-            set_type(f, t, {}, False)
-        set_type(c, TFunc(fieldTs, dtT), {}, False)
+            set_scheme(f, generalize_type(t), False)
+        funcT = TFunc(fieldTs, dtT)
+        set_scheme(c, generalize_type(funcT), False)
     return {}
 
 def infer_assign(a, e):
@@ -300,7 +297,7 @@ def infer_assign(a, e):
     et, substs = infer_expr(e)
     substs = compose(substs, unify(t, et))
     if newvar:
-        set_type(a, t, substs, True)
+        set_scheme(a, generalize_type(apply_substs(substs, t)), True)
     return substs
 
 def infer_exprstmt(e):
@@ -337,10 +334,10 @@ def _inside_func_env(env, info):
     env.envRetType = retT
     f, args, body = info
     funcT = fresh()
-    set_type(f, funcT, {}, False)
+    set_type(f, funcT, False)
     argTs = [fresh() for arg in args]
     for a, t in zip(args, argTs):
-        set_type(a, t, {}, False)
+        set_type(a, t, False)
 
     s = infer_stmts(body)
 
@@ -351,9 +348,9 @@ def _inside_func_env(env, info):
 
 def infer_func(f, args, body):
     s, funcT, argTs = in_new_env(_inside_func_env, (f, args, body))
-    set_type(f, funcT, s, True)
+    set_scheme(f, generalize_type(apply_substs(s, funcT)), True)
     for a, t in zip(args, argTs):
-        set_type(a, t, s, True)
+        set_scheme(a, generalize_type(apply_substs(s, t)), True)
     return s
 
 def infer_return(e):
@@ -409,7 +406,12 @@ def infer_types(roots):
     for r, ts in ENV.omniEnv.omniInsts.iteritems():
         for t, tv in ts:
             it = type_to_atoms(apply_substs(substs, tv))
-            r.subs.append(symref('instantiation', [Ref(t, None, []), it]))
+            # If the instantiation is still a typevar, actually store it here,
+            # not just a ref to it.
+            # TODO: Detect if the new tvar is used elsewhere and omit if not?
+            itt = match(it, ("Ref(t==key('typevar'), _, _)", identity),
+                            ("_", lambda: it))
+            r.subs.append(symref('instantiation', [Ref(t, None, []), itt]))
 
 if __name__ == '__main__':
     import ast
