@@ -48,8 +48,6 @@ def compose(s1, s2):
     s3 = s1.copy()
     assert isinstance(s2, dict)
     for k, v in s2.iteritems():
-        if k in s1:
-            s3 = compose(s3, unify(v, s1[k]))
         s3[k] = apply_substs(s1, v)
     return s3
 
