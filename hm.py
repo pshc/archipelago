@@ -342,13 +342,11 @@ def _inside_func_env(env, info):
     if not env.envReturned:
         retT = TVoid()
     s = compose(unify(funcT, TFunc(argTs, retT)), s)
-    return (s, funcT, argTs)
+    return (s, generalize_type(apply_substs(s, funcT)))
 
 def infer_func(f, args, body):
-    s, funcT, argTs = in_new_env(_inside_func_env, (f, args, body))
-    set_scheme(f, generalize_type(apply_substs(s, funcT)), True)
-    for a, t in zip(args, argTs):
-        set_scheme(a, generalize_type(apply_substs(s, t)), True)
+    s, funcT = in_new_env(_inside_func_env, (f, args, body))
+    set_scheme(f, funcT, True)
     return s
 
 def infer_return(e):

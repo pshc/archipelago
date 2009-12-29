@@ -65,7 +65,7 @@ set_add = set.add
 list_append, list_sort = list.append, list.sort
 list_prepend = lambda l, x: l.insert(0, x)
 def list_concat(a, b): a += b
-list_pop_front = lambda l: l.pop(0)
+list_pop_last = lambda l: l.pop()
 list_head, list_tail = lambda l: l[0], lambda l: l[1:]
 
 identity = lambda x: x

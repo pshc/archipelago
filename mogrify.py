@@ -345,7 +345,7 @@ def c_expr(e):
         ("Int(i, _)", int_),
         ("Str(s, _)", strlit),
         ("r==Ref(a==named(_, contains(key('type'))), _, _)", c_defref),
-        ("r==Ref(a==named(_) and key('ctor'), _, _)", c_defref),
+        ("r==Ref(a==key('ctor' or 'var'), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match', cons(e, contains(retT==key('type')) "
@@ -485,20 +485,19 @@ def make_func(f, retT, nm, args, body, extra_attrs):
                csym('body', [int_len(body)] + body)] + extra_attrs
     return fa
 
-def _setup_func(scope, nm, args, cargs):
+def _setup_func(scope, nm, args, argTs, cargs):
     scope.csFuncName = nm
     idents = {}
-    for a in args:
-        nm, t = match(a, ("named(nm, contains(t==key('type')))", tuple2))
-        carg = csym('arg', [c_scheme(t), set_identifier(a, nm, scope)])
+    for a, t in zip(args, argTs):
+        carg = csym('arg', [c_type(t), set_identifier(a, getname(a), scope)])
         list_append(cargs, carg)
 
 def c_func(f, t, args, body, nm):
     fts = match(t, ("key('type', cons(key('func', sized(fts)), _))", identity))
-    retT = c_type(fts[len(fts)-1])
+    ret = list_pop_last(fts)
     ca = []
-    cb = c_body(body, lambda scope: _setup_func(scope, nm, args, ca))
-    stmt(make_func(f, retT, str_(nm), ca, cb, []))
+    cb = c_body(body, lambda scope: _setup_func(scope, nm, args, fts, ca))
+    stmt(make_func(f, c_type(ret), str_(nm), ca, cb, []))
 
 def c_stmt(s):
     match(s,
