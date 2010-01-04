@@ -173,85 +173,93 @@ def instantiate_with_type(ref, scheme):
         ENV.omniEnv.omniInsts[ref] = insts
     return apply_substs(dict(insts), t)
 
-def infer_tuple(ts):
-    return TTuple(map(infer_expr, ts))
+def check_tuple(et, ts):
+    unify(et, TTuple(map(infer_expr, ts)))
 
-def infer_call(f, args):
+def check_call(et, f, args):
     ft = infer_expr(f)
-    retT = fresh()
     argTs = map(infer_expr, args)
-    unify(ft, TFunc(argTs, retT))
-    return retT
+    unify(ft, TFunc(argTs, et))
 
-def pat_var(v):
-    t = fresh()
-    set_scheme(v, Scheme([t.varAtom], t), True)
-    return t
+def pat_var(tv, v):
+    set_scheme(v, Scheme([tv.varAtom], tv), True)
 
-def pat_capture(v, p):
-    pat_var(v)
-    return infer_pat(p)
+def pat_capture(tv, v, p):
+    pat_var(tv, v)
+    check_pat(tv, p)
 
-def pat_ctor(ctor, args):
+def pat_ctor(tv, ctor, args):
     ct = get_type(ctor).schemeType
     fieldTs, dt = match(ct, ("TFunc(fs, dt)", tuple2))
+    unify(tv, dt)
     for a, ft in zip(args, fieldTs):
         unify(infer_pat(a), ft)
-    return dt
 
-def infer_pat(p):
-    return match(p,
-        ("Int(_, _)", lambda: TInt()),
-        ("Str(_, _)", lambda: TStr()),
-        ("key('wildcard')", lambda: fresh()),
-        ("key('tuplelit', sized(ps))", lambda ps: TTuple(map(infer_pat, ps))),
-        ("v==key('var')", pat_var),
-        ("key('capture', cons(v, cons(p, _)))", pat_capture),
-        ("key('ctor', cons(Ref(c, _, _), sized(args)))", pat_ctor),
+def check_pat(tv, p):
+    match(p,
+        ("Int(_, _)", lambda: unify(tv, TInt())),
+        ("Str(_, _)", lambda: unify(tv, TStr())),
+        ("key('wildcard')", lambda: None),
+        ("key('tuplelit', sized(ps))",
+            lambda ps: unify(tv, TTuple(map(infer_pat, ps)))),
+        ("v==key('var')", lambda v: pat_var(tv, v)),
+        ("key('capture', cons(v, cons(p, _)))",
+            lambda v, p: pat_capture(tv, v, p)),
+        ("key('ctor', cons(Ref(c, _, _), sized(args)))",
+            lambda c, args: pat_ctor(tv, c, args)),
         )
 
-def infer_match(m, e, cs):
+def infer_pat(p):
+    tv = fresh()
+    check_pat(tv, p)
+    return tv
+
+def check_match(retT, m, e, cs):
     et = infer_expr(e)
-    retT = fresh()
     for c in cs:
         cp, ce = match(c, ("key('case', cons(p, cons(e, _)))", tuple2))
-        def infer_case(env):
-            pt = infer_pat(cp)
-            unify(et, pt)
-            t = infer_expr(ce)
-            unify(t, retT)
-        in_new_env(infer_case)
+        def check_case(env):
+            check_pat(et, cp)
+            check_expr(retT, ce)
+        in_new_env(check_case)
     # Help out C transmogrification with some extra type annotations
     set_type(m, retT, True)
     set_type(e, et, True)
-    return retT
 
-def infer_attr(struct, a):
+def check_attr(et, struct, a):
     global ENV
     structT = infer_expr(struct)
     adt = ENV.omniEnv.omniFieldDTs[a]
     unify(TData(adt), structT)
-    return get_type(a).schemeType
+    unify(et, get_type(a).schemeType)
 
 def unknown_infer(a):
     assert False, 'Unknown infer case:\n%s' % (a,)
 
-def infer_expr(a):
-    return match(a,
-        ("Int(_, _)", lambda: TInt()),
-        ("Str(_, _)", lambda: TStr()),
-        ("key('char')", lambda: TChar()),
-        ("key('tuplelit', sized(ts))", infer_tuple),
-        ("key('call', cons(f, sized(s)))", infer_call),
-        ("m==key('match', cons(e, all(cs, c==key('case'))))", infer_match),
-        ("key('attr', cons(s, cons(Ref(a, _, _), _)))", infer_attr),
+def check_expr(tv, e):
+    """Algorithm M."""
+    match(e,
+        ("Int(_, _)", lambda: unify(tv, TInt())),
+        ("Str(_, _)", lambda: unify(tv, TStr())),
+        ("key('char')", lambda: unify(tv, TChar())),
+        ("key('tuplelit', sized(ts))", lambda ts: check_tuple(tv, ts)),
+        ("key('call', cons(f, sized(s)))", lambda f, s: check_call(tv, f, s)),
+        ("m==key('match', cons(p, all(cs, c==key('case'))))",
+            lambda m, p, cs: check_match(tv, m, p, cs)),
+        ("key('attr', cons(s, cons(Ref(a, _, _), _)))",
+            lambda s, a: check_attr(tv, s, a)),
         ("Ref(v==key('var'), _, _)",
-            lambda v: get_type(v).schemeType),
+            lambda v: unify(tv, get_type(v).schemeType)),
         ("Ref(f==key('func' or 'ctor'), _, _)",
-            lambda f: instantiate_with_type(a, get_type(f))),
+            lambda f: unify(tv, instantiate_with_type(e, get_type(f)))),
         ("Ref(key('symbol', contains(t==key('type'))), _, _)",
-            lambda t: instantiate_with_type(a, atoms_to_scheme(t))),
-        ("otherwise", unknown_infer))
+            lambda t: unify(tv, instantiate_with_type(e, atoms_to_scheme(t)))),
+        ("_", lambda: unknown_infer(e)))
+
+def infer_expr(e):
+    tv = fresh()
+    check_expr(tv, e)
+    return tv
 
 def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)
@@ -318,7 +326,7 @@ def infer_return(e):
         ENV.curEnv.envReturned = True
 
 def infer_stmt(a):
-    return match(a,
+    match(a,
         ("dt==key('DT', all(cs, c==key('ctor'))\
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
         ("key('=', cons(a, cons(e, _)))", infer_assign),
