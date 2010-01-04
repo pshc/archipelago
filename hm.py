@@ -178,8 +178,16 @@ def check_tuple(et, ts):
 
 def check_call(et, f, args):
     ft = infer_expr(f)
-    argTs = map(infer_expr, args)
-    unify(ft, TFunc(argTs, et))
+    def unify_func():
+        argTs = [fresh() for a in args]
+        retT = fresh()
+        unify(ft, TFunc(argTs, retT))
+        return (argTs, retT)
+    argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
+                            ("_", unify_func))
+    for argT, arg in zip(argTs, args):
+        check_expr(argT, arg)
+    unify(retT, et)
 
 def pat_var(tv, v):
     set_scheme(v, Scheme([tv.varAtom], tv), True)
