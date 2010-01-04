@@ -12,16 +12,16 @@ Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
         'TData', ('dataAtom', 'Atom'))
 
-def map_type_vars(f, t, data):
+def map_type_vars(f, t):
     """Applies f to every typevar('s index) in the given type."""
-    return match(t, ("TVar(n)", lambda n: f(n, data)),
+    return match(t, ("TVar(n)", f),
                     ("TNullable(v)", lambda v:
-                        TNullable(map_type_vars(f, v, data))),
+                        TNullable(map_type_vars(f, v))),
                     ("TFunc(args, ret)", lambda args, ret:
-                        TFunc([map_type_vars(f, a, data) for a in args],
-                              map_type_vars(f, ret, data))),
+                        TFunc([map_type_vars(f, a) for a in args],
+                              map_type_vars(f, ret))),
                     ("TTuple(ts)", lambda ts:
-                        TTuple([map_type_vars(f, t, data) for t in ts])),
+                        TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))
 
 Scheme = DT('Scheme', ('schemeVars', [Type]), ('schemeType', Type))
