@@ -176,15 +176,18 @@ def instantiate_with_type(ref, scheme):
 def check_tuple(et, ts):
     unify(et, TTuple(map(infer_expr, ts)))
 
-def check_call(et, f, args):
-    ft = infer_expr(f)
-    def unify_func():
-        argTs = [fresh() for a in args]
+def decompose_func_type(ft, nargs):
+    argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
+                            ("_", lambda: ([], None)))
+    if retT is None:
+        argTs = [fresh() for n in range(nargs)]
         retT = fresh()
         unify(ft, TFunc(argTs, retT))
-        return (argTs, retT)
-    argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
-                            ("_", unify_func))
+    assert len(argTs) == nargs
+    return (argTs, retT)
+
+def check_call(et, f, args):
+    argTs, retT = decompose_func_type(infer_expr(f), len(args))
     for argT, arg in zip(argTs, args):
         check_expr(argT, arg)
     unify(retT, et)
@@ -315,14 +318,16 @@ def infer_func(f, args, body):
         env.envRetType = retT
         funcT = fresh()
         set_type(f, funcT, False)
-        argTs = [fresh() for arg in args]
-        for a, t in zip(args, argTs):
+        argTs = []
+        for a in args:
+            t = fresh()
             set_type(a, t, False)
+            list_append(argTs, t)
 
         infer_stmts(body)
 
         if not env.envReturned:
-            retT = TVoid()
+            unify(retT, TVoid())
         unify(funcT, TFunc(argTs, retT))
         return generalize_type(funcT)
     set_scheme(f, in_new_env(inside_func_env), True)
