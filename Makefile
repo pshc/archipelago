@@ -8,3 +8,6 @@ serialize:
 
 test:
 	./interpret.py test.py
+
+clean:
+	rm -f -- konnichiwa hello world.c mods/*
