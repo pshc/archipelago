@@ -580,12 +580,12 @@ def conv_function(s, context):
         cout(context, 'def %s(%s):', s.name, ', '.join(argst),
                 indent_offset=-1)
         if s.doc:
-            cout(context, repr(s.doc))
+            cout(context, '%s', repr(s.doc))
         stmts = conv_stmts_noscope(s.code, context)
         funca = [symref('args', [int_len(argsa)] + argsa),
                  symref('body', [int_len(stmts)] + stmts)]
         if s.doc:
-            funca.append(symref('doc', [Str(s.doc)]))
+            funca.append(symref('doc', [Str(s.doc, [])]))
         if decs:
             funca.append(symref('decorators', [int_len(decs)] + decs))
         return funca
