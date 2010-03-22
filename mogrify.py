@@ -493,7 +493,11 @@ def _setup_func(scope, nm, args, argTs, cargs):
         list_append(cargs, carg)
 
 def c_func(f, t, args, body, nm):
-    fts = match(t, ("key('type', cons(key('func', sized(fts)), _))", identity))
+    fts = match(t, ("key('type', cons(key('func', sized(fts)), _))", identity),
+                   ("_", lambda: None))
+    if fts is None: # TEMP
+        stmt(csym('comment', [str_('function %s omitted' % (nm,))]))
+        return
     ret = list_pop_last(fts)
     ca = []
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, fts, ca))

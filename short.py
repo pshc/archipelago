@@ -1,7 +1,7 @@
-def ok(n):
-    s = n + 3
-    print 's = %d' % (s,)
-    return s
+#def ok(n):
+#    s = n + 3
+#    print 's = %d' % (s,)
+#    return s
 def ident(val):
     return val
 Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
@@ -10,7 +10,7 @@ def main():
     while False:
         inside = 1
     a = 1 + 2
-    ok(a)
+    #ok(a)
     if True:
         print 'ok'
     elif False:
@@ -18,12 +18,12 @@ def main():
     else:
         print 'no'
     assert True, 'WHAT'
-    t = (1, 2)
-    c = None
+    #t = (1, 2)
+    #c = None
     c = 'ok'
     m = Just(1)
-    id2 = ident
-    match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
+    #id2 = ident
+    #match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
     p = Pair(1, ('hello', 'world'))
     print "%s %s" % (match(p,
         ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),

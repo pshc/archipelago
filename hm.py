@@ -138,7 +138,7 @@ def set_scheme(e, sc, augment_ast):
 def set_type(e, t, augment_ast):
     global ENV
     s = ENV.omniEnv.omniSubsts
-    return set_scheme(e, Scheme([], apply_substs(s, t)), augment_ast)
+    return set_scheme(e, monotype(apply_substs(s, t)), augment_ast)
 
 def get_type(e):
     global ENV
@@ -157,6 +157,9 @@ def in_new_env(f):
 
     ENV.curEnv = outerEnv
     return ret
+
+def monotype(t):
+    return Scheme([], t)
 
 def generalize_type(t):
     global ENV
@@ -290,7 +293,7 @@ def infer_assign(a, e):
     t = fresh() if newvar else get_type(a.refAtom).schemeType
     unify(t, infer_expr(e))
     if newvar:
-        set_scheme(a, generalize_type(t), True)
+        set_scheme(a, monotype(t), True)
 
 def infer_exprstmt(e):
     t = infer_expr(e)

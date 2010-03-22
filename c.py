@@ -247,6 +247,12 @@ def c_include(filename, angle_brackets):
     out_Str(filename)
     out('>\n' if angle_brackets else '"\n')
 
+def c_comment(s):
+    indent()
+    out('/* ')
+    out_Str(s)
+    out(' */\n')
+
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))", c_exprstmt),
@@ -266,6 +272,7 @@ def c_stmt(s):
         ("key('enumerator', cons(nm, _))", c_enumerator),
         ("key('includesys', cons(file, _))", lambda f: c_include(f, True)),
         ("key('includelocal', cons(file, _))", lambda f: c_include(f, False)),
+        ("key('comment', cons(s, _))", c_comment),
         )
 
 def c_body(ss):
