@@ -71,14 +71,17 @@ def typed_name(t, nm):
     out(' ')
     out_Str(nm)
 
+def just_identifier(e):
+   return match(e, ('Str(s, _)', identity),
+                   ('Ref(Str(s, _), _, _)', identity),
+                   ('_', lambda: None))
+
 unary_ops = {'negate': '-'}
 binary_ops = {'+': ' + ', '*': ' * ', '.': '.', '->': '->', '==': ' == ',
         '&&': ' && '}
 
 def c_call(f, args):
-    s = match(f, ('Str(s, _)', identity),
-                 ('Ref(Str(s, _), _, _)', identity),
-                 ('_', lambda: None))
+    s = just_identifier(f)
     n = len(args)
     if s is None: # Not just a named function... parens to be safe
         parens(lambda: c_expr(f))
@@ -107,6 +110,16 @@ def c_sizeof(t):
     out('sizeof(')
     c_type(t)
     out(')')
+
+def c_sizeof_expr(e):
+    s = just_identifier(e)
+    if s is None:
+        out('sizeof(')
+        c_expr(e)
+        out(')')
+    else: # XXX: This isn't operator-precedence safe
+        out('sizeof ')
+        c_expr(e)
 
 def c_op(op, ss):
     if op in unary_ops:
@@ -141,6 +154,7 @@ def c_expr(e):
         ("key('tuplelit', sized(ts))",
             lambda ts: brackets(lambda: comma_exprs(ts))),
         ("key('sizeof', cons(t, _))", c_sizeof),
+        ("key('sizeofexpr', cons(e, _))", c_sizeof_expr),
         ("key('NULL')", lambda: out("NULL")), # XXX: stupid special case
         ("key(op, ss)", c_op))
 
