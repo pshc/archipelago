@@ -18,7 +18,7 @@ GlobalEnv = DT('GlobalEnv', ('omniEnv', OmniEnv),
 ENV = None
 
 def fresh():
-    return TVar(TypeCell(None))
+    return TMeta(TypeCell(None))
 
 def unification_failure(e1, e2, msg):
     assert False, "Could not unify %r with %r: %s" % (e1, e2, msg)
@@ -33,23 +33,23 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
-def unify_tvars(t1, t2):
-    c1 = t1.varCell
-    c2 = t2.varCell
+def unify_metas(t1, t2):
+    c1 = t1.metaCell
+    c2 = t2.metaCell
     if c1.cellType is None:
         if c2.cellType is None:
-            c1.cellType = TVar(c2)
+            c1.cellType = TMeta(c2)
         else:
             c1.cellType = c2.cellType
-        #t1.varCell = c2
+        #t1.metaCell = c2
     elif c2.cellType is None:
         c2.cellType = c1.cellType
-        #t2.varCell = c1
+        #t2.metaCell = c1
     else:
         unify(c1.cellType, c2.cellType)
 
-def unify_bind(tvar, t):
-    cell = tvar.varCell
+def unify_bind_meta(meta, t):
+    cell = meta.metaCell
     if cell.cellType is None:
         cell.cellType = t
     else:
@@ -60,9 +60,9 @@ def unify(e1, e2):
     same = lambda: None
     fail = lambda m: lambda: unification_failure(e1, e2, m)
     match((e1, e2),
-        ("(TVar(_), TVar(_))", lambda: unify_tvars(e1, e2)),
-        ("(TVar(_), _)", lambda: unify_bind(e1, e2)),
-        ("(_, TVar(_))", lambda: unify_bind(e2, e1)),
+        ("(TMeta(_), TMeta(_))", lambda: unify_metas(e1, e2)),
+        ("(TMeta(_), _)", lambda: unify_bind_meta(e1, e2)),
+        ("(_, TMeta(_))", lambda: unify_bind_meta(e2, e1)),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:

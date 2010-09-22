@@ -1,9 +1,10 @@
 from base import *
 
-Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
+Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData \
     = ADT('Type',
-        'TVar', ('varCell', 'TypeCell'),
+        'TVar', ('varAtom', 'Atom'),
+        'TMeta', ('metaCell', 'TypeCell'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
         'TNullable', ('nullType', 'Type'),

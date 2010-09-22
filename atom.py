@@ -86,7 +86,8 @@ def _follow_var(cell):
 
 def type_to_atoms(t):
     return match(t,
-        ("TVar(c)", _follow_var),
+        ("TVar(a)", lambda: Ref(a, None, [])),
+        ("TMeta(c)", _follow_var),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
