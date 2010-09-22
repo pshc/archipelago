@@ -4,13 +4,10 @@ from base import *
 from builtins import *
 from types_builtin import *
 
-OmniEnv = DT('OmniEnv', ('omniTable', {Atom: Scheme}),
-                        ('omniSubsts', {Atom: Type}),
-                        ('omniInsts', {Atom: [Type]}),
-                        ('omniFieldDTs', {Atom: Atom}),
-                        ('omniIndex', int))
+OmniEnv = DT('OmniEnv', ('omniTypeAugs', {Atom: Type}),
+                        ('omniFieldDTs', {Atom: Atom}))
 
-Env = DT('Env', ('envTable', {Atom: Scheme}),
+Env = DT('Env', ('envTable', {Atom: Type}),
                 ('envRetType', Type),
                 ('envReturned', bool),
                 ('envPrev', 'Env'))
@@ -21,94 +18,57 @@ GlobalEnv = DT('GlobalEnv', ('omniEnv', OmniEnv),
 ENV = None
 
 def fresh():
-    global ENV
-    i = ENV.omniEnv.omniIndex
-    ENV.omniEnv.omniIndex = i + 1
-    return TVar(symref('typevar', [symname('a%d' % (i,))]))
+    return TVar(TypeCell(None))
 
-def fresh_from(v):
-    nm = getname(v)
-    return TVar(symref('typevar', [symname("%s'" % (nm,))]))
+def unification_failure(e1, e2, msg):
+    assert False, "Could not unify %r with %r: %s" % (e1, e2, msg)
 
-def unification_failure(e1, e2):
-    assert False, "Could not unify %r with %r" % (e1, e2)
-
-def apply_substs_to_scheme(substs, scheme):
-    """Modifies in place."""
-    ns, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    scheme.schemeType = map_type_vars(
-            lambda n: TVar(n) if n in ns else substs.get(n, TVar(n)), t)
-
-def apply_substs(substs, t):
-    return map_type_vars(lambda n: substs.get(n, TVar(n)), t)
-
-def free_vars_in_env(env):
-    if env is None:
-        return set()
-    fvs = free_vars_in_env(env.envPrev)
-    for k, s in env.envTable.iteritems():
-        fvs.update(free_vars(s))
-    return fvs
-
-def free_vars_in_tuple(ts):
-    # Don't bother with reduce and union for ease of C conversion
-    fvs = set()
-    for t in ts:
-        fvs.update(free_vars(t))
-    return fvs
-
-def free_vars_in_func(args, ret):
-    fvs = free_vars_in_tuple(args)
-    fvs.update(free_vars(ret))
-    return fvs
-
-def free_vars(v):
-    return match(v, ("TVar(n)", lambda n: set([n])),
-                    ("TNullable(t)", free_vars),
-                    ("TTuple(ts)", free_vars_in_tuple),
-                    ("TFunc(args, ret)", free_vars_in_func),
-                    ("_", lambda: set()))
-
-def unify_tuples(t1, list1, t2, list2):
+def unify_tuples(t1, list1, t2, list2, desc):
     if len(list1) != len(list2):
-        unification_failure(t1, t2)
+        unification_failure(t1, t2, "%s length mismatch" % (desc,))
     for a1, a2 in zip(list1, list2):
         unify(a1, a2)
 
 def unify_funcs(f1, args1, ret1, f2, args2, ret2):
-    unify_tuples(f1, args1, f2, args2)
+    unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
-def unify_bind(n, e):
-    global ENV
-    s = ENV.omniEnv.omniSubsts
-    e_is_tvar = match(e, ("TVar(_)", lambda: True), ("_", lambda: False))
-    if e_is_tvar and e.varAtom is n:
-        pass
-    elif n in s:
-        unify(s[n], e)
-    elif e_is_tvar:
-        if e.varAtom in s:
-            unify(TVar(n), s[e.varAtom])
+def unify_tvars(t1, t2):
+    c1 = t1.varCell
+    c2 = t2.varCell
+    if c1.cellType is None:
+        if c2.cellType is None:
+            c1.cellType = TVar(c2)
         else:
-            s[n] = e
-    elif n in free_vars(e):
-        unification_failure(TVar(n), e)
+            c1.cellType = c2.cellType
+        #t1.varCell = c2
+    elif c2.cellType is None:
+        c2.cellType = c1.cellType
+        #t2.varCell = c1
     else:
-        s[n] = e
+        unify(c1.cellType, c2.cellType)
+
+def unify_bind(tvar, t):
+    cell = tvar.varCell
+    if cell.cellType is None:
+        cell.cellType = t
+    else:
+        unify(cell.cellType, t)
 
 def unify(e1, e2):
     global ENV
     same = lambda: None
-    fail = lambda: unification_failure(e1, e2)
+    fail = lambda m: lambda: unification_failure(e1, e2, m)
     match((e1, e2),
-        ("(TVar(n1), _)", lambda n1: unify_bind(n1, e2)),
-        ("(_, TVar(n2))", lambda n2: unify_bind(n2, e1)),
+        ("(TVar(_), TVar(_))", lambda: unify_tvars(e1, e2)),
+        ("(TVar(_), _)", lambda: unify_bind(e1, e2)),
+        ("(_, TVar(_))", lambda: unify_bind(e2, e1)),
         ("(TTuple(t1), TTuple(t2))",
-            lambda t1, t2: unify_tuples(e1, t1, e2, t2)),
+            lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
             unify_funcs(e1, a1, r1, e2, a2, r2)),
-        ("(TData(a), TData(b))", lambda a, b: same() if a is b else fail()),
+        ("(TData(a), TData(b))", lambda a, b: same() if a is b
+                                 else fail("mismatched datatypes")()),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -116,65 +76,52 @@ def unify(e1, e2):
         ("(TVoid(), TVoid())", same),
         ("(TTuple(_), TAnyTuple())", same),
         ("(TAnyTuple(), TTuple(_))", same),
-        ("(TAnyTuple(), _)", fail),
-        ("(_, TAnyTuple())", fail),
-        # Not-so-hacky extension
+        ("(TAnyTuple(), _)", fail("tuple expected")),
+        ("(_, TAnyTuple())", fail("tuple expected")),
+        # XXX: NULL MUST DIE
         ("(TNullable(t1), TNullable(t2))", unify),
         ("(_, TNullable(_))", lambda: unify(e2, e1)),
-        ("(TNullable(_), TInt())", fail),
-        ("(TNullable(_), TChar())", fail),
-        ("(TNullable(_), TBool())", fail),
-        ("(TNullable(_), TVoid())", fail),
+        ("(TNullable(_), TInt())", fail("unboxed int not nullable")),
+        ("(TNullable(_), TChar())", fail("unboxed char not nullable")),
+        ("(TNullable(_), TBool())", fail("unboxed bool not nullable")),
+        ("(TNullable(_), TVoid())", fail("void return not nullable")),
         ("(TNullable(v), t)", unify),
         # Mismatch
-        ("_", fail))
-
-def set_scheme(e, sc, augment_ast):
-    global ENV
-    ENV.curEnv.envTable[e] = sc
-    if augment_ast:
-        ENV.omniEnv.omniTable[e] = sc
+        ("_", fail("type mismatch")))
 
 def set_type(e, t, augment_ast):
     global ENV
-    s = ENV.omniEnv.omniSubsts
-    return set_scheme(e, monotype(apply_substs(s, t)), augment_ast)
+    env = ENV.curEnv
+    while env is not None:
+        assert e not in env.envTable, "%s already has a type" % (e,)
+        env = env.envPrev
+    ENV.curEnv.envTable[e] = (t, augment_ast)
 
 def get_type(e):
     global ENV
     env = ENV.curEnv
-    while e not in env.envTable:
+    while env is not None:
+        if e in env.envTable:
+            t, aug = env.envTable[e]
+            return t
         env = env.envPrev
-        assert env is not None, '%s not found in env' % (e,)
-    return apply_substs(ENV.omniEnv.omniSubsts, env.envTable[e])
+    assert False, '%s not in scope' % (e,)
 
 def in_new_env(f):
     global ENV
     outerEnv = ENV.curEnv
     ENV.curEnv = Env({}, None, False, outerEnv)
 
-    ret = f(ENV.curEnv)
+    ret = f()
+
+    # Save augmentations from that env
+    for e, info in ENV.curEnv.envTable.iteritems():
+        t, aug = info
+        if aug:
+            ENV.omniEnv.omniTypeAugs[e] = t
 
     ENV.curEnv = outerEnv
     return ret
-
-def monotype(t):
-    return Scheme([], t)
-
-def generalize_type(t):
-    global ENV
-    evs = free_vars_in_env(ENV.curEnv)
-    gen_vars = free_vars(t).difference(evs)
-    return Scheme(gen_vars, t)
-
-def instantiate_with_type(ref, scheme):
-    global ENV
-    vs, t = match(scheme, ("Scheme(vs, t)", tuple2))
-    insts = [(v, fresh_from(v)) for v in vs]
-    if len(insts) > 0:
-        assert ref not in insts
-        ENV.omniEnv.omniInsts[ref] = insts
-    return apply_substs(dict(insts), t)
 
 def check_tuple(et, ts):
     unify(et, TTuple(map(infer_expr, ts)))
@@ -196,18 +143,17 @@ def check_call(et, f, args):
     unify(retT, et)
 
 def pat_var(tv, v):
-    set_scheme(v, Scheme([tv.varAtom], tv), True)
+    set_type(v, tv, True)
 
 def pat_capture(tv, v, p):
     pat_var(tv, v)
     check_pat(tv, p)
 
-def pat_ctor(tv, ctor, args):
-    ct = get_type(ctor).schemeType
-    fieldTs, dt = match(ct, ("TFunc(fs, dt)", tuple2))
+def pat_ctor(tv, ctor_ref, ctor, args):
+    fieldTs, dt = match(get_type(ctor), ("TFunc(fs, dt)", tuple2))
     unify(tv, dt)
-    for a, ft in zip(args, fieldTs):
-        unify(infer_pat(a), ft)
+    argTs = map(infer_pat, args)
+    unify_tuples(ctor_ref, argTs, ctor, fieldTs, "ctor params")
 
 def check_pat(tv, p):
     match(p,
@@ -219,8 +165,8 @@ def check_pat(tv, p):
         ("v==key('var')", lambda v: pat_var(tv, v)),
         ("key('capture', cons(v, cons(p, _)))",
             lambda v, p: pat_capture(tv, v, p)),
-        ("key('ctor', cons(Ref(c, _, _), sized(args)))",
-            lambda c, args: pat_ctor(tv, c, args)),
+        ("r==key('ctor', cons(Ref(c, _, _), sized(args)))",
+            lambda r, c, args: pat_ctor(tv, r, c, args)),
         )
 
 def infer_pat(p):
@@ -242,10 +188,8 @@ def check_match(retT, m, e, cs):
 
 def check_attr(et, struct, a):
     global ENV
-    structT = infer_expr(struct)
-    adt = ENV.omniEnv.omniFieldDTs[a]
-    unify(TData(adt), structT)
-    unify(et, get_type(a).schemeType)
+    unify(ENV.omniEnv.omniFieldDTs[a], infer_expr(struct))
+    unify(et, get_type(a))
 
 def unknown_infer(a):
     assert False, 'Unknown infer case:\n%s' % (a,)
@@ -263,11 +207,11 @@ def check_expr(tv, e):
         ("key('attr', cons(s, cons(Ref(a, _, _), _)))",
             lambda s, a: check_attr(tv, s, a)),
         ("Ref(v==key('var'), _, _)",
-            lambda v: unify(tv, get_type(v).schemeType)),
+            lambda v: unify(tv, get_type(v))),
         ("Ref(f==key('func' or 'ctor'), _, _)",
-            lambda f: unify(tv, instantiate_with_type(e, get_type(f)))),
-        ("Ref(key('symbol', contains(t==key('type'))), _, _)",
-            lambda t: unify(tv, instantiate_with_type(e, atoms_to_scheme(t)))),
+            lambda f: unify(tv, get_type(f))),
+        ("Ref(key('symbol', contains(key('type', cons(t, _)))), _, _)",
+            lambda t: unify(tv, atoms_to_type(t))),
         ("_", lambda: unknown_infer(e)))
 
 def infer_expr(e):
@@ -283,24 +227,24 @@ def infer_DT(dt, cs, vs, nm):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t)))
             list_append(fieldTs, t)
-            set_scheme(f, generalize_type(t), False)
+            set_type(f, t, False)
         funcT = TFunc(fieldTs, dtT)
-        set_scheme(c, generalize_type(funcT), False)
+        set_type(c, funcT, False)
 
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _, _)", lambda: False))
-    t = fresh() if newvar else get_type(a.refAtom).schemeType
-    unify(t, infer_expr(e))
+    t = fresh() if newvar else get_type(a.refAtom)
+    check_expr(t, e)
     if newvar:
-        set_scheme(a, monotype(t), True)
+        set_type(a, t, True)
 
 def infer_exprstmt(e):
     t = infer_expr(e)
 
 def infer_cond(subs, cases):
     for t, b in cases:
-        unify(infer_expr(t), TBool())
+        check_expr(TBool(), t)
         infer_stmts(b)
     else_ = match(subs, ('contains(key("else", sized(body)))', identity),
                         ('_', lambda: None))
@@ -308,15 +252,18 @@ def infer_cond(subs, cases):
         infer_stmts(else_)
 
 def infer_while(test, body):
-    unify(infer_expr(test), TBool())
+    check_expr(TBool(), test)
     infer_stmts(body)
 
 def infer_assert(tst, msg):
-    unify(infer_expr(tst), TBool())
-    unify(infer_expr(msg), TStr())
+    check_expr(TBool(), tst)
+    check_expr(TStr(), msg)
 
 def infer_func(f, args, body):
-    def inside_func_env(env):
+    def inside_func_env():
+        global ENV
+        env = ENV.curEnv
+
         retT = fresh()
         env.envRetType = retT
         funcT = fresh()
@@ -332,13 +279,13 @@ def infer_func(f, args, body):
         if not env.envReturned:
             unify(retT, TVoid())
         unify(funcT, TFunc(argTs, retT))
-        return generalize_type(funcT)
-    set_scheme(f, in_new_env(inside_func_env), True)
+        return funcT
+    set_type(f, in_new_env(inside_func_env), True)
 
 def infer_return(e):
     global ENV
     if e is not None:
-        unify(infer_expr(e), ENV.curEnv.envRetType)
+        check_expr(ENV.curEnv.envRetType, e)
         ENV.curEnv.envReturned = True
 
 def infer_stmt(a):
@@ -366,31 +313,20 @@ def setup_infer_env(roots):
     for dt in roots:
         cs = match(dt, ("key('DT', all(cs, c==key('ctor')))", identity),
                        ("_", lambda: []))
+        dtT = TData(dt)
         for c in cs:
             fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
             for f in fs:
-                fields[f] = dt
-    omni = OmniEnv({}, {}, {}, fields, 1)
-    env = Env({}, None, False, None)
-    return GlobalEnv(omni, env)
+                fields[f] = dtT
+    omni = OmniEnv({}, fields)
+    return GlobalEnv(omni, None)
 
 def infer_types(roots):
     global ENV
     ENV = setup_infer_env(roots)
-    infer_stmts(roots)
-    substs = ENV.omniEnv.omniSubsts
-    for a, t in ENV.omniEnv.omniTable.iteritems():
-        apply_substs_to_scheme(substs, t)
-        a.subs.append(scheme_to_atoms(t))
-    for r, ts in ENV.omniEnv.omniInsts.iteritems():
-        for t, tv in ts:
-            it = type_to_atoms(apply_substs(substs, tv))
-            # If the instantiation is still a typevar, actually store it here,
-            # not just a ref to it.
-            # TODO: Detect if the new tvar is used elsewhere and omit if not?
-            itt = match(it, ("Ref(t==key('typevar'), _, _)", identity),
-                            ("_", lambda: it))
-            r.subs.append(symref('instantiation', [Ref(t, None, []), itt]))
+    in_new_env(lambda: infer_stmts(roots))
+    for e, t in ENV.omniEnv.omniTypeAugs.iteritems():
+        e.subs.append(symref('type', [type_to_atoms(t)]))
 
 if __name__ == '__main__':
     import ast

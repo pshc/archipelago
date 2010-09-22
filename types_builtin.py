@@ -3,7 +3,7 @@ from base import *
 Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData \
     = ADT('Type',
-        'TVar', ('varAtom', 'Atom'),
+        'TVar', ('varCell', 'TypeCell'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
         'TNullable', ('nullType', 'Type'),
@@ -11,6 +11,8 @@ Type, TVar, TInt, TStr, TChar, TBool, TVoid, TNullable, \
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
         'TData', ('dataAtom', 'Atom'))
+
+TypeCell = DT('TypeCell', ('cellType', Type))
 
 def map_type_vars(f, t):
     """Applies f to every typevar('s index) in the given type."""
@@ -50,12 +52,12 @@ builtins_types = {
     'sha256_update': (THash, TStr, TVoid),
     'dict_keys': (TDict, TList),
     'set_add': (TSet, TSet, TVoid),
-    'list_append': (TList, TVar(1), TVoid),
+#    'list_append': (TList, TVar(1), TVoid),
     'list_sort': (TList, TVoid),
-    'identity': (TVar(1), TVar(1)),
-    'tuple2': (TVar(1), TVar(2), TTuple([TVar(1), TVar(2)])),
+#    'identity': (TVar(1), TVar(1)),
+#    'tuple2': (TVar(1), TVar(2), TTuple([TVar(1), TVar(2)])),
     # etc to tuple5
-    'None': TNullable(TVar(1)),
+#    'None': TNullable(TVar(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
     'len': (TList, TInt),
@@ -65,11 +67,11 @@ builtins_types = {
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
     '//': (TInt, TInt, TInt),
     'negate': (TInt, TInt),
-    '==': (TVar(1), TVar(1), TBool), '!=': (TVar(1), TVar(1), TBool),
+#    '==': (TVar(1), TVar(1), TBool), '!=': (TVar(1), TVar(1), TBool),
     '<': (TInt, TInt, TInt), '>': (TInt, TInt, TInt),
     '<=': (TInt, TInt, TInt), '>=': (TInt, TInt, TInt),
-    'is': (TVar(1), TVar(1), TBool), 'is not': (TVar(1), TVar(1), TBool),
-    'in': (TVar(1), TList, TBool), 'not in': (TVar(1), TList, TBool),
+#    'is': (TVar(1), TVar(1), TBool), 'is not': (TVar(1), TVar(1), TBool),
+#    'in': (TVar(1), TList, TBool), 'not in': (TVar(1), TList, TBool),
     'slice': (TList, TInt, TInt, TList),
     'printf': (TStr, TAnyTuple, TVoid),
 }

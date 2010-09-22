@@ -59,6 +59,7 @@ def builtin_type_to_atoms(name):
     def builtin_typevar(n):
         if n not in tvars:
             tvars[n] = symref('typevar', [symname(chr(ord('a') + n - 1))])
+        assert False, "XXX: TVars in builtins not supported right now"
         return TVar(tvars[n])
     t = map_type_vars(builtin_typevar, t)
     return scheme_to_atoms(Scheme(tvars.values(), t))
@@ -79,9 +80,13 @@ def add_sym(name, extra_prop=None, extra_str=None):
         ss = [Str(extra_str, [])] if extra_str else []
         subs.append(symref(extra_prop, ss))
 
+def _follow_var(cell):
+    assert cell.cellType is not None, "Monotype could not be determined"
+    return type_to_atoms(cell.cellType)
+
 def type_to_atoms(t):
     return match(t,
-        ("TVar(v)", lambda v: Ref(v, None, [])),
+        ("TVar(c)", _follow_var),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
