@@ -23,7 +23,7 @@ def main():
         print 'no'
     assert True, 'WHAT'
     #t = (1, 2)
-    #c = None
+    c = None
     c = 'ok'
     #m = Just(1)
     #match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))

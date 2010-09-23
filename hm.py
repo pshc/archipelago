@@ -55,6 +55,17 @@ def unify_bind_meta(meta, t):
     else:
         unify(cell.cellType, t)
 
+# XXX: NULL MUST DIE
+def unify_nullable(n, e):
+    fail = lambda m: lambda: unification_failure(TNullable(n), e,
+                                                 "%s not nullable" % (m,))
+    match(e,
+        ("TInt()", fail("unboxed int")),
+        ("TChar()", fail("unboxed char")),
+        ("TBool()", fail("unboxed bool")),
+        ("TVoid()", fail("void return")),
+        ("_", lambda: unify(n, e)))
+
 def unify(e1, e2):
     global ENV
     same = lambda: None
@@ -80,15 +91,9 @@ def unify(e1, e2):
         ("(TAnyTuple(), TTuple(_))", same),
         ("(TAnyTuple(), _)", fail("tuple expected")),
         ("(_, TAnyTuple())", fail("tuple expected")),
-        # XXX: NULL MUST DIE
         ("(TNullable(t1), TNullable(t2))", unify),
-        ("(_, TNullable(_))", lambda: unify(e2, e1)),
-        ("(TNullable(_), TInt())", fail("unboxed int not nullable")),
-        ("(TNullable(_), TChar())", fail("unboxed char not nullable")),
-        ("(TNullable(_), TBool())", fail("unboxed bool not nullable")),
-        ("(TNullable(_), TVoid())", fail("void return not nullable")),
-        ("(TNullable(v), t)", unify),
-        # Mismatch
+        ("(TNullable(v), _)", lambda v: unify_nullable(v, e2)),
+        ("(_, TNullable(v))", lambda v: unify_nullable(v, e1)),
         ("_", fail("type mismatch")))
 
 def set_scheme(e, s, augment_ast):
