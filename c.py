@@ -309,6 +309,7 @@ if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')
     write_mod_repr('hello', short)
+    write_mod_repr('konnichiwa', short)
     import hm
     hm.infer_types(short.roots)
     write_mod_repr('hello', short)

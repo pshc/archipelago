@@ -51,16 +51,16 @@ def builtin_type_to_atoms(name):
     if isinstance(t, tuple):
         if None in t:
             return None
-        args, ret = t[:-1], t[-1]
-        t = TFunc(map(_fix_type, args), _fix_type(ret))
+        t = map(_fix_type, t)
+        t = TFunc(t[:-1], t[-1])
     else:
         t = _fix_type(t)
     tvars = {}
-    def builtin_typevar(n):
-        if n not in tvars:
-            tvars[n] = symref('typevar', [symname(chr(ord('a') + n - 1))])
-        assert False, "XXX: TVars in builtins not supported right now"
-        return TVar(tvars[n])
+    def builtin_typevar(v):
+        index = match(v, ('TVar(Int(n, _))', identity))
+        if index not in tvars:
+            tvars[index] = symref('typevar', [symname(chr(96 + index))])
+        return TVar(tvars[index])
     t = map_type_vars(builtin_typevar, t)
     return scheme_to_atoms(Scheme(tvars.values(), t))
 
@@ -86,7 +86,7 @@ def _follow_var(cell):
 
 def type_to_atoms(t):
     return match(t,
-        ("TVar(a)", lambda: Ref(a, None, [])),
+        ("TVar(a)", lambda a: Ref(a, None, [])),
         ("TMeta(c)", _follow_var),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),

@@ -7,13 +7,15 @@ def ident(val):
 #Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 #Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 #Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
-Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', int), 'Nothing')
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
         inside = 1
-    a = ident(1 + 2)
+    id2 = ident
+    a = id2(1 + 2)
+    b = id2('nope.avi')
     #ok(a)
-    if True:
+    if True == True:
         print 'ok'
     elif False:
         print 'what'
@@ -23,8 +25,7 @@ def main():
     #t = (1, 2)
     #c = None
     c = 'ok'
-    m = Just(1)
-    #id2 = ident
+    #m = Just(1)
     #match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
     #p = Pair(1, ('hello', 'world'))
     #print "%s %s" % (match(p,

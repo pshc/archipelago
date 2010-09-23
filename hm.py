@@ -4,10 +4,10 @@ from base import *
 from builtins import *
 from types_builtin import *
 
-OmniEnv = DT('OmniEnv', ('omniTypeAugs', {Atom: Type}),
+OmniEnv = DT('OmniEnv', ('omniTypeAugs', {Atom: Scheme}),
                         ('omniFieldDTs', {Atom: Atom}))
 
-Env = DT('Env', ('envTable', {Atom: Type}),
+Env = DT('Env', ('envTable', {Atom: Scheme}),
                 ('envRetType', Type),
                 ('envReturned', bool),
                 ('envPrev', 'Env'))
@@ -63,6 +63,8 @@ def unify(e1, e2):
         ("(TMeta(_), TMeta(_))", lambda: unify_metas(e1, e2)),
         ("(TMeta(_), _)", lambda: unify_bind_meta(e1, e2)),
         ("(_, TMeta(_))", lambda: unify_bind_meta(e2, e1)),
+        ("(TVar(v1), TVar(v2))", lambda v1, v2: same() if v1 is v2
+                                 else fail("mismatched type vars")),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
         ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
@@ -89,21 +91,24 @@ def unify(e1, e2):
         # Mismatch
         ("_", fail("type mismatch")))
 
-def set_type(e, t, augment_ast):
+def set_scheme(e, s, augment_ast):
     global ENV
     env = ENV.curEnv
     while env is not None:
         assert e not in env.envTable, "%s already has a type" % (e,)
         env = env.envPrev
-    ENV.curEnv.envTable[e] = (t, augment_ast)
+    ENV.curEnv.envTable[e] = (s, augment_ast)
 
-def get_type(e):
+def set_monotype(e, t, augment_ast):
+    set_scheme(e, Scheme([], t), augment_ast)
+
+def get_scheme(e):
     global ENV
     env = ENV.curEnv
     while env is not None:
         if e in env.envTable:
-            t, aug = env.envTable[e]
-            return t
+            s, aug = env.envTable[e]
+            return s
         env = env.envPrev
     assert False, '%s not in scope' % (e,)
 
@@ -116,12 +121,51 @@ def in_new_env(f):
 
     # Save augmentations from that env
     for e, info in ENV.curEnv.envTable.iteritems():
-        t, aug = info
+        s, aug = info
         if aug:
-            ENV.omniEnv.omniTypeAugs[e] = t
+            ENV.omniEnv.omniTypeAugs[e] = s
 
     ENV.curEnv = outerEnv
     return ret
+
+def instantiate_scheme(s):
+    vs, t = match(s, ('Scheme(vs, t)', tuple2))
+    if len(vs) == 0:
+        return t
+    new_vs = (fresh() for v in vs)
+    repl = dict((v, fresh()) for v in vs)
+    return map_type_vars(lambda v: repl.get(v.varAtom, v), t)
+
+def generalize_type(t, polyEnv):
+    metas = free_meta_vars(t)
+    while polyEnv is not None:
+        for envT in polyEnv.envTable:
+            metas = metas.difference(free_meta_vars(envT))
+        polyEnv = polyEnv.envPrev
+    tvs = []
+    for i, meta in enumerate(metas):
+        tv = symref('typevar', [symname(chr(97 + i))])
+        meta.metaCell.cellType = TVar(tv)
+        list_append(tvs, tv)
+    return Scheme(tvs, t)
+
+def get_type(e):
+    return instantiate_scheme(get_scheme(e))
+
+def free_tuple_meta_vars(ts):
+    return reduce(lambda s, t: s.union(free_meta_vars(t)), ts, set())
+
+def free_func_meta_vars(args, ret):
+    return free_tuple_meta_vars(args).union(free_meta_vars(ret))
+
+def free_meta_vars(t):
+    return match(t, ('v==TMeta(TypeCell(r))',
+                       lambda v, r: set([v]) if r is None
+                                             else free_meta_vars(r)),
+                    ('TNullable(t)', free_meta_vars),
+                    ('TTuple(ts)', free_tuple_meta_vars),
+                    ('TFunc(args, ret)', free_func_meta_vars),
+                    ('_', lambda: set()))
 
 def check_tuple(et, ts):
     unify(et, TTuple(map(infer_expr, ts)))
@@ -143,7 +187,7 @@ def check_call(et, f, args):
     unify(retT, et)
 
 def pat_var(tv, v):
-    set_type(v, tv, True)
+    set_monotype(v, tv, True)
 
 def pat_capture(tv, v, p):
     pat_var(tv, v)
@@ -183,8 +227,8 @@ def check_match(retT, m, e, cs):
             check_expr(retT, ce)
         in_new_env(check_case)
     # Help out C transmogrification with some extra type annotations
-    set_type(m, retT, True)
-    set_type(e, et, True)
+    set_monotype(m, retT, True)
+    set_monotype(e, et, True)
 
 def check_attr(et, struct, a):
     global ENV
@@ -193,6 +237,9 @@ def check_attr(et, struct, a):
 
 def unknown_infer(a):
     assert False, 'Unknown infer case:\n%s' % (a,)
+
+def check_binding(tv, b):
+    unify(tv, get_type(b))
 
 def check_expr(tv, e):
     """Algorithm M."""
@@ -207,11 +254,11 @@ def check_expr(tv, e):
         ("key('attr', cons(s, cons(Ref(a, _, _), _)))",
             lambda s, a: check_attr(tv, s, a)),
         ("Ref(v==key('var'), _, _)",
-            lambda v: unify(tv, get_type(v))),
+            lambda v: check_binding(tv, v)),
         ("Ref(f==key('func' or 'ctor'), _, _)",
-            lambda f: unify(tv, get_type(f))),
-        ("Ref(key('symbol', contains(key('type', cons(t, _)))), _, _)",
-            lambda t: unify(tv, atoms_to_type(t))),
+            lambda f: check_binding(tv, f)),
+        ("Ref(key('symbol', contains(t==key('type'))), _, _)",
+            lambda t: unify(tv, instantiate_scheme(atoms_to_scheme(t)))),
         ("_", lambda: unknown_infer(e)))
 
 def infer_expr(e):
@@ -227,9 +274,9 @@ def infer_DT(dt, cs, vs, nm):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t)))
             list_append(fieldTs, t)
-            set_type(f, t, False)
+            set_monotype(f, t, False)
         funcT = TFunc(fieldTs, dtT)
-        set_type(c, funcT, False)
+        set_monotype(c, funcT, False)
 
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
@@ -237,7 +284,8 @@ def infer_assign(a, e):
     t = fresh() if newvar else get_type(a.refAtom)
     check_expr(t, e)
     if newvar:
-        set_type(a, t, True)
+        global ENV
+        set_scheme(a, generalize_type(t, ENV.curEnv), True)
 
 def infer_exprstmt(e):
     t = infer_expr(e)
@@ -267,11 +315,11 @@ def infer_func(f, args, body):
         retT = fresh()
         env.envRetType = retT
         funcT = fresh()
-        set_type(f, funcT, False)
+        set_monotype(f, funcT, False)
         argTs = []
         for a in args:
             t = fresh()
-            set_type(a, t, False)
+            set_monotype(a, t, False)
             list_append(argTs, t)
 
         infer_stmts(body)
@@ -279,8 +327,9 @@ def infer_func(f, args, body):
         if not env.envReturned:
             unify(retT, TVoid())
         unify(funcT, TFunc(argTs, retT))
-        return funcT
-    set_type(f, in_new_env(inside_func_env), True)
+        return (funcT, env)
+    funcT, polyEnv = in_new_env(inside_func_env)
+    set_scheme(f, generalize_type(funcT, polyEnv), True)
 
 def infer_return(e):
     global ENV
@@ -325,8 +374,8 @@ def infer_types(roots):
     global ENV
     ENV = setup_infer_env(roots)
     in_new_env(lambda: infer_stmts(roots))
-    for e, t in ENV.omniEnv.omniTypeAugs.iteritems():
-        e.subs.append(symref('type', [type_to_atoms(t)]))
+    for e, s in ENV.omniEnv.omniTypeAugs.iteritems():
+        e.subs.append(scheme_to_atoms(s))
 
 if __name__ == '__main__':
     import ast

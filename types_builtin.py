@@ -1,4 +1,5 @@
 from base import *
+from builtins import Int
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData \
@@ -16,8 +17,10 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
 TypeCell = DT('TypeCell', ('cellType', Type))
 
 def map_type_vars(f, t):
-    """Applies f to every typevar('s index) in the given type."""
-    return match(t, ("TVar(n)", f),
+    """Applies f to every typevar in the given type."""
+    return match(t, ("tv==TVar(_)", f),
+                    ("m==TMeta(TypeCell(r))",
+                        lambda m, r: m if r is None else map_type_vars(f, r)),
                     ("TNullable(v)", lambda v:
                         TNullable(map_type_vars(f, v))),
                     ("TFunc(args, ret)", lambda args, ret:
@@ -40,6 +43,8 @@ THash = None
 # Special: array, sizeof, hint, stringify, to_atom, to_void, getattr, range,
 #          object
 
+def _var(n): return TVar(Int(n, []))
+
 # Tuples are a shortcut for functions
 builtins_types = {
     'fgetc': (TFile, TChar),
@@ -53,12 +58,12 @@ builtins_types = {
     'sha256_update': (THash, TStr, TVoid),
     'dict_keys': (TDict, TList),
     'set_add': (TSet, TSet, TVoid),
-#    'list_append': (TList, TVar(1), TVoid),
+    'list_append': (TList, _var(1), TVoid),
     'list_sort': (TList, TVoid),
-#    'identity': (TVar(1), TVar(1)),
-#    'tuple2': (TVar(1), TVar(2), TTuple([TVar(1), TVar(2)])),
+    'identity': (_var(1), _var(1)),
+    'tuple2': (_var(1), _var(2), TTuple([_var(1), _var(2)])),
     # etc to tuple5
-#    'None': TNullable(TVar(1)),
+    'None': TNullable(_var(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
     'len': (TList, TInt),
@@ -68,11 +73,11 @@ builtins_types = {
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
     '//': (TInt, TInt, TInt),
     'negate': (TInt, TInt),
-#    '==': (TVar(1), TVar(1), TBool), '!=': (TVar(1), TVar(1), TBool),
+    '==': (_var(1), _var(1), TBool), '!=': (_var(1), _var(1), TBool),
     '<': (TInt, TInt, TInt), '>': (TInt, TInt, TInt),
     '<=': (TInt, TInt, TInt), '>=': (TInt, TInt, TInt),
-#    'is': (TVar(1), TVar(1), TBool), 'is not': (TVar(1), TVar(1), TBool),
-#    'in': (TVar(1), TList, TBool), 'not in': (TVar(1), TList, TBool),
+    'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
+    'in': (_var(1), TList, TBool), 'not in': (_var(1), TList, TBool),
     'slice': (TList, TInt, TInt, TList),
     'printf': (TStr, TAnyTuple, TVoid),
 }
