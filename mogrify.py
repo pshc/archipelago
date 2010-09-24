@@ -322,8 +322,13 @@ def and_together(conds):
         c = conds.pop(0)
         return bop(c, '&&', and_together(conds))
 
-def c_match(e, retT, cs):
-    eT = match(e.subs, ("contains(t==key('type'))", identity))
+def c_match_bits(e):
+    return match(e, ("key('match', cons(e==subs(contains(t==key('type'))),"
+                     " contains(retT==key('type'))"
+                     " and all(cs, c==key('case'))))", tuple4))
+
+def c_match(matchExpr):
+    e, eT, retT, cs = c_match_bits(matchExpr)
     sf = surrounding_func()
     nms = ['match'] if sf is None else [sf.csFuncName, 'match']
     arg = csym('arg', [c_scheme(eT)])
@@ -358,6 +363,9 @@ def c_match(e, retT, cs):
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
+def c_match_inline(e):
+    return c_match(e)
+
 def c_attr(struct, a):
     global CGLOBAL
     fi = CGLOBAL.cgFields[a]
@@ -373,9 +381,14 @@ def c_expr(e):
         ("key('lambda', sized(args, cons(e, contains(s==key('type')))))",
             c_lambda),
         ("key('tuplelit', sized(ts))", c_tuple),
-        ("key('match', cons(e, contains(retT==key('type')) "
-                       "and all(cs, c==key('case'))))", c_match),
+        ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _, _), _)))", c_attr))
+
+# Can inline stmts required for computing `e' right here; and the final value
+# inlines into the final stmt with `stmt_f'
+def c_expr_inline_stmt(e, stmt_f):
+    ce = match(e, ("e==key('match')", c_match_inline), ("e", c_expr))
+    stmt(stmt_f(ce))
 
 def is_func_scope(scope):
     return scope.csFuncName is not None
@@ -398,14 +411,13 @@ def is_decl_or_defn(s):
                     ("_", lambda: False))
 
 def c_assign(a, e):
-    ce = c_expr(e)
     nm, var, needs_decl = match(a,
         ("key('var') and named(nm)", lambda nm: (nm, a, True)),
         ("Ref(v==named(nm, contains(key('type'))), _, _)",
             lambda v, nm: (nm, v, False)))
     if needs_decl:
         ct = match(a, ("key('var', contains(t==key('type')))", c_scheme))
-        definition = lambda s: stmt(csym('vardefn', [s, ct, ce]))
+        definition = lambda s: stmt(csym('vardefn', [s, ct, c_expr(e)]))
         # Check to see if we can set this right where we declare it
         global CSCOPE
         if is_func_scope(CSCOPE) and all(map(is_decl_or_defn, CSCOPE.csStmts)):
@@ -419,7 +431,7 @@ def c_assign(a, e):
         # Declare it at the top of the function, but set it back here
         s = set_identifier(var, nm, func)
         stmt_after_vardecls(csym('vardecl', [s, ct]), func)
-    stmt(bop(identifier_ref(var), '=', ce))
+    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), '=', c))
 
 def c_cond(subs, cs):
     cases = []
@@ -530,7 +542,7 @@ def c_func(f, t, args, body, nm):
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))",
-            lambda e: stmt(csym('exprstmt', [c_expr(e)]))),
+            lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
         ("key('=', cons(a, cons(e, _)))", c_assign),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
@@ -541,7 +553,7 @@ def c_stmt(s):
                  "and contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),
         ("key('return', cons(e, _))",
-            lambda e: stmt(csym("return", [c_expr(e)]))),
+            lambda e: c_expr_inline_stmt(e, lambda c: csym('return', [c]))),
         ("key('returnnothing')", lambda: stmt(csym_("returnnothing"))))
 
 def stmt(s):
