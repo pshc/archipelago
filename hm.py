@@ -135,11 +135,10 @@ def in_new_env(f):
 
 def instantiate_scheme(s):
     vs, t = match(s, ('Scheme(vs, t)', tuple2))
-    if len(vs) == 0:
-        return t
-    new_vs = (fresh() for v in vs)
     repl = dict((v, fresh()) for v in vs)
-    return map_type_vars(lambda v: repl.get(v.varAtom, v), t)
+    if len(vs) > 0:
+        t = map_type_vars(lambda v: repl.get(v.varAtom, v), t)
+    return t
 
 def generalize_type(t, polyEnv):
     metas = free_meta_vars(t)
@@ -205,11 +204,14 @@ def pat_capture(tv, v, p):
     pat_var(tv, v)
     check_pat(tv, p)
 
-def pat_ctor(tv, ctor_ref, ctor, args):
-    fieldTs, dt = match(get_type(ctor), ("TFunc(fs, dt)", tuple2))
+# XXX: Instantiation has to be consistent across all match cases...
+def pat_ctor(tv, ctor, args):
+    ctorT = instantiate_scheme(get_scheme(ctor))
+    fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
     unify(tv, dt)
-    argTs = map(infer_pat, args)
-    unify_tuples(ctor_ref, argTs, ctor, fieldTs, "ctor params")
+    assert len(args) == len(fieldTs), "Wrong ctor param count"
+    for arg, fieldT in zip(args, fieldTs):
+        check_pat(fieldT, arg)
 
 def check_pat(tv, p):
     match(p,
@@ -221,8 +223,8 @@ def check_pat(tv, p):
         ("v==key('var')", lambda v: pat_var(tv, v)),
         ("key('capture', cons(v, cons(p, _)))",
             lambda v, p: pat_capture(tv, v, p)),
-        ("r==key('ctor', cons(Ref(c, _, _), sized(args)))",
-            lambda r, c, args: pat_ctor(tv, r, c, args)),
+        ("key('ctor', cons(Ref(c, _, _), sized(args)))",
+            lambda c, args: pat_ctor(tv, c, args)),
         )
 
 def infer_pat(p):
@@ -253,6 +255,9 @@ def unknown_infer(a):
 def check_binding(tv, b):
     unify(tv, get_type(b))
 
+def check_builtin(tv, s):
+    unify(tv, instantiate_scheme(atoms_to_scheme(s)))
+
 def check_expr(tv, e):
     """Algorithm M."""
     match(e,
@@ -271,8 +276,8 @@ def check_expr(tv, e):
             lambda v: check_binding(tv, v)),
         ("Ref(f==key('func' or 'ctor'), _, _)",
             lambda f: check_binding(tv, f)),
-        ("Ref(key('symbol', contains(t==key('type'))), _, _)",
-            lambda t: unify(tv, instantiate_scheme(atoms_to_scheme(t)))),
+        ("Ref(key('symbol', contains(s==key('type'))), _, _)",
+            lambda s: check_builtin(tv, s)),
         ("_", lambda: unknown_infer(e)))
 
 def infer_expr(e):
