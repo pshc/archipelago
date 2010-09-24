@@ -4,6 +4,7 @@
 #    return s
 def ident(val):
     return val
+ident2 = lambda v: v
 #Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 #Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 #Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
@@ -11,8 +12,9 @@ Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
         inside = 1
-    id2 = ident
-    a = id2(1 + 2)
+    id = ident
+    a = id(1 + 2)
+    id2 = ident2
     b = id2('nope.avi')
     #ok(a)
     if True == True:

@@ -67,6 +67,10 @@ def c_type(t):
         ("Ref(a==key('DT'), _, _)", lambda a: cptr(struct_ref(a))),
         ("key('func')", lambda: csym_('somefunc_t'))) # TODO
 
+# XXX: This is backwards
+def c_type_(t):
+    return c_type(type_to_atoms(t))
+
 def c_scheme(ta):
     return match(ta, ("key('type', cons(t, _))", c_type))
 
@@ -156,6 +160,22 @@ def c_call(f, args):
                 + map(c_expr, args))
     else:
         return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
+
+# This sucks, we should be converting the lambda into a func earlier
+def c_lambda(args, e, s):
+    argTs, retT = match(atoms_to_scheme(s), ('Scheme(_, TFunc(a, r))', tuple2))
+    fnm = str_('lambda')
+    cargs = [csym('arg', [c_type_(t), None])
+             for a, t in zip(args, argTs)]
+    # XXX: use _setup_func instead OR REVAMP THIS CRAP
+    def _setup_lambda(scope):
+        scope.csFuncName = fnm.strVal
+        for a, ca in zip(args, cargs):
+            ca.subs[1] = set_identifier(a, getname(a), scope)
+    cb = c_body([symref('return', [e])], _setup_lambda)
+    lam = make_func(None, c_type_(retT), fnm, cargs, cb, [csym_('static')])
+    list_append(global_scope().csStmts, lam)
+    return nmref(fnm)
 
 # Currently boxed and void*'d to hell... hmmm...
 def c_tuple(ts):
@@ -347,6 +367,8 @@ def c_expr(e):
         ("r==Ref(a==named(_, contains(key('type'))), _, _)", c_defref),
         ("r==Ref(a==key('ctor' or 'var'), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
+        ("key('lambda', sized(args, cons(e, contains(s==key('type')))))",
+            c_lambda),
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match', cons(e, contains(retT==key('type')) "
                        "and all(cs, c==key('case'))))", c_match),
@@ -487,7 +509,6 @@ def make_func(f, retT, nm, args, body, extra_attrs):
 
 def _setup_func(scope, nm, args, argTs, cargs):
     scope.csFuncName = nm
-    idents = {}
     for a, t in zip(args, argTs):
         carg = csym('arg', [c_type(t), set_identifier(a, getname(a), scope)])
         list_append(cargs, carg)

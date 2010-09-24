@@ -191,6 +191,13 @@ def check_call(et, f, args):
         check_expr(argT, arg)
     unify(retT, et)
 
+def check_lambda(tv, lam, args, e):
+    body = [symref('return', [e])] # stupid hack
+    s = infer_func_scheme(None, args, body) # non-recursive, so None
+    set_scheme(lam, s, True)
+    t = instantiate_scheme(s) # stupider hack
+    unify(tv, t)
+
 def pat_var(tv, v):
     set_monotype(v, tv, True)
 
@@ -254,6 +261,8 @@ def check_expr(tv, e):
         ("key('char')", lambda: unify(tv, TChar())),
         ("key('tuplelit', sized(ts))", lambda ts: check_tuple(tv, ts)),
         ("key('call', cons(f, sized(s)))", lambda f, s: check_call(tv, f, s)),
+        ("l==key('lambda', sized(args, cons(e, _)))",
+            lambda l, a, e: check_lambda(tv, l, a, e)),
         ("m==key('match', cons(p, all(cs, c==key('case'))))",
             lambda m, p, cs: check_match(tv, m, p, cs)),
         ("key('attr', cons(s, cons(Ref(a, _, _), _)))",
@@ -312,7 +321,7 @@ def infer_assert(tst, msg):
     check_expr(TBool(), tst)
     check_expr(TStr(), msg)
 
-def infer_func(f, args, body):
+def infer_func_scheme(f, args, body):
     def inside_func_env():
         global ENV
         env = ENV.curEnv
@@ -320,7 +329,8 @@ def infer_func(f, args, body):
         retT = fresh()
         env.envRetType = retT
         funcT = fresh()
-        set_monotype(f, funcT, False)
+        if f is not None:
+            set_monotype(f, funcT, False)
         argTs = []
         for a in args:
             t = fresh()
@@ -332,9 +342,11 @@ def infer_func(f, args, body):
         if not env.envReturned:
             unify(retT, TVoid())
         unify(funcT, TFunc(argTs, retT))
-        return (funcT, env)
-    funcT, polyEnv = in_new_env(inside_func_env)
-    set_scheme(f, generalize_type(funcT, polyEnv), True)
+        return generalize_type(funcT, env)
+    return in_new_env(inside_func_env)
+
+def infer_func(f, args, body):
+    set_scheme(f, infer_func_scheme(f, args, body), True)
 
 def infer_return(e):
     global ENV
