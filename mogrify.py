@@ -174,7 +174,7 @@ def c_lambda(args, e, s):
             ca.subs[1] = set_identifier(a, getname(a), scope)
     cb = c_body([symref('return', [e])], _setup_lambda)
     lam = make_func(None, c_type_(retT), fnm, cargs, cb, [csym_('static')])
-    list_append(global_scope().csStmts, lam)
+    insert_global_decl(lam)
     return nmref(fnm)
 
 # Currently boxed and void*'d to hell... hmmm...
@@ -209,6 +209,9 @@ def global_scope():
     while scope.csOuterScope is not None:
         scope = scope.csOuterScope
     return scope
+
+def insert_global_decl(f):
+    list_append(global_scope().csStmts, f)
 
 def strlit(s):
     return csym('strlit', [str_(s)])
@@ -352,7 +355,7 @@ def c_match(e, retT, cs):
     body = decls + [csym('if', cases),
                     assert_false(strlit('%s failed' % (fnm.strVal,)))]
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
-    list_append(global_scope().csStmts, f)
+    insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
 def c_attr(struct, a):
