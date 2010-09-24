@@ -427,28 +427,23 @@ def is_decl_or_defn(s):
     return match(s, ("key('vardecl' or 'vardefn')", lambda: True),
                     ("_", lambda: False))
 
-def c_assign(a, e):
-    nm, var, needs_decl = match(a,
-        ("key('var') and named(nm)", lambda nm: (nm, a, True)),
-        ("Ref(v==named(nm, contains(key('type'))), _, _)",
-            lambda v, nm: (nm, v, False)))
-    if needs_decl:
-        ct = match(a, ("key('var', contains(t==key('type')))", c_scheme))
-        definition = lambda s: stmt(csym('vardefn', [s, ct, c_expr(e)]))
-        # Check to see if we can set this right where we declare it
-        global CSCOPE
-        if is_func_scope(CSCOPE) and all(map(is_decl_or_defn, CSCOPE.csStmts)):
-            definition(set_identifier(var, nm, CSCOPE))
-            return
-        # Otherwise find a suitable place to declare this variable
-        func = surrounding_func()
-        if func is None:
-            definition(set_identifier(var, nm, global_scope()))
-            return
+def c_assign_new_decl(var, e):
+    ct = match(var, ("key('var', contains(t==key('type')))", c_scheme))
+    nm = getname(var)
+    func = surrounding_func()
+    if func is not None:
         # Declare it at the top of the function, but set it back here
         s = set_identifier(var, nm, func)
         stmt_after_vardecls(csym('vardecl', [s, ct]), func)
-    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), '=', c))
+        c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
+    else:
+        s = set_identifier(var, nm, global_scope())
+        stmt(csym('vardefn', [s, ct, c_expr(e)]))
+
+def c_assign_existing(dest, e):
+    lhs = match(dest,
+        ("Ref(v==subs(contains(key('type'))), _, _)", identifier_ref))
+    c_expr_inline_stmt(e, lambda c: bop(lhs, '=', c))
 
 def c_cond(subs, cs):
     cases = []
@@ -556,11 +551,18 @@ def c_func(f, t, args, body, nm):
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, fts, ca))
     stmt(make_func(f, c_type(ret), str_(nm), ca, cb, []))
 
+def c_assign(a, e):
+    nm, var, needs_decl = match(a,
+        ("key('var') and named(nm)", lambda nm: (nm, a, True)),
+        ("Ref(v==subs(contains(key('type'))), _, _)",
+            lambda v, nm: (nm, v, False)))
+
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
-        ("key('=', cons(a, cons(e, _)))", c_assign),
+        ("key('=', cons(v==key('var'), cons(e, _)))", c_assign_new_decl),
+        ("key('=', cons(dest, cons(e, _)))", c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
