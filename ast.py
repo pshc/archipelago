@@ -218,6 +218,7 @@ def conv_match(args):
     return symref('match', [expra] + casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
+                     'subs': [1],
                      'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
 assert set(named_match_cases) == set(named_match_dispatch)
 

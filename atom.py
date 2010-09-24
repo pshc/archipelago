@@ -254,6 +254,11 @@ def _match_named(atom, ast):
             return None if n is None else m + n
     return None
 
+@matcher('subs')
+def _match_subs(atom, ast):
+    assert len(ast.args) == 1
+    return match_try(atom.subs, ast.args[0]) if hasattr(atom, 'subs') else None
+
 def _do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
         label = '<ref>'
