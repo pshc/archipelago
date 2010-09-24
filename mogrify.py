@@ -327,14 +327,10 @@ def c_match_bits(e):
                      " contains(retT==key('type'))"
                      " and all(cs, c==key('case'))))", tuple4))
 
-def c_match(matchExpr):
-    e, eT, retT, cs = c_match_bits(matchExpr)
+def c_match_cases(cs, argnm):
+    # Convert each case to an if statement, with some decls for match vars
     sf = surrounding_func()
     nms = ['match'] if sf is None else [sf.csFuncName, 'match']
-    arg = csym('arg', [c_scheme(eT)])
-    argnm = set_identifier(arg, 'expr', None)
-    list_append(arg.subs, argnm)
-    # Convert each case to an if statement, with some decls for match vars
     cases = []
     decls = []
     global CMATCH
@@ -355,16 +351,36 @@ def c_match(matchExpr):
         CSCOPE = old_scope
         test = and_together(CMATCH.cmConds)
         list_append(cases, csym('case', [test, int_len(stmts)] + stmts))
-    # Phew! Finally, create our match function
-    fnm = str_('_'.join(nms))
-    body = decls + [csym('if', cases),
-                    assert_false(strlit('%s failed' % (fnm.strVal,)))]
+    fnm = '_'.join(nms)
+    switch = [csym('if', cases + [csym('else', [int_(1),
+                   assert_false('%s failed' % (fnm,))])])]
+    return (str_(fnm), decls, switch)
+
+def c_match(matchExpr):
+    e, eT, retT, cs = c_match_bits(matchExpr)
+    arg = csym('arg', [c_scheme(eT)])
+    argnm = set_identifier(arg, 'expr', None)
+    list_append(arg.subs, argnm)
+
+    fnm, decls, switch = c_match_cases(cs, argnm)
+
+    body = decls + switch
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
-def c_match_inline(e):
-    return c_match(e)
+def c_match_inline(matchExpr, inline_f):
+    e, eT, retT, cs = c_match_bits(matchExpr)
+    arg = csym('arg', [c_scheme(eT)])
+    argnm = set_identifier(arg, 'expr', None)
+    list_append(arg.subs, argnm)
+
+    fnm, decls, switch = c_match_cases(cs, argnm)
+
+    body = decls + switch
+    f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
+    insert_global_decl(f)
+    stmt(inline_f(callnamedref(fnm, [c_expr(e)])))
 
 def c_attr(struct, a):
     global CGLOBAL
@@ -387,8 +403,9 @@ def c_expr(e):
 # Can inline stmts required for computing `e' right here; and the final value
 # inlines into the final stmt with `stmt_f'
 def c_expr_inline_stmt(e, stmt_f):
-    ce = match(e, ("e==key('match')", c_match_inline), ("e", c_expr))
-    stmt(stmt_f(ce))
+    match(e,
+        ("key('match')", lambda: c_match_inline(e, stmt_f)),
+        ("_", lambda: stmt(stmt_f(c_expr(e)))))
 
 def is_func_scope(scope):
     return scope.csFuncName is not None
