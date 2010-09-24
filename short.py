@@ -1,13 +1,11 @@
-#def ok(n):
-#    s = n + 3
-#    print 's = %d' % (s,)
-#    return s
+def ok(n):
+    s = n + 3
+    print 's = %d' % (s,)
+    return s
 def ident(val):
     return val
 ident2 = lambda v: v
-#Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
-#Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
-#Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
+Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
@@ -16,7 +14,7 @@ def main():
     a = id(1 + 2)
     id2 = ident2
     b = id2('nope.avi')
-    #ok(a)
+    ok(a)
     if True == True:
         print 'ok'
     elif False:
@@ -24,15 +22,14 @@ def main():
     else:
         print 'no'
     assert True, 'WHAT'
-    #t = (1, 2)
     c = None
     c = 'ok'
-    #m = Just(1)
-    #match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
-    #p = Pair(1, ('hello', 'world'))
-    #print "%s %s" % (match(p,
-    #    ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),
-    #    ("Pair(_, (msg, 'world'))", identity)), p.second)
+    m = Just(1)
+    match(m, ("Just(n)", id2), ("Nothing()", lambda: 0))
+    p = Pair(1, ('hello', 'world'))
+    print "%s %s" % (match(p,
+        ("p==Pair(1, ('baby', 'universe'))", lambda p: "wrong"),
+        ("Pair(_, (msg, 'world'))", identity)), p.second)
     return 0
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

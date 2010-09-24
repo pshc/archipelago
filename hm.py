@@ -234,7 +234,7 @@ def check_match(retT, m, e, cs):
     et = infer_expr(e)
     for c in cs:
         cp, ce = match(c, ("key('case', cons(p, cons(e, _)))", tuple2))
-        def check_case(env):
+        def check_case():
             check_pat(et, cp)
             check_expr(retT, ce)
         in_new_env(check_case)
@@ -282,6 +282,7 @@ def infer_expr(e):
 
 def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)
+    tvs = match(dt, ("key('DT', all(tvs, tv==key('typevar')))", identity))
     for c in cs:
         fieldTs = []
         for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
@@ -290,7 +291,8 @@ def infer_DT(dt, cs, vs, nm):
             list_append(fieldTs, t)
             set_monotype(f, t, False)
         funcT = TFunc(fieldTs, dtT)
-        set_monotype(c, funcT, False)
+        # TODO: Should use only the typevars that appear in this ctor
+        set_scheme(c, Scheme(tvs, funcT), False)
 
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
