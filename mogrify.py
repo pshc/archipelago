@@ -333,6 +333,8 @@ def c_match_cases(cs, argnm):
     nms = ['match'] if sf is None else [sf.csFuncName, 'match']
     cases = []
     decls = []
+    body = []
+    otherwise = False
     global CMATCH
     for c in cs:
         m, b = match(c, ("key('case', cons(m, cons(b, _)))", tuple2))
@@ -349,12 +351,22 @@ def c_match_cases(cs, argnm):
         CSCOPE = CScope([], 'matchfunc', matchvars, {}, old_scope)
         stmts = CMATCH.cmAssigns + [csym('return', [c_expr(b)])]
         CSCOPE = old_scope
+        if len(CMATCH.cmConds) == 0:
+            if len(cases) == 0:
+                body = stmts
+            else:
+                list_append(cases, csym('else', [int_len(stmts)] + stmts))
+                otherwise = True
+            break
         test = and_together(CMATCH.cmConds)
         list_append(cases, csym('case', [test, int_len(stmts)] + stmts))
     fnm = '_'.join(nms)
-    switch = [csym('if', cases + [csym('else', [int_(1),
-                   assert_false('%s failed' % (fnm,))])])]
-    return (str_(fnm), decls, switch)
+    if len(body) == 0:
+        if not otherwise:
+            list_append(cases, csym('else', [int_(1),
+                        assert_false('%s failed' % (fnm,))]))
+        body = [csym('if', cases)]
+    return (str_(fnm), decls, body)
 
 def c_match(matchExpr):
     e, eT, retT, cs = c_match_bits(matchExpr)
