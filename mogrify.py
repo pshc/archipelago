@@ -31,6 +31,9 @@ def add_include(filename):
     global CGLOBAL
     set_add(CGLOBAL.cgIncludes, filename)
 
+# ensure we don't accidentally use symref() since it will be accepted silently
+_atom_symref = symref
+del symref
 def csym(name, subs):
     """
     This is what it should look like:
@@ -40,7 +43,7 @@ def csym(name, subs):
     """
     if name not in boot_sym_names:
         add_sym(name)
-    return symref(name, subs)
+    return _atom_symref(name, subs)
 
 def csym_(name):
     return csym(name, [])
@@ -49,7 +52,7 @@ def cptr(t):
     return csym('ptr', [t])
 
 def cname(nm):
-    return csym('name', [Str(nm, [])])
+    return csym('name', [str_(nm)])
 
 def nmref(atom):
     assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
@@ -172,7 +175,7 @@ def c_lambda(args, e, s):
         scope.csFuncName = fnm.strVal
         for a, ca in zip(args, cargs):
             ca.subs[1] = set_identifier(a, getname(a), scope)
-    cb = c_body([symref('return', [e])], _setup_lambda)
+    cb = c_body([csym('return', [e])], _setup_lambda)
     lam = make_func(None, c_type_(retT), fnm, cargs, cb, [csym_('static')])
     insert_global_decl(lam)
     return nmref(fnm)
