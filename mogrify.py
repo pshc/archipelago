@@ -327,7 +327,7 @@ def c_match_bits(e):
                      " contains(retT==key('type'))"
                      " and all(cs, c==key('case'))))", tuple4))
 
-def c_match_cases(cs, argnm):
+def c_match_cases(cs, argnm, result_f):
     # Convert each case to an if statement, with some decls for match vars
     sf = surrounding_func()
     nms = ['match'] if sf is None else [sf.csFuncName, 'match']
@@ -349,17 +349,17 @@ def c_match_cases(cs, argnm):
         global CSCOPE
         old_scope = CSCOPE
         CSCOPE = CScope([], 'matchfunc', matchvars, {}, old_scope)
-        stmts = CMATCH.cmAssigns + [csym('return', [c_expr(b)])]
+        case = CMATCH.cmAssigns + [result_f(c_expr(b))]
         CSCOPE = old_scope
         if len(CMATCH.cmConds) == 0:
             if len(cases) == 0:
-                body = stmts
+                body = case
             else:
-                list_append(cases, csym('else', [int_len(stmts)] + stmts))
+                list_append(cases, csym('else', [int_len(case)] + case))
                 otherwise = True
             break
         test = and_together(CMATCH.cmConds)
-        list_append(cases, csym('case', [test, int_len(stmts)] + stmts))
+        list_append(cases, csym('case', [test, int_len(case)] + case))
     fnm = '_'.join(nms)
     if len(body) == 0:
         if not otherwise:
@@ -368,31 +368,48 @@ def c_match_cases(cs, argnm):
         body = [csym('if', cases)]
     return (str_(fnm), decls, body)
 
+def _is_void_atom_type(s): # DUMB
+    return match(s, ("key('type', cons(key('void'), _))", lambda: True),
+                    ("_", lambda: False))
+
 def c_match(matchExpr):
     e, eT, retT, cs = c_match_bits(matchExpr)
     arg = csym('arg', [c_scheme(eT)])
     argnm = set_identifier(arg, 'expr', None)
     list_append(arg.subs, argnm)
+    res_action = 'exprstmt' if _is_void_atom_type(retT) else 'return'
 
-    fnm, decls, switch = c_match_cases(cs, argnm)
+    fnm, decls, caseStmts = c_match_cases(cs, argnm,
+            lambda ce: csym(res_action, [ce]))
 
-    body = decls + switch
+    body = decls + caseStmts
     f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
 def c_match_inline(matchExpr, inline_f):
     e, eT, retT, cs = c_match_bits(matchExpr)
-    arg = csym('arg', [c_scheme(eT)])
-    argnm = set_identifier(arg, 'expr', None)
-    list_append(arg.subs, argnm)
 
-    fnm, decls, switch = c_match_cases(cs, argnm)
+    func = surrounding_func()
+    assert func is not None
+    # NOTE: This is conjuring two new variables out of nowhere that don't get
+    #         registered in the symbol table
+    #       This has nasty implications for symbol clashing detection
+    # TODO: Inline this in a previous pass
+    match_nm = c_assign_new_vardecl(None, c_scheme(eT), 'match', e, func)
+    res_nm = str_('result')
+    is_void = _is_void_atom_type(retT)
 
-    body = decls + switch
-    f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
-    insert_global_decl(f)
-    stmt(inline_f(callnamedref(fnm, [c_expr(e)])))
+    fnm, decls, body = c_match_cases(cs, match_nm,
+            lambda ce: csym('exprstmt', [ce]) if is_void
+                       else bop(nmref(res_nm), '=', ce))
+
+    if not is_void:
+        list_append(decls, csym('vardecl', [res_nm, c_scheme(retT)]))
+    insert_vardecls(decls, func)
+    stmts(body)
+    if not is_void:
+        stmt(inline_f(nmref(res_nm)))
 
 def c_attr(struct, a):
     global CGLOBAL
@@ -429,25 +446,28 @@ def surrounding_func():
         func = func.csOuterScope
     return func
 
-def stmt_after_vardecls(stmt, scope):
+def insert_vardecls(decls, scope):
     i = 0
     while i < len(scope.csStmts) and is_decl_or_defn(scope.csStmts[i]):
         i += 1
-    scope.csStmts.insert(i, stmt)
+    scope.csStmts[i:i] = decls
 
 def is_decl_or_defn(s):
     return match(s, ("key('vardecl' or 'vardefn')", lambda: True),
                     ("_", lambda: False))
+
+def c_assign_new_vardecl(var, csch, nm, e, func_scope):
+    s = set_identifier(var, nm, func_scope) if var is not None else str_(nm)
+    insert_vardecls([csym('vardecl', [s, csch])], func_scope)
+    c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
+    return s
 
 def c_assign_new_decl(var, e):
     ct = match(var, ("key('var', contains(t==key('type')))", c_scheme))
     nm = getname(var)
     func = surrounding_func()
     if func is not None:
-        # Declare it at the top of the function, but set it back here
-        s = set_identifier(var, nm, func)
-        stmt_after_vardecls(csym('vardecl', [s, ct]), func)
-        c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
+        c_assign_new_vardecl(var, ct, nm, e, func)
     else:
         s = set_identifier(var, nm, global_scope())
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
@@ -590,6 +610,10 @@ def c_stmt(s):
 def stmt(s):
     global CSCOPE
     list_append(CSCOPE.csStmts, s)
+
+def stmts(ss):
+    global CSCOPE
+    CSCOPE.csStmts += ss
 
 def c_body(ss, scope_func):
     global CSCOPE
