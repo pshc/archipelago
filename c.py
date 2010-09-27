@@ -308,20 +308,19 @@ def write_c_file(filename, mod):
 if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')
-    write_mod_repr('hello', short)
-    write_mod_repr('konnichiwa', short)
+    write_mod_repr('hello', short, [])
+    write_mod_repr('konnichiwa', short, [])
     import hm
-    hm.infer_types(short.roots)
-    write_mod_repr('hello', short)
-    write_mod_repr('konnichiwa', short)
+    types = hm.infer_types(short.roots)
+    write_mod_repr('konnichiwa', short, [types])
     print 'Inferred types.'
     serialize_module(short)
     print
     print 'Generating C...'
     print '==============='
     from mogrify import mogrify
-    c = mogrify(short)
-    write_mod_repr('hello', c)
+    c = mogrify(short, types)
+    write_mod_repr('hello', c, [])
     write_c_file('world.c', c)
     serialize_module(c)
 

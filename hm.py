@@ -4,7 +4,7 @@ from base import *
 from builtins import *
 from types_builtin import *
 
-OmniEnv = DT('OmniEnv', ('omniTypeAugs', {Atom: Scheme}),
+OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
                         ('omniFieldDTs', {Atom: Atom}))
 
 Env = DT('Env', ('envTable', {Atom: Scheme}),
@@ -128,7 +128,7 @@ def in_new_env(f):
     for e, info in ENV.curEnv.envTable.iteritems():
         s, aug = info
         if aug:
-            ENV.omniEnv.omniTypeAugs[e] = s
+            ENV.omniEnv.omniTypeAnnotations[e] = s
 
     ENV.curEnv = outerEnv
     return ret
@@ -394,19 +394,37 @@ def setup_infer_env(roots):
     omni = OmniEnv({}, fields)
     return GlobalEnv(omni, None)
 
+# Kill metavars
+def normalize_meta(cell):
+    assert cell.cellType is not None, "Monotype could not be determined"
+    return normalize_type(cell.cellType)
+
+def normalize_type(t):
+    return match(t, ("TMeta(c)", normalize_meta),
+                    ("TFunc(args, ret)", lambda args, ret:
+                        TFunc(map(normalize_type, args), normalize_type(ret))),
+                    ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
+                    ("TNullable(t)", normalize_type),
+                    ("_", lambda: t))
+
+def normalize_scheme(s):
+    s.schemeType = normalize_type(s.schemeType)
+    return s
+
 def infer_types(roots):
     global ENV
     ENV = setup_infer_env(roots)
     in_new_env(lambda: infer_stmts(roots))
-    for e, s in ENV.omniEnv.omniTypeAugs.iteritems():
-        e.subs.append(scheme_to_atoms(s))
+    annots = dict((e, normalize_scheme(s))
+                  for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
+    return annots
 
 if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')
-    write_mod_repr('hello', short)
-    infer_types(short.roots)
-    write_mod_repr('hello', short)
+    write_mod_repr('hello', short, [])
+    types = infer_types(short.roots)
+    write_mod_repr('hello', short, [types])
     serialize_module(short)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

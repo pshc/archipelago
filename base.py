@@ -36,6 +36,8 @@ def ADT(*ctors):
         data.append(d)
     return tuple(data)
 
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
+
 named_match_dispatch = {}
 
 def match_try(atom, ast):
@@ -177,9 +179,6 @@ def _match_every(atom, ast):
 
 def identity(val):
     return val
-
-def maybe(default, func, expr):
-    return default if expr is None else func(expr)
 
 # Avoid tuples in args for simplicity
 def fst(t):

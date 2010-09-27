@@ -448,7 +448,7 @@ add_sym('assert')
 @stmt(Assert)
 def conv_assert(s, context):
     (testa, testt) = conv_expr(s.test)
-    (faila, failt) = maybe((Str('', []), None), conv_expr, s.fail)
+    (faila, failt) = conv_expr(s.fail) if s.fail else (Str('', []), None)
     cout(context, 'assert %s%s', testt, ', ' + failt if failt else '')
     return [symref('assert', [testa, faila])]
 
@@ -613,7 +613,7 @@ def conv_if(s, context):
     return [symref('cond', conds)]
 
 def import_names(nms):
-    return ['%s%s' % (m, maybe('', lambda a: ' as ' + a, n)) for (m, n) in nms]
+    return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
 
 # TODO
 @stmt(Import)

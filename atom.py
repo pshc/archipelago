@@ -80,14 +80,9 @@ def add_sym(name, extra_prop=None, extra_str=None):
         ss = [Str(extra_str, [])] if extra_str else []
         subs.append(symref(extra_prop, ss))
 
-def _follow_var(cell):
-    assert cell.cellType is not None, "Monotype could not be determined"
-    return type_to_atoms(cell.cellType)
-
 def type_to_atoms(t):
     return match(t,
         ("TVar(a)", lambda a: Ref(a, None, [])),
-        ("TMeta(c)", _follow_var),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
@@ -205,7 +200,7 @@ def serialize_module(module):
     system('ln -sf -- %s mods/%s' % (module.digest, module.name))
     return selfixs
 
-def write_mod_repr(filename, m):
+def write_mod_repr(filename, m, overlays):
     with file(filename, 'w') as f:
         for r in m.roots:
             f.write(repr(r))

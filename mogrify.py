@@ -19,7 +19,8 @@ FieldInfo = DT('FieldInfo', ('fiDtInfo', DtInfo),
                             ('fiFieldName', Atom),
                             ('fiCtorName', Atom))
 
-CGlobal = DT('CGlobal', ('cgIncludes', set([str])),
+CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
+                        ('cgIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
                         ('cgCtors', {Atom: CtorInfo}),
                         ('cgFields', {Atom: FieldInfo}),
@@ -58,24 +59,28 @@ def nmref(atom):
     assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
     return Ref(atom, None, [])
 
+def lookup_scheme(e):
+    global CGLOBAL
+    assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
+    return CGLOBAL.cgTypeAnnotations[e]
+
 def c_type(t):
     global CGLOBAL
     return match(t,
-        ("key('int')", lambda: csym_('int')),
-        ("key('str')", lambda: cptr(csym_('char'))),
-        ("key('tuple')", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
-        ("key('nullable', cons(v, _))", c_type),
-        ("key('void')", lambda: csym_('void')),
-        ("Ref(key('typevar'), _, _)", lambda: cptr(csym_('void'))),
-        ("Ref(a==key('DT'), _, _)", lambda a: cptr(struct_ref(a))),
-        ("key('func')", lambda: csym_('somefunc_t'))) # TODO
+        ("TInt()", lambda: csym_('int')),
+        ("TStr()", lambda: cptr(csym_('char'))),
+        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
+        ("TNullable(t)", c_type),
+        ("TVoid()", lambda: csym_('void')),
+        ("TVar(_)", lambda: cptr(csym_('void'))),
+        ("TData(a)", lambda a: cptr(struct_ref(a))),
+        ("TFunc(_, _)", lambda: csym_('somefunc_t'))) # TODO
 
-# XXX: This is backwards
-def c_type_(t):
-    return c_type(type_to_atoms(t))
+def c_type_(ta):
+    return c_type(atoms_to_type(ta))
 
-def c_scheme(ta):
-    return match(ta, ("key('type', cons(t, _))", c_type))
+def c_scheme(s):
+    return match(s, ("Scheme(_, t)", c_type))
 
 def as_c_op(a):
     return match(a, ("Ref(named(nm, contains(key('unaryop' or 'binaryop'))), "
@@ -165,18 +170,17 @@ def c_call(f, args):
         return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
 
 # This sucks, we should be converting the lambda into a func earlier
-def c_lambda(args, e, s):
-    argTs, retT = match(atoms_to_scheme(s), ('Scheme(_, TFunc(a, r))', tuple2))
+def c_lambda(lam, args, e):
+    argTs, retT = match(lookup_scheme(lam), ('Scheme(_, TFunc(a, r))', tuple2))
     fnm = str_('lambda')
-    cargs = [csym('arg', [c_type_(t), None])
-             for a, t in zip(args, argTs)]
+    cargs = [csym('arg', [c_type(t), None]) for a, t in zip(args, argTs)]
     # XXX: use _setup_func instead OR REVAMP THIS CRAP
     def _setup_lambda(scope):
         scope.csFuncName = fnm.strVal
         for a, ca in zip(args, cargs):
             ca.subs[1] = set_identifier(a, getname(a), scope)
     cb = c_body([csym('return', [e])], _setup_lambda)
-    lam = make_func(None, c_type_(retT), fnm, cargs, cb, [csym_('static')])
+    lam = make_func(None, c_type(retT), fnm, cargs, cb, [csym_('static')])
     insert_global_decl(lam)
     return nmref(fnm)
 
@@ -282,7 +286,9 @@ def c_match_ctor(c, args):
         c_match_case(arg)
     CMATCH.cmCurExpr = old_expr
 
-def c_match_var(v, t, nm):
+def c_match_var(v, nm):
+    t = lookup_scheme(v)
+    # TODO: Do this more generally
     global CMATCH
     while nm in CMATCH.cmDecls:
         nm += '_'
@@ -301,8 +307,7 @@ def c_match_case(case):
             ("Str(s, _)", c_match_str_literal),
             ("key('tuplelit', sized(ps))", c_match_tuple),
             ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
-            ("v==key('var', contains(t==key('type'))) and named(nm)",
-                c_match_var),
+            ("v==key('var') and named(nm)", c_match_var),
             ("key('capture', cons(v, cons(p, _)))", c_match_capture))
 
 def c_match_case_names(case):
@@ -324,11 +329,6 @@ def and_together(conds):
     else:
         c = conds.pop(0)
         return bop(c, '&&', and_together(conds))
-
-def c_match_bits(e):
-    return match(e, ("key('match', cons(e==subs(contains(t==key('type'))),"
-                     " contains(retT==key('type'))"
-                     " and all(cs, c==key('case'))))", tuple4))
 
 def c_match_cases(cs, argnm, result_f):
     # Convert each case to an if statement, with some decls for match vars
@@ -375,9 +375,15 @@ def _is_void_atom_type(s): # DUMB
     return match(s, ("key('type', cons(key('void'), _))", lambda: True),
                     ("_", lambda: False))
 
+def c_match_bits(m):
+    e, cs = match(m, ("key('match', cons(e, all(cs,c==key('case'))))", tuple2))
+    eT = c_scheme(lookup_scheme(e))
+    retT = c_scheme(lookup_scheme(m))
+    return e, eT, retT, cs
+
 def c_match(matchExpr):
     e, eT, retT, cs = c_match_bits(matchExpr)
-    arg = csym('arg', [c_scheme(eT)])
+    arg = csym('arg', [eT])
     argnm = set_identifier(arg, 'expr', None)
     list_append(arg.subs, argnm)
     res_action = 'exprstmt' if _is_void_atom_type(retT) else 'return'
@@ -386,20 +392,19 @@ def c_match(matchExpr):
             lambda ce: csym(res_action, [ce]))
 
     body = decls + caseStmts
-    f = make_func(None, c_scheme(retT), fnm, [arg], body, [csym_('static')])
+    f = make_func(None, retT, fnm, [arg], body, [csym_('static')])
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
 def c_match_inline(matchExpr, inline_f):
     e, eT, retT, cs = c_match_bits(matchExpr)
-
     func = surrounding_func()
     assert func is not None
     # NOTE: This is conjuring two new variables out of nowhere that don't get
     #         registered in the symbol table
     #       This has nasty implications for symbol clashing detection
     # TODO: Inline this in a previous pass
-    match_nm = c_assign_new_vardecl(None, c_scheme(eT), 'match', e, func)
+    match_nm = c_assign_new_vardecl(None, eT, 'match', e, func)
     res_nm = str_('result')
     is_void = _is_void_atom_type(retT)
 
@@ -408,7 +413,7 @@ def c_match_inline(matchExpr, inline_f):
                        else bop(nmref(res_nm), '=', ce))
 
     if not is_void:
-        list_append(decls, csym('vardecl', [res_nm, c_scheme(retT)]))
+        list_append(decls, csym('vardecl', [res_nm, retT]))
     insert_vardecls(decls, func)
     stmts(body)
     if not is_void:
@@ -423,14 +428,12 @@ def c_expr(e):
     return match(e,
         ("Int(i, _)", int_),
         ("Str(s, _)", strlit),
-        ("r==Ref(a==named(_, contains(key('type'))), _, _)", c_defref),
-        ("r==Ref(a==key('ctor' or 'var'), _, _)", c_defref),
         ("key('call', cons(f, sized(args)))", c_call),
-        ("key('lambda', sized(args, cons(e, contains(s==key('type')))))",
-            c_lambda),
+        ("lam==key('lambda', sized(args, cons(e, _)))", c_lambda),
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match')", lambda: c_match(e)),
-        ("key('attr', cons(s, cons(Ref(a, _, _), _)))", c_attr))
+        ("key('attr', cons(s, cons(Ref(a, _, _), _)))", c_attr),
+        ("r==Ref(a, _, _)", c_defref))
 
 # Can inline stmts required for computing `e' right here; and the final value
 # inlines into the final stmt with `stmt_f'
@@ -466,7 +469,7 @@ def c_assign_new_vardecl(var, csch, nm, e, func_scope):
     return s
 
 def c_assign_new_decl(var, e):
-    ct = match(var, ("key('var', contains(t==key('type')))", c_scheme))
+    ct = c_scheme(lookup_scheme(var))
     nm = getname(var)
     func = surrounding_func()
     if func is not None:
@@ -475,10 +478,8 @@ def c_assign_new_decl(var, e):
         s = set_identifier(var, nm, global_scope())
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
 
-def c_assign_existing(dest, e):
-    lhs = match(dest,
-        ("Ref(v==subs(contains(key('type'))), _, _)", identifier_ref))
-    c_expr_inline_stmt(e, lambda c: bop(lhs, '=', c))
+def c_assign_existing(var, e):
+    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), '=', c))
 
 def c_cond(subs, cs):
     cases = []
@@ -514,7 +515,7 @@ def c_DT(dt, cs, vs, nm):
     for c in cs:
         fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
         fields = [match(f, ("f==key('field', contains(key('type',cons(t,_))))",
-                            lambda f, t: (c_type(t), CGLOBAL.cgFields[f])))
+                            lambda f, t: (c_type_(t), CGLOBAL.cgFields[f])))
                   for f in fs]
         cfields = [csym('field', [t, fi.fiFieldName]) for (t, fi) in fields]
         if discrim:
@@ -575,36 +576,25 @@ def _setup_func(scope, nm, args, argTs, cargs):
         carg = csym('arg', [c_type(t), set_identifier(a, getname(a), scope)])
         list_append(cargs, carg)
 
-def c_func(f, t, args, body, nm):
-    fts = match(t, ("key('type', cons(key('func', sized(fts)), _))", identity),
-                   ("_", lambda: None))
-    if fts is None: # TEMP
-        stmt(csym('comment', [str_('function %s omitted' % (nm,))]))
-        return
-    ret = list_pop_last(fts)
+def c_func(f, args, body, nm):
+    t = lookup_scheme(f)
+    argTs, retT = match(t, ("Scheme(_, TFunc(args, ret))", tuple2))
     ca = []
-    cb = c_body(body, lambda scope: _setup_func(scope, nm, args, fts, ca))
-    stmt(make_func(f, c_type(ret), str_(nm), ca, cb, []))
-
-def c_assign(a, e):
-    nm, var, needs_decl = match(a,
-        ("key('var') and named(nm)", lambda nm: (nm, a, True)),
-        ("Ref(v==subs(contains(key('type'))), _, _)",
-            lambda v, nm: (nm, v, False)))
+    cb = c_body(body, lambda scope: _setup_func(scope, nm, args, argTs, ca))
+    stmt(make_func(f, c_type(retT), str_(nm), ca, cb, []))
 
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
         ("key('=', cons(v==key('var'), cons(e, _)))", c_assign_new_decl),
-        ("key('=', cons(dest, cons(e, _)))", c_assign_existing),
+        ("key('=', cons(Ref(v, _, _), cons(e, _)))", c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
         ("dt==key('DT', all(cs, c==key('ctor'))\
                 and all(vs, v==key('typevar'))) and named(nm)", c_DT),
-        ("f==key('func', contains(t==key('type')) "
-                 "and contains(key('args', sized(a))) "
+        ("f==key('func', contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b)))) and named(nm)", c_func),
         ("key('return', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('return', [c]))),
@@ -658,13 +648,14 @@ def scan_DTs(roots):
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
     tupleT = csym('typedef', [cptr(csym_('void')), str_('tuple')])
-    return CGlobal(set(), dts, ctors, fields, {}, tupleT)
+    return CGlobal({}, set(), dts, ctors, fields, {}, tupleT)
 
-def mogrify(mod):
+def mogrify(mod, types):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
     CGLOBAL = scan_DTs(mod.roots)
+    CGLOBAL.cgTypeAnnotations = types
     for s in mod.roots:
         c_stmt(s)
     incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
@@ -677,14 +668,14 @@ def mogrify(mod):
 if __name__ == '__main__':
     import ast
     short = ast.convert_file('short.py')
-    write_mod_repr('hello', short)
+    write_mod_repr('hello', short, [])
     import hm
-    hm.infer_types(short.roots)
-    write_mod_repr('hello', short)
+    types = hm.infer_types(short.roots)
+    write_mod_repr('hello', short, [types])
     print 'Inferred types.'
-    c = mogrify(short)
+    c = mogrify(short, types)
     print 'Mogrified.'
-    write_mod_repr('hello', c)
+    write_mod_repr('hello', c, [])
     serialize_module(short)
     serialize_module(c)
 
