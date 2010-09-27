@@ -41,10 +41,8 @@ def unify_metas(t1, t2):
             c1.cellType = TMeta(c2)
         else:
             c1.cellType = c2.cellType
-        #t1.metaCell = c2
     elif c2.cellType is None:
         c2.cellType = c1.cellType
-        #t2.metaCell = c1
     else:
         unify(c1.cellType, c2.cellType)
 
@@ -157,19 +155,24 @@ def get_type(e):
     return instantiate_scheme(get_scheme(e))
 
 def free_tuple_meta_vars(ts):
-    return reduce(lambda s, t: s.union(free_meta_vars(t)), ts, set())
+    return reduce(lambda s, t: s.union(_free_metas(t)), ts, set())
 
 def free_func_meta_vars(args, ret):
-    return free_tuple_meta_vars(args).union(free_meta_vars(ret))
+    return free_tuple_meta_vars(args).union(_free_metas(ret))
 
-def free_meta_vars(t):
-    return match(t, ('v==TMeta(TypeCell(r))',
-                       lambda v, r: set([v]) if r is None
-                                             else free_meta_vars(r)),
-                    ('TNullable(t)', free_meta_vars),
+def _free_meta_check(v, r):
+    assert r is None, "Normalization failure"
+    return set([v])
+
+def _free_metas(t):
+    return match(t, ('v==TMeta(TypeCell(r))', _free_meta_check),
+                    ('TNullable(t)', _free_metas),
                     ('TTuple(ts)', free_tuple_meta_vars),
                     ('TFunc(args, ret)', free_func_meta_vars),
                     ('_', lambda: set()))
+
+def free_meta_vars(t):
+    return _free_metas(zonk_type(t))
 
 def check_tuple(et, ts):
     unify(et, TTuple(map(infer_expr, ts)))
@@ -394,17 +397,34 @@ def setup_infer_env(roots):
     omni = OmniEnv({}, fields)
     return GlobalEnv(omni, None)
 
+# Collapse strings of metavars
+def _zonk_meta(meta):
+    t = meta.metaCell.cellType
+    if t is None:
+        return meta
+    t = zonk_type(t)
+    meta.metaCell.cellType = t
+    return t
+
+def zonk_type(t):
+    return match(t, ("m==TMeta(_)", _zonk_meta),
+                    ("TFunc(args, ret)", lambda args, ret:
+                        TFunc(map(zonk_type, args), zonk_type(ret))),
+                    ("TTuple(ts)", lambda ts: TTuple(map(zonk_type, ts))),
+                    ("TNullable(t)", lambda t: TNullable(zonk_type(t))),
+                    ("_", lambda: t))
+
 # Kill metavars
 def normalize_meta(cell):
-    assert cell.cellType is not None, "Monotype could not be determined"
-    return normalize_type(cell.cellType)
+    #assert cell.cellType is not None, "Monotype could not be determined"
+    return TVoid() if cell.cellType is None else normalize_type(cell.cellType)
 
 def normalize_type(t):
     return match(t, ("TMeta(c)", normalize_meta),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc(map(normalize_type, args), normalize_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
-                    ("TNullable(t)", normalize_type),
+                    ("TNullable(t)", lambda t: TNullable(normalize_type(t))),
                     ("_", lambda: t))
 
 def normalize_scheme(s):
