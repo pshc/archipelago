@@ -1,16 +1,23 @@
 import compiler
 from compiler.ast import *
+from types import FunctionType
 
 DATATYPES = {}
 ALGETYPES = {}
 
 def DT(*members):
-    name = members[0]
-    mems = [(nm) for (nm, t) in members[1:]]
+    members = list(members)
+    name = members.pop(0)
+    invariant = None
+    if members and isinstance(members[-1], FunctionType):
+        invariant = members.pop()
+    mems = [(nm) for (nm, t) in members]
     slots = ', '.join(map(repr, mems) + ['"_ix"'])
     args = ''.join(', %s' % m for m in mems)
     ix = len(DATATYPES)
     stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
+    if invariant:
+        stmts += '    assert self.check_invariant(), "Invariant failure"\n'
     code = """class %(name)s(object):
   __slots__ = [%(slots)s]
   def __init__(self%(args)s):
@@ -18,6 +25,8 @@ def DT(*members):
 %(stmts)s""" % locals()
     exec code
     dt = DATATYPES[name] = eval(name)
+    if invariant:
+        dt.check_invariant = invariant
     return dt
 
 def ADT(*ctors):
@@ -29,7 +38,7 @@ def ADT(*ctors):
     while ctors:
         ctor = ctors.pop(0)
         members = []
-        while ctors and isinstance(ctors[0], tuple):
+        while ctors and not isinstance(ctors[0], basestring):
             members.append(ctors.pop(0))
         d = DT(ctor, *members)
         data[0].ctors.append(d)
