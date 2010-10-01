@@ -1,5 +1,5 @@
 from base import *
-from builtins import Int
+from stdlib import Int
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData \

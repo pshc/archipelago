@@ -2,7 +2,8 @@
 from os import system
 from hashlib import sha256
 from base import *
-from builtins import Atom, Int, Str, Ref, builtins
+from builtins import builtins
+from stdlib import *
 from types_builtin import *
 
 Module = DT('Module',

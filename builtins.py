@@ -1,11 +1,4 @@
-# "Standard library" builtins
-import base as __base
-
-(Atom, Int, Str, Ref) = __base.ADT('Atom',
-                            'Int', ('intVal', int), ('subs', ['Atom']),
-                            'Str', ('strVal', str), ('subs', ['Atom']),
-                            'Ref', ('refAtom', 'Atom'), ('refMod', 'Module'),
-                                   ('subs', ['Atom']))
+from stdlib import *
 
 class ArrayAtom:
     __slots__ = ('_ix', 'val', 'ptr', 'nsibling', 'hassubs')
@@ -30,11 +23,6 @@ def array(t, n):
     elif t == 'Module':
         return [None] * n
     assert False, 'Unknown array type %s' % t
-
-def str_(st):
-    return Str(st, [])
-def int_(n):
-    return Int(n, [])
 
 from os import system
 fgetc = lambda f: f.read(1)
@@ -67,12 +55,6 @@ list_prepend = lambda l, x: l.insert(0, x)
 def list_concat(a, b): a += b
 list_pop_last = lambda l: l.pop()
 list_head, list_tail = lambda l: l[0], lambda l: l[1:]
-
-identity = lambda x: x
-tuple2   = lambda x, y: (x, y)
-tuple3   = lambda x, y, z: (x, y, z)
-tuple4   = lambda w, x, y, z: (w, x, y, z)
-tuple5   = lambda v, w, x, y, z: (v, w, x, y, z)
 to_void  = lambda p: p
 
 builtins = dict((k, v) for k, v in locals().iteritems()

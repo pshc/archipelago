@@ -45,11 +45,6 @@ def ADT(*ctors):
         data.append(d)
     return tuple(data)
 
-Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
-def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
-def isNothing(m): return match(m, ('Nothing()', lambda: True),
-                                  ('_', lambda: False))
-
 named_match_dispatch = {}
 
 def match_try(atom, ast):
@@ -189,17 +184,6 @@ def _match_every(atom, ast):
     return [[r[0] for r in results] if all_singular else results]
 
 
-def identity(val):
-    return val
-
-# Avoid tuples in args for simplicity
-def fst(t):
-    (f, s) = t
-    return f
-def snd(t):
-    (f, s) = t
-    return s
-
 def concat(lists):
     return reduce(list.__add__, lists, [])
 
@@ -216,11 +200,5 @@ def unzip(list):
         first.append(f)
         second.append(s)
     return (first, second)
-
-def tuple2(a, b): return (a, b)
-def tuple3(a, b, c): return (a, b, c)
-def tuple4(a, b, c, d): return (a, b, c, d)
-def tuple5(a, b, c, d, e): return (a, b, c, d, e)
-
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
