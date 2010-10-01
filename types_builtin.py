@@ -74,12 +74,13 @@ builtins_types = {
     '//': (TInt, TInt, TInt),
     'negate': (TInt, TInt),
     '==': (_var(1), _var(1), TBool), '!=': (_var(1), _var(1), TBool),
-    '<': (TInt, TInt, TInt), '>': (TInt, TInt, TInt),
-    '<=': (TInt, TInt, TInt), '>=': (TInt, TInt, TInt),
+    '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
+    '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
     'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
     'in': (_var(1), TList, TBool), 'not in': (_var(1), TList, TBool),
     'slice': (TList, TInt, TInt, TList),
     'printf': (TStr, TAnyTuple, TVoid),
+    '%': (TStr, TAnyTuple, TStr),
 }
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

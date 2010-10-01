@@ -135,8 +135,9 @@ del cls, op
 add_sym('and', extra_prop='binaryop', extra_str='&&')
 @expr(And)
 def conv_and(e):
+    assert len(e.nodes) == 2
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('and', [int_len(exprsa)] + exprsa), ' and '.join(exprst))
+    return (symref('and', exprsa), ' and '.join(exprst))
 
 add_sym('DT')
 add_sym('ctor')
@@ -404,8 +405,9 @@ def conv_name(e):
 add_sym('or', extra_prop='binaryop', extra_str='||')
 @expr(Or)
 def conv_or(e):
+    assert len(e.nodes) == 2
     (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('or', [int_len(exprsa)] + exprsa), ' or '.join(exprst))
+    return (symref('or', exprsa), ' or '.join(exprst))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
 @expr(Slice)

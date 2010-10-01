@@ -184,6 +184,12 @@ def free_meta_vars(t):
 def check_tuple(et, ts):
     unify(et, TTuple(map(infer_expr, ts)))
 
+def check_list(t, elems):
+    elemT = fresh()
+    for elem in elems:
+        check_expr(elemT, elem)
+    unify(t, TList(elemT))
+
 def decompose_func_type(ft, nargs):
     argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
                             ("_", lambda: ([], None)))
@@ -199,6 +205,11 @@ def check_call(et, f, args):
     for argT, arg in zip(argTs, args):
         check_expr(argT, arg)
     unify(retT, et)
+
+def check_logic(t, l, r):
+    check_expr(TBool(), l)
+    check_expr(TBool(), r)
+    unify(TBool(), t)
 
 def check_lambda(tv, lam, args, e):
     body = [symref('return', [e])] # stupid hack
@@ -275,7 +286,10 @@ def check_expr(tv, e):
         ("Str(_, _)", lambda: unify(tv, TStr())),
         ("key('char')", lambda: unify(tv, TChar())),
         ("key('tuplelit', sized(ts))", lambda ts: check_tuple(tv, ts)),
+        ("key('listlit', sized(ss))", lambda ss: check_list(tv, ss)),
         ("key('call', cons(f, sized(s)))", lambda f, s: check_call(tv, f, s)),
+        ("key('and' or 'or', cons(l, cons(r, _)))",
+            lambda l, r: check_logic(tv, l, r)),
         ("l==key('lambda', sized(args, cons(e, _)))",
             lambda l, a, e: check_lambda(tv, l, a, e)),
         ("m==key('match', cons(p, all(cs, c==key('case'))))",
