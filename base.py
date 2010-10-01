@@ -46,6 +46,9 @@ def ADT(*ctors):
     return tuple(data)
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
+def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
+def isNothing(m): return match(m, ('Nothing()', lambda: True),
+                                  ('_', lambda: False))
 
 named_match_dispatch = {}
 

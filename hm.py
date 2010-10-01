@@ -5,7 +5,8 @@ from builtins import *
 from types_builtin import *
 
 OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
-                        ('omniFieldDTs', {Atom: Atom}))
+                        ('omniFieldDTs', {Atom: Atom}),
+                        ('omniASTContext', 'Maybe(Atom)'))
 
 Env = DT('Env', ('envTable', {Atom: Scheme}),
                 ('envRetType', Type),
@@ -20,8 +21,14 @@ ENV = None
 def fresh():
     return TMeta(TypeCell(None))
 
+def with_context(msg):
+    global ENV
+    if isJust(ENV.omniEnv.omniASTContext):
+        return "At:\n%s\n%s" % (ENV.omniEnv.omniASTContext.just, msg)
+    return msg
+
 def unification_failure(e1, e2, msg):
-    assert False, "Could not unify %r with %r: %s" % (e1, e2, msg)
+    assert False, with_context("Couldn't unify %r with %r: %s" % (e1, e2, msg))
 
 def unify_tuples(t1, list1, t2, list2, desc):
     if len(list1) != len(list2):
@@ -113,7 +120,7 @@ def get_scheme(e):
             s, aug = env.envTable[e]
             return s
         env = env.envPrev
-    assert False, '%s not in scope' % (e,)
+    assert False, with_context('%s not in scope' % (e,))
 
 def in_new_env(f):
     global ENV
@@ -253,7 +260,7 @@ def check_attr(et, struct, a):
     unify(et, get_type(a))
 
 def unknown_infer(a):
-    assert False, 'Unknown infer case:\n%s' % (a,)
+    assert False, with_context('Unknown infer case:\n%s' % (a,))
 
 def check_binding(tv, b):
     unify(tv, get_type(b))
@@ -365,6 +372,8 @@ def infer_return(e):
         ENV.curEnv.envReturned = True
 
 def infer_stmt(a):
+    global ENV
+    ENV.omniEnv.omniASTContext = Just(a)
     match(a,
         ("dt==key('DT', all(cs, c==key('ctor'))\
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
@@ -394,7 +403,7 @@ def setup_infer_env(roots):
             fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
             for f in fs:
                 fields[f] = dtT
-    omni = OmniEnv({}, fields)
+    omni = OmniEnv({}, fields, Nothing())
     return GlobalEnv(omni, None)
 
 # Collapse strings of metavars
