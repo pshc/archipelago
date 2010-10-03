@@ -1,10 +1,14 @@
-from base import ADT
+from base import DT, ADT
+
+(List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', ['a']), 'Nil')
 
 (Atom, Int, Str, Ref) = ADT('Atom',
                             'Int', ('intVal', int), ('subs', ['Atom']),
                             'Str', ('strVal', str), ('subs', ['Atom']),
                             'Ref', ('refAtom', 'Atom'), ('refMod', 'Module'),
                                    ('subs', ['Atom']))
+
+Module = DT('Module', ('name', str), ('digest', str), ('roots', [Atom]))
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))

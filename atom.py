@@ -3,11 +3,8 @@ from os import system
 from hashlib import sha256
 from base import *
 from builtins import builtins
-from stdlib import *
 from types_builtin import *
-
-Module = DT('Module',
-            ('name', str), ('digest', str), ('roots', [Atom]))
+from stdlib import *
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
@@ -273,7 +270,10 @@ def _do_repr(s, r, indent):
                     label = '%s @%x' % (label, id(s.refAtom))
                     break
         else:
-            assert False, "Unexpected %r as refAtom" % (s.refAtom,)
+            assert isinstance(s.refAtom, basestring
+                    ), "Unexpected %r::%s as refAtom" % (
+                    s.refAtom, type(s.refAtom).__name__)
+            label = '->[missing %s]' % s.refAtom
     elif hasattr(s, 'intVal'):
         label = str(s.intVal)
     elif hasattr(s, 'strVal'):

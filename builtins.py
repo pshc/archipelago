@@ -1,4 +1,3 @@
-from stdlib import *
 
 class ArrayAtom:
     __slots__ = ('_ix', 'val', 'ptr', 'nsibling', 'hassubs')

@@ -6,7 +6,6 @@ def ident(val):
     return val
 ident2 = lambda v: v
 Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
-Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def main():
     while False:
         inside = 1

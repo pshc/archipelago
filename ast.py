@@ -6,49 +6,67 @@ from compiler.ast import *
 # HACK: Need context, storing a global...
 CUR_CONTEXT = None
 
-def identifier(bootkey, name, subs=None):
+def identifier(bootkey, name, subs=None, is_type=False, permissible_nms=set()):
     global CUR_CONTEXT
     context = CUR_CONTEXT
-    if name in context.syms:
-        assert False, "Symbol '%s' already in context\n" % (name,) + \
-                '\n'.join('\t'+str(s) for s in context.syms)
+    key = (name, is_type)
+    assert name in permissible_nms or key not in context.syms, (
+            "Symbol '%s' already in %s context\n%s" % (
+            name, 'type' if is_type else 'term',
+            '\n'.join('\t'+str(s) for s, t in context.syms if t == is_type)))
     if subs is None:
         subs = []
     subs.insert(0, symname(name))
     s = symref(bootkey, subs)
-    context.syms[name] = s
-    missing_refs = context.missingRefs.get(name)
+    context.syms[key] = s
+    missing_refs = context.missingRefs.get(key)
     if missing_refs is not None:
         for ref in missing_refs:
             ref.refAtom = s
-        del context.missingRefs[name]
+        del context.missingRefs[key]
     return s
 
 add_sym('var')
-def ident_ref(nm, create):
+def ident_ref(nm, create, is_type=False):
     global CUR_CONTEXT
     context = CUR_CONTEXT
+    key = (nm, is_type)
     while context is not None:
-        if nm in context.syms:
-            return (Ref(context.syms[nm], context.module, []), False)
+        if key in context.syms:
+            return Ref(context.syms[key], context.module, [])
         context = context.prevContext
-    if not create:
-        context = CUR_CONTEXT
-        fwd_ref = Ref(nm, context.module, [])
-        context.missingRefs[nm] = context.missingRefs.get(nm, []) + [fwd_ref]
-        return (fwd_ref, False)
-
-    assert create, "Unknown symbol %s" % (nm,)
-    return (identifier('var', nm), True)
+    if create:
+        return identifier('var', nm, is_type=is_type)
+    context = CUR_CONTEXT
+    fwd_ref = Ref(nm, context.module, [])
+    context.missingRefs[key] = context.missingRefs.get(key, []) + [fwd_ref]
+    return fwd_ref
 
 def refs_existing(nm):
-    return ident_ref(nm, False)[0]
-
-def unique_ident(nm):
-    return identifier('var', nm)
+    return ident_ref(nm, False)
 
 def create_or_update_ident(nm):
-    return ident_ref(nm, True)[0]
+    return ident_ref(nm, True)
+
+def type_ref(nm):
+    return ident_ref(nm, False, is_type=True)
+
+def destroy_forward_ref(ref):
+    if not isinstance(ref.refAtom, basestring):
+        return
+    global CUR_CONTEXT
+    for t in (True, False):
+        key = (ref.refAtom, t)
+        context = CUR_CONTEXT
+        while context is not None:
+            refs = context.missingRefs.get(key, [])
+            if ref in refs:
+                refs.remove(ref)
+                if not refs:
+                    del context.missingRefs[key]
+                return
+            context = context.prevContext
+    assert False, "Couldn't find forward ref for destruction"
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
@@ -86,18 +104,32 @@ def make_grammar_decorator(default_dispatch):
         return dispatch_index.get(nd.__class__, default_dispatch)(nd, *args)
     return (decorator, dispatch)
 
+add_sym('typeapply')
+def type_apply(tref, args):
+    return symref('typeapply', [tref, int_len(args)] + args)
+
 def conv_type(t, tvars, dt=None):
     def unknown():
-        assert False, 'Unknown type: %r' % (t,)
+        assert isinstance(getattr(t, 'refAtom', None), basestring
+                ), 'Unknown type: %r' % (t,)
+        type_nm = t.refAtom
+        destroy_forward_ref(t)
+        return type_ref(type_nm)
     def type_str(s):
         if len(s) == 1:
             if s not in tvars:
                 tvars[s] = symref('typevar', [symname(s)])
             return Ref(tvars[s], None, [])
-        unknown()
+        if '(' in s and s[-1] == ')':
+            ctor, p, args = s[:-1].partition('(')
+            return type_apply(type_str(ctor), map(type_str, args.split(',')))
+        return type_ref(s)
     return match(t,
         ("key('str' or 'int')", lambda: t),
+        ("Ref(key('DT'), _, _)", lambda: t),
         ("Str(s, _)", type_str),
+        ("key('listlit', sized(cons(lt, _)))",
+            lambda t: type_apply(type_ref('List'), [conv_type(t, tvars, dt)])),
         ("_", unknown))
 
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
@@ -144,9 +176,10 @@ add_sym('ctor')
 def make_adt(left, args):
     adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
     ctors = []
-    adt = identifier('DT', adt_nm, ctors)
+    adt = identifier('DT', adt_nm, ctors, is_type=True)
     ctor_nms = []
     tvars = {}
+    field_nms = set()
     while args:
         ctor = match(args.pop(0), ('Str(s, _)', identity))
         members = []
@@ -157,7 +190,9 @@ def make_adt(left, args):
             if nm is None:
                 break
             members.append(identifier('field', nm,
-                    [symref('type', [conv_type(t, tvars, dt=adt)])]))
+                    [symref('type', [conv_type(t, tvars, dt=adt)])],
+                    is_type=False, permissible_nms=field_nms))
+            field_nms.add(nm)
             args.pop(0)
         ctor_nms.append(ctor)
         ctors.append(identifier('ctor', ctor, members))
@@ -172,8 +207,8 @@ def make_dt(left, args):
     (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                              sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
     fields = []
-    dtsubs = [symname(nm), identifier('ctor', nm, fields)]
-    fa = symref('DT', dtsubs)
+    dtsubs = [identifier('ctor', nm, fields)]
+    fa = identifier('DT', nm, dtsubs, is_type=True)
     tvars = {}
     fields += [identifier('field', fnm,
                           [symref('type', [conv_type(t, tvars, dt=fa)])])
@@ -247,7 +282,7 @@ def conv_match_try(ast, bs):
     elif isinstance(ast, Name):
         if ast.name == '_':
             return symref('wildcard', [])
-        i = unique_ident(ast.name)
+        i = identifier('var', ast.name)
         bs.append(i)
         return i
     elif isinstance(ast, Const):
@@ -264,7 +299,7 @@ def conv_match_try(ast, bs):
                              + [conv_match_try(n, bs) for n in ast.nodes])
     elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
         assert isinstance(ast.expr, Name) and ast.expr.name != '_'
-        i = unique_ident(ast.expr.name)
+        i = identifier('var', ast.expr.name)
         bs.append(i)
         return symref('capture', [i, conv_match_try(ast.ops[0][1], bs)])
     assert False, "Unknown match case: %s" % ast
@@ -677,8 +712,8 @@ def conv_while(s, context):
     return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
 
 ConvertContext = DT('ConvertContext', ('indent', int),
-                                      ('syms', {str: Atom}),
-                                      ('missingRefs', {str: Atom}),
+                                      ('syms', {(str, bool): Atom}),
+                                      ('missingRefs', {(str, bool): Atom}),
                                       ('module', 'atom.Module'),
                                       ('prevContext', None))
 
@@ -688,15 +723,20 @@ def cout(context, format, *args, **kwargs):
     print line
 
 def convert_file(filename):
+    stdlib = compiler.parseFile('stdlib.py').node.nodes
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
     mod = Module_(filename, None, [])
-    context = ConvertContext(-1, boot_sym_names, {}, boot_mod, None)
+    context = ConvertContext(-1, {}, {}, boot_mod, None)
+    for k, v in boot_sym_names.iteritems():
+        t = k in ('str', 'int')
+        context.syms[(k, t)] = v
     global CUR_CONTEXT
     CUR_CONTEXT = context
-    mod.roots = conv_stmts(stmts, context, module=mod)
-    assert not context.missingRefs, "Symbols not found: " + \
-                                    ', '.join(context.missingRefs)
+    mod.roots = conv_stmts(stdlib + stmts, context, module=mod)
+    assert not context.missingRefs, \
+        "Symbols not found: " + ', '.join(
+                ('type %s' if t else '%s') % s for s, t in context.missingRefs)
     return mod
 
 def escape(text):
