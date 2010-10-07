@@ -92,7 +92,9 @@ def type_to_atoms(t):
         ("TAnyTuple()", lambda: symref('tuple*', [])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
             + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
-        ("TData(a)", lambda a: Ref(a, None, [])))
+        ("TData(a)", lambda a: Ref(a, None, [])),
+        ("TApply(t, ss)", lambda t, ss: symref('typeapply',
+            [type_to_atoms(t), int_len(ss)] + map(type_to_atoms, ss))))
 
 def scheme_to_atoms(t):
     s = symref('type', [type_to_atoms(t.schemeType)] + list(t.schemeVars))
@@ -102,6 +104,8 @@ def atoms_to_type(a):
     return match(a,
         ("Ref(v==key('typevar'), _, _)", TVar),
         ("Ref(d==key('DT'), _, _)", TData),
+        ("key('typeapply', cons(t, sized(ss)))",
+            lambda t, ss: TApply(atoms_to_type(t), map(atoms_to_type, ss))),
         ("key('int')", lambda: TInt()),
         ("key('str')", lambda: TStr()),
         ("key('char')", lambda: TChar()),

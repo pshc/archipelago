@@ -2,7 +2,7 @@ from base import *
 from stdlib import Int
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
-    TTuple, TAnyTuple, TFunc, TData \
+    TTuple, TAnyTuple, TFunc, TData, TApply \
     = ADT('Type',
         'TVar', ('varAtom', 'Atom'),
         'TMeta', ('metaCell', 'TypeCell'),
@@ -12,7 +12,8 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-        'TData', ('dataAtom', 'Atom'))
+        'TData', ('dataAtom', 'Atom'),
+        'TApply', ('appType', 'Type'), ('appVars', ['Type']))
 
 TypeCell = DT('TypeCell', ('cellType', Type))
 

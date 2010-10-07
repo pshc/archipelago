@@ -40,6 +40,10 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
+def unify_applications(e1, t1, ss1, e2, t2, ss2):
+    unify(t1, t2)
+    unify_tuples(e1, ss1, e2, ss2, "type arguments")
+
 def unify_metas(t1, t2):
     c1 = t1.metaCell
     c2 = t2.metaCell
@@ -83,10 +87,10 @@ def unify(e1, e2):
                                  else fail("mismatched type vars")),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
-        ("(TFunc(a1, r1), TFunc(a2, r2))", lambda a1, r1, a2, r2:
-            unify_funcs(e1, a1, r1, e2, a2, r2)),
+        ("(e1==TFunc(a1, r1), e2==TFunc(a2, r2))", unify_funcs),
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
+        ("(e1==TApply(t1, ss1), e2==TApply(t2, ss2))", unify_applications),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -167,6 +171,9 @@ def free_tuple_meta_vars(ts):
 def free_func_meta_vars(args, ret):
     return free_tuple_meta_vars(args).union(_free_metas(ret))
 
+def free_apply_meta_vars(t, ss):
+    return _free_metas(t).union(free_tuple_meta_vars(ss))
+
 def _free_meta_check(v, r):
     assert r is None, "Normalization failure"
     return set([v])
@@ -176,6 +183,7 @@ def _free_metas(t):
                     ('TNullable(t)', _free_metas),
                     ('TTuple(ts)', free_tuple_meta_vars),
                     ('TFunc(args, ret)', free_func_meta_vars),
+                    ('TApply(t, ss)', free_apply_meta_vars),
                     ('_', lambda: set()))
 
 def free_meta_vars(t):
@@ -435,6 +443,8 @@ def zonk_type(t):
                         TFunc(map(zonk_type, args), zonk_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(zonk_type, ts))),
                     ("TNullable(t)", lambda t: TNullable(zonk_type(t))),
+                    ("TApply(t, ss)", lambda t, ss:
+                        TApply(zonk_type(t), map(zonk_type(ss)))),
                     ("_", lambda: t))
 
 # Kill metavars
@@ -448,6 +458,8 @@ def normalize_type(t):
                         TFunc(map(normalize_type, args), normalize_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
                     ("TNullable(t)", lambda t: TNullable(normalize_type(t))),
+                    ("TApply(t, ss)", lambda t, ss:
+                        TApply(normalize_type(t), map(normalize_type, ss))),
                     ("_", lambda: t))
 
 def normalize_scheme(s):
