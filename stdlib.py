@@ -5,8 +5,7 @@ from base import DT, ADT
 (Atom, Int, Str, Ref) = ADT('Atom',
                             'Int', ('intVal', int), ('subs', ['Atom']),
                             'Str', ('strVal', str), ('subs', ['Atom']),
-                            'Ref', ('refAtom', 'Atom'), ('refMod', 'Module'),
-                                   ('subs', ['Atom']))
+                            'Ref', ('refAtom', 'Atom'), ('subs', ['Atom']))
 
 Module = DT('Module', ('name', str), ('digest', str), ('roots', [Atom]))
 

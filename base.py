@@ -53,10 +53,14 @@ def match_try(atom, ast):
             dt = DATATYPES[ast.node.name]
             if atom.__class__ != dt:
                 return None
+            slots = filter(lambda s: s != '_ix', dt.__slots__)
+            assert len(ast.args) == len(slots), \
+                    "Ctor %s takes %d args: %s" % (ast.node.name,
+                            len(slots), ', '.join(slots))
             # Found a matching constructor; now match its args recursively
             # Unlike the main match loop, if any fail here everything fails
             ctor_args = []
-            for (arg_ast, attrname) in zip(ast.args, dt.__slots__):
+            for (arg_ast, attrname) in zip(ast.args, slots):
                 sub_args = match_try(getattr(atom, attrname), arg_ast)
                 if sub_args is None:
                     return None

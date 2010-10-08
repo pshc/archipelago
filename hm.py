@@ -252,7 +252,7 @@ def check_pat(tv, p):
         ("v==key('var')", lambda v: pat_var(tv, v)),
         ("key('capture', cons(v, cons(p, _)))",
             lambda v, p: pat_capture(tv, v, p)),
-        ("key('ctor', cons(Ref(c, _, _), sized(args)))",
+        ("key('ctor', cons(Ref(c, _), sized(args)))",
             lambda c, args: pat_ctor(tv, c, args)),
         )
 
@@ -302,13 +302,13 @@ def check_expr(tv, e):
             lambda l, a, e: check_lambda(tv, l, a, e)),
         ("m==key('match', cons(p, all(cs, c==key('case'))))",
             lambda m, p, cs: check_match(tv, m, p, cs)),
-        ("key('attr', cons(s, cons(Ref(a, _, _), _)))",
+        ("key('attr', cons(s, cons(Ref(a, _), _)))",
             lambda s, a: check_attr(tv, s, a)),
-        ("Ref(v==key('var'), _, _)",
+        ("Ref(v==key('var'), _)",
             lambda v: check_binding(tv, v)),
-        ("Ref(f==key('func' or 'ctor'), _, _)",
+        ("Ref(f==key('func' or 'ctor'), _)",
             lambda f: check_binding(tv, f)),
-        ("Ref(key('symbol', contains(s==key('type'))), _, _)",
+        ("Ref(key('symbol', contains(s==key('type'))), _)",
             lambda s: check_builtin(tv, s)),
         ("_", lambda: unknown_infer(e)))
 
@@ -333,7 +333,7 @@ def infer_DT(dt, cs, vs, nm):
 
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
-                      ("Ref(key('var'), _, _)", lambda: False))
+                      ("Ref(key('var'), _)", lambda: False))
     t = fresh() if newvar else get_type(a.refAtom)
     check_expr(t, e)
     if newvar:
@@ -480,6 +480,7 @@ if __name__ == '__main__':
     write_mod_repr('hello', short, [])
     types = infer_types(short.roots)
     write_mod_repr('hello', short, [types])
+    serialize_module(boot_mod)
     serialize_module(short)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

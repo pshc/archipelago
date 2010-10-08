@@ -39,8 +39,8 @@ def csym(name, subs):
     """
     This is what it should look like:
 
-    global CSYMS, CMOD
-    return Ref(CSYMS[name], CMOD, subs)
+    global CSYMS
+    return Ref(CSYMS[name], subs)
     """
     if name not in boot_sym_names:
         add_sym(name)
@@ -57,7 +57,7 @@ def cname(nm):
 
 def nmref(atom):
     assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
-    return Ref(atom, None, [])
+    return Ref(atom, [])
 
 def lookup_scheme(e):
     global CGLOBAL
@@ -69,7 +69,7 @@ def c_type(t):
     return match(t,
         ("TInt()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, None, []))),
+        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, []))),
         ("TNullable(t)", c_type),
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
@@ -83,9 +83,9 @@ def c_scheme(s):
     return match(s, ("Scheme(_, t)", c_type))
 
 def as_c_op(a):
-    return match(a, ("Ref(named(nm, contains(key('unaryop' or 'binaryop'))), "
-                     "_, _)", identity),
-                    ("_", lambda: None))
+    return match(a,
+       ("Ref(named(nm, contains(key('unaryop' or 'binaryop'))), _)", identity),
+       ("_", lambda: None))
 
 def set_identifier(atom, nm, scope):
     if scope is None:
@@ -188,7 +188,7 @@ def c_lambda(lam, args, e):
 def c_tuple(ts):
     n = len(ts)
     global CGLOBAL
-    tupleT = lambda: Ref(CGLOBAL.cgTupleType, None, [])
+    tupleT = lambda: Ref(CGLOBAL.cgTupleType, [])
     if n not in CGLOBAL.cgTupleFuncs:
         add_include('stdlib.h')
         nm = str_('tuple%d' % (n,))
@@ -306,7 +306,7 @@ def c_match_case(case):
             ("Int(i, _)", c_match_int_literal),
             ("Str(s, _)", c_match_str_literal),
             ("key('tuplelit', sized(ps))", c_match_tuple),
-            ("key('ctor', cons(Ref(c, _, _), sized(args)))", c_match_ctor),
+            ("key('ctor', cons(Ref(c, _), sized(args)))", c_match_ctor),
             ("v==key('var') and named(nm)", c_match_var),
             ("key('capture', cons(v, cons(p, _)))", c_match_capture))
 
@@ -316,7 +316,7 @@ def c_match_case_names(case):
             ("Str(s, _)", lambda: ['str']),
             ("key('tuplelit', sized(ps))",
                 lambda ps: concat_map(c_match_make_name, ps)),
-            ("key('ctor', cons(Ref(c, _, _), _))", lambda c: [getname(c)]),
+            ("key('ctor', cons(Ref(c, _), _))", lambda c: [getname(c)]),
             ("named(nm) or key('capture', cons(named(nm), _))",
                 lambda nm: [nm]),
             ("_", lambda: []))
@@ -432,8 +432,8 @@ def c_expr(e):
         ("lam==key('lambda', sized(args, cons(e, _)))", c_lambda),
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match')", lambda: c_match(e)),
-        ("key('attr', cons(s, cons(Ref(a, _, _), _)))", c_attr),
-        ("r==Ref(a, _, _)", c_defref))
+        ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
+        ("r==Ref(a, _)", c_defref))
 
 # Can inline stmts required for computing `e' right here; and the final value
 # inlines into the final stmt with `stmt_f'
@@ -588,7 +588,7 @@ def c_stmt(s):
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
         ("key('=', cons(v==key('var'), cons(e, _)))", c_assign_new_decl),
-        ("key('=', cons(Ref(v, _, _), cons(e, _)))", c_assign_existing),
+        ("key('=', cons(Ref(v, _), cons(e, _)))", c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),
@@ -676,6 +676,7 @@ if __name__ == '__main__':
     c = mogrify(short, types)
     print 'Mogrified.'
     write_mod_repr('hello', c, [])
+    serialize_module(boot_mod)
     serialize_module(short)
     serialize_module(c)
 

@@ -8,8 +8,8 @@ from stdlib import *
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
-_b_symbol = Ref(None, boot_mod, [Ref(None, boot_mod, [Str('symbol', [])])])
-_b_name = Ref(_b_symbol, boot_mod, [Ref(None, boot_mod, [Str('name', [])])])
+_b_symbol = Ref(None, [Ref(None, [Str('symbol', [])])])
+_b_name = Ref(_b_symbol, [Ref(None, [Str('name', [])])])
 _b_symbol.refAtom = _b_symbol
 _b_symbol.subs[0].refAtom = _b_name
 _b_name.subs[0].refAtom = _b_name
@@ -18,20 +18,23 @@ boot_syms += [_b_symbol, _b_name]
 boot_sym_names = {'symbol': _b_symbol, 'name': _b_name}
 boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 
+loaded_modules = {}
+loaded_module_atoms = {}
+
 def int_len(list):
     return Int(len(list), [])
 
 def symref(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return Ref(boot_sym_names[name], boot_mod, subs)
+    return Ref(boot_sym_names[name], subs)
 
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    func = Ref(boot_sym_names[name], boot_mod, [])
+    func = Ref(boot_sym_names[name], [])
     return symref('call', [func, int_len(subs)] + subs)
 
 def getident(ref):
-    return match(ref, ('Ref(named(nm), _, _)', identity))
+    return match(ref, ('Ref(named(nm), _)', identity))
 
 def symname(name):
     return symref('name', [Str(name, [])])
@@ -64,11 +67,11 @@ def builtin_type_to_atoms(name):
 
 def add_sym(name, extra_prop=None, extra_str=None):
     if name not in boot_sym_names:
-        subs = [Ref(_b_name, boot_mod, [Str(name, [])])]
+        subs = [Ref(_b_name, [Str(name, [])])]
         t = builtin_type_to_atoms(name)
         if t is not None:
             subs.append(t)
-        node = Ref(_b_symbol, boot_mod, subs)
+        node = Ref(_b_symbol, subs)
         boot_syms.append(node)
         boot_sym_names[name] = node
         boot_sym_names_rev[node] = name
@@ -80,7 +83,7 @@ def add_sym(name, extra_prop=None, extra_str=None):
 
 def type_to_atoms(t):
     return match(t,
-        ("TVar(a)", lambda a: Ref(a, None, [])),
+        ("TVar(a)", lambda a: Ref(a, [])),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
@@ -92,7 +95,7 @@ def type_to_atoms(t):
         ("TAnyTuple()", lambda: symref('tuple*', [])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
             + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
-        ("TData(a)", lambda a: Ref(a, None, [])),
+        ("TData(a)", lambda a: Ref(a, [])),
         ("TApply(t, ss)", lambda t, ss: symref('typeapply',
             [type_to_atoms(t), int_len(ss)] + map(type_to_atoms, ss))))
 
@@ -102,8 +105,8 @@ def scheme_to_atoms(t):
 
 def atoms_to_type(a):
     return match(a,
-        ("Ref(v==key('typevar'), _, _)", TVar),
-        ("Ref(d==key('DT'), _, _)", TData),
+        ("Ref(v==key('typevar'), _)", TVar),
+        ("Ref(d==key('DT'), _)", TData),
         ("key('typeapply', cons(t, sized(ss)))",
             lambda t, ss: TApply(atoms_to_type(t), map(atoms_to_type, ss))),
         ("key('int')", lambda: TInt()),
@@ -134,11 +137,10 @@ map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*')
 map(add_sym, builtins)
 
-def walk_atoms(atoms, ret, f):
+def walk_atoms(atoms, f):
     for atom in atoms:
-        ret = f(atom, ret)
-        ret = walk_atoms(atom.subs, ret, f)
-    return ret
+        f(atom)
+        walk_atoms(atom.subs, f)
 
 char_escapes = dict(zip('"\n\\\t\r\0\b\a\f\v', '"n\\tr0bafv'))
 
@@ -146,34 +148,44 @@ def escape_str(s):
     return '"%s"' % (''.join('\\' + char_escapes[c] if c in char_escapes
                              else c for c in s),)
 
+SerializeInit = DT('SerializeInit', ('natoms', int),
+                                    ('atomixs', {Atom: int}),
+                                    ('modset', set([Module])),
+                                    ('unknown_refatoms', set([Atom])))
+
 def serialize_module(module):
-    already_serialized = module.digest is not None
-    def init_serialize(atom, (natoms, selfindices, modset)):
-        assert hasattr(atom, 'subs'), "Expected atom, got: %s" % (atom,)
-        selfindices[atom] = natoms
-        m = getattr(atom, 'refMod', None)
-        if m is not None and m is not module:
-            modset.add(m)
-        return (natoms + 1, selfindices, modset)
-    beg = (0, {}, set())
-    (natoms, atomixs, modset) = walk_atoms(module.roots, beg, init_serialize)
-    nmods = len(modset)
-    base = 7 + nmods
-    natoms += base
-    refmap = {}
-    selfixs = {}
-    for atom, i in atomixs.iteritems():
-        refmap[atom] = "s%d" % (i + base + 1,)
-        selfixs[atom] = i + base + 1
-    if already_serialized:
+    if module.digest:
         print '%s is already serialized' % (module.name,)
-        return selfixs
+        return
+    state = SerializeInit(0, {}, set(), set())
+    def init_serialize(atom, state=state):
+        assert hasattr(atom, 'subs'), "Expected atom, got: %s" % (atom,)
+        state.atomixs[atom] = state.natoms
+        state.natoms += 1
+        r = match(atom, ('Ref(r, _)', identity), ('_', lambda: None))
+        if r is not None:
+            m = loaded_module_atoms.get(r)
+            if m is not None:
+                state.modset.add(m[1])
+            else:
+                state.unknown_refatoms.add(r)
+    walk_atoms(module.roots, init_serialize)
+
+    nmods = len(state.modset)
+    base = 7 + nmods
+    natoms = base + state.natoms
+    selfixs = {}
+    for atom, i in state.atomixs.iteritems():
+        selfixs[atom] = (i + base + 1, module)
+        if atom in state.unknown_refatoms:
+            state.unknown_refatoms.remove(atom)
+    assert not state.unknown_refatoms, ("A dependecy of %s has not been "
+            "serialized; %d atoms orphaned") % (module.name,
+            len(state.unknown_refatoms))
     deps = ""
-    for m, mod in enumerate(modset):
-        ixs = serialize_module(mod)
-        assert mod.digest
-        for atom, i in ixs.iteritems():
-            refmap[atom] = "r%d %d" % (i, m + 1)
+    modixs = {}
+    for m, mod in enumerate(sorted(state.modset)):
+        modixs[mod] = m + 1
         deps += escape_str(mod.digest) + "\n"
     nroots = len(module.roots)
     header = '"";4\n1;1\n%s\n2;1\n%d\n3%s\n%s4%s\n' % (
@@ -183,24 +195,28 @@ def serialize_module(module):
     temp = '/tmp/serialize'
     f = file(temp, 'wb')
     f.write(header)
+    def refstr(ra):
+        s = selfixs.get(ra)
+        if s is not None:
+            return 's%d' % (s[0],)
+        ix, mod = loaded_module_atoms[ra]
+        return 'r%d %d' % (ix, modixs[mod])
     def output(str):
         hash.update(str)
         f.write(str)
     def serialize_atom(atom):
         match(atom, ("Int(i, _)", lambda i: output(str(i))),
                     ("Str(s, _)", lambda s: output(escape_str(s))),
-                    ("Ref(r, _, _)", lambda r: output(refmap[r])))
+                    ("Ref(r, _)", lambda r: output(refstr(r))))
         n = len(atom.subs)
         output(";%d\n" % n if n else "\n")
-        for sub in atom.subs:
-            serialize_atom(sub)
-    for atom in module.roots:
-        serialize_atom(atom)
+    walk_atoms(module.roots, serialize_atom)
     f.close()
     module.digest = hash.digest().encode('hex')
     system('mv -f -- %s mods/%s' % (temp, module.digest))
     system('ln -sf -- %s mods/%s' % (module.digest, module.name))
-    return selfixs
+    loaded_module_atoms.update(selfixs)
+    loaded_modules[module.digest] = module
 
 def write_mod_repr(filename, m, overlays):
     with file(filename, 'w') as f:
@@ -259,7 +275,7 @@ def _match_subs(atom, ast):
 def _do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
         label = '<ref>'
-        if s.refMod is boot_mod:
+        if s in boot_syms:
             label = s.refAtom.subs[0].subs[0].strVal
         elif hasattr(s.refAtom, 'strVal'):
             label = '->%r' % (s.refAtom.strVal,)
@@ -267,7 +283,7 @@ def _do_repr(s, r, indent):
             for sub in s.refAtom.subs:
                 if getattr(sub, 'refAtom', None) is _b_name:
                     label = '->%s' % (sub.subs[0].strVal,)
-                    if getattr(s.refAtom, 'refMod', None) is boot_mod:
+                    if s.refAtom in boot_syms:
                         label = '%s (%s)' % (label,
                                 s.refAtom.refAtom.subs[0].subs[0].strVal)
                     # TEMP
@@ -300,6 +316,7 @@ Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
 
 if __name__ == '__main__':
     system('rm -f -- mods/*')
+    serialize_module(boot_mod)
     mod = Module("boot", "", [Int(42, [])])
     serialize_module(mod)
 

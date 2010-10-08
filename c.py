@@ -39,7 +39,7 @@ def parens(f): out('('); f(); out(')')
 def brackets(f): out('{'); f(); out('}')
 
 def out_Str(s):
-    match(s, ("Str(s, _)", out), ("Ref(Str(s, _), _, _)", out))
+    match(s, ("Str(s, _)", out), ("Ref(Str(s, _), _)", out))
 
 def c_ptr(t): c_type(t); out('*')
 def c_structref(s): out('struct '); out_Str(s)
@@ -62,7 +62,7 @@ def c_type(t):
         ("key(TODO==('somefunc_t'))", out),
         ("key('ptr', cons(t, _))", c_ptr),
         ("key('structref', cons(s, _))", c_structref),
-        ("Ref(key('typedef', cons(_, cons(nm, _))), _, _)", out_Str),
+        ("Ref(key('typedef', cons(_, cons(nm, _))), _)", out_Str),
         ("s==key(k==('struct' or 'union' or 'enum'), "
                 "all(fs, f==key('field' or 'enumerator')))", c_struct))
 
@@ -73,7 +73,7 @@ def typed_name(t, nm):
 
 def just_identifier(e):
    return match(e, ('Str(s, _)', identity),
-                   ('Ref(Str(s, _), _, _)', identity),
+                   ('Ref(Str(s, _), _)', identity),
                    ('_', lambda: None))
 
 unary_ops = {'negate': '-'}
@@ -147,7 +147,7 @@ def c_expr(e):
     match(e,
         ("Int(i, _)", lambda i: out("%d" % (i,))),
         ("Str(s, _)", out),
-        ("Ref(Str(s, _), _, _)", out),
+        ("Ref(Str(s, _), _)", out),
         ("key('strlit', cons(Str(s, _), _))",
             lambda s: out(escape_str(s))),
         ("key('call', cons(f, sized(args)))", c_call),
@@ -310,11 +310,12 @@ if __name__ == '__main__':
     short = ast.convert_file('short.py')
     write_mod_repr('hello', short, [])
     write_mod_repr('konnichiwa', short, [])
+    serialize_module(boot_mod)
+    serialize_module(short)
     import hm
     types = hm.infer_types(short.roots)
     write_mod_repr('konnichiwa', short, [types])
     print 'Inferred types.'
-    serialize_module(short)
     print
     print 'Generating C...'
     print '==============='

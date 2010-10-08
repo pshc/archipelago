@@ -33,12 +33,12 @@ def ident_ref(nm, create, is_type=False):
     key = (nm, is_type)
     while context is not None:
         if key in context.syms:
-            return Ref(context.syms[key], context.module, [])
+            return Ref(context.syms[key], [])
         context = context.prevContext
     if create:
         return identifier('var', nm, is_type=is_type)
     context = CUR_CONTEXT
-    fwd_ref = Ref(nm, context.module, [])
+    fwd_ref = Ref(nm, [])
     context.missingRefs[key] = context.missingRefs.get(key, []) + [fwd_ref]
     return fwd_ref
 
@@ -72,7 +72,7 @@ def inside_scope(f):
     def new_scope(*args, **kwargs):
         global CUR_CONTEXT
         prev = CUR_CONTEXT
-        context = ConvertContext(prev.indent + 1, {}, {}, prev.module, prev)
+        context = ConvertContext(prev.indent + 1, {}, {}, prev)
         CUR_CONTEXT = context
         r = f(context, *args, **kwargs)
         CUR_CONTEXT = prev
@@ -119,14 +119,14 @@ def conv_type(t, tvars, dt=None):
         if len(s) == 1:
             if s not in tvars:
                 tvars[s] = symref('typevar', [symname(s)])
-            return Ref(tvars[s], None, [])
+            return Ref(tvars[s], [])
         if '(' in s and s[-1] == ')':
             ctor, p, args = s[:-1].partition('(')
             return type_apply(type_str(ctor), map(type_str, args.split(',')))
         return type_ref(s)
     return match(t,
         ("key('str' or 'int')", lambda: t),
-        ("Ref(key('DT'), _, _)", lambda: t),
+        ("Ref(key('DT'), _)", lambda: t),
         ("Str(s, _)", type_str),
         ("key('listlit', sized(cons(lt, _)))",
             lambda t: type_apply(type_ref('List'), [conv_type(t, tvars, dt)])),
@@ -228,7 +228,7 @@ def replace_refs(mapping, e):
 def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
-    ref = lambda s: Ref(s, context.module, [])
+    ref = lambda s: Ref(s, [])
     e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
                                        cons(e, _)))',
                   lambda args, e: replace_refs(dict(zip(args, bs)), e)),
@@ -694,9 +694,7 @@ def conv_return(s, context):
     return [symref('return', [vala])]
 
 @inside_scope
-def conv_stmts(context, stmts, prev_context, module=None):
-    if module is not None:
-        context.module = module
+def conv_stmts(context, stmts, prev_context):
     return concat([conv_stmt(stmt, context) for stmt in stmts])
 
 def conv_stmts_noscope(stmts, context):
@@ -714,7 +712,6 @@ def conv_while(s, context):
 ConvertContext = DT('ConvertContext', ('indent', int),
                                       ('syms', {(str, bool): Atom}),
                                       ('missingRefs', {(str, bool): Atom}),
-                                      ('module', 'atom.Module'),
                                       ('prevContext', None))
 
 def cout(context, format, *args, **kwargs):
@@ -727,13 +724,13 @@ def convert_file(filename):
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
     mod = Module_(filename, None, [])
-    context = ConvertContext(-1, {}, {}, boot_mod, None)
+    context = ConvertContext(-1, {}, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
         context.syms[(k, t)] = v
     global CUR_CONTEXT
     CUR_CONTEXT = context
-    mod.roots = conv_stmts(stdlib + stmts, context, module=mod)
+    mod.roots = conv_stmts(stdlib + stmts, context)
     assert not context.missingRefs, \
         "Symbols not found: " + ', '.join(
                 ('type %s' if t else '%s') % s for s, t in context.missingRefs)
@@ -749,8 +746,8 @@ def emit_graph(mod, filename):
         label = match(node,
                 ('Int(n, _)', str),
                 ('Str(s, _)', repr),
-                ('Ref(r, m, _)', lambda r, m: r.subs[0].subs[0].strVal
-                                              if m is boot_mod else '<ref>'))
+                ('Ref(r, _)', lambda r: r.subs[0].subs[0].strVal
+                                        if r in boot_sums else '<ref>'))
         f.write('n%d [label="%s"];\n' % (ctr, escape(label)))
         orig = ctr
         for sub in node.subs:
