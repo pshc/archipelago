@@ -766,6 +766,14 @@ def convert_file(filename):
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
 
+# TEMP
+def fst(t):
+    (f, s) = t
+    return f
+def snd(t):
+    (f, s) = t
+    return s
+
 add_sym('module')
 def emit_graph(mod, filename):
     f = open(filename, 'w')

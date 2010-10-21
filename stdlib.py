@@ -26,11 +26,4 @@ def tuple3(a, b, c): return (a, b, c)
 def tuple4(a, b, c, d): return (a, b, c, d)
 def tuple5(a, b, c, d, e): return (a, b, c, d, e)
 
-def fst(t):
-    (f, s) = t
-    return f
-def snd(t):
-    (f, s) = t
-    return s
-
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
