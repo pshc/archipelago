@@ -4,11 +4,11 @@ from base import DT, ADT, match
                                 'Nil')
 
 (Atom, Int, Str, Ref) = ADT('Atom',
-                            'Int', ('intVal', int), ('subs', ['Atom']),
-                            'Str', ('strVal', str), ('subs', ['Atom']),
-                            'Ref', ('refAtom', 'Atom'), ('subs', ['Atom']))
+                            'Int', ('intVal', int), ('subs', 'List(Atom)'),
+                            'Str', ('strVal', str), ('subs', 'List(Atom)'),
+                            'Ref', ('refAtom', 'Atom'), ('subs', 'List(Atom)'))
 
-Module = DT('Module', ('name', str), ('digest', str), ('roots', [Atom]))
+Module = DT('Module', ('name', str), ('digest', str), ('roots', 'List(Atom)'))
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
