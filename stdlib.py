@@ -1,4 +1,4 @@
-from base import DT, ADT
+from base import DT, ADT, match
 
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', ['a']), 'Nil')
 

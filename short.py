@@ -1,3 +1,5 @@
+import stdlib
+
 def ok(n):
     s = n + 3
     print 's = %d' % (s,)

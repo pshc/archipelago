@@ -676,7 +676,6 @@ if __name__ == '__main__':
     c = mogrify(short, types)
     print 'Mogrified.'
     write_mod_repr('hello', c, [])
-    serialize_module(boot_mod)
     serialize_module(short)
     serialize_module(c)
 

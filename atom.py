@@ -20,6 +20,9 @@ boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 
 loaded_modules = {}
 loaded_module_atoms = {}
+loaded_module_exports = {}
+
+stdlib_mod = None
 
 def int_len(list):
     return Int(len(list), [])
@@ -66,6 +69,7 @@ def builtin_type_to_atoms(name):
     return scheme_to_atoms(Scheme(tvars.values(), t))
 
 def add_sym(name, extra_prop=None, extra_str=None):
+    assert not boot_mod.digest, "Can't add symbols after bootstrap serialized"
     if name not in boot_sym_names:
         subs = [Ref(_b_name, [Str(name, [])])]
         t = builtin_type_to_atoms(name)
@@ -179,7 +183,7 @@ def serialize_module(module):
         selfixs[atom] = (i + base + 1, module)
         if atom in state.unknown_refatoms:
             state.unknown_refatoms.remove(atom)
-    assert not state.unknown_refatoms, ("A dependecy of %s has not been "
+    assert not state.unknown_refatoms, ("A dependency of %s has not been "
             "serialized; %d atoms orphaned") % (module.name,
             len(state.unknown_refatoms))
     deps = ""
@@ -216,7 +220,7 @@ def serialize_module(module):
     system('mv -f -- %s mods/%s' % (temp, module.digest))
     system('ln -sf -- %s mods/%s' % (module.digest, module.name))
     loaded_module_atoms.update(selfixs)
-    loaded_modules[module.digest] = module
+    loaded_modules[module.name] = module
 
 def write_mod_repr(filename, m, overlays):
     with file(filename, 'w') as f:
@@ -253,6 +257,28 @@ def _match_key(atom, ast):
             return None if msubs is None else m + msubs
     return None
 
+@matcher('sym')
+def _match_sym(atom, ast):
+    assert 2 <= len(ast.args) <= 3
+    assert ast.args[0] in loaded_modules, "%s not loaded" % ast.args[0]
+    mod = loaded_modules[ast.args[0]]
+    if isinstance(atom, Ref):
+        r = atom.refAtom
+        if isinstance(r, Ref) and r.refAtom is _b_symbol:
+            for sub in r.subs:
+                if getattr(sub, 'refAtom', None) is _b_name:
+                    nm = sub.subs[0].strVal
+                    break
+            else:
+                return None
+            m = match_try(nm, ast.args[1])
+            if m is None or len(ast.args) == 2:
+                return m
+            msubs = match_try(atom.subs, ast.args[3])
+            if msubs is not None:
+                return m + msubs
+    return None
+
 @matcher('named')
 def _match_named(atom, ast):
     assert 1 <= len(ast.args) <= 2
@@ -275,7 +301,7 @@ def _match_subs(atom, ast):
 def _do_repr(s, r, indent):
     if hasattr(s, 'refAtom'):
         label = '<ref>'
-        if s in boot_syms:
+        if s.refAtom in boot_syms:
             label = s.refAtom.subs[0].subs[0].strVal
         elif hasattr(s.refAtom, 'strVal'):
             label = '->%r' % (s.refAtom.strVal,)
@@ -283,7 +309,7 @@ def _do_repr(s, r, indent):
             for sub in s.refAtom.subs:
                 if getattr(sub, 'refAtom', None) is _b_name:
                     label = '->%s' % (sub.subs[0].strVal,)
-                    if s.refAtom in boot_syms:
+                    if getattr(s.refAtom, 'refAtom', None) in boot_syms:
                         label = '%s (%s)' % (label,
                                 s.refAtom.refAtom.subs[0].subs[0].strVal)
                     # TEMP
@@ -316,7 +342,6 @@ Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
 
 if __name__ == '__main__':
     system('rm -f -- mods/*')
-    serialize_module(boot_mod)
     mod = Module("boot", "", [Int(42, [])])
     serialize_module(mod)
 

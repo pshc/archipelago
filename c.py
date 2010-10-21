@@ -310,7 +310,6 @@ if __name__ == '__main__':
     short = ast.convert_file('short.py')
     write_mod_repr('hello', short, [])
     write_mod_repr('konnichiwa', short, [])
-    serialize_module(boot_mod)
     serialize_module(short)
     import hm
     types = hm.infer_types(short.roots)

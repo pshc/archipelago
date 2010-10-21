@@ -480,7 +480,6 @@ if __name__ == '__main__':
     write_mod_repr('hello', short, [])
     types = infer_types(short.roots)
     write_mod_repr('hello', short, [types])
-    serialize_module(boot_mod)
     serialize_module(short)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

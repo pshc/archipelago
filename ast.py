@@ -5,8 +5,10 @@ from compiler.ast import *
 
 # HACK: Need context, storing a global...
 CUR_CONTEXT = None
+OMNI_CONTEXT = None
 
-def identifier(bootkey, name, subs=None, is_type=False, permissible_nms=set()):
+def identifier(bootkey, name, subs=None, is_type=False,
+               permissible_nms=frozenset(), export=False):
     global CUR_CONTEXT
     context = CUR_CONTEXT
     key = (name, is_type)
@@ -19,15 +21,18 @@ def identifier(bootkey, name, subs=None, is_type=False, permissible_nms=set()):
     subs.insert(0, symname(name))
     s = symref(bootkey, subs)
     context.syms[key] = s
-    missing_refs = context.missingRefs.get(key)
+    global OMNI_CONTEXT
+    missing_refs = OMNI_CONTEXT.missingRefs.get(key)
     if missing_refs is not None:
         for ref in missing_refs:
             ref.refAtom = s
-        del context.missingRefs[key]
+        del OMNI_CONTEXT.missingRefs[key]
+    if export:
+        OMNI_CONTEXT.exports[key] = s
     return s
 
 add_sym('var')
-def ident_ref(nm, create, is_type=False):
+def ident_ref(nm, create, is_type=False, export=False):
     global CUR_CONTEXT
     context = CUR_CONTEXT
     key = (nm, is_type)
@@ -36,9 +41,10 @@ def ident_ref(nm, create, is_type=False):
             return Ref(context.syms[key], [])
         context = context.prevContext
     if create:
-        return identifier('var', nm, is_type=is_type)
-    context = CUR_CONTEXT
+        var = identifier('var', nm, is_type=is_type, export=export)
+        return var
     fwd_ref = Ref(nm, [])
+    context = OMNI_CONTEXT
     context.missingRefs[key] = context.missingRefs.get(key, []) + [fwd_ref]
     return fwd_ref
 
@@ -46,7 +52,7 @@ def refs_existing(nm):
     return ident_ref(nm, False)
 
 def create_or_update_ident(nm):
-    return ident_ref(nm, True)
+    return ident_ref(nm, True, export=True)
 
 def type_ref(nm):
     return ident_ref(nm, False, is_type=True)
@@ -54,33 +60,25 @@ def type_ref(nm):
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
         return
-    global CUR_CONTEXT
+    global OMNI_CONTEXT
     for t in (True, False):
         key = (ref.refAtom, t)
-        context = CUR_CONTEXT
-        while context is not None:
-            refs = context.missingRefs.get(key, [])
-            if ref in refs:
-                refs.remove(ref)
-                if not refs:
-                    del context.missingRefs[key]
-                return
-            context = context.prevContext
+        refs = OMNI_CONTEXT.missingRefs.get(key, [])
+        if ref in refs:
+            refs.remove(ref)
+            if not refs:
+                del OMNI_CONTEXT.missingRefs[key]
+            return
     assert False, "Couldn't find forward ref for destruction"
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
         global CUR_CONTEXT
         prev = CUR_CONTEXT
-        context = ConvertContext(prev.indent + 1, {}, {}, prev)
+        context = ConvertContext(prev.indent + 1, {}, prev)
         CUR_CONTEXT = context
         r = f(context, *args, **kwargs)
         CUR_CONTEXT = prev
-        missing = {}
-        for k in set(context.missingRefs).union(set(prev.missingRefs)):
-            missing[k] = context.missingRefs.get(k, []) \
-                         + prev.missingRefs.get(k, [])
-        prev.missingRefs = missing
         return r
     return new_scope
 
@@ -176,7 +174,7 @@ add_sym('ctor')
 def make_adt(left, args):
     adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
     ctors = []
-    adt = identifier('DT', adt_nm, ctors, is_type=True)
+    adt = identifier('DT', adt_nm, ctors, is_type=True, export=True)
     ctor_nms = []
     tvars = {}
     field_nms = set()
@@ -195,7 +193,7 @@ def make_adt(left, args):
             field_nms.add(nm)
             args.pop(0)
         ctor_nms.append(ctor)
-        ctors.append(identifier('ctor', ctor, members))
+        ctors.append(identifier('ctor', ctor, members, export=True))
     adt.subs += tvars.values()
     return ([adt], '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
 
@@ -207,8 +205,8 @@ def make_dt(left, args):
     (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
                              sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
     fields = []
-    dtsubs = [identifier('ctor', nm, fields)]
-    fa = identifier('DT', nm, dtsubs, is_type=True)
+    dtsubs = [identifier('ctor', nm, fields, export=True)]
+    fa = identifier('DT', nm, dtsubs, is_type=True, export=True)
     tvars = {}
     fields += [identifier('field', fnm,
                           [symref('type', [conv_type(t, tvars, dt=fa)])])
@@ -229,6 +227,7 @@ def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
     ref = lambda s: Ref(s, [])
+    # TODO: Fix these up, due to stdlib
     e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
                                        cons(e, _)))',
                   lambda args, e: replace_refs(dict(zip(args, bs)), e)),
@@ -254,7 +253,7 @@ def conv_match(args):
     return symref('match', [expra] + casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
-                     'subs': [1],
+                     'subs': [1], 'sym': [2, 3],
                      'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
 assert set(named_match_cases) == set(named_match_dispatch)
 
@@ -592,11 +591,11 @@ def conv_for(context, s, prev):
         assert False
     return [symref('for', fora)]
 
-# TODO
 @stmt(From)
 def conv_from(s, context):
-    cout(context, 'from %s import %s', s.modname,
-            ', '.join(import_names(s.names)))
+    if s.modname != 'stdlib':
+        names = ', '.join(import_names(s.names))
+        cout(context, 'from %s import %s # ignored', s.modname, names)
     return []
 
 add_sym('func')
@@ -611,7 +610,7 @@ def conv_function(s, context):
         (deca, dect) = conv_expr(decorator)
         cout(context, '@%s', dect)
         decs.append(deca)
-    func = identifier('func', s.name)
+    func = identifier('func', s.name, export=True) # XXX: Maybe not?
     @inside_scope
     def rest(context):
         (argsa, argst) = extract_arglist(s)
@@ -652,10 +651,23 @@ def conv_if(s, context):
 def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
 
-# TODO
 @stmt(Import)
 def conv_import(s, context):
     cout(context, 'import %s', ', '.join(import_names(s.names)))
+    global loaded_module_exports
+    for name, qual in s.names:
+        assert not qual, "Qualified imports not supported"
+        name = name + '.py'
+        if name not in loaded_modules and name == 'stdlib.py':
+            global stdlib_mod
+            assert not stdlib_mod
+            stdlib_mod = convert_file('stdlib.py')
+            serialize_module(stdlib_mod)
+        assert name in loaded_modules, "Import %s not loaded" % name
+        mod = loaded_modules[name]
+        symbols = loaded_module_exports[mod]
+        global OMNI_CONTEXT
+        OMNI_CONTEXT.imports.update(symbols)
     return []
 
 @stmt(Pass)
@@ -711,8 +723,11 @@ def conv_while(s, context):
 
 ConvertContext = DT('ConvertContext', ('indent', int),
                                       ('syms', {(str, bool): Atom}),
-                                      ('missingRefs', {(str, bool): Atom}),
                                       ('prevContext', None))
+
+OmniContext = DT('OmniContext', ('imports', [Atom]),
+                                ('exports', [Atom]),
+                                ('missingRefs', {(str, bool): [Atom]}))
 
 def cout(context, format, *args, **kwargs):
     indent = context.indent + kwargs.get('indent_offset', 0)
@@ -720,20 +735,30 @@ def cout(context, format, *args, **kwargs):
     print line
 
 def convert_file(filename):
-    stdlib = compiler.parseFile('stdlib.py').node.nodes
+    global boot_mod, stdlib_mod
+    if not boot_mod.digest:
+        serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
     mod = Module_(filename, None, [])
-    context = ConvertContext(-1, {}, {}, None)
+    context = ConvertContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
         context.syms[(k, t)] = v
-    global CUR_CONTEXT
+    global CUR_CONTEXT, OMNI_CONTEXT, loaded_module_exports
     CUR_CONTEXT = context
-    mod.roots = conv_stmts(stdlib + stmts, context)
-    assert not context.missingRefs, \
-        "Symbols not found: " + ', '.join(
-                ('type %s' if t else '%s') % s for s, t in context.missingRefs)
+    OMNI_CONTEXT = OmniContext({}, {}, {})
+    mod.roots = conv_stmts(stmts, context)
+    # Resolve imports for missing symbols
+    missing = OMNI_CONTEXT.missingRefs
+    for key, refs in missing.items():
+        if key in OMNI_CONTEXT.imports:
+            for ref in refs:
+                ref.refAtom = OMNI_CONTEXT.imports[key]
+            del missing[key]
+    assert not missing, "Symbols not found: " + ', '.join(
+                ('type %s' if t else '%s') % s for s, t in missing)
+    loaded_module_exports[mod] = OMNI_CONTEXT.exports
     return mod
 
 def escape(text):
