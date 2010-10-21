@@ -339,7 +339,7 @@ def infer_DT(dt, cs, vs, nm):
             set_monotype(f, t, False)
         funcT = TFunc(fieldTs, dtT)
         # TODO: Should use only the typevars that appear in this ctor
-        set_scheme(c, Scheme(tvs, funcT), False)
+        set_scheme(c, Scheme(tvs, funcT), True)
 
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
@@ -482,7 +482,17 @@ def infer_types(roots):
     in_new_env(lambda: infer_stmts(roots))
     annots = dict((e, normalize_scheme(s))
                   for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
-    loaded_export_atom_types.update(annots)
+    for root in roots:
+        cs = match(root, ("key('DT', all(cs, c==key('ctor')))", identity),
+                         ("_", lambda: None))
+        if cs is None:
+            root = match(root, ("key('=', cons(v, _))", identity),
+                               ("_", lambda: root))
+            loaded_export_atom_types[root] = annots[root]
+        else:
+            loaded_export_atom_types[root] = TData(root)
+            for c in cs:
+                loaded_export_atom_types[c] = annots[c]
     return annots
 
 if __name__ == '__main__':
