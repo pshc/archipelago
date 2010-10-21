@@ -654,7 +654,7 @@ def import_names(nms):
 @stmt(Import)
 def conv_import(s, context):
     cout(context, 'import %s', ', '.join(import_names(s.names)))
-    global loaded_module_exports
+    global loaded_module_export_names
     for name, qual in s.names:
         assert not qual, "Qualified imports not supported"
         name = name + '.py'
@@ -663,9 +663,11 @@ def conv_import(s, context):
             assert not stdlib_mod
             stdlib_mod = convert_file('stdlib.py')
             serialize_module(stdlib_mod)
+            import hm
+            hm.infer_types(stdlib_mod.roots)
         assert name in loaded_modules, "Import %s not loaded" % name
         mod = loaded_modules[name]
-        symbols = loaded_module_exports[mod]
+        symbols = loaded_module_export_names[mod]
         global OMNI_CONTEXT
         OMNI_CONTEXT.imports.update(symbols)
     return []
@@ -745,7 +747,7 @@ def convert_file(filename):
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
         context.syms[(k, t)] = v
-    global CUR_CONTEXT, OMNI_CONTEXT, loaded_module_exports
+    global CUR_CONTEXT, OMNI_CONTEXT, loaded_module_export_names
     CUR_CONTEXT = context
     OMNI_CONTEXT = OmniContext({}, {}, {})
     mod.roots = conv_stmts(stmts, context)
@@ -758,7 +760,7 @@ def convert_file(filename):
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
                 ('type %s' if t else '%s') % s for s, t in missing)
-    loaded_module_exports[mod] = OMNI_CONTEXT.exports
+    loaded_module_export_names[mod] = OMNI_CONTEXT.exports
     return mod
 
 def escape(text):

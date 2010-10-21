@@ -124,7 +124,10 @@ def get_scheme(e):
             s, aug = env.envTable[e]
             return s
         env = env.envPrev
-    assert False, with_context('%s not in scope' % (e,))
+    # XXX: For now, try to import from EVERY LOADED MODULE?!
+    t = loaded_export_atom_types.get(e)
+    assert t is not None, with_context('%s not in scope' % (e,))
+    return t
 
 def in_new_env(f):
     global ENV
@@ -472,6 +475,7 @@ def infer_types(roots):
     in_new_env(lambda: infer_stmts(roots))
     annots = dict((e, normalize_scheme(s))
                   for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
+    loaded_export_atom_types.update(annots)
     return annots
 
 if __name__ == '__main__':

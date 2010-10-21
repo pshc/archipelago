@@ -20,7 +20,8 @@ boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 
 loaded_modules = {}
 loaded_module_atoms = {}
-loaded_module_exports = {}
+loaded_module_export_names = {}
+loaded_export_atom_types = {}
 
 stdlib_mod = None
 

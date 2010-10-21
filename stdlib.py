@@ -1,6 +1,7 @@
 from base import DT, ADT, match
 
-(List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', ['a']), 'Nil')
+(List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
+                                'Nil')
 
 (Atom, Int, Str, Ref) = ADT('Atom',
                             'Int', ('intVal', int), ('subs', ['Atom']),
@@ -15,9 +16,9 @@ def isNothing(m): return match(m, ('Nothing()', lambda: True),
                                   ('_', lambda: False))
 
 def str_(st):
-    return Str(st, [])
+    return Str(st, Nil())
 def int_(n):
-    return Int(n, [])
+    return Int(n, Nil())
 
 def identity(val): return val
 def tuple2(a, b): return (a, b)
