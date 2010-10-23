@@ -58,13 +58,13 @@ def c_struct(s, k, fs):
 
 def c_type(t):
     match(t,
-        ("key(prim==('int' or 'char' or 'void'))", out),
-        ("key(TODO==('somefunc_t'))", out),
-        ("key('ptr', cons(t, _))", c_ptr),
-        ("key('structref', cons(s, _))", c_structref),
-        ("Ref(key('typedef', cons(_, cons(nm, _))), _)", out_Str),
-        ("s==key(k==('struct' or 'union' or 'enum'), "
-                "all(fs, f==key('field' or 'enumerator')))", c_struct))
+        ("sym('csyms', prim==('int' or 'char' or 'void'))", out),
+        ("sym('csyms', TODO==('somefunc_t'))", out),
+        ("sym('csyms', 'ptr', cons(t, _))", c_ptr),
+        ("sym('csyms', 'structref', cons(s, _))", c_structref),
+        ("Ref(sym('csyms', 'typedef', cons(_, cons(nm, _))), _)", out_Str),
+        ("s==sym('csyms', k==('struct' or 'union' or 'enum'), "
+            "all(fs, f==sym('csyms', 'field' or 'enumerator')))", c_struct))
 
 def typed_name(t, nm):
     c_type(t)
@@ -148,15 +148,15 @@ def c_expr(e):
         ("Int(i, _)", lambda i: out("%d" % (i,))),
         ("Str(s, _)", out),
         ("Ref(Str(s, _), _)", out),
-        ("key('strlit', cons(Str(s, _), _))",
+        ("sym('csyms', 'strlit', cons(Str(s, _), _))",
             lambda s: out(escape_str(s))),
-        ("key('call', cons(f, sized(args)))", c_call),
-        ("key('tuplelit', sized(ts))",
+        ("sym('csyms', 'call', cons(f, sized(args)))", c_call),
+        ("sym('csyms', 'tuplelit', sized(ts))",
             lambda ts: brackets(lambda: comma_exprs(ts))),
-        ("key('sizeof', cons(t, _))", c_sizeof),
-        ("key('sizeofexpr', cons(e, _))", c_sizeof_expr),
-        ("key('NULL')", lambda: out("NULL")), # XXX: stupid special case
-        ("key(op, ss)", c_op))
+        ("sym('csyms', 'sizeof', cons(t, _))", c_sizeof),
+        ("sym('csyms', 'sizeofexpr', cons(e, _))", c_sizeof_expr),
+        ("sym('csyms', 'NULL')", lambda: out("NULL")), # XXX: dumb special case
+        ("sym('csyms', op, ss)", c_op))
 
 def c_exprstmt(e):
     indent()
@@ -205,7 +205,8 @@ def c_if(subs, cs):
         c_body(b)
         close_brace()
         if_ = 'else if ('
-    else_ = match(subs, ("contains(key('else', sized(body)))", identity),
+    else_ = match(subs, ("contains(sym('csyms', 'else', sized(body)))",
+                            identity),
                         ("_", lambda: None))
     if else_ is not None:
         indent()
@@ -223,14 +224,14 @@ def c_while(test, body):
 
 def c_func(ss, retT, nm, args, body):
     indent()
-    if match(ss, ("contains(key('static'))", lambda: True),
+    if match(ss, ("contains(sym('csyms', 'static'))", lambda: True),
                  ("_", lambda: False)):
         out('static ')
     typed_name(retT, nm)
     out('(')
     n = len(args)
     for a in args:
-        match(a, ("key('arg', cons(t, cons(nm, _)))", typed_name))
+        match(a, ("sym('csyms', 'arg', cons(t, cons(nm, _)))", typed_name))
         n -= 1
         if n > 0:
             out(', ')
@@ -269,24 +270,27 @@ def c_comment(s):
 
 def c_stmt(s):
     match(s,
-        ("key('exprstmt', cons(e, _))", c_exprstmt),
-        ("key('=', cons(a, cons(e, _)))", c_assign),
-        ("key('decl', cons(t, _))", c_decl),
-        ("key('vardecl', cons(nm, cons(t, _)))", c_vardecl),
-        ("key('vardefn', cons(nm, cons(t, cons(e, _))))", c_vardefn),
-        ("key('typedef', cons(t, cons(nm, _)))", c_typedef),
-        ("key('if', ss and all(cs, key('case', cons(t, sized(b)))))", c_if),
-        ("key('while', cons(t, sized(b)))", c_while),
-        ("key('func', ss==cons(retT, cons(nm, "
-                 "contains(key('args', sized(a))) and "
-                 "contains(key('body', sized(b))))))", c_func),
-        ("key('return', cons(e, _))", c_return),
-        ("key('returnnothing')", lambda: c_return(None)),
-        ("key('field', cons(t, cons(nm, _)))", c_field),
-        ("key('enumerator', cons(nm, _))", c_enumerator),
-        ("key('includesys', cons(file, _))", lambda f: c_include(f, True)),
-        ("key('includelocal', cons(file, _))", lambda f: c_include(f, False)),
-        ("key('comment', cons(s, _))", c_comment),
+        ("sym('csyms', 'exprstmt', cons(e, _))", c_exprstmt),
+        ("sym('csyms', '=', cons(a, cons(e, _)))", c_assign),
+        ("sym('csyms', 'decl', cons(t, _))", c_decl),
+        ("sym('csyms', 'vardecl', cons(nm, cons(t, _)))", c_vardecl),
+        ("sym('csyms', 'vardefn', cons(nm, cons(t, cons(e, _))))", c_vardefn),
+        ("sym('csyms', 'typedef', cons(t, cons(nm, _)))", c_typedef),
+        ("sym('csyms', 'if', ss and "
+            "all(cs, sym('csyms', 'case', cons(t, sized(b)))))", c_if),
+        ("sym('csyms', 'while', cons(t, sized(b)))", c_while),
+        ("sym('csyms', 'func', ss==cons(retT, cons(nm, "
+                 "contains(sym('csyms', 'args', sized(a))) and "
+                 "contains(sym('csyms', 'body', sized(b))))))", c_func),
+        ("sym('csyms', 'return', cons(e, _))", c_return),
+        ("sym('csyms', 'returnnothing')", lambda: c_return(None)),
+        ("sym('csyms', 'field', cons(t, cons(nm, _)))", c_field),
+        ("sym('csyms', 'enumerator', cons(nm, _))", c_enumerator),
+        ("sym('csyms', 'includesys', cons(file, _))",
+            lambda f: c_include(f, True)),
+        ("sym('csyms', 'includelocal', cons(file, _))",
+            lambda f: c_include(f, False)),
+        ("sym('csyms', 'comment', cons(s, _))", c_comment),
         )
 
 def c_body(ss):

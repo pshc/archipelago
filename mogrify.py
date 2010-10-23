@@ -35,23 +35,24 @@ def add_include(filename):
 # ensure we don't accidentally use symref() since it will be accepted silently
 _atom_symref = symref
 del symref
+del add_sym
 def csym(name, subs):
-    """
-    This is what it should look like:
+    return Ref(CSYM_NAMES[name], subs)
 
-    global CSYMS
-    return Ref(CSYMS[name], subs)
-    """
-    if name not in boot_sym_names:
-        add_sym(name)
-    return _atom_symref(name, subs)
+CSYM_NAMES = {}
+def add_csym(*names):
+    for name in names:
+        if name not in CSYM_NAMES:
+            CSYM_NAMES[name] = None
 
 def csym_(name):
     return csym(name, [])
 
+add_csym('ptr')
 def cptr(t):
     return csym('ptr', [t])
 
+add_csym('name')
 def cname(nm):
     return csym('name', [str_(nm)])
 
@@ -64,6 +65,7 @@ def lookup_scheme(e):
     assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
     return CGLOBAL.cgTypeAnnotations[e]
 
+add_csym('int', 'char', 'void', 'somefunc_t')
 def c_type(t):
     global CGLOBAL
     return match(t,
@@ -98,6 +100,7 @@ def set_identifier(atom, nm, scope):
     return s
 
 # Bleh duplication
+add_csym('name')
 def set_struct_name(atom, nm):
     global CSCOPE
     assert isinstance(nm, basestring)
@@ -118,6 +121,7 @@ def identifier_ref(a):
         return str_(getname(a))
     assert False, '%r not in identifier scope' % (a,)
 
+add_csym('structref')
 def struct_ref(a):
     global CSCOPE
     scope = CSCOPE
@@ -128,12 +132,14 @@ def struct_ref(a):
         scope = scope.csOuterScope
     assert False, '%r not in struct name scope' % (a,)
 
+add_csym('vardef')
 def vardefn_malloced(nm, t, t_size):
     add_include('stdlib.h')
     nm_atom = str_(nm)
     setup = csym('vardefn', [nm_atom, cptr(t), callnamed('malloc', [t_size])])
     return ([setup], lambda: nmref(nm_atom))
 
+add_csym('NULL')
 def c_defref(r, a):
     # TODO
     assert as_c_op(r) is None, "Can't pass around built-in C op %s" % (nm,)
@@ -143,6 +149,7 @@ def c_defref(r, a):
             ("key('None')", lambda: csym_('NULL')),
             ("_", lambda: identifier_ref(a)))
 
+add_csym('call')
 def callnamed(nm, args):
     assert isinstance(nm, basestring)
     return csym('call', [str_(nm), int_len(args)] + args)
@@ -151,10 +158,12 @@ def callnamedref(nm_atom, args):
     assert isinstance(nm_atom, Str)
     return csym('call', [nmref(nm_atom), int_len(args)] + args)
 
+add_csym('+', '-', '*', '==', '!=', '<', '<=', '>', '>=')
 # Binary operator shortcut
 def bop(a, op, b):
     return csym(op, [a, b])
 
+add_csym('call')
 def c_call(f, args):
     op = as_c_op(f)
     if op is not None:
@@ -169,6 +178,7 @@ def c_call(f, args):
     else:
         return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
 
+add_csym('arg', 'return', 'static')
 # This sucks, we should be converting the lambda into a func earlier
 def c_lambda(lam, args, e):
     argTs, retT = match(lookup_scheme(lam), ('Scheme(_, TFunc(a, r))', tuple2))
@@ -179,11 +189,12 @@ def c_lambda(lam, args, e):
         scope.csFuncName = fnm.strVal
         for a, ca in zip(args, cargs):
             ca.subs[1] = set_identifier(a, getname(a), scope)
-    cb = c_body([csym('return', [e])], _setup_lambda)
+    cb = c_body([_atom_symref('return', [e])], _setup_lambda)
     lam = make_func(None, c_type(retT), fnm, cargs, cb, [csym_('static')])
     insert_global_decl(lam)
     return nmref(fnm)
 
+add_csym('sizeof', 'arg', 'void', 'subscript', '=', 'return', 'static')
 # Currently boxed and void*'d to hell... hmmm...
 def c_tuple(ts):
     n = len(ts)
@@ -220,9 +231,11 @@ def global_scope():
 def insert_global_decl(f):
     list_append(global_scope().csStmts, f)
 
+add_csym('strlit')
 def strlit(s):
     return csym('strlit', [str_(s)])
 
+add_csym('exprstmt', 'assert')
 def assert_false(msg_e):
     add_include('assert.h')
     # TODO: Use msg_e
@@ -234,16 +247,19 @@ CMatch = DT('CMatch', ('cmDecls', {str: (Atom, Atom, Atom)}),
                       ('cmCurExpr', Atom))
 CMATCH = None
 
+add_csym('==')
 def c_match_int_literal(i):
     global CMATCH
     list_append(CMATCH.cmConds, bop(CMATCH.cmCurExpr, '==', int_(i)))
 
+add_csym('==')
 def c_match_str_literal(s):
     global CMATCH
     add_include('string.h')
     list_append(CMATCH.cmConds, bop(callnamed('strcmp',
         [CMATCH.cmCurExpr, strlit(s)]), '==', int_(0)))
 
+add_csym('subscript')
 def c_match_tuple(ps):
     global CMATCH
     old_expr = CMATCH.cmCurExpr
@@ -254,6 +270,7 @@ def c_match_tuple(ps):
         i += 1
     CMATCH.cmCurExpr = old_expr
 
+add_csym('->', '.')
 def c_field_lookup(mogrified_expr, fieldinfo):
     fi = fieldinfo
     if fi.fiCtorName is None:
@@ -264,12 +281,14 @@ def c_field_lookup(mogrified_expr, fieldinfo):
                 '.', nmref(fi.fiCtorName)),
                 '.', nmref(fi.fiFieldName))
 
+add_csym('->')
 def c_ctor_index_test(mogrified_expr, test_op, ctorinfo):
     ci = ctorinfo
     assert ci.ciEnumName
     return bop(bop(mogrified_expr, '->', nmref(ci.ciDtInfo.diIndexName)),
             test_op, nmref(ci.ciEnumName))
 
+add_csym('==')
 def c_match_ctor(c, args):
     global CMATCH
     global CGLOBAL
@@ -286,6 +305,7 @@ def c_match_ctor(c, args):
         c_match_case(arg)
     CMATCH.cmCurExpr = old_expr
 
+add_csym('vardecl', '=')
 def c_match_var(v, nm):
     t = lookup_scheme(v)
     # TODO: Do this more generally
@@ -321,6 +341,7 @@ def c_match_case_names(case):
                 lambda nm: [nm]),
             ("_", lambda: []))
 
+add_csym('&&')
 def and_together(conds):
     if len(conds) == 0:
         return int_(1)
@@ -330,6 +351,7 @@ def and_together(conds):
         c = conds.pop(0)
         return bop(c, '&&', and_together(conds))
 
+add_csym('else', 'case', 'if')
 def c_match_cases(cs, argnm, result_f):
     # Convert each case to an if statement, with some decls for match vars
     sf = surrounding_func()
@@ -381,6 +403,7 @@ def c_match_bits(m):
     retT = c_scheme(lookup_scheme(m))
     return e, eT, retT, cs
 
+add_csym('arg', 'exprstmt', 'return', 'static')
 def c_match(matchExpr):
     e, eT, retT, cs = c_match_bits(matchExpr)
     arg = csym('arg', [eT])
@@ -396,6 +419,7 @@ def c_match(matchExpr):
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
+add_csym('exprstmt', '=', 'vardecl')
 def c_match_inline(matchExpr, inline_f):
     e, eT, retT, cs = c_match_bits(matchExpr)
     func = surrounding_func()
@@ -462,12 +486,14 @@ def is_decl_or_defn(s):
     return match(s, ("key('vardecl' or 'vardefn')", lambda: True),
                     ("_", lambda: False))
 
+add_csym('vardecl', '=')
 def c_assign_new_vardecl(var, csch, nm, e, func_scope):
     s = set_identifier(var, nm, func_scope) if var is not None else str_(nm)
     insert_vardecls([csym('vardecl', [s, csch])], func_scope)
     c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
     return s
 
+add_csym('vardefn')
 def c_assign_new_decl(var, e):
     ct = c_scheme(lookup_scheme(var))
     nm = getname(var)
@@ -478,9 +504,11 @@ def c_assign_new_decl(var, e):
         s = set_identifier(var, nm, global_scope())
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
 
+add_csym('=')
 def c_assign_existing(var, e):
     c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), '=', c))
 
+add_csym('case', 'else', 'if')
 def c_cond(subs, cs):
     cases = []
     for (t, b) in cs:
@@ -494,17 +522,21 @@ def c_cond(subs, cs):
         list_append(cases, csym('else', [int_len(cb)] + cb))
     stmt(csym('if', cases))
 
+add_csym('while')
 def c_while(t, body):
     # OH GOD SIDE EFFECTS?
     ct = c_expr(t)
     cb = c_body(body, None)
     stmt(csym('while', [ct, int_len(cb)] + cb))
 
+add_csym('exprstmt', 'assert')
 def c_assert(t, m):
     add_include('assert.h')
     # TODO: Use m
     stmt(csym('exprstmt', [callnamed('assert', [c_expr(t)])]))
 
+add_csym('field', 'struct', 'enumerator', 'decl', 'enum', 'union', 'sizeof',
+        '=', 'arg', 'return')
 def c_DT(dt, cs, vs, nm):
     global CGLOBAL
     discrim = len(cs) > 1
@@ -559,6 +591,7 @@ def c_DT(dt, cs, vs, nm):
         list_append(body, csym('return', [var()]))
         stmt(make_func(ctor, cptr(struct_ref(dt)), ctornm, args, body, []))
 
+add_csym('func', 'args', 'body')
 def make_func(f, retT, nm, args, body, extra_attrs):
     global CSCOPE
     fa = csym('func', [])
@@ -570,6 +603,7 @@ def make_func(f, retT, nm, args, body, extra_attrs):
                csym('body', [int_len(body)] + body)] + extra_attrs
     return fa
 
+add_csym('arg')
 def _setup_func(scope, nm, args, argTs, cargs):
     scope.csFuncName = nm
     for a, t in zip(args, argTs):
@@ -583,6 +617,7 @@ def c_func(f, args, body, nm):
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, argTs, ca))
     stmt(make_func(f, c_type(retT), str_(nm), ca, cb, []))
 
+add_csym('exprstmt', 'return')
 def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))",
@@ -621,6 +656,7 @@ def c_body(ss, scope_func):
     CSCOPE = outer
     return ss
 
+add_csym('typedef', 'void')
 def scan_DTs(roots):
     dts = {}
     ctors = {}
@@ -650,6 +686,7 @@ def scan_DTs(roots):
     tupleT = csym('typedef', [cptr(csym_('void')), str_('tuple')])
     return CGlobal({}, set(), dts, ctors, fields, {}, tupleT)
 
+add_csym('includesys')
 def mogrify(mod, types):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
@@ -664,6 +701,13 @@ def mogrify(mod, types):
         list_prepend(tup_funcs, CGLOBAL.cgTupleType)
     cstmts = incls + tup_funcs + CSCOPE.csStmts
     return Module("c_" + mod.name, None, cstmts)
+
+# ALL CSYMS CREATED
+csym_roots = []
+for nm in CSYM_NAMES.keys():
+    CSYM_NAMES[nm] = sym = _atom_symref('symbol', [symname(nm)])
+    csym_roots.append(sym)
+serialize_module(Module('csyms', None, csym_roots))
 
 if __name__ == '__main__':
     import ast
