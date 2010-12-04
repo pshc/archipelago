@@ -130,6 +130,9 @@ def struct_ref(a):
         if s is not None:
             return csym('structref', [nmref(s)])
         scope = scope.csOuterScope
+    name = getname(a)
+    print 'XXX: Not using struct ref for %s' % (name,)
+    return str_(name)
     assert False, '%r not in struct name scope' % (a,)
 
 add_csym('vardef')
