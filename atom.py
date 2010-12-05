@@ -223,7 +223,12 @@ def serialize_module(module):
     loaded_module_atoms.update(selfixs)
     loaded_modules[module.name] = module
 
+# FFFFUUUU
+GLOBAL_OVERLAYS = []
+
 def write_mod_repr(filename, m, overlays):
+    global GLOBAL_OVERLAYS
+    GLOBAL_OVERLAYS = overlays
     with file(filename, 'w') as f:
         for r in m.roots:
             f.write(repr(r))
@@ -329,6 +334,10 @@ def _do_repr(s, r, indent):
     else:
         label = repr(type(s))
     r.append('  ' * indent + label)
+    global GLOBAL_OVERLAYS
+    for overlay in GLOBAL_OVERLAYS:
+        if s in overlay:
+            r.append('  ' * (indent+1) + repr(overlay[s]))
     if hasattr(s, 'subs'):
         assert isinstance(s.subs, list), "Expected list, not %s" % (s.subs,)
         for sub in s.subs:
