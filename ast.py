@@ -7,6 +7,8 @@ from compiler.ast import *
 CUR_CONTEXT = None
 OMNI_CONTEXT = None
 
+loaded_module_export_names = {}
+
 def identifier(bootkey, name, subs=None, is_type=False,
                permissible_nms=frozenset(), export=False):
     global CUR_CONTEXT

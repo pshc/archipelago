@@ -18,6 +18,8 @@ GlobalEnv = DT('GlobalEnv', ('omniEnv', OmniEnv),
 
 ENV = None
 
+loaded_export_atom_types = {}
+
 def fresh():
     return TMeta(TypeCell(None))
 
