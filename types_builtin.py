@@ -32,8 +32,8 @@ def _type_repr(t):
                     ("TAnyTuple()", lambda: 'tuple(*)'),
                     ("TFunc(s, r)", lambda s, r: ' -> '.join(_type_repr(t)
                                                         for t in s + [r])),
-                    ("TData(d)", _get_name), #lambda d: 'data@0x%x' % id(d)),
-                    ("TApply(t, vs)", lambda t, vs: '%s%s' % (_type_repr(t),
+                    ("TData(d)", _get_name),
+                    ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
                                 '.'.join(map(_type_repr, vs)))))
 
 _temp = locals().copy()
