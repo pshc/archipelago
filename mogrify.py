@@ -65,18 +65,20 @@ def lookup_scheme(e):
     assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
     return CGLOBAL.cgTypeAnnotations[e]
 
-add_csym('int', 'char', 'void', 'somefunc_t')
+add_csym('int', 'char', 'bool', 'void', 'somefunc_t')
 def c_type(t):
     global CGLOBAL
     return match(t,
         ("TInt()", lambda: csym_('int')),
+        ("TBool()", lambda: csym_('bool')),
         ("TStr()", lambda: cptr(csym_('char'))),
         ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, []))),
         ("TNullable(t)", c_type),
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TData(a)", lambda a: cptr(struct_ref(a))),
-        ("TFunc(_, _)", lambda: csym_('somefunc_t'))) # TODO
+        ("TFunc(_, _)", lambda: csym_('somefunc_t')), # TODO
+        ("TApply(t, _)", c_type))
 
 def c_type_(ta):
     return c_type(atoms_to_type(ta))
