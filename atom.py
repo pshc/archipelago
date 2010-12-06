@@ -337,9 +337,13 @@ def _do_repr(s, r, indent):
         if s in overlay:
             r.append('  ' * (indent+1) + repr(overlay[s]))
     if hasattr(s, 'subs'):
-        assert isinstance(s.subs, list), "Expected list, not %s" % (s.subs,)
-        for sub in s.subs:
-            _do_repr(sub, r, indent + 1)
+        if not isinstance(s.subs, list):
+            invalid = 'INVALID SUBS: ' + repr(s.subs)
+            #print invalid
+            r.append('  ' * (indent+1) + invalid)
+        else:
+            for sub in s.subs:
+                _do_repr(sub, r, indent + 1)
 
 def atom_repr(s):
     r = []
