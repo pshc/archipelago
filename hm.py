@@ -494,9 +494,9 @@ def infer_types(roots):
     annots = dict((e, normalize_scheme(s))
                   for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
     for root in roots:
-        cs = match(root, ("key('DT', all(cs, c==key('ctor')))", identity),
-                         ("_", lambda: None))
-        if cs is None:
+        dt = match(root, ("key('DT', _)", lambda: True),
+                         ("_", lambda: False))
+        if not dt:
             root = match(root, ("key('=', cons(v, _))", identity),
                                ("_", lambda: root))
             loaded_export_atom_types[root] = annots[root]
