@@ -29,7 +29,9 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
 CGLOBAL = None
 
 # As usual, defeats the whole purpose.
+CIMPORT = CGlobal({}, set(), {}, {}, {}, {}, None)
 loaded_export_struct_name_atoms = {}
+loaded_export_identifier_atoms = {}
 
 def add_include(filename):
     global CGLOBAL
@@ -116,6 +118,7 @@ def set_struct_name(atom, nm):
     s = str_(nm)
     assert atom not in CSCOPE.csStructNameAtoms
     CSCOPE.csStructNameAtoms[atom] = s
+    # export struct
     loaded_export_struct_name_atoms[atom] = s
     return csym('name', [s])
 
@@ -129,6 +132,9 @@ def identifier_ref(a):
         scope = scope.csOuterScope
     if a in boot_syms:
         return str_(getname(a))
+    # TEMP; should be really checking the imports list
+    if a in loaded_export_identifier_atoms:
+        return nmref(loaded_export_identifier_atoms[a])
     assert False, '%r not in identifier scope' % (a,)
 
 add_csym('structref')
@@ -506,6 +512,9 @@ def c_assign_new_vardecl(var, csch, nm, e, func_scope):
     c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
     return s
 
+def export_identifier(var, nm):
+    loaded_export_identifier_atoms[var] = nm
+
 add_csym('vardefn')
 def c_assign_new_decl(var, e):
     ct = c_scheme(lookup_scheme(var))
@@ -516,6 +525,7 @@ def c_assign_new_decl(var, e):
     else:
         s = set_identifier(var, nm, global_scope())
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
+        export_identifier(var, s)
 
 add_csym('=')
 def c_assign_existing(var, e):
@@ -584,6 +594,7 @@ def c_DT(dt, cs, vs, nm):
     for (ctor, fields) in ctors:
         ci = CGLOBAL.cgCtors[ctor]
         ctornm = str_(getname(ctor))
+        export_identifier(ctor, ctornm)
         varnm = ctornm.strVal.lower()
         body, var = vardefn_malloced(varnm, struct_ref(dt),
                                      csym('sizeof', [struct_ref(dt)]))
@@ -612,6 +623,8 @@ def make_func(f, retT, nm, args, body, extra_attrs):
     assert isinstance(nm, Str)
     assert atom not in CSCOPE.csIdentifierAtoms
     CSCOPE.csIdentifierAtoms[atom] = nm
+    if CSCOPE.csOuterScope is None:
+        export_identifier(atom, nm)
     fa.subs = [retT, nm, csym('args', [int_len(args)] + args),
                csym('body', [int_len(body)] + body)] + extra_attrs
     return fa
@@ -671,9 +684,12 @@ def c_body(ss, scope_func):
 
 add_csym('typedef', 'void')
 def scan_DTs(roots):
-    dts = {}
-    ctors = {}
-    fields = {}
+    # TEMP: Persist all this info in CIMPORT
+    global CIMPORT
+    dts = CIMPORT.cgDTs
+    ctors = CIMPORT.cgCtors
+    fields = CIMPORT.cgFields
+
     for root in roots:
         dt, cs = match(root, ("dt==key('DT', all(cs, c==key('ctor')))",tuple2),
                              ("_", lambda: (None, [])))
@@ -702,7 +718,7 @@ def scan_DTs(roots):
 add_csym('includesys')
 def mogrify(mod, types):
     global CSCOPE
-    CSCOPE = CScope([], None, {}, loaded_export_struct_name_atoms, None)
+    CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
     CGLOBAL = scan_DTs(mod.roots)
     CGLOBAL.cgTypeAnnotations = types
