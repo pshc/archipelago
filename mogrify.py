@@ -576,8 +576,9 @@ def c_DT(dt, cs, vs, nm):
         cfields = [csym('field', [t, fi.fiFieldName]) for (t, fi) in fields]
         if discrim:
             ci = CGLOBAL.cgCtors[c]
-            list_append(structs, csym('field', [csym('struct', cfields),
-                                                ci.ciStructName]))
+            if len(cfields) > 0:
+                list_append(structs, csym('field', [csym('struct', cfields),
+                                                    ci.ciStructName]))
             list_append(enumsyms, csym('enumerator', [ci.ciEnumName]))
         else:
             stmt(csym('decl', [csym('struct', [dt_nm_atom] + cfields)]))
