@@ -8,6 +8,8 @@ def ident(val):
     return val
 ident2 = lambda v: v
 Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
+def swap(pair):
+    return match(pair, ("Pair(f, s)", lambda f, s: Pair(s, f)))
 def main():
     while False:
         inside = 1
