@@ -47,7 +47,9 @@ def c_structref(s): out('struct '); out_Str(s)
 def c_struct(s, k, fs):
     out(k)
     out(' ')
-    nm = match(s, ("named(nm)", identity), ("_", lambda: None))
+    nm = match(s.subs,
+            ("contains(sym('csyms', 'name', cons(nm, _)))", just_identifier),
+            ("_", lambda: None))
     if nm is not None:
         out(nm)
         out(' ')
