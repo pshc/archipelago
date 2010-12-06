@@ -335,7 +335,7 @@ def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)
     tvs = match(dt, ("key('DT', all(tvs, tv==key('typevar')))", identity))
     # TODO: TApply this?
-    loaded_export_atom_types[dt] = TData(dt)
+    export_type(dt, TData(dt))
     for c in cs:
         fieldTs = []
         for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
@@ -347,7 +347,7 @@ def infer_DT(dt, cs, vs, nm):
         # TODO: Should use only the typevars that appear in this ctor
         cT = Scheme(tvs, funcT)
         set_scheme(c, cT, True)
-        loaded_export_atom_types[c] = cT
+        export_type(c, cT)
     if nm == 'List':
         global LIST_TYPE
         LIST_TYPE = dtT
@@ -487,6 +487,9 @@ def normalize_scheme(s):
     s.schemeType = normalize_type(s.schemeType)
     return s
 
+def export_type(atom, t):
+    loaded_export_atom_types[atom] = t
+
 def infer_types(roots):
     global ENV
     ENV = setup_infer_env(roots)
@@ -498,8 +501,10 @@ def infer_types(roots):
                          ("_", lambda: False))
         if not dt:
             root = match(root, ("key('=', cons(v, _))", identity),
-                               ("_", lambda: root))
-            loaded_export_atom_types[root] = annots[root]
+                               ("key('func', _)", lambda: root),
+                               ("_", lambda: None))
+            if root is not None:
+                export_type(root, annots[root])
     return annots
 
 if __name__ == '__main__':
