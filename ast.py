@@ -224,26 +224,28 @@ def replace_refs(mapping, e):
         replace_refs(mapping, sub)
     return e
 
+SPECIAL_CASES = {
+    'identity': lambda r: r(0),
+    'tuple2': lambda r: symref('tuplelit', [int_(2), r(0), r(1)]),
+    'tuple3': lambda r: symref('tuplelit', [int_(3), r(0), r(1), r(2)]),
+    'tuple4': lambda r: symref('tuplelit', [int_(4), r(0), r(1), r(2), r(3)]),
+    'tuple5': lambda r: symref('tuplelit', [int_(5),r(0),r(1),r(2),r(3),r(4)]),
+}
+
 @inside_scope
 def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
     ref = lambda s: Ref(s, [])
-    # TODO: Fix these up, due to stdlib
-    e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
-                                       cons(e, _)))',
-                  lambda args, e: replace_refs(dict(zip(args, bs)), e)),
-                 ('key("identity")', lambda: ref(bs[0])),
-                 ('key("tuple2")', lambda: symref('tuplelit', [Int(2, []),
-                                                  ref(bs[0]), ref(bs[1])])),
-                 ('key("tuple3")', lambda: symref('tuplelit', [Int(3, []),
-                                         ref(bs[0]), ref(bs[1]), ref(bs[2])])),
-                 ('key("tuple4")', lambda: symref('tuplelit', [Int(4, []),
-                             ref(bs[0]), ref(bs[1]), ref(bs[2]), ref(bs[3])])),
-                 ('key("tuple5")', lambda: symref('tuplelit', [Int(5, []),
-                 ref(bs[0]), ref(bs[1]), ref(bs[2]), ref(bs[3]), ref(bs[4])])),
-                 ('_', lambda: symref('call', [f, int_len(bs)]
-                                      + [ref(b) for b in bs])))
+    special = SPECIAL_CASES.get(getattr(f, 'refAtom', None))
+    if special:
+        e = special(lambda i: ref(bs[i]))
+    else:
+        e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
+                                           cons(e, _)))',
+                      lambda args, e: replace_refs(dict(zip(args, bs)), e)),
+                     ('_', lambda: symref('call', [f, int_len(bs)]
+                                          + [ref(b) for b in bs])))
     return symref('case', [c, e])
 
 add_sym('match')

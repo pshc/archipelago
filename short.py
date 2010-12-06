@@ -10,6 +10,8 @@ ident2 = lambda v: v
 Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 def swap(pair):
     return match(pair, ("Pair(f, s)", lambda f, s: Pair(s, f)))
+def to_tuple(pair):
+    return match(pair, ("Pair(f, s)", tuple2))
 def main():
     while False:
         inside = 1
