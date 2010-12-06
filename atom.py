@@ -183,8 +183,9 @@ def serialize_module(module):
         if atom in state.unknown_refatoms:
             state.unknown_refatoms.remove(atom)
     assert not state.unknown_refatoms, ("A dependency of %s has not been "
-            "serialized; %d atoms orphaned") % (module.name,
-            len(state.unknown_refatoms))
+            "serialized; %d atom(s) orphaned:\n%s") % (module.name,
+            len(state.unknown_refatoms),
+            '\n>'.join(repr(s) for s in state.unknown_refatoms))
     deps = ""
     modixs = {}
     for m, mod in enumerate(sorted(state.modset)):
@@ -279,7 +280,7 @@ def _match_sym(atom, ast):
             m = match_try(nm, ast.args[1])
             if m is None or len(ast.args) == 2:
                 return m
-            msubs = match_try(atom.subs, ast.args[3])
+            msubs = match_try(atom.subs, ast.args[2])
             if msubs is not None:
                 return m + msubs
     return None
