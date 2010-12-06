@@ -1,5 +1,5 @@
 from base import *
-from stdlib import Int
+from stdlib import Int, Str, Ref, List
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData, TApply \
@@ -69,7 +69,7 @@ Scheme.__repr__ = _scheme_repr
 
 # TODO
 TDict = None
-TList = None
+TList = TData(List)
 TSet = None
 
 TFile = None
@@ -91,18 +91,18 @@ builtins_types = {
     'sha256': (THash,),
     'sha256_hexdigest': (THash, TStr),
     'sha256_update': (THash, TStr, TVoid),
-    'dict_keys': (TDict, TList),
+    #'dict_keys': (TDict, TList),
     'set_add': (TSet, TSet, TVoid),
-    'list_append': (TList, _var(1), TVoid),
-    'list_sort': (TList, TVoid),
+    #'list_append': (TList, _var(1), TVoid),
+    #'list_sort': (TList, TVoid),
     'identity': (_var(1), _var(1)),
     'tuple2': (_var(1), _var(2), TTuple([_var(1), _var(2)])),
     # etc to tuple5
     'None': TNullable(_var(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
-    'len': (TList, TInt),
-    'set': (TList, TSet),
+    #'len': (TList, TInt),
+    #'set': (TList, TSet),
 
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
@@ -112,8 +112,8 @@ builtins_types = {
     '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
     '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
     'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
-    'in': (_var(1), TList, TBool), 'not in': (_var(1), TList, TBool),
-    'slice': (TList, TInt, TInt, TList),
+    #'in': (_var(1), TList, TBool), 'not in': (_var(1), TList, TBool),
+    #'slice': (TList, TInt, TInt, TList),
     'printf': (TStr, TAnyTuple, TVoid),
     '%': (TStr, TAnyTuple, TStr),
 }

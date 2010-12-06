@@ -666,7 +666,14 @@ def conv_import(s, context):
             stdlib_mod = convert_file('stdlib.py')
             serialize_module(stdlib_mod)
             import hm
-            hm.infer_types(stdlib_mod.roots)
+            types = hm.infer_types(stdlib_mod.roots)
+            write_mod_repr('gutentag.c', stdlib_mod, [types])
+            from mogrify import mogrify
+            c = mogrify(stdlib_mod, types)
+            write_mod_repr('gutentag.c', c, [])
+            from c import write_c_file
+            write_c_file('gutentag.c', c)
+            serialize_module(c)
         assert name in loaded_modules, "Import %s not loaded" % name
         mod = loaded_modules[name]
         symbols = loaded_module_export_names[mod]

@@ -16,9 +16,9 @@ def isNothing(m): return match(m, ('Nothing()', lambda: True),
                                   ('_', lambda: False))
 
 def str_(st):
-    return Str(st, Nil())
+    return Str(st, [])
 def int_(n):
-    return Int(n, Nil())
+    return Int(n, [])
 
 def identity(val): return val
 def tuple2(a, b): return (a, b)

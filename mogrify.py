@@ -28,6 +28,9 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
                         ('cgTupleType', Atom))
 CGLOBAL = None
 
+# As usual, defeats the whole purpose.
+loaded_export_struct_name_atoms = {}
+
 def add_include(filename):
     global CGLOBAL
     set_add(CGLOBAL.cgIncludes, filename)
@@ -37,6 +40,7 @@ _atom_symref = symref
 del symref
 del add_sym
 def csym(name, subs):
+    assert isinstance(subs, list), 'Expected list; got %s' % (subs,)
     return Ref(CSYM_NAMES[name], subs)
 
 CSYM_NAMES = {}
@@ -65,12 +69,11 @@ def lookup_scheme(e):
     assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
     return CGLOBAL.cgTypeAnnotations[e]
 
-add_csym('int', 'char', 'bool', 'void', 'somefunc_t')
+add_csym('int', 'char', 'void', 'somefunc_t')
 def c_type(t):
     global CGLOBAL
     return match(t,
-        ("TInt()", lambda: csym_('int')),
-        ("TBool()", lambda: csym_('bool')),
+        ("TInt() or TBool()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
         ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, []))),
         ("TNullable(t)", c_type),
@@ -81,7 +84,11 @@ def c_type(t):
         ("TApply(t, _)", c_type))
 
 def c_type_(ta):
-    return c_type(atoms_to_type(ta))
+    t = atoms_to_type(ta)
+    #print 'CONVERTED TYPE', t, 'INTO CTYPE:'
+    result = c_type(t)
+    #print result
+    return result
 
 def c_scheme(s):
     return match(s, ("Scheme(_, t)", c_type))
@@ -109,6 +116,7 @@ def set_struct_name(atom, nm):
     s = str_(nm)
     assert atom not in CSCOPE.csStructNameAtoms
     CSCOPE.csStructNameAtoms[atom] = s
+    loaded_export_struct_name_atoms[atom] = s
     return csym('name', [s])
 
 def identifier_ref(a):
@@ -132,9 +140,9 @@ def struct_ref(a):
         if s is not None:
             return csym('structref', [nmref(s)])
         scope = scope.csOuterScope
-    name = getname(a)
-    print 'XXX: Not using struct ref for %s' % (name,)
-    return str_(name)
+    # TEMP; should be really checking the imports list
+    if a in loaded_export_struct_name_atoms:
+        return csym('structref', [nmref(loaded_export_struct_name_atoms[a])])
     assert False, '%r not in struct name scope' % (a,)
 
 add_csym('vardef')
@@ -548,6 +556,7 @@ def c_DT(dt, cs, vs, nm):
     ctors = []
     structs = []
     enumsyms = []
+    dt_nm_atom = set_struct_name(dt, nm)
     # Convert ctors to structs
     for c in cs:
         fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
@@ -561,15 +570,14 @@ def c_DT(dt, cs, vs, nm):
                                                 ci.ciStructName]))
             list_append(enumsyms, csym('enumerator', [ci.ciEnumName]))
         else:
-            stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm)]
-                                              + cfields)]))
+            stmt(csym('decl', [csym('struct', [dt_nm_atom] + cfields)]))
         ctors.append((c, fields))
     dtinfo = CGLOBAL.cgDTs[dt]
     if discrim:
         # Generate our extra struct-around-union-around-ctors
         enum = csym('enum', enumsyms)
         union = csym('union', structs)
-        stmt(csym('decl', [csym('struct', [set_struct_name(dt, nm),
+        stmt(csym('decl', [csym('struct', [dt_nm_atom,
                 csym('field', [enum, dtinfo.diIndexName]),
                 csym('field', [union, dtinfo.diUnionName])])]))
     # Ctor functions
@@ -694,7 +702,7 @@ def scan_DTs(roots):
 add_csym('includesys')
 def mogrify(mod, types):
     global CSCOPE
-    CSCOPE = CScope([], None, {}, {}, None)
+    CSCOPE = CScope([], None, {}, loaded_export_struct_name_atoms, None)
     global CGLOBAL
     CGLOBAL = scan_DTs(mod.roots)
     CGLOBAL.cgTypeAnnotations = types
