@@ -465,7 +465,7 @@ def zonk_type(t):
                     ("TTuple(ts)", lambda ts: TTuple(map(zonk_type, ts))),
                     ("TNullable(t)", lambda t: TNullable(zonk_type(t))),
                     ("TApply(t, ss)", lambda t, ss:
-                        TApply(zonk_type(t), map(zonk_type(ss)))),
+                        TApply(zonk_type(t), map(zonk_type, ss))),
                     ("_", lambda: t))
 
 # Kill metavars
