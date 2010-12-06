@@ -10,4 +10,4 @@ mods:
 	mkdir mods
 
 clean:
-	rm -f -- konnichiwa gutentag.c hello world.c mods/*
+	rm -f -- konnichiwa gutentag.c hello world.c mods/* *.pyc
