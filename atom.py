@@ -231,6 +231,7 @@ def write_mod_repr(filename, m, overlays):
     with file(filename, 'w') as f:
         for r in m.roots:
             f.write(repr(r))
+    GLOBAL_OVERLAYS = []
 
 @matcher('sized')
 def _match_sized(atom, ast):
