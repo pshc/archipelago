@@ -194,7 +194,7 @@ def concat(lists):
 def concat_map(f, xs):
     result = []
     for x in xs:
-        result += f(xs)
+        result += f(x)
     return result
 
 def unzip(list):
