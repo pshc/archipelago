@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 from base import *
 from atom import *
-from builtins import *
 
 CScope = DT('CScope', ('csStmts', [Atom]),
                       ('csFuncName', str),
@@ -35,7 +34,7 @@ loaded_export_identifier_atoms = {}
 
 def add_include(filename):
     global CGLOBAL
-    set_add(CGLOBAL.cgIncludes, filename)
+    CGLOBAL.cgIncludes.add(filename)
 
 # ensure we don't accidentally use symref() since it will be accepted silently
 _atom_symref = symref
@@ -384,7 +383,7 @@ def c_match_cases(cs, argnm, result_f):
         m, b = match(c, ("key('case', cons(m, cons(b, _)))", tuple2))
         CMATCH = CMatch({}, [], [], argnm)
         c_match_case(m)
-        list_concat(nms, c_match_case_names(m))
+        nms += c_match_case_names(m)
         matchvars = {}
         for orig_var, var_nm, new_var in CMATCH.cmDecls.itervalues():
             matchvars[orig_var] = var_nm
@@ -728,7 +727,7 @@ def mogrify(mod, types):
     incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
     tup_funcs = [f for (nm, f) in CGLOBAL.cgTupleFuncs.itervalues()]
     if len(tup_funcs) > 0:
-        list_prepend(tup_funcs, CGLOBAL.cgTupleType)
+        tup_funcs.insert(0, CGLOBAL.cgTupleType)
     cstmts = incls + tup_funcs + CSCOPE.csStmts
     return Module("c_" + mod.name, None, cstmts)
 

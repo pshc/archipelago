@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 from atom import *
 from base import *
-from builtins import *
 from types_builtin import *
 
 OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),

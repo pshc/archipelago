@@ -75,9 +75,6 @@ TSet = None
 TFile = None
 THash = None
 
-# Special: array, sizeof, hint, stringify, to_atom, to_void, getattr, range,
-#          object
-
 def _var(n): return TVar(Int(n, []))
 
 # Tuples are a shortcut for functions
@@ -91,18 +88,12 @@ builtins_types = {
     'sha256': (THash,),
     'sha256_hexdigest': (THash, TStr),
     'sha256_update': (THash, TStr, TVoid),
-    #'dict_keys': (TDict, TList),
-    'set_add': (TSet, TSet, TVoid),
-    #'list_append': (TList, _var(1), TVoid),
-    #'list_sort': (TList, TVoid),
-    'identity': (_var(1), _var(1)),
-    'tuple2': (_var(1), _var(2), TTuple([_var(1), _var(2)])),
     # etc to tuple5
     'None': TNullable(_var(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
-    #'len': (TList, TInt),
-    #'set': (TList, TSet),
+    'identity': (_var(1), _var(1)),
+    'tuple2': (_var(1), _var(2), TTuple([_var(1), _var(2)])),
 
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
@@ -112,8 +103,6 @@ builtins_types = {
     '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
     '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
     'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
-    #'in': (_var(1), TList, TBool), 'not in': (_var(1), TList, TBool),
-    #'slice': (TList, TInt, TInt, TList),
     'printf': (TStr, TAnyTuple, TVoid),
     '%': (TStr, TAnyTuple, TStr),
 }

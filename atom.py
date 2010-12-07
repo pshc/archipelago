@@ -2,7 +2,6 @@
 from os import system
 from hashlib import sha256
 from base import *
-from builtins import builtins
 from types_builtin import *
 from stdlib import *
 
@@ -157,7 +156,9 @@ add_sym('type')
 add_sym('instantiation')
 map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*')
-map(add_sym, builtins)
+map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
+        '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
+        'slice,printf,object').split(','))
 
 def walk_atoms(atoms, f):
     for atom in atoms:

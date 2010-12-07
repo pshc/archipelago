@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 from base import *
 from atom import *
-from builtins import *
 import sys
 
 CEnv = DT('CEnv', ('cenvIndent', int),
@@ -15,7 +14,7 @@ def out(s):
     global CENV
     assert isinstance(s, basestring), "Expected string, got: %s" % (s,)
     sys.stdout.write(s)
-    fwrite(CENV.cenvHandle, s)
+    CENV.cenvHandle.write(s)
 def indent():
     global CENV
     out('  ' * CENV.cenvIndent)
@@ -306,10 +305,10 @@ def c_body(ss):
 
 def write_c_file(filename, mod):
     global CENV
-    f = fopen(filename, 'w')
+    f = open(filename, 'w')
     CENV = CEnv(-1, f, None)
     c_body(mod.roots)
-    fclose(f)
+    f.close()
 
 if __name__ == '__main__':
     load_module('short')
