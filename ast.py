@@ -214,7 +214,7 @@ def make_dt(left, args):
                           [symref('type', [conv_type(t, tvars, dt=fa)])])
                for (fnm, t) in fs]
     dtsubs += tvars.values()
-    return ([fa], '%s = DT(%s)' % (nm, ', '.join(map(fst, fs))))
+    return ([fa], '%s = DT(%s)' % (nm, ', '.join(f for f, s in fs)))
 
 def replace_refs(mapping, e):
     ra = getattr(e, 'refAtom', None)
@@ -758,13 +758,5 @@ def convert_file(filename):
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
-
-# TEMP
-def fst(t):
-    (f, s) = t
-    return f
-def snd(t):
-    (f, s) = t
-    return s
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

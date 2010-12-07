@@ -354,7 +354,7 @@ def c_match_case_names(case):
             ("Int(i, _)", lambda: ['int']),
             ("Str(s, _)", lambda: ['str']),
             ("key('tuplelit', sized(ps))",
-                lambda ps: concat_map(c_match_make_name, ps)),
+                lambda ps: concat_map(c_match_case_names, ps)),
             ("key('ctor', cons(Ref(c, _), _))", lambda c: [getname(c)]),
             ("named(nm) or key('capture', cons(named(nm), _))",
                 lambda nm: [nm]),
