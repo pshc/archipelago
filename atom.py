@@ -21,7 +21,7 @@ boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
 loaded_modules = {}
 loaded_module_atoms = {}
 
-stdlib_mod = None
+csym_roots = []
 
 def int_len(list):
     return Int(len(list), [])
@@ -329,6 +329,8 @@ def _do_repr(s, r, indent):
         label = '<ref>'
         if s.refAtom in boot_syms:
             label = s.refAtom.subs[0].subs[0].strVal
+        elif s.refAtom in csym_roots:
+            label = s.refAtom.subs[0].subs[0].strVal + '*'
         elif hasattr(s.refAtom, 'strVal'):
             label = '->%r' % (s.refAtom.strVal,)
         elif getattr(s.refAtom, 'subs', []):

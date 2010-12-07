@@ -733,7 +733,6 @@ def mogrify(mod, types):
     return Module("c_" + mod.name, None, cstmts)
 
 # ALL CSYMS CREATED
-csym_roots = []
 for nm in CSYM_NAMES.keys():
     CSYM_NAMES[nm] = sym = _atom_symref('symbol', [symname(nm)])
     csym_roots.append(sym)
