@@ -22,13 +22,11 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
                         ('cgIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
                         ('cgCtors', {Atom: CtorInfo}),
-                        ('cgFields', {Atom: FieldInfo}),
-                        ('cgTupleFuncs', {int: (Atom, Atom)}),
-                        ('cgTupleType', Atom))
+                        ('cgFields', {Atom: FieldInfo}))
 CGLOBAL = None
 
 # As usual, defeats the whole purpose.
-CIMPORT = CGlobal({}, set(), {}, {}, {}, {}, None)
+CIMPORT = CGlobal({}, set(), {}, {}, {})
 loaded_export_struct_name_atoms = {}
 loaded_export_identifier_atoms = {}
 
@@ -70,13 +68,13 @@ def lookup_scheme(e):
     assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
     return CGLOBAL.cgTypeAnnotations[e]
 
-add_csym('int', 'char', 'void', 'somefunc_t')
+add_csym('int', 'char', 'void', 'tuple_t', 'somefunc_t')
 def c_type(t):
     global CGLOBAL
     return match(t,
         ("TInt() or TBool()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: cptr(Ref(CGLOBAL.cgTupleType, []))),
+        ("TTuple(_)", lambda: csym_('tuple_t')),
         ("TNullable(t)", c_type),
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
@@ -212,32 +210,10 @@ def c_lambda(lam, args, e):
     insert_global_decl(lam)
     return nmref(fnm)
 
-add_csym('sizeof', 'arg', 'void', 'subscript', '=', 'return', 'static')
-# Currently boxed and void*'d to hell... hmmm...
+add_csym('tuple')
 def c_tuple(ts):
-    n = len(ts)
-    global CGLOBAL
-    tupleT = lambda: Ref(CGLOBAL.cgTupleType, [])
-    if n not in CGLOBAL.cgTupleFuncs:
-        add_include('stdlib.h')
-        nm = str_('tuple%d' % (n,))
-        args = []
-        body, var = vardefn_malloced('tup', tupleT(),
-                bop(csym('sizeof', [tupleT()]), '*', int_(n)))
-        i = 0
-        while i < n:
-            argnm = str_('t%d' % (i,))
-            arg = csym('arg', [cptr(csym_('void')), argnm])
-            args.append(arg)
-            body.append(
-                bop(csym('subscript', [var(), int_(i)]), '=', nmref(argnm)))
-            i += 1
-        body.append(csym('return', [var()]))
-        f = make_func(None, cptr(tupleT()), nm, args, body, [csym_('static')])
-        CGLOBAL.cgTupleFuncs[n] = (nm, f)
-    else:
-        nm, f = CGLOBAL.cgTupleFuncs[n]
-    return callnamedref(nm, map(c_expr, ts))
+    # Yes, passing in the tuple len in the first arg.
+    return callnamed('tuple', cons(int_len(ts), map(c_expr, ts)))
 
 def global_scope():
     global CSCOPE
@@ -475,7 +451,7 @@ def c_expr(e):
         ("key('tuplelit', sized(ts))", c_tuple),
         ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
-        ("r==Ref(a, _)", c_defref))
+        ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
 
 # Can inline stmts required for computing `e' right here; and the final value
 # inlines into the final stmt with `stmt_f'
@@ -712,8 +688,7 @@ def scan_DTs(roots):
             ctors[c] = CtorInfo(dtinfo, enumname, structname)
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
-    tupleT = csym('typedef', [cptr(csym_('void')), str_('tuple')])
-    return CGlobal({}, set(), dts, ctors, fields, {}, tupleT)
+    return CGlobal({}, set(['archipelago.h']), dts, ctors, fields)
 
 add_csym('includesys')
 def mogrify(mod, types):
@@ -725,10 +700,7 @@ def mogrify(mod, types):
     for s in mod.roots:
         c_stmt(s)
     incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
-    tup_funcs = [f for (nm, f) in CGLOBAL.cgTupleFuncs.itervalues()]
-    if len(tup_funcs) > 0:
-        tup_funcs.insert(0, CGLOBAL.cgTupleType)
-    cstmts = incls + tup_funcs + CSCOPE.csStmts
+    cstmts = incls + CSCOPE.csStmts
     return Module("c_" + mod.name, None, cstmts)
 
 # ALL CSYMS CREATED

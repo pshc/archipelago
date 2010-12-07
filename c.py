@@ -60,7 +60,7 @@ def c_struct(s, k, fs):
 def c_type(t):
     match(t,
         ("sym('csyms', prim==('int' or 'char' or 'void'))", out),
-        ("sym('csyms', TODO==('somefunc_t'))", out),
+        ("sym('csyms', TODO==('somefunc_t' or 'tuple_t'))", out),
         ("sym('csyms', 'ptr', cons(t, _))", c_ptr),
         ("sym('csyms', 'structref', cons(s, _))", c_structref),
         ("Ref(sym('csyms', 'typedef', cons(_, cons(nm, _))), _)", out_Str),
