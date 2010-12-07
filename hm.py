@@ -172,7 +172,7 @@ def generalize_type(t, polyEnv):
     for i, meta in enumerate(metas):
         tv = symref('typevar', [symname(chr(97 + i))])
         meta.metaCell.cellType = TVar(tv)
-        list_append(tvs, tv)
+        tvs.append(tv)
     return Scheme(tvs, t)
 
 def get_type(e):
@@ -341,7 +341,7 @@ def infer_DT(dt, cs, vs, nm):
         for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
             t = match(f, ("key('field', contains(key('type', cons(t, _))))",
                           lambda t: atoms_to_type(t)))
-            list_append(fieldTs, t)
+            fieldTs.append(t)
             set_monotype(f, t, False)
         funcT = TFunc(fieldTs, dtT)
         # TODO: Should use only the typevars that appear in this ctor
@@ -395,7 +395,7 @@ def infer_func_scheme(f, args, body):
         for a in args:
             t = fresh()
             set_monotype(a, t, False)
-            list_append(argTs, t)
+            argTs.append(t)
 
         infer_stmts(body)
 

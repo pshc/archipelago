@@ -49,7 +49,6 @@ sha256_update = lambda h, s: h.update(s)
 
 dict_keys = dict.keys
 set_add = set.add
-list_append, list_sort = list.append, list.sort
 list_prepend = lambda l, x: l.insert(0, x)
 def list_concat(a, b): a += b
 list_pop_last = lambda l: l.pop()

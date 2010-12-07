@@ -229,11 +229,11 @@ def c_tuple(ts):
         while i < n:
             argnm = str_('t%d' % (i,))
             arg = csym('arg', [cptr(csym_('void')), argnm])
-            list_append(args, arg)
-            list_append(body,
+            args.append(arg)
+            body.append(
                 bop(csym('subscript', [var(), int_(i)]), '=', nmref(argnm)))
             i += 1
-        list_append(body, csym('return', [var()]))
+        body.append(csym('return', [var()]))
         f = make_func(None, cptr(tupleT()), nm, args, body, [csym_('static')])
         CGLOBAL.cgTupleFuncs[n] = (nm, f)
     else:
@@ -248,7 +248,7 @@ def global_scope():
     return scope
 
 def insert_global_decl(f):
-    list_append(global_scope().csStmts, f)
+    global_scope().csStmts.append(f)
 
 add_csym('strlit')
 def strlit(s):
@@ -269,13 +269,13 @@ CMATCH = None
 add_csym('==')
 def c_match_int_literal(i):
     global CMATCH
-    list_append(CMATCH.cmConds, bop(CMATCH.cmCurExpr, '==', int_(i)))
+    CMATCH.cmConds.append(bop(CMATCH.cmCurExpr, '==', int_(i)))
 
 add_csym('==')
 def c_match_str_literal(s):
     global CMATCH
     add_include('string.h')
-    list_append(CMATCH.cmConds, bop(callnamed('strcmp',
+    CMATCH.cmConds.append(bop(callnamed('strcmp',
         [CMATCH.cmCurExpr, strlit(s)]), '==', int_(0)))
 
 add_csym('subscript')
@@ -315,7 +315,7 @@ def c_match_ctor(c, args):
     ci = CGLOBAL.cgCtors[c]
     old_expr = CMATCH.cmCurExpr
     if ci.ciEnumName is not None:
-        list_append(CMATCH.cmConds, c_ctor_index_test(old_expr, '==', ci))
+        CMATCH.cmConds.append(c_ctor_index_test(old_expr, '==', ci))
     fields = match(c, ("key('ctor', all(fs, f==key('field')))",
                        identity))
     for arg, field in zip(args, fields):
@@ -333,7 +333,7 @@ def c_match_var(v, nm):
         nm += '_'
     varnm = str_(nm)
     CMATCH.cmDecls[nm] = (v, varnm, csym('vardecl', [varnm, c_scheme(t)]))
-    list_append(CMATCH.cmAssigns, bop(nmref(varnm), '=', CMATCH.cmCurExpr))
+    CMATCH.cmAssigns.append(bop(nmref(varnm), '=', CMATCH.cmCurExpr))
 
 def c_match_capture(v, p):
     c_match_case(v)
@@ -388,7 +388,7 @@ def c_match_cases(cs, argnm, result_f):
         matchvars = {}
         for orig_var, var_nm, new_var in CMATCH.cmDecls.itervalues():
             matchvars[orig_var] = var_nm
-            list_append(decls, new_var)
+            decls.append(new_var)
         # Convert the success expr with the match vars bound to their decls
         global CSCOPE
         old_scope = CSCOPE
@@ -399,15 +399,15 @@ def c_match_cases(cs, argnm, result_f):
             if len(cases) == 0:
                 body = case
             else:
-                list_append(cases, csym('else', [int_len(case)] + case))
+                cases.append(csym('else', [int_len(case)] + case))
                 otherwise = True
             break
         test = and_together(CMATCH.cmConds)
-        list_append(cases, csym('case', [test, int_len(case)] + case))
+        cases.append(csym('case', [test, int_len(case)] + case))
     fnm = '_'.join(nms)
     if len(body) == 0:
         if not otherwise:
-            list_append(cases, csym('else', [int_(1),
+            cases.append(csym('else', [int_(1),
                         assert_false('%s failed' % (fnm,))]))
         body = [csym('if', cases)]
     return (str_(fnm), decls, body)
@@ -427,7 +427,7 @@ def c_match(matchExpr):
     e, eT, retT, cs = c_match_bits(matchExpr)
     arg = csym('arg', [eT])
     argnm = set_identifier(arg, 'expr', None)
-    list_append(arg.subs, argnm)
+    arg.subs.append(argnm)
     res_action = 'exprstmt' if _is_void_atom_type(retT) else 'return'
 
     fnm, decls, caseStmts = c_match_cases(cs, argnm,
@@ -456,7 +456,7 @@ def c_match_inline(matchExpr, inline_f):
                        else bop(nmref(res_nm), '=', ce))
 
     if not is_void:
-        list_append(decls, csym('vardecl', [res_nm, retT]))
+        decls.append(csym('vardecl', [res_nm, retT]))
     insert_vardecls(decls, func)
     stmts(body)
     if not is_void:
@@ -537,12 +537,12 @@ def c_cond(subs, cs):
     for (t, b) in cs:
         ct = c_expr(t)
         cb = c_body(b, None)
-        list_append(cases, csym('case', [ct, int_len(cb)] + cb))
+        cases.append(csym('case', [ct, int_len(cb)] + cb))
     else_ = match(subs, ("contains(key('else', sized(body)))", identity),
                         ("_", lambda: None))
     if else_ is not None:
         cb = c_body(else_, None)
-        list_append(cases, csym('else', [int_len(cb)] + cb))
+        cases.append(csym('else', [int_len(cb)] + cb))
     stmt(csym('if', cases))
 
 add_csym('while')
@@ -577,9 +577,9 @@ def c_DT(dt, cs, vs, nm):
         if discrim:
             ci = CGLOBAL.cgCtors[c]
             if len(cfields) > 0:
-                list_append(structs, csym('field', [csym('struct', cfields),
+                structs.append(csym('field', [csym('struct', cfields),
                                                     ci.ciStructName]))
-            list_append(enumsyms, csym('enumerator', [ci.ciEnumName]))
+            enumsyms.append(csym('enumerator', [ci.ciEnumName]))
         else:
             stmt(csym('decl', [csym('struct', [dt_nm_atom] + cfields)]))
         ctors.append((c, fields))
@@ -601,7 +601,7 @@ def c_DT(dt, cs, vs, nm):
                                      csym('sizeof', [struct_ref(dt)]))
         argnms = {}
         if discrim:
-            list_append(body, c_ctor_index_test(var(), '=', ci))
+            body.append(c_ctor_index_test(var(), '=', ci))
         # Set all the fields from ctor args
         args = []
         for (ct, fi) in fields:
@@ -610,10 +610,10 @@ def c_DT(dt, cs, vs, nm):
             while argnm.strVal == varnm:
                 argnm.strVal = argnm.strVal + '_'
             # Add the arg and assign it
-            list_append(args, csym('arg', [ct, argnm]))
+            args.append(csym('arg', [ct, argnm]))
             assignment = bop(c_field_lookup(var(), fi), '=', nmref(argnm))
-            list_append(body, assignment)
-        list_append(body, csym('return', [var()]))
+            body.append(assignment)
+        body.append(csym('return', [var()]))
         stmt(make_func(ctor, cptr(struct_ref(dt)), ctornm, args, body, []))
 
 add_csym('func', 'args', 'body')
@@ -635,7 +635,7 @@ def _setup_func(scope, nm, args, argTs, cargs):
     scope.csFuncName = nm
     for a, t in zip(args, argTs):
         carg = csym('arg', [c_type(t), set_identifier(a, getname(a), scope)])
-        list_append(cargs, carg)
+        cargs.append(carg)
 
 def c_func(f, args, body, nm):
     t = lookup_scheme(f)
@@ -664,7 +664,7 @@ def c_stmt(s):
 
 def stmt(s):
     global CSCOPE
-    list_append(CSCOPE.csStmts, s)
+    CSCOPE.csStmts.append(s)
 
 def stmts(ss):
     global CSCOPE
