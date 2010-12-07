@@ -507,12 +507,4 @@ def infer_types(roots):
                 export_type(root, annots[root])
     return annots
 
-if __name__ == '__main__':
-    import ast
-    short = ast.convert_file('short.py')
-    write_mod_repr('hello', short, [])
-    types = infer_types(short.roots)
-    write_mod_repr('hello', short, [types])
-    serialize_module(short)
-
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -739,18 +739,4 @@ for nm in CSYM_NAMES.keys():
     csym_roots.append(sym)
 serialize_module(Module('csyms', None, csym_roots))
 
-if __name__ == '__main__':
-    import ast
-    short = ast.convert_file('short.py')
-    write_mod_repr('hello', short, [])
-    import hm
-    types = hm.infer_types(short.roots)
-    write_mod_repr('hello', short, [types])
-    print 'Inferred types.'
-    c = mogrify(short, types)
-    print 'Mogrified.'
-    write_mod_repr('hello', c, [])
-    serialize_module(short)
-    serialize_module(c)
-
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

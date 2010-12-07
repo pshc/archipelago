@@ -1,13 +1,12 @@
 all: tada
 
-tada: mods
+tada: mods views
 	./c.py
 
-test: mods
-	./interpret.py test.py
-
 mods:
-	mkdir mods
+	mkdir $@
+views:
+	mkdir $@
 
 clean:
-	rm -f -- konnichiwa gutentag.c hello world.c mods/* *.pyc
+	rm -f -- mods/* views/* *.pyc a.out

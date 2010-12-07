@@ -131,6 +131,25 @@ def atoms_to_scheme(a):
             ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
     return Scheme(vs, atoms_to_type(t))
 
+def load_module(name):
+    if name + '.py' in loaded_modules:
+        return loaded_modules[name + '.py']
+    print 'Loading %s' % (name,)
+    from ast import convert_file
+    mod = convert_file(name + '.py')
+    write_mod_repr('views/' + name + '.txt', mod, [])
+    serialize_module(mod)
+    from hm import infer_types
+    types = infer_types(mod.roots)
+    write_mod_repr('views/' + name + '.txt', mod, [types])
+    from mogrify import mogrify
+    c = mogrify(mod, types)
+    write_mod_repr('views/' + name + '_c.txt', c, [])
+    from c import write_c_file
+    write_c_file('views/' + name + '.c', c)
+    serialize_module(c)
+    return mod
+
 add_sym('length')
 add_sym('deps')
 add_sym('roots')
@@ -354,10 +373,5 @@ def atom_repr(s):
     return '\n'.join(r)
 
 Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
-
-if __name__ == '__main__':
-    system('rm -f -- mods/*')
-    mod = Module("boot", "", [Int(42, [])])
-    serialize_module(mod)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

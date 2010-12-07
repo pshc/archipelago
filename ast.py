@@ -597,9 +597,8 @@ def conv_for(context, s, prev):
 
 @stmt(From)
 def conv_from(s, context):
-    if s.modname != 'stdlib':
-        names = ', '.join(import_names(s.names))
-        cout(context, 'from %s import %s # ignored', s.modname, names)
+    names = ', '.join(import_names(s.names))
+    cout(context, 'from %s import %s # ignored', s.modname, names)
     return []
 
 add_sym('func')
@@ -661,23 +660,7 @@ def conv_import(s, context):
     global loaded_module_export_names
     for name, qual in s.names:
         assert not qual, "Qualified imports not supported"
-        name = name + '.py'
-        if name not in loaded_modules and name == 'stdlib.py':
-            global stdlib_mod
-            assert not stdlib_mod
-            stdlib_mod = convert_file('stdlib.py')
-            serialize_module(stdlib_mod)
-            import hm
-            types = hm.infer_types(stdlib_mod.roots)
-            write_mod_repr('gutentag.c', stdlib_mod, [types])
-            from mogrify import mogrify
-            c = mogrify(stdlib_mod, types)
-            write_mod_repr('gutentag.c', c, [])
-            from c import write_c_file
-            write_c_file('gutentag.c', c)
-            serialize_module(c)
-        assert name in loaded_modules, "Import %s not loaded" % name
-        mod = loaded_modules[name]
+        mod = load_module(name)
         symbols = loaded_module_export_names[mod]
         global OMNI_CONTEXT
         OMNI_CONTEXT.imports.update(symbols)
@@ -748,7 +731,6 @@ def cout(context, format, *args, **kwargs):
     print line
 
 def convert_file(filename):
-    global boot_mod, stdlib_mod
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
@@ -784,27 +766,5 @@ def fst(t):
 def snd(t):
     (f, s) = t
     return s
-
-add_sym('module')
-def emit_graph(mod, filename):
-    f = open(filename, 'w')
-    def do_emit(node, ctr):
-        label = match(node,
-                ('Int(n, _)', str),
-                ('Str(s, _)', repr),
-                ('Ref(r, _)', lambda r: r.subs[0].subs[0].strVal
-                                        if r in boot_sums else '<ref>'))
-        f.write('n%d [label="%s"];\n' % (ctr, escape(label)))
-        orig = ctr
-        for sub in node.subs:
-            f.write('n%d -> n%d;\n' % (orig, ctr + 1))
-            ctr = do_emit(sub, ctr + 1)
-        return ctr
-    f.write('digraph G {\n')
-    do_emit(symref('module', mod.roots), 0)
-    f.write('}\n')
-
-if __name__ == '__main__':
-    emit_graph(convert_file('interpret.py'), 'graph.dot')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

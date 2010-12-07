@@ -312,22 +312,6 @@ def write_c_file(filename, mod):
     fclose(f)
 
 if __name__ == '__main__':
-    import ast
-    short = ast.convert_file('short.py')
-    write_mod_repr('hello', short, [])
-    write_mod_repr('konnichiwa', short, [])
-    serialize_module(short)
-    import hm
-    types = hm.infer_types(short.roots)
-    write_mod_repr('konnichiwa', short, [types])
-    print 'Inferred types.'
-    print
-    print 'Generating C...'
-    print '==============='
-    from mogrify import mogrify
-    c = mogrify(short, types)
-    write_mod_repr('hello', c, [])
-    write_c_file('world.c', c)
-    serialize_module(c)
+    load_module('short')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
