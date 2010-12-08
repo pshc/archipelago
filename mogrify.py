@@ -378,7 +378,7 @@ def c_match_cases(cs, argnm, result_f):
             if len(cases) == 0:
                 body = case
             else:
-                cases.append(csym('else', [int_len(case)] + case))
+                cases.append(csym('else', cons(int_len(case), case)))
                 otherwise = True
             break
         test = and_together(CMATCH.cmConds)
@@ -522,7 +522,7 @@ def c_cond(subs, cs):
                         ("_", lambda: None))
     if else_ is not None:
         cb = c_body(else_, None)
-        cases.append(csym('else', [int_len(cb)] + cb))
+        cases.append(csym('else', cons(int_len(cb), cb)))
     stmt(csym('if', cases))
 
 add_csym('while')
@@ -606,8 +606,8 @@ def make_func(f, retT, nm, args, body, extra_attrs):
     CSCOPE.csIdentifierAtoms[atom] = nm
     if CSCOPE.csOuterScope is None:
         export_identifier(atom, nm)
-    fa.subs = [retT, nm, csym('args', [int_len(args)] + args),
-               csym('body', [int_len(body)] + body)] + extra_attrs
+    fa.subs = [retT, nm, csym('args', cons(int_len(args), args)),
+               csym('body', cons(int_len(body), body))] + extra_attrs
     return fa
 
 add_csym('arg')
