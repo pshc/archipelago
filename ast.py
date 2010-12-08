@@ -598,7 +598,15 @@ def conv_for(context, s, prev):
 @stmt(From)
 def conv_from(s, context):
     names = ', '.join(import_names(s.names))
-    cout(context, 'from %s import %s # ignored', s.modname, names)
+    cout(context, 'from %s import %s', s.modname, names)
+    if s.modname != 'base':
+        assert len(s.names) == 1 and s.names[0][0] == '*', \
+                'Only wildcard imports are supported.'
+        global loaded_module_export_names
+        mod = load_module(s.modname)
+        symbols = loaded_module_export_names[mod]
+        global OMNI_CONTEXT
+        OMNI_CONTEXT.imports.update(symbols)
     return []
 
 add_sym('func')
@@ -657,14 +665,7 @@ def import_names(nms):
 @stmt(Import)
 def conv_import(s, context):
     cout(context, 'import %s', ', '.join(import_names(s.names)))
-    global loaded_module_export_names
-    for name, qual in s.names:
-        assert not qual, "Qualified imports not supported"
-        mod = load_module(name)
-        symbols = loaded_module_export_names[mod]
-        global OMNI_CONTEXT
-        OMNI_CONTEXT.imports.update(symbols)
-    return []
+    assert False, "This style of import is not supported"
 
 @stmt(Pass)
 def conv_pass(s, context):

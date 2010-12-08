@@ -1,4 +1,5 @@
 from base import DT, ADT
+from bedrock import *
 
 Pair = DT('Pair', ('first', 'a'), ('second', 'b'))
 
