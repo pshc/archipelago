@@ -187,7 +187,7 @@ def _match_every(atom, ast):
         return []
     return [[r[0] for r in results] if all_singular else results]
 
-# Will be replaced by stdlib.List equivalents
+# Will be replaced by bedrock.List equivalents
 
 def cons(car, cdr):
     return [car] + cdr

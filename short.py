@@ -1,4 +1,4 @@
-import stdlib
+import bedrock
 
 def ok(n):
     s = n + 3

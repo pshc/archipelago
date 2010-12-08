@@ -3,7 +3,7 @@ from os import system
 from hashlib import sha256
 from base import *
 from types_builtin import *
-from stdlib import *
+from bedrock import *
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])

@@ -1,5 +1,5 @@
 from base import *
-from stdlib import Int, Str, Ref, List
+from bedrock import Int, Str, Ref, List
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
     TTuple, TAnyTuple, TFunc, TData, TApply \
