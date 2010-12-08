@@ -74,7 +74,7 @@ def c_type(t):
     return match(t,
         ("TInt() or TBool()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
-        ("TTuple(_)", lambda: csym_('tuple_t')),
+        ("TTuple(_)", lambda: cptr(csym_('tuple_t'))),
         ("TNullable(t)", c_type),
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
