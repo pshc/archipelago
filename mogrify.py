@@ -215,6 +215,10 @@ def c_tuple(ts):
     # Yes, passing in the tuple len in the first arg.
     return callnamed('tuple', cons(int_len(ts), map(c_expr, ts)))
 
+add_csym('list')
+def c_list(ts):
+    return callnamed('list', cons(int_len(ts), map(c_expr, ts)))
+
 def global_scope():
     global CSCOPE
     scope = CSCOPE
@@ -449,6 +453,7 @@ def c_expr(e):
         ("key('call', cons(f, sized(args)))", c_call),
         ("lam==key('lambda', sized(args, cons(e, _)))", c_lambda),
         ("key('tuplelit', sized(ts))", c_tuple),
+        ("key('listlit', sized(ls))", c_list),
         ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
         ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
