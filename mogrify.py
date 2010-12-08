@@ -576,7 +576,7 @@ def c_DT(dt, cs, vs, nm):
         ci = CGLOBAL.cgCtors[ctor]
         ctornm = str_(getname(ctor))
         export_identifier(ctor, ctornm)
-        varnm = ctornm.strVal.lower()
+        varnm = '_%s' % (ctornm.strVal.lower(),) # TEMP for name conflict
         body, var = vardefn_malloced(varnm, struct_ref(dt),
                                      csym('sizeof', [struct_ref(dt)]))
         argnms = {}
