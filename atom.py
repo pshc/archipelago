@@ -143,9 +143,9 @@ def load_module(name):
     write_mod_repr('views/' + name + '.txt', mod, [types])
     from mogrify import mogrify
     c = mogrify(mod, types)
-    write_mod_repr('views/' + name + '_c.txt', c, [])
-    from c import write_c_file
-    write_c_file('views/' + name + '.c', c)
+    write_mod_repr('views/' + name + '.c.txt', c, [])
+    from c import write_c
+    write_c(c, 'views')
     serialize_module(c)
     return mod
 

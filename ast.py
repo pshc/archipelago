@@ -732,11 +732,12 @@ def cout(context, format, *args, **kwargs):
     print line
 
 def convert_file(filename):
+    assert filename.endswith('.py')
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
-    mod = Module_(filename, None, [])
+    mod = Module_(filename[:-3], None, [])
     context = ConvertContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')

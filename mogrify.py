@@ -19,20 +19,25 @@ FieldInfo = DT('FieldInfo', ('fiDtInfo', DtInfo),
                             ('fiCtorName', Atom))
 
 CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
-                        ('cgIncludes', set([str])),
+                        ('cgSysIncludes', set([str])),
+                        ('cgLocalIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
                         ('cgCtors', {Atom: CtorInfo}),
                         ('cgFields', {Atom: FieldInfo}))
 CGLOBAL = None
 
 # As usual, defeats the whole purpose.
-CIMPORT = CGlobal({}, set(), {}, {}, {})
+CIMPORT = CGlobal({}, set(), set(), {}, {}, {})
 loaded_export_struct_name_atoms = {}
 loaded_export_identifier_atoms = {}
 
-def add_include(filename):
+def add_sys_include(filename):
     global CGLOBAL
-    CGLOBAL.cgIncludes.add(filename)
+    CGLOBAL.cgSysIncludes.add(filename)
+
+def add_local_include(filename):
+    global CGLOBAL
+    CGLOBAL.cgLocalIncludes.add(filename)
 
 # ensure we don't accidentally use symref() since it will be accepted silently
 _atom_symref = symref
@@ -150,7 +155,7 @@ def struct_ref(a):
 
 add_csym('vardef')
 def vardefn_malloced(nm, t, t_size):
-    add_include('stdlib.h')
+    add_sys_include('stdlib.h')
     nm_atom = str_(nm)
     setup = csym('vardefn', [nm_atom, cptr(t), callnamed('malloc', [t_size])])
     return ([setup], lambda: nmref(nm_atom))
@@ -186,7 +191,7 @@ def c_call(f, args):
         return csym(op, map(c_expr, args))
     # big hack comin' up
     elif match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
-        add_include('stdio.h')
+        add_sys_include('stdio.h')
         fstr = c_expr(args[0])
         args = match(args[1], ('key("tuplelit", sized(args))', identity))
         return csym('call', [c_expr(f), int_(len(args)+1), fstr]
@@ -235,7 +240,7 @@ def strlit(s):
 
 add_csym('exprstmt', 'assert')
 def assert_false(msg_e):
-    add_include('assert.h')
+    add_sys_include('assert.h')
     # TODO: Use msg_e
     return csym('exprstmt', [callnamed('assert', [int_(0)])])
 
@@ -253,7 +258,7 @@ def c_match_int_literal(i):
 add_csym('==')
 def c_match_str_literal(s):
     global CMATCH
-    add_include('string.h')
+    add_sys_include('string.h')
     CMATCH.cmConds.append(bop(callnamed('strcmp',
         [CMATCH.cmCurExpr, strlit(s)]), '==', int_(0)))
 
@@ -534,7 +539,7 @@ def c_while(t, body):
 
 add_csym('exprstmt', 'assert')
 def c_assert(t, m):
-    add_include('assert.h')
+    add_sys_include('assert.h')
     # TODO: Use m
     stmt(csym('exprstmt', [callnamed('assert', [c_expr(t)])]))
 
@@ -693,9 +698,9 @@ def scan_DTs(roots):
             ctors[c] = CtorInfo(dtinfo, enumname, structname)
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
-    return CGlobal({}, set(['archipelago.h']), dts, ctors, fields)
+    return CGlobal({}, set(), set(['archipelago.h']), dts, ctors, fields)
 
-add_csym('includesys')
+add_csym('includesys', 'includelocal')
 def mogrify(mod, types):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
@@ -704,7 +709,8 @@ def mogrify(mod, types):
     CGLOBAL.cgTypeAnnotations = types
     for s in mod.roots:
         c_stmt(s)
-    incls = [csym('includesys', [str_(incl)]) for incl in CGLOBAL.cgIncludes]
+    incls = [csym('includesys', [str_(i)]) for i in CGLOBAL.cgSysIncludes] + \
+            [csym('includelocal', [str_(i)]) for i in CGLOBAL.cgLocalIncludes]
     cstmts = incls + CSCOPE.csStmts
     return Module("c_" + mod.name, None, cstmts)
 

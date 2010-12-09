@@ -4,17 +4,20 @@ from atom import *
 import sys
 
 CEnv = DT('CEnv', ('cenvIndent', int),
-                  ('cenvHandle', None),
                   ('cenvOuterEnv', 'CEnv'))
 # The final version of this will thread this state through the functions
 # using the type system.
 CENV = None
 
+CENV_C_HANDLE = None
+CENV_H_HANDLE = None
+CENV_CUR_HANDLE = None
+
 def out(s):
-    global CENV
+    global CENV_CUR_HANDLE
     assert isinstance(s, basestring), "Expected string, got: %s" % (s,)
     sys.stdout.write(s)
-    CENV.cenvHandle.write(s)
+    CENV_CUR_HANDLE.write(s)
 def indent():
     global CENV
     out('  ' * CENV.cenvIndent)
@@ -25,6 +28,18 @@ def close_brace():
     out('}\n')
 def semicolon():
     out(';\n')
+
+def begin_header():
+    global CENV_CUR_HANDLE, CENV_H_HANDLE
+    assert CENV_CUR_HANDLE != CENV_H_HANDLE
+    CENV_CUR_HANDLE = CENV_H_HANDLE
+def end_header():
+    global CENV_CUR_HANDLE, CENV_C_HANDLE
+    assert CENV_CUR_HANDLE != CENV_C_HANDLE
+    CENV_CUR_HANDLE = CENV_C_HANDLE
+def is_global_scope():
+    global CENV
+    return CENV.cenvIndent == 0
 
 def comma_exprs(es):
     n = len(es)
@@ -172,9 +187,15 @@ def c_assign(a, e):
     semicolon()
 
 def c_decl(t):
+    if is_global_scope():
+        begin_header()
+
     indent()
     c_type(t)
     semicolon()
+
+    if is_global_scope():
+        end_header()
 
 def c_vardecl(nm, t):
     indent()
@@ -189,12 +210,16 @@ def c_vardefn(nm, t, e):
     semicolon()
 
 def c_typedef(t, nm):
+    begin_header()
+
     indent()
     out('typedef ')
     c_type(t)
     out(' ')
     out_Str(nm)
     semicolon()
+
+    end_header()
 
 def c_if(subs, cs):
     if_ = 'if ('
@@ -223,19 +248,32 @@ def c_while(test, body):
     c_body(body)
     close_brace()
 
-def c_func(ss, retT, nm, args, body):
-    indent()
-    if match(ss, ("contains(sym('csyms', 'static'))", lambda: True),
-                 ("_", lambda: False)):
-        out('static ')
-    typed_name(retT, nm)
-    out('(')
+def c_func_args(args):
     n = len(args)
     for a in args:
         match(a, ("sym('csyms', 'arg', cons(t, cons(nm, _)))", typed_name))
         n -= 1
         if n > 0:
             out(', ')
+
+def c_func(ss, retT, nm, args, body):
+    is_static = match(ss, ("contains(sym('csyms', 'static'))", lambda: True),
+                          ("_", lambda: False))
+    if not is_static and is_global_scope():
+        begin_header()
+        typed_name(retT, nm)
+        out('(')
+        c_func_args(args)
+        out(')')
+        semicolon()
+        end_header()
+
+    indent()
+    if is_static:
+        out('static ')
+    typed_name(retT, nm)
+    out('(')
+    c_func_args(args)
     open_brace()
     c_body(body)
     close_brace()
@@ -259,9 +297,16 @@ def c_enumerator(nm):
     out(',\n')
 
 def c_include(filename, angle_brackets):
-    out('#include <' if angle_brackets else '#include "')
-    out_Str(filename)
-    out('>\n' if angle_brackets else '"\n')
+    if angle_brackets:
+        out('#include <')
+        out_Str(filename)
+        out('>\n')
+    else:
+        begin_header()
+        out('#include "')
+        out_Str(filename)
+        out('"\n')
+        end_header()
 
 def c_comment(s):
     indent()
@@ -297,18 +342,35 @@ def c_stmt(s):
 def c_body(ss):
     global CENV
     corig = CENV
-    CENV = CEnv(corig.cenvIndent + 1, corig.cenvHandle, corig)
+    CENV = CEnv(corig.cenvIndent + 1, corig)
     for s in ss:
         c_stmt(s)
     assert corig is CENV.cenvOuterEnv
     CENV = corig
 
-def write_c_file(filename, mod):
-    global CENV
-    f = open(filename, 'w')
-    CENV = CEnv(-1, f, None)
+def write_c(mod, dir):
+    global CENV, CENV_C_HANDLE, CENV_H_HANDLE, CENV_CUR_HANDLE
+    name = mod.name[2:]
+    CENV_C_HANDLE = open('%s/%s.c' % (dir, name), 'w')
+    CENV_H_HANDLE = open('%s/%s.h' % (dir, name), 'w')
+    CENV_CUR_HANDLE = CENV_C_HANDLE
+    CENV = CEnv(-1, None)
+
+    name_def = name.upper()
+
+    begin_header()
+    out('#ifndef %s_H\n#define %s_H\n\n' % (name_def, name_def))
+    end_header()
+
+    out('#include "%s.h"\n' % (name,))
     c_body(mod.roots)
-    f.close()
+
+    begin_header()
+    out('\n#endif\n')
+    end_header()
+
+    CENV_H_HANDLE.close()
+    CENV_C_HANDLE.close()
 
 if __name__ == '__main__':
     load_module('short')
