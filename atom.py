@@ -130,12 +130,14 @@ def atoms_to_scheme(a):
             ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
     return Scheme(vs, atoms_to_type(t))
 
-def load_module(name):
-    if name + '.py' in loaded_modules:
-        return loaded_modules[name + '.py']
-    print 'Loading %s' % (name,)
+def load_module(filename):
+    assert filename.endswith('.py')
+    name = filename.replace('/', '_')[:-3]
+    if name in loaded_modules:
+        return loaded_modules[name]
+    print 'Loading %s' % (filename,)
     from ast import convert_file
-    mod = convert_file(name + '.py')
+    mod = convert_file(filename, name)
     write_mod_repr('views/' + name + '.txt', mod, [])
     serialize_module(mod)
     from hm import infer_types

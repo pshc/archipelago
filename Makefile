@@ -1,7 +1,7 @@
 all: tada
 
 tada: mods views
-	./c.py
+	./c.py short.py
 
 mods:
 	mkdir $@

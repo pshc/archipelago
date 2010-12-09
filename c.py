@@ -373,6 +373,7 @@ def write_c(mod, dir):
     CENV_C_HANDLE.close()
 
 if __name__ == '__main__':
-    load_module('short')
+    import sys
+    load_module(sys.argv[1])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

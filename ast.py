@@ -603,7 +603,7 @@ def conv_from(s, context):
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
         global loaded_module_export_names
-        mod = load_module(s.modname)
+        mod = load_module(s.modname.replace('.', '/') + '.py')
         symbols = loaded_module_export_names[mod]
         global OMNI_CONTEXT
         OMNI_CONTEXT.imports.update(symbols)
@@ -731,13 +731,13 @@ def cout(context, format, *args, **kwargs):
     line = '    ' * indent + format % args
     print line
 
-def convert_file(filename):
+def convert_file(filename, name):
     assert filename.endswith('.py')
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
-    mod = Module_(filename[:-3], None, [])
+    mod = Module_(name, None, [])
     context = ConvertContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
