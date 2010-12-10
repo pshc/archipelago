@@ -218,7 +218,9 @@ def c_lambda(lam, args, e):
         for a, ca in zip(args, cargs):
             ca.subs[1] = set_identifier(a, getname(a), scope)
     cb = c_body([_atom_symref('return', [e])], _setup_lambda)
-    lam = make_func(None, c_type(retT), fnm, cargs, cb, [csym_('static')])
+    lam = make_func_atom(None, fnm)
+    lam.subs = make_func_subs(c_type(retT), fnm, cargs, cb)
+    lam.subs.append(csym_('static'))
     insert_global_decl(lam)
     return nmref(fnm)
 
@@ -425,7 +427,9 @@ def c_match(matchExpr):
             lambda ce: csym(res_action, [ce]))
 
     body = decls + caseStmts
-    f = make_func(None, retT, fnm, [arg], body, [csym_('static')])
+    f = make_func_atom(None, fnm)
+    f.subs = make_func_subs(retT, fnm, [arg], body)
+    f.subs.append(csym_('static'))
     insert_global_decl(f)
     return callnamedref(fnm, [c_expr(e)])
 
@@ -587,6 +591,7 @@ def c_DT(dt, cs, vs, nm):
     for (ctor, fields) in ctors:
         ci = CGLOBAL.cgCtors[ctor]
         ctornm = str_(getname(ctor))
+        func = make_func_atom(ctor, ctornm)
         export_identifier(ctor, ctornm)
         varnm = '_%s' % (ctornm.strVal.lower(),) # TEMP for name conflict
         body, var = vardefn_malloced(varnm, struct_ref(dt),
@@ -606,10 +611,11 @@ def c_DT(dt, cs, vs, nm):
             assignment = bop(c_field_lookup(var(), fi), '=', nmref(argnm))
             body.append(assignment)
         body.append(csym('return', [var()]))
-        stmt(make_func(ctor, cptr(struct_ref(dt)), ctornm, args, body, []))
+        func.subs = make_func_subs(cptr(struct_ref(dt)), ctornm, args, body)
+        stmt(func)
 
-add_csym('func', 'args', 'body')
-def make_func(f, retT, nm, args, body, extra_attrs):
+add_csym('func')
+def make_func_atom(f, nm):
     global CSCOPE
     fa = csym('func', [])
     atom = f if f is not None else fa
@@ -618,9 +624,13 @@ def make_func(f, retT, nm, args, body, extra_attrs):
     CSCOPE.csIdentifierAtoms[atom] = nm
     if CSCOPE.csOuterScope is None:
         export_identifier(atom, nm)
-    fa.subs = [retT, nm, csym('args', cons(int_len(args), args)),
-               csym('body', cons(int_len(body), body))] + extra_attrs
     return fa
+
+add_csym('args', 'body')
+def make_func_subs(retT, nm, args, body):
+    assert isinstance(nm, Str)
+    return [retT, nm, csym('args', cons(int_len(args), args)),
+               csym('body', cons(int_len(body), body))]
 
 add_csym('arg')
 def _setup_func(scope, nm, args, argTs, cargs):
@@ -633,8 +643,11 @@ def c_func(f, args, body, nm):
     t = lookup_scheme(f)
     argTs, retT = match(t, ("Scheme(_, TFunc(args, ret))", tuple2))
     ca = []
+    fnm = str_(nm)
+    fa = make_func_atom(f, fnm)
     cb = c_body(body, lambda scope: _setup_func(scope, nm, args, argTs, ca))
-    stmt(make_func(f, c_type(retT), str_(nm), ca, cb, []))
+    fa.subs = make_func_subs(c_type(retT), fnm, ca, cb)
+    stmt(fa)
 
 add_csym('exprstmt', 'return')
 def c_stmt(s):

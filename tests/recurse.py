@@ -1,9 +1,11 @@
-def fib(a):
-    if a <= 1:
+from bedrock import *
+
+def fact(a):
+    if a < 1:
         return 1
     else:
-        return a * fib(a-1)
+        return a * fact(a-1)
 
 def main():
-    print "fib(10) = %d\n" % (fib(10),)
+    print "fact(10) = %d" % (fact(10),)
     return 0
