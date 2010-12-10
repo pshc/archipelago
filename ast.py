@@ -602,10 +602,10 @@ def conv_from(s, context):
     if s.modname != 'base':
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
-        global loaded_module_export_names
-        mod = load_module(s.modname.replace('.', '/') + '.py')
+        global loaded_module_export_names, OMNI_CONTEXT
+        mod = load_module_dep(s.modname.replace('.', '/') + '.py',
+                OMNI_CONTEXT.loadedDeps)
         symbols = loaded_module_export_names[mod]
-        global OMNI_CONTEXT
         OMNI_CONTEXT.imports.update(symbols)
     return []
 
@@ -724,27 +724,29 @@ ConvertContext = DT('ConvertContext', ('indent', int),
 
 OmniContext = DT('OmniContext', ('imports', [Atom]),
                                 ('exports', [Atom]),
-                                ('missingRefs', {(str, bool): [Atom]}))
+                                ('missingRefs', {(str, bool): [Atom]}),
+                                ('loadedDeps', set([Module])))
 
 def cout(context, format, *args, **kwargs):
     indent = context.indent + kwargs.get('indent_offset', 0)
     line = '    ' * indent + format % args
     print line
 
-def convert_file(filename, name):
+def convert_file(filename, name, deps):
     assert filename.endswith('.py')
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     from atom import Module as Module_
     mod = Module_(name, None, [])
+    deps.add(mod)
     context = ConvertContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
         context.syms[(k, t)] = v
     global CUR_CONTEXT, OMNI_CONTEXT, loaded_module_export_names
     CUR_CONTEXT = context
-    OMNI_CONTEXT = OmniContext({}, {}, {})
+    OMNI_CONTEXT = OmniContext({}, {}, {}, deps)
     mod.roots = conv_stmts(stmts, context)
     # Resolve imports for missing symbols
     missing = OMNI_CONTEXT.missingRefs
