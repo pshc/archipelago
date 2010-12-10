@@ -372,8 +372,18 @@ def write_c(mod, dir):
     CENV_H_HANDLE.close()
     CENV_C_HANDLE.close()
 
+def compile_module(filename):
+    mod, deps = load_module(filename)
+    src = cons('support/archipelago.c', ['views/%s.c' % d.name for d in deps])
+    out = 'views/%s' % filename[:-3]
+    import subprocess
+    try:
+        subprocess.check_call(['gcc', '-o', out, '-Isupport', '-Iviews'] + src)
+    except subprocess.CalledProcessError, e:
+        print '`%s` returned %d' % (' '.join(e.cmd), e.returncode)
+
 if __name__ == '__main__':
     import sys
-    load_module(sys.argv[1])
+    compile_module(sys.argv[1])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
