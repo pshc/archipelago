@@ -124,6 +124,11 @@ def set_struct_name(atom, nm):
     loaded_export_struct_name_atoms[atom] = s
     return csym('name', [s])
 
+def import_atom(a):
+    assert a in loaded_module_atoms, "Atom unexpectedly orphaned."
+    ix, mod = loaded_module_atoms[a]
+    add_local_include('%s.h' % mod.name)
+
 def identifier_ref(a):
     global CSCOPE
     scope = CSCOPE
@@ -136,6 +141,7 @@ def identifier_ref(a):
         return str_(getname(a))
     # TEMP; should be really checking the imports list
     if a in loaded_export_identifier_atoms:
+        import_atom(a)
         return nmref(loaded_export_identifier_atoms[a])
     assert False, '%r not in identifier scope' % (a,)
 
@@ -150,6 +156,7 @@ def struct_ref(a):
         scope = scope.csOuterScope
     # TEMP; should be really checking the imports list
     if a in loaded_export_struct_name_atoms:
+        import_atom(a)
         return csym('structref', [nmref(loaded_export_struct_name_atoms[a])])
     assert False, '%r not in struct name scope' % (a,)
 

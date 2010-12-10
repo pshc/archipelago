@@ -375,7 +375,7 @@ def write_c(mod, dir):
 def compile_module(filename):
     mod, deps = load_module(filename)
     src = cons('support/archipelago.c', ['views/%s.c' % d.name for d in deps])
-    out = 'views/%s' % filename[:-3]
+    out = 'views/%s' % mod.name
     import subprocess
     try:
         subprocess.check_call(['gcc', '-o', out, '-Isupport', '-Iviews'] + src)
