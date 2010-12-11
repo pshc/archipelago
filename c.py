@@ -252,6 +252,8 @@ def c_while(test, body):
 
 def c_func_args(args):
     n = len(args)
+    if n == 0:
+        out('void')
     for a in args:
         match(a, ("sym('csyms', 'arg', cons(t, cons(nm, _)))", typed_name))
         n -= 1
