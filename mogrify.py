@@ -548,11 +548,9 @@ def c_while(t, body):
     cb = c_body(body, None)
     stmt(csym('while', [ct, int_len(cb)] + cb))
 
-add_csym('exprstmt', 'assert')
+add_csym('exprstmt', 'CHECK')
 def c_assert(t, m):
-    add_sys_include('assert.h')
-    # TODO: Use m
-    stmt(csym('exprstmt', [callnamed('assert', [c_expr(t)])]))
+    stmt(csym('exprstmt', [callnamed('CHECK', [c_expr(t), c_expr(m)])]))
 
 add_csym('field', 'struct', 'enumerator', 'decl', 'enum', 'union', 'sizeof',
         '=', 'arg', 'return')

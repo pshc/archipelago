@@ -2,6 +2,7 @@
 #include "bedrock.h"
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 tuple_t *tuple(unsigned int len, ...) {
 	va_list ap;
@@ -39,4 +40,15 @@ struct List *list(unsigned int len, ...) {
 		ls = Cons(temp[--i], ls);
 	free(temp);
 	return ls;
+}
+
+void test_success(void) {
+	putchar('.');
+}
+
+void test_failure(const char *expr, const char *msg, const char *file,
+		unsigned int line) {
+	putchar('F');
+	fprintf(stderr, "%s:%u:0: %s failed !(%s)\n", file, line, msg, expr);
+	fflush(stderr);
 }

@@ -2,6 +2,7 @@ from bedrock import *
 
 def main():
     a = [1, 2, 3]
-    b = match(a, ("Cons(_, Cons(two, _))", identity))
-    print "Second: %d" % (b,)
+    b = match(a, ("Cons(_, Cons(two, Cons(_, Nil())))", identity),
+                 ("_", lambda: 4))
+    assert b == 2, "List pattern match"
     return 0

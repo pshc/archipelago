@@ -7,5 +7,5 @@ def fact(a):
         return a * fact(a-1)
 
 def main():
-    print "fact(10) = %d" % (fact(10),)
+    assert fact(10) == 3628800, "Factorial"
     return 0
