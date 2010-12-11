@@ -730,7 +730,7 @@ OmniContext = DT('OmniContext', ('imports', [Atom]),
 def cout(context, format, *args, **kwargs):
     indent = context.indent + kwargs.get('indent_offset', 0)
     line = '    ' * indent + format % args
-    print line
+    #print line
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')

@@ -16,7 +16,8 @@ CENV_CUR_HANDLE = None
 def out(s):
     global CENV_CUR_HANDLE
     assert isinstance(s, basestring), "Expected string, got: %s" % (s,)
-    sys.stdout.write(s)
+    if CENV_CUR_HANDLE == CENV_C_HANDLE:
+        sys.stdout.write(s)
     CENV_CUR_HANDLE.write(s)
 def indent():
     global CENV
