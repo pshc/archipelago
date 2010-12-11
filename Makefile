@@ -11,16 +11,20 @@ mods:
 views:
 	mkdir $@
 
-views/tests_%:tests/%.py
+views/tests_%: tests/%.py
 	./c.py $<
 
-test: $(TEST_BINS)
+remake_tests:
+	./c.py $(TESTS)
+
+#test: $(TEST_BINS)
+test: remake_tests
 	@echo -n Running tests
 	@for bin in $(TEST_BINS); do $$bin; done
 	@echo
 	@echo Done.
 
-.PHONY: all clean test
+.PHONY: all clean remake_tests test
 
 clean:
 	rm -f -- mods/* views/* *.pyc a.out

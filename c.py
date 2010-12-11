@@ -386,6 +386,7 @@ def compile_module(filename):
 
 if __name__ == '__main__':
     import sys
-    compile_module(sys.argv[1])
+    for filename in sys.argv[1:]:
+        compile_module(filename)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -134,7 +134,9 @@ def load_module_dep(filename, deps):
     assert filename.endswith('.py')
     name = filename.replace('/', '_')[:-3]
     if name in loaded_modules:
-        return loaded_modules[name]
+        mod = loaded_modules[name]
+        deps.add(mod)
+        return mod
     from ast import convert_file
     mod = convert_file(filename, name, deps)
     write_mod_repr('views/' + name + '.txt', mod, [])
