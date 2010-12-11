@@ -8,17 +8,17 @@ from base import DT, ADT, match
                             'Str', ('strVal', str), ('subs', 'List(Atom)'),
                             'Ref', ('refAtom', 'Atom'), ('subs', 'List(Atom)'))
 
+def str_(st):
+    return Str(st, [])
+def int_(n):
+    return Int(n, [])
+
 Module = DT('Module', ('name', str), ('digest', str), ('roots', 'List(Atom)'))
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
 def isNothing(m): return match(m, ('Nothing()', lambda: True),
                                   ('_', lambda: False))
-
-def str_(st):
-    return Str(st, [])
-def int_(n):
-    return Int(n, [])
 
 def identity(val): return val
 def tuple2(a, b): return (a, b)
