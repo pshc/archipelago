@@ -1,14 +1,13 @@
 from base import *
 from bedrock import Int, Str, Ref, List
 
-Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, TNullable, \
+Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
     TTuple, TAnyTuple, TFunc, TData, TApply \
     = ADT('Type',
         'TVar', ('varAtom', 'Atom'),
         'TMeta', ('metaCell', 'TypeCell'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
-        'TNullable', ('nullType', 'Type'),
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
@@ -26,7 +25,6 @@ def _type_repr(t):
                     ("TChar()", lambda: 'char'),
                     ("TBool()", lambda: 'bool'),
                     ("TVoid()", lambda: 'void'),
-                    ("TNullable(t)", lambda t: 'null(' + _type_repr(t) + ')'),
                     ("TTuple(ts)", lambda ts: '(%s)' % ', '.join(_type_repr(t)
                                                                  for t in ts)),
                     ("TAnyTuple()", lambda: 'tuple(*)'),
@@ -48,8 +46,6 @@ def map_type_vars(f, t):
     return match(t, ("tv==TVar(_)", f),
                     ("m==TMeta(TypeCell(r))",
                         lambda m, r: m if r is None else map_type_vars(f, r)),
-                    ("TNullable(v)", lambda v:
-                        TNullable(map_type_vars(f, v))),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a) for a in args],
                               map_type_vars(f, ret))),
@@ -89,7 +85,6 @@ builtins_types = {
     'sha256_hexdigest': (THash, TStr),
     'sha256_update': (THash, TStr, TVoid),
     # etc to tuple5
-    'None': TNullable(_var(1)),
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
     'identity': (_var(1), _var(1)),

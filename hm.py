@@ -70,17 +70,6 @@ def unify_bind_meta(meta, t):
     else:
         unify(cell.cellType, t)
 
-# XXX: NULL MUST DIE
-def unify_nullable(n, e):
-    fail = lambda m: lambda: unification_failure(TNullable(n), e,
-                                                 "%s not nullable" % (m,))
-    match(e,
-        ("TInt()", fail("unboxed int")),
-        ("TChar()", fail("unboxed char")),
-        ("TBool()", fail("unboxed bool")),
-        ("TVoid()", fail("void return")),
-        ("_", lambda: unify(n, e)))
-
 def unify(e1, e2):
     global ENV
     same = lambda: None
@@ -109,9 +98,6 @@ def unify(e1, e2):
         ("(TAnyTuple(), TTuple(_))", same),
         ("(TAnyTuple(), _)", fail("tuple expected")),
         ("(_, TAnyTuple())", fail("tuple expected")),
-        ("(TNullable(t1), TNullable(t2))", unify),
-        ("(TNullable(v), _)", lambda v: unify_nullable(v, e2)),
-        ("(_, TNullable(v))", lambda v: unify_nullable(v, e1)),
         ("_", fail("type mismatch")))
 
 def set_scheme(e, s, augment_ast):
@@ -192,7 +178,6 @@ def _free_meta_check(v, r):
 
 def _free_metas(t):
     return match(t, ('v==TMeta(TypeCell(r))', _free_meta_check),
-                    ('TNullable(t)', _free_metas),
                     ('TTuple(ts)', free_tuple_meta_vars),
                     ('TFunc(args, ret)', free_func_meta_vars),
                     ('TApply(t, ss)', free_apply_meta_vars),
@@ -462,7 +447,6 @@ def zonk_type(t):
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc(map(zonk_type, args), zonk_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(zonk_type, ts))),
-                    ("TNullable(t)", lambda t: TNullable(zonk_type(t))),
                     ("TApply(t, ss)", lambda t, ss:
                         TApply(zonk_type(t), map(zonk_type, ss))),
                     ("_", lambda: t))
@@ -477,7 +461,6 @@ def normalize_type(t):
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc(map(normalize_type, args), normalize_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
-                    ("TNullable(t)", lambda t: TNullable(normalize_type(t))),
                     ("TApply(t, ss)", lambda t, ss:
                         TApply(normalize_type(t), map(normalize_type, ss))),
                     ("_", lambda: t))

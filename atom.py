@@ -91,7 +91,6 @@ def type_to_atoms(t):
         ("TChar()", lambda: symref('char', [])),
         ("TBool()", lambda: symref('bool', [])),
         ("TVoid()", lambda: symref('void', [])),
-        ("TNullable(v)", lambda v: symref('nullable', [type_to_atoms(v)])),
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
             + [type_to_atoms(a) for a in ts])),
         ("TAnyTuple()", lambda: symref('tuple*', [])),
@@ -116,8 +115,6 @@ def atoms_to_type(a):
         ("key('char')", lambda: TChar()),
         ("key('bool')", lambda: TBool()),
         ("key('void')", lambda: TVoid()),
-        ("key('nullable', cons(v, _))",
-            lambda v: TNullable(atoms_to_type(v))),
         ("key('tuple', sized(ts))", lambda ts:
             TTuple([atoms_to_type(t) for t in ts])),
         ("key('tuple*')", lambda: TAnyTuple()),
@@ -164,7 +161,7 @@ add_sym('deps')
 add_sym('roots')
 add_sym('type')
 add_sym('instantiation')
-map(add_sym, 'void,nullable,int,bool,char,str,tuple,func,typevar'.split(','))
+map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*')
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'

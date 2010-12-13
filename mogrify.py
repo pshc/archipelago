@@ -80,7 +80,6 @@ def c_type(t):
         ("TInt() or TBool()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
         ("TTuple(_)", lambda: cptr(csym_('tuple_t'))),
-        ("TNullable(t)", c_type),
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TData(a)", lambda a: cptr(struct_ref(a))),
