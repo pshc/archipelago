@@ -1,6 +1,9 @@
 #ifndef ARCHIPELAGO_H
 #define ARCHIPELAGO_H
 
+/* TEMP */
+typedef void * func_t;
+
 typedef void *tuple_t;
 extern tuple_t *tuple(unsigned int, ...);
 
