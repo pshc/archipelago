@@ -21,7 +21,7 @@ LIST_TYPE = None
 loaded_export_atom_types = {}
 
 def fresh():
-    return TMeta(TypeCell(None))
+    return TMeta(Nothing())
 
 def with_context(msg):
     global ENV
@@ -51,31 +51,28 @@ def unify_data_and_apply(data, appType, appArgs):
     # TODO: OH GOD
 
 def unify_metas(t1, t2):
-    c1 = t1.metaCell
-    c2 = t2.metaCell
-    if c1.cellType is None:
-        if c2.cellType is None:
-            c1.cellType = TMeta(c2)
+    if isNothing(t1.metaType):
+        if isNothing(t2.metaType):
+            t1.metaType = Just(t2)
         else:
-            c1.cellType = c2.cellType
-    elif c2.cellType is None:
-        c2.cellType = c1.cellType
+            t1.metaType = t2.metaType
+    elif isNothing(t2.metaType):
+        t2.metaType = t1.metaType
     else:
-        unify(c1.cellType, c2.cellType)
+        unify(fromJust(t1.metaType), fromJust(t2.metaType))
 
 def unify_bind_meta(meta, t):
-    cell = meta.metaCell
-    if cell.cellType is None:
-        cell.cellType = t
+    if isNothing(meta.metaType):
+        meta.metaType = Just(t)
     else:
-        unify(cell.cellType, t)
+        unify(fromJust(meta.metaType), t)
 
 def unify(e1, e2):
     global ENV
     same = lambda: None
     fail = lambda m: lambda: unification_failure(e1, e2, m)
     match((e1, e2),
-        ("(TMeta(_), TMeta(_))", lambda: unify_metas(e1, e2)),
+        ("(m1==TMeta(_), m2==TMeta(_))", unify_metas),
         ("(TMeta(_), _)", lambda: unify_bind_meta(e1, e2)),
         ("(_, TMeta(_))", lambda: unify_bind_meta(e2, e1)),
         ("(TVar(v1), TVar(v2))", lambda v1, v2: same() if v1 is v2
@@ -156,7 +153,7 @@ def generalize_type(t, polyEnv):
     tvs = []
     for i, meta in enumerate(metas):
         tv = symref('typevar', [symname(chr(97 + i))])
-        meta.metaCell.cellType = TVar(tv)
+        meta.metaType = Just(TVar(tv))
         tvs.append(tv)
     return Scheme(tvs, t)
 
@@ -172,12 +169,12 @@ def free_func_meta_vars(args, ret):
 def free_apply_meta_vars(t, ss):
     return _free_metas(t).union(free_tuple_meta_vars(ss))
 
-def _free_meta_check(v, r):
-    assert r is None, "Normalization failure"
+def _free_meta_check(v, j):
+    assert isNothing(j), "Normalization failure"
     return set([v])
 
 def _free_metas(t):
-    return match(t, ('v==TMeta(TypeCell(r))', _free_meta_check),
+    return match(t, ('v==TMeta(j)', _free_meta_check),
                     ('TTuple(ts)', free_tuple_meta_vars),
                     ('TFunc(args, ret)', free_func_meta_vars),
                     ('TApply(t, ss)', free_apply_meta_vars),
@@ -435,11 +432,11 @@ def setup_infer_env(roots):
 
 # Collapse strings of metavars
 def _zonk_meta(meta):
-    t = meta.metaCell.cellType
-    if t is None:
+    t = meta.metaType
+    if isNothing(t):
         return meta
-    t = zonk_type(t)
-    meta.metaCell.cellType = t
+    t = zonk_type(fromJust(t))
+    meta.metaType = Just(t)
     return t
 
 def zonk_type(t):
@@ -452,12 +449,12 @@ def zonk_type(t):
                     ("_", lambda: t))
 
 # Kill metavars
-def normalize_meta(cell):
-    #assert cell.cellType is not None, "Monotype could not be determined"
-    return TVoid() if cell.cellType is None else normalize_type(cell.cellType)
+def normalize_meta(t):
+    #assert isJust(t), "Monotype could not be determined"
+    return maybe(TVoid(), normalize_type, t)
 
 def normalize_type(t):
-    return match(t, ("TMeta(c)", normalize_meta),
+    return match(t, ("TMeta(t)", normalize_meta),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc(map(normalize_type, args), normalize_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),

@@ -1,11 +1,11 @@
 from base import *
-from bedrock import Int, Str, Ref, List
+from bedrock import Int, Str, Ref, List, maybe
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
     TTuple, TAnyTuple, TFunc, TData, TApply \
     = ADT('Type',
         'TVar', ('varAtom', 'Atom'),
-        'TMeta', ('metaCell', 'TypeCell'),
+        'TMeta', ('metaType', 'Maybe(Type)'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
@@ -17,9 +17,13 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
 def _get_name(a):
     return match(a, ("named(nm)", lambda nm: nm))
 
+def _meta_type_repr(t, j):
+    assert t is not j
+    return _type_repr(j)
+
 def _type_repr(t):
     return match(t, ("TVar(a)", _get_name),
-                    ("TMeta(TypeCell(t))", _type_repr),
+                    ("t==TMeta(Just(j))", _meta_type_repr),
                     ("TInt()", lambda: 'int'),
                     ("TStr()", lambda: 'str'),
                     ("TChar()", lambda: 'char'),
@@ -39,13 +43,11 @@ for _t in _temp:
     if _t[0:1] == 'T':
         _temp[_t].__repr__ = _type_repr
 
-TypeCell = DT('TypeCell', ('cellType', Type))
-
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
     return match(t, ("tv==TVar(_)", f),
-                    ("m==TMeta(TypeCell(r))",
-                        lambda m, r: m if r is None else map_type_vars(f, r)),
+                    ("m==TMeta(r)", lambda m, r:
+                        maybe(m, lambda r: map_type_vars(f, r), r)),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a) for a in args],
                               map_type_vars(f, ret))),
