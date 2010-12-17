@@ -14,6 +14,46 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TData', ('dataAtom', 'Atom'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']))
 
+
+def _type_tuple_equal(ts1, ts2):
+    for t1, t2 in zip(ts1, ts2):
+        if not type_equal(t1, t2):
+            return False
+    return True
+
+def _type_func_equal(as1, r1, as2, r2):
+    for a1, a2 in zip(as1, as2):
+        if not type_equal(a1, a2):
+            return False
+    return type_equal(r1, r2)
+
+def _type_apply_equal(t1, vs1, t2, vs2):
+    if not type_equal(t1, t2):
+        return False
+    for v1, v2 in zip(vs1, vs2):
+        if not type_equal(v1, v2):
+            return False
+    return True
+
+def type_equal(a, b):
+    if a is b:
+        return True
+    return match((a, b),
+        ("(TMeta(a), b)", type_equal),
+        ("(a, TMeta(b))", type_equal),
+        ("(TVar(a), TVar(b))", lambda a, b: a is b),
+        ("(TInt(), TInt())", lambda: True),
+        ("(TStr(), TStr())", lambda: True),
+        ("(TChar(), TChar())", lambda: True),
+        ("(TBool(), TBool())", lambda: True),
+        ("(TVoid(), TVoid())", lambda: True),
+        ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
+        ("(TAnyTuple(), TAnyTuple())", lambda: True),
+        ("(TFunc(as1, r1), TFunc(as2, r2))", _type_func_equal),
+        ("(TData(a), TData(b))", lambda: a is b),
+        ("(TApply(t1, vs1), TApply(t2, vs2))", _type_apply_equal),
+        ("_", lambda: False))
+
 def _get_name(a):
     return match(a, ("named(nm)", lambda nm: nm))
 

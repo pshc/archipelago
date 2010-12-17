@@ -4,6 +4,7 @@ from base import *
 from types_builtin import *
 
 OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
+                        ('omniTypeCasts', {Atom: (Scheme, Scheme)}),
                         ('omniFieldDTs', {Atom: Atom}),
                         ('omniASTContext', 'Maybe(Atom)'))
 
@@ -137,11 +138,14 @@ def in_new_env(f):
     ENV.curEnv = outerEnv
     return ret
 
-def instantiate_scheme(s):
+def instantiate_scheme(s, astRef):
     vs, t = match(s, ('Scheme(vs, t)', tuple2))
-    repl = dict((v, fresh()) for v in vs)
     if len(vs) > 0:
+        repl = dict((v, fresh()) for v in vs)
         t = map_type_vars(lambda v: repl.get(v.varAtom, v), t)
+        # Need to supplement AST with any casts if required
+        global ENV
+        ENV.omniEnv.omniTypeCasts[astRef] = (s, t)
     return t
 
 def generalize_type(t, polyEnv):
@@ -157,8 +161,8 @@ def generalize_type(t, polyEnv):
         tvs.append(tv)
     return Scheme(tvs, t)
 
-def get_type(e):
-    return instantiate_scheme(get_scheme(e))
+def get_type(binding, ref):
+    return instantiate_scheme(get_scheme(binding), ref)
 
 def free_tuple_meta_vars(ts):
     return reduce(lambda s, t: s.union(_free_metas(t)), ts, set())
@@ -214,11 +218,11 @@ def check_logic(t, l, r):
     check_expr(TBool(), r)
     unify(TBool(), t)
 
-def check_lambda(tv, lam, args, e):
-    body = [symref('return', [e])] # stupid hack
+def check_lambda(tv, lam, args, b, ref):
+    body = [symref('return', [b])] # stupid hack
     s = infer_func_scheme(None, args, body) # non-recursive, so None
     set_scheme(lam, s, True)
-    t = instantiate_scheme(s) # stupider hack
+    t = instantiate_scheme(s, ref) # stupider hack
     unify(tv, t)
 
 def pat_var(tv, v):
@@ -229,8 +233,8 @@ def pat_capture(tv, v, p):
     check_pat(tv, p)
 
 # XXX: Instantiation has to be consistent across all match cases...
-def pat_ctor(tv, ctor, args):
-    ctorT = instantiate_scheme(get_scheme(ctor))
+def pat_ctor(tv, ctor, args, ref):
+    ctorT = instantiate_scheme(get_scheme(ctor), ref)
     fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
     unify(tv, dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
@@ -248,7 +252,7 @@ def check_pat(tv, p):
         ("key('capture', cons(v, cons(p, _)))",
             lambda v, p: pat_capture(tv, v, p)),
         ("key('ctor', cons(Ref(c, _), sized(args)))",
-            lambda c, args: pat_ctor(tv, c, args)),
+            lambda c, args: pat_ctor(tv, c, args, p)),
         )
 
 def infer_pat(p):
@@ -268,19 +272,19 @@ def check_match(retT, m, e, cs):
     set_monotype(m, retT, True)
     set_monotype(e, et, True)
 
-def check_attr(et, struct, a):
+def check_attr(tv, struct, a, ref):
     global ENV
     unify(ENV.omniEnv.omniFieldDTs[a], infer_expr(struct))
-    unify(et, get_type(a))
+    unify(tv, get_type(a, ref))
 
 def unknown_infer(a):
     assert False, with_context('Unknown infer case:\n%s' % (a,))
 
-def check_binding(tv, b):
-    unify(tv, get_type(b))
+def check_binding(tv, target, ref):
+    unify(tv, get_type(target, ref))
 
-def check_builtin(tv, s):
-    unify(tv, instantiate_scheme(atoms_to_scheme(s)))
+def check_builtin(tv, s, ref):
+    unify(tv, instantiate_scheme(atoms_to_scheme(s), ref))
 
 def check_expr(tv, e):
     """Algorithm M."""
@@ -294,17 +298,17 @@ def check_expr(tv, e):
         ("key('and' or 'or', cons(l, cons(r, _)))",
             lambda l, r: check_logic(tv, l, r)),
         ("l==key('lambda', sized(args, cons(e, _)))",
-            lambda l, a, e: check_lambda(tv, l, a, e)),
+            lambda l, a, b: check_lambda(tv, l, a, b, e)),
         ("m==key('match', cons(p, all(cs, c==key('case'))))",
             lambda m, p, cs: check_match(tv, m, p, cs)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))",
-            lambda s, a: check_attr(tv, s, a)),
+            lambda s, a: check_attr(tv, s, a, e)),
         ("Ref(v==key('var'), _)",
-            lambda v: check_binding(tv, v)),
+            lambda v: check_binding(tv, v, e)),
         ("Ref(f==key('func' or 'ctor'), _)",
-            lambda f: check_binding(tv, f)),
+            lambda f: check_binding(tv, f, e)),
         ("Ref(key('symbol', contains(s==key('type'))), _)",
-            lambda s: check_builtin(tv, s)),
+            lambda s: check_builtin(tv, s, e)),
         ("_", lambda: unknown_infer(e)))
 
 def infer_expr(e):
@@ -336,7 +340,7 @@ def infer_DT(dt, cs, vs, nm):
 def infer_assign(a, e):
     newvar = match(a, ("key('var')", lambda: True),
                       ("Ref(key('var'), _)", lambda: False))
-    t = fresh() if newvar else get_type(a.refAtom)
+    t = fresh() if newvar else get_type(a.refAtom, e)
     check_expr(t, e)
     if newvar:
         global ENV
@@ -427,7 +431,7 @@ def setup_infer_env(roots):
             fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
             for f in fs:
                 fields[f] = dtT
-    omni = OmniEnv({}, fields, Nothing())
+    omni = OmniEnv({}, {}, fields, Nothing())
     return GlobalEnv(omni, None)
 
 # Collapse strings of metavars
@@ -473,6 +477,10 @@ def infer_types(roots):
     global ENV
     ENV = setup_infer_env(roots)
     in_new_env(lambda: infer_stmts(roots))
+    casts = {}
+    for a, (s, t) in ENV.omniEnv.omniTypeCasts.iteritems():
+        if not type_equal(s.schemeType, t):
+            casts[a] = t
     annots = dict((e, normalize_scheme(s))
                   for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
     for root in roots:
@@ -484,6 +492,6 @@ def infer_types(roots):
                                ("_", lambda: None))
             if root is not None:
                 export_type(root, annots[root])
-    return annots
+    return annots, casts
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -139,8 +139,8 @@ def load_module_dep(filename, deps):
     write_mod_repr('views/' + name + '.txt', mod, [])
     serialize_module(mod)
     from hm import infer_types
-    types = infer_types(mod.roots)
-    write_mod_repr('views/' + name + '.txt', mod, [types])
+    types, casts = infer_types(mod.roots)
+    write_mod_repr('views/' + name + '.txt', mod, [types, casts])
     from mogrify import mogrify
     c = mogrify(mod, types)
     write_mod_repr('views/' + name + '.c.txt', c, [])
