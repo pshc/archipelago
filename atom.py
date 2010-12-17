@@ -127,6 +127,11 @@ def atoms_to_scheme(a):
             ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
     return Scheme(vs, atoms_to_type(t))
 
+Overlay = DT('Overlay', ('annotate', 'Atom -> str'))
+
+TypeAnnot = Overlay(lambda s: repr(s))
+CastAnnot = Overlay(lambda t: 'cast(%r)' % t)
+
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
     name = filename.replace('/', '_')[:-3]
@@ -136,14 +141,14 @@ def load_module_dep(filename, deps):
         return mod
     from ast import convert_file
     mod = convert_file(filename, name, deps)
-    write_mod_repr('views/' + name + '.txt', mod, [])
+    write_mod_repr('views/' + name + '.txt', mod, {})
     serialize_module(mod)
     from hm import infer_types
-    types, casts = infer_types(mod.roots)
-    write_mod_repr('views/' + name + '.txt', mod, [types, casts])
+    hm_overlays = infer_types(mod.roots)
+    write_mod_repr('views/' + name + '.txt', mod, hm_overlays)
     from mogrify import mogrify
-    c = mogrify(mod, types)
-    write_mod_repr('views/' + name + '.c.txt', c, [])
+    c = mogrify(mod, hm_overlays)
+    write_mod_repr('views/' + name + '.c.txt', c, {})
     from c import write_c
     write_c(c, 'views')
     serialize_module(c)
@@ -249,8 +254,8 @@ def serialize_module(module):
     loaded_module_atoms.update(selfixs)
     loaded_modules[module.name] = module
 
-# FFFFUUUU
-GLOBAL_OVERLAYS = []
+# Everything went better than expected
+GLOBAL_OVERLAYS = {}
 
 def write_mod_repr(filename, m, overlays):
     global GLOBAL_OVERLAYS
@@ -258,7 +263,7 @@ def write_mod_repr(filename, m, overlays):
     with file(filename, 'w') as f:
         for r in m.roots:
             f.write(repr(r))
-    GLOBAL_OVERLAYS = []
+    GLOBAL_OVERLAYS = {}
 
 @matcher('sized')
 def _match_sized(atom, ast):
@@ -364,9 +369,9 @@ def _do_repr(s, r, indent):
         label = repr(type(s))
     r.append('  ' * indent + label)
     global GLOBAL_OVERLAYS
-    for overlay in GLOBAL_OVERLAYS:
+    for info, overlay in GLOBAL_OVERLAYS.iteritems():
         if s in overlay:
-            r.append('  ' * (indent+1) + repr(overlay[s]))
+            r.append('  ' * (indent+1) + info.annotate(overlay[s]))
     if hasattr(s, 'subs'):
         if not isinstance(s.subs, list):
             invalid = 'INVALID SUBS: ' + repr(s.subs)

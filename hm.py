@@ -492,6 +492,6 @@ def infer_types(roots):
                                ("_", lambda: None))
             if root is not None:
                 export_type(root, annots[root])
-    return annots, casts
+    return {TypeAnnot: annots, CastAnnot: casts}
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

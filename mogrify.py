@@ -718,12 +718,12 @@ def scan_DTs(roots):
     return CGlobal({}, set(), set(['archipelago.h']), dts, ctors, fields)
 
 add_csym('includesys', 'includelocal')
-def mogrify(mod, types):
+def mogrify(mod, type_overlays):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
     CGLOBAL = scan_DTs(mod.roots)
-    CGLOBAL.cgTypeAnnotations = types
+    CGLOBAL.cgTypeAnnotations = type_overlays[TypeAnnot]
     for s in mod.roots:
         c_stmt(s)
     incls = [csym('includesys', [str_(i)]) for i in CGLOBAL.cgSysIncludes] + \
