@@ -68,7 +68,7 @@ def _type_repr(t):
     if t in REPR_ENV:
         return '<cyclic 0x%x>' % id(t)
     REPR_ENV.add(t)
-    return match(t, ("TVar(a)", _get_name),
+    rstr = match(t, ("TVar(a)", _get_name),
                     ("t==TMeta(Just(j))", _meta_type_repr),
                     ("TMeta(Nothing())", lambda: '<bad meta>'),
                     ("TInt()", lambda: 'int'),
@@ -85,6 +85,8 @@ def _type_repr(t):
                     ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
                                 '.'.join(map(_type_repr, vs)))),
                     ("_", lambda: '<bad %s>' % type(t)))
+    REPR_ENV.remove(t)
+    return rstr
 
 def _cyclic_check_type_repr(t):
     global REPR_ENV
