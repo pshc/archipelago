@@ -57,13 +57,20 @@ def type_equal(a, b):
 def _get_name(a):
     return match(a, ("named(nm)", lambda nm: nm))
 
+REPR_ENV = None
+
 def _meta_type_repr(t, j):
     assert t is not j
     return _type_repr(j)
 
 def _type_repr(t):
+    global REPR_ENV
+    if t in REPR_ENV:
+        return '<cyclic 0x%x>' % id(t)
+    REPR_ENV.add(t)
     return match(t, ("TVar(a)", _get_name),
                     ("t==TMeta(Just(j))", _meta_type_repr),
+                    ("TMeta(Nothing())", lambda: '<bad meta>'),
                     ("TInt()", lambda: 'int'),
                     ("TStr()", lambda: 'str'),
                     ("TChar()", lambda: 'char'),
@@ -76,12 +83,20 @@ def _type_repr(t):
                                                         for t in s + [r])),
                     ("TData(d)", _get_name),
                     ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
-                                '.'.join(map(_type_repr, vs)))))
+                                '.'.join(map(_type_repr, vs)))),
+                    ("_", lambda: '<bad %s>' % type(t)))
+
+def _cyclic_check_type_repr(t):
+    global REPR_ENV
+    REPR_ENV = set()
+    r = _type_repr(t)
+    REPR_ENV = None
+    return r
 
 _temp = locals().copy()
 for _t in _temp:
     if _t[0:1] == 'T':
-        _temp[_t].__repr__ = _type_repr
+        _temp[_t].__repr__ = _cyclic_check_type_repr
 
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
