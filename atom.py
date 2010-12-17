@@ -129,8 +129,8 @@ def atoms_to_scheme(a):
 
 Overlay = DT('Overlay', ('annotate', 'Atom -> str'))
 
-TypeAnnot = Overlay(lambda s: repr(s))
-CastAnnot = Overlay(lambda t: 'cast(%r)' % t)
+TypeAnnot = Overlay(repr)
+CastAnnot = Overlay(lambda t: '.. => %r' % t)
 
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
@@ -371,7 +371,7 @@ def _do_repr(s, r, indent):
     global GLOBAL_OVERLAYS
     for info, overlay in GLOBAL_OVERLAYS.iteritems():
         if s in overlay:
-            r.append('  ' * (indent+1) + info.annotate(overlay[s]))
+            r.append('  ' * indent + info.annotate(overlay[s]))
     if hasattr(s, 'subs'):
         if not isinstance(s.subs, list):
             invalid = 'INVALID SUBS: ' + repr(s.subs)
