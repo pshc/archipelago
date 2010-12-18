@@ -140,6 +140,12 @@ def c_sizeof_expr(e):
         out('sizeof ')
         c_expr(e)
 
+def c_cast(t, e):
+    out('(')
+    c_type(t)
+    out(') ')
+    c_expr(e)
+
 def c_op(op, ss):
     if op in unary_ops:
         out(unary_ops[op])
@@ -175,6 +181,7 @@ def c_expr(e):
         ("sym('csyms', 'sizeof', cons(t, _))", c_sizeof),
         ("sym('csyms', 'sizeofexpr', cons(e, _))", c_sizeof_expr),
         ("sym('csyms', 'NULL')", lambda: out("NULL")), # XXX: dumb special case
+        ("sym('csyms', 'cast', cons(t, cons(e, _)))", c_cast),
         ("sym('csyms', op, ss)", c_op))
 
 def c_exprstmt(e):

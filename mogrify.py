@@ -19,6 +19,7 @@ FieldInfo = DT('FieldInfo', ('fiDtInfo', DtInfo),
                             ('fiCtorName', Atom))
 
 CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
+                        ('cgTypeCasts', {Atom: Scheme}),
                         ('cgSysIncludes', set([str])),
                         ('cgLocalIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
@@ -27,7 +28,7 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
 CGLOBAL = None
 
 # As usual, defeats the whole purpose.
-CIMPORT = CGlobal({}, set(), set(), {}, {}, {})
+CIMPORT = CGlobal({}, {}, set(), set(), {}, {}, {})
 loaded_export_struct_name_atoms = {}
 loaded_export_identifier_atoms = {}
 
@@ -461,8 +462,10 @@ def c_attr(struct, a):
     fi = CGLOBAL.cgFields[a]
     return c_field_lookup(c_expr(struct), fi)
 
+add_csym('cast')
 def c_expr(e):
-    return match(e,
+    global CGLOBAL
+    c = match(e,
         ("Int(i, _)", int_),
         ("Str(s, _)", strlit),
         ("key('call', cons(f, sized(args)))", c_call),
@@ -472,6 +475,9 @@ def c_expr(e):
         ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
         ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
+    if e in CGLOBAL.cgTypeCasts:
+        c = csym('cast', [c_type(CGLOBAL.cgTypeCasts[e]), c])
+    return c
 
 # Can inline stmts required for computing `e' right here; and the final value
 # inlines into the final stmt with `stmt_f'
@@ -686,7 +692,7 @@ def c_body(ss, scope_func):
     return ss
 
 add_csym('typedef', 'void')
-def scan_DTs(roots):
+def setup_global_env(roots, overlays):
     # TEMP: Persist all this info in CIMPORT
     global CIMPORT
     dts = CIMPORT.cgDTs
@@ -715,15 +721,15 @@ def scan_DTs(roots):
             ctors[c] = CtorInfo(dtinfo, enumname, structname)
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
-    return CGlobal({}, set(), set(['archipelago.h']), dts, ctors, fields)
+    return CGlobal(overlays[TypeAnnot], overlays[CastAnnot], set(),
+            set(['archipelago.h']), dts, ctors, fields)
 
 add_csym('includesys', 'includelocal')
 def mogrify(mod, type_overlays):
     global CSCOPE
     CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
-    CGLOBAL = scan_DTs(mod.roots)
-    CGLOBAL.cgTypeAnnotations = type_overlays[TypeAnnot]
+    CGLOBAL = setup_global_env(mod.roots, type_overlays)
     for s in mod.roots:
         c_stmt(s)
     incls = [csym('includesys', [str_(i)]) for i in CGLOBAL.cgSysIncludes] + \
