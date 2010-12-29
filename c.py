@@ -56,7 +56,7 @@ def brackets(f): out('{'); f(); out('}')
 def out_Str(s):
     match(s, ("Str(s, _)", out), ("Ref(Str(s, _), _)", out))
 
-def c_ptr(t): c_type(t); out('*')
+def c_ptr(t): c_type_(t); out('*')
 def c_structref(s): out('struct '); out_Str(s)
 
 def c_struct(s, k, fs):
@@ -73,20 +73,45 @@ def c_struct(s, k, fs):
     indent()
     out('}')
 
-def c_type(t):
+def c_funcptr_type(ret, args, nm):
+    c_type_(ret)
+    if isJust(nm):
+        out(' (*')
+        out_Str(fromJust(nm))
+        out(')(')
+    else:
+        out(' (*)(')
+    n = len(args)
+    if n == 0:
+        out('void')
+    for arg in args:
+        c_type_(arg)
+        n -= 1
+        if n > 0:
+            out(', ')
+    out(')')
+
+def c_type(t, nm):
     match(t,
         ("sym('csyms', prim==('int' or 'char' or 'void'))", out),
-        ("sym('csyms', TODO==('func_t' or 'tuple_t'))", out),
+        ("sym('csyms', TODO==('tuple_t'))", out),
+        ("sym('csyms', 'funcptr', cons(ret, sized(args)))", lambda ret, args:
+            c_funcptr_type(ret, args, nm)),
         ("sym('csyms', 'ptr', cons(t, _))", c_ptr),
         ("sym('csyms', 'structref', cons(s, _))", c_structref),
         ("Ref(sym('csyms', 'typedef', cons(_, cons(nm, _))), _)", out_Str),
         ("s==sym('csyms', k==('struct' or 'union' or 'enum'), "
             "all(fs, f==sym('csyms', 'field' or 'enumerator')))", c_struct))
+    if isJust(nm) and match(t, ("sym('csyms', 'funcptr')", lambda: False),
+                               ("_", lambda: True)):
+        out(' ')
+        out_Str(fromJust(nm))
+
+def c_type_(t):
+    c_type(t, Nothing())
 
 def typed_name(t, nm):
-    c_type(t)
-    out(' ')
-    out_Str(nm)
+    c_type(t, Just(nm))
 
 def just_identifier(e):
    return match(e, ('Str(s, _)', identity),
@@ -127,7 +152,7 @@ def c_call(f, args):
 
 def c_sizeof(t):
     out('sizeof(')
-    c_type(t)
+    c_type_(t)
     out(')')
 
 def c_sizeof_expr(e):
@@ -142,7 +167,7 @@ def c_sizeof_expr(e):
 
 def c_cast(t, e):
     out('(')
-    c_type(t)
+    c_type_(t)
     out(') ')
     c_expr(e)
 
@@ -201,7 +226,7 @@ def c_decl(t):
         begin_header()
 
     indent()
-    c_type(t)
+    c_type_(t)
     semicolon()
 
     if is_global_scope():
@@ -224,9 +249,7 @@ def c_typedef(t, nm):
 
     indent()
     out('typedef ')
-    c_type(t)
-    out(' ')
-    out_Str(nm)
+    typed_name(t, nm)
     semicolon()
 
     end_header()
