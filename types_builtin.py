@@ -76,11 +76,11 @@ def _type_repr(t):
                     ("TChar()", lambda: 'char'),
                     ("TBool()", lambda: 'bool'),
                     ("TVoid()", lambda: 'void'),
-                    ("TTuple(ts)", lambda ts: '(%s)' % ', '.join(_type_repr(t)
-                                                                 for t in ts)),
+                    ("TTuple(ts)", lambda ts: '(%s)' %
+                        (', '.join(_type_repr(t) for t in ts),)),
                     ("TAnyTuple()", lambda: 'tuple(*)'),
-                    ("TFunc(s, r)", lambda s, r: ' -> '.join(_type_repr(t)
-                                                        for t in s + [r])),
+                    ("TFunc(s, r)", lambda s, r: '(%s)' %
+                        (' -> '.join(_type_repr(t) for t in s + [r]),)),
                     ("TData(d)", _get_name),
                     ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
                                 '.'.join(map(_type_repr, vs)))),
