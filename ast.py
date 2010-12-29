@@ -489,24 +489,20 @@ def conv_assert(s, context):
     cout(context, 'assert %s%s', testt, ', ' + failt if failt else '')
     return [symref('assert', [testa, faila])]
 
-add_sym('=')
+map(add_sym, ['defn', '='])
 @stmt(Assign)
 def conv_assign(s, context):
+    assert len(s.nodes) == 1
     (expra, exprt) = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
-        assert len(s.nodes) == 1
         (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
         cout(context, spt)
         return spa
     global CUR_CONTEXT
-    is_global = CUR_CONTEXT.indent == 0
-    (lefta, leftt) = unzip(conv_ass(node, is_global) for node in s.nodes)
-    assa = []
-    for ass in lefta: # backwards
-        assa.append(symref('=', [ass, expra]))
-        expra = ass
-    cout(context, '%s = %s', ' = '.join(leftt), exprt)
-    return assa
+    lefta, leftt = conv_ass(s.nodes[0], CUR_CONTEXT.indent == 0)
+    cout(context, '%s = %s', leftt, exprt)
+    k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
+    return [symref(k, [lefta, expra])]
 
 @stmt(AssList)
 def conv_asslist(s, context):

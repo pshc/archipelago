@@ -673,7 +673,7 @@ def c_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
-        ("key('=', cons(v==key('var'), cons(e, _)))", c_assign_new_decl),
+        ("key('defn', cons(v, cons(e, _)))", c_assign_new_decl),
         ("key('=', cons(Ref(v, _), cons(e, _)))", c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),

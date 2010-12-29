@@ -337,14 +337,11 @@ def infer_DT(dt, cs, vs, nm):
         global LIST_TYPE
         LIST_TYPE = dtT
 
-def infer_assign(a, e):
-    newvar = match(a, ("key('var')", lambda: True),
-                      ("Ref(key('var'), _)", lambda: False))
-    t = fresh() if newvar else get_type(a.refAtom, e)
+def infer_defn(a, e):
+    t = fresh()
     check_expr(t, e)
-    if newvar:
-        global ENV
-        set_scheme(a, generalize_type(t, ENV.curEnv), True)
+    global ENV
+    set_scheme(a, generalize_type(t, ENV.curEnv), True)
 
 def infer_exprstmt(e):
     t = infer_expr(e)
@@ -405,7 +402,9 @@ def infer_stmt(a):
     match(a,
         ("dt==key('DT', all(cs, c==key('ctor'))\
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
-        ("key('=', cons(a, cons(e, _)))", infer_assign),
+        ("key('defn', cons(a, cons(e, _)))", infer_defn),
+        ("key('=', cons(a, cons(e, _)))",
+            lambda a, e: check_expr(get_type(a.refAtom, e), e)),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
         ("key('cond', subs and all(cases, key('case', cons(t, sized(b)))))",
             infer_cond),
