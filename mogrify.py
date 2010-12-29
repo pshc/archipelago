@@ -2,9 +2,11 @@
 from base import *
 from atom import *
 
+IdentKind, ValueIdent, FuncIdent = ADT('IdentKind', 'ValueIdent', 'FuncIdent')
+
 CScope = DT('CScope', ('csStmts', [Atom]),
                       ('csFuncName', str),
-                      ('csIdentifierAtoms', {Atom: Atom}),
+                      ('csIdentifierAtoms', {Atom: (Atom, IdentKind)}),
                       ('csStructNameAtoms', {Atom: Atom}),
                       ('csOuterScope', 'CScope'))
 CSCOPE = None
@@ -109,7 +111,7 @@ def set_identifier(atom, nm, scope):
     assert isinstance(nm, basestring)
     s = str_(nm)
     assert atom not in scope.csIdentifierAtoms
-    scope.csIdentifierAtoms[atom] = s
+    scope.csIdentifierAtoms[atom] = (s, ValueIdent())
     return s
 
 # Bleh duplication
@@ -124,25 +126,34 @@ def set_struct_name(atom, nm):
     loaded_export_struct_name_atoms[atom] = s
     return csym('name', [s])
 
-def import_atom(a):
+def import_atom_header(a):
     assert a in loaded_module_atoms, "Atom unexpectedly orphaned."
     ix, mod = loaded_module_atoms[a]
     add_local_include('%s.h' % mod.name)
+
+add_csym('addrof')
+def _lookup_and_wrap(a, map):
+    if a in map:
+        return Just(match(map[a],
+                    ('(s, ValueIdent())', nmref),
+                    ('(s, FuncIdent())', lambda s: csym('addrof', [nmref(s)]))))
+    return Nothing()
 
 def identifier_ref(a):
     global CSCOPE
     scope = CSCOPE
     while scope is not None:
-        s = scope.csIdentifierAtoms.get(a)
-        if s is not None:
-            return nmref(s)
+        ref = _lookup_and_wrap(a, scope.csIdentifierAtoms)
+        if isJust(ref):
+            return fromJust(ref)
         scope = scope.csOuterScope
     if a in boot_syms:
         return str_(getname(a))
     # TEMP; should be really checking the imports list
-    if a in loaded_export_identifier_atoms:
-        import_atom(a)
-        return nmref(loaded_export_identifier_atoms[a])
+    ref = _lookup_and_wrap(a, loaded_export_identifier_atoms)
+    if isJust(ref):
+        import_atom_header(a)
+        return fromJust(ref)
     assert False, '%r not in identifier scope' % (a,)
 
 add_csym('structref')
@@ -156,7 +167,7 @@ def struct_ref(a):
         scope = scope.csOuterScope
     # TEMP; should be really checking the imports list
     if a in loaded_export_struct_name_atoms:
-        import_atom(a)
+        import_atom_header(a)
         return csym('structref', [nmref(loaded_export_struct_name_atoms[a])])
     assert False, '%r not in struct name scope' % (a,)
 
@@ -191,20 +202,23 @@ add_csym('+', '-', '*', '==', '!=', '<', '<=', '>', '>=')
 def bop(a, op, b):
     return csym(op, [a, b])
 
-add_csym('call')
+add_csym('call', 'deref')
 def c_call(f, args):
     op = as_c_op(f)
     if op is not None:
         return csym(op, map(c_expr, args))
+    # stupid special (read: the most common) case
+    fe = match(c_expr(f), ('sym("csyms", "addrof", cons(f, _))', identity),
+                          ('e', lambda e: csym('deref', [e])))
     # big hack comin' up
-    elif match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
+    if match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
         add_sys_include('stdio.h')
         fstr = c_expr(args[0])
         args = match(args[1], ('key("tuplelit", sized(args))', identity))
-        return csym('call', [c_expr(f), int_(len(args)+1), fstr]
+        return csym('call', [fe, int_(len(args)+1), fstr]
                 + map(c_expr, args))
     else:
-        return csym('call', [c_expr(f), int_len(args)] + map(c_expr, args))
+        return csym('call', [fe, int_len(args)] + map(c_expr, args))
 
 add_csym('arg', 'return', 'static')
 # This sucks, we should be converting the lambda into a func earlier
@@ -380,7 +394,7 @@ def c_match_cases(cs, argnm, result_f):
         nms += c_match_case_names(m)
         matchvars = {}
         for orig_var, var_nm, new_var in CMATCH.cmDecls.itervalues():
-            matchvars[orig_var] = var_nm
+            matchvars[orig_var] = (var_nm, ValueIdent())
             decls.append(new_var)
         # Convert the success expr with the match vars bound to their decls
         global CSCOPE
@@ -513,8 +527,8 @@ def c_assign_new_vardecl(var, csch, nm, e, func_scope):
     c_expr_inline_stmt(e, lambda c: bop(s, '=', c))
     return s
 
-def export_identifier(var, nm):
-    loaded_export_identifier_atoms[var] = nm
+def export_identifier(var, nm, kind):
+    loaded_export_identifier_atoms[var] = (nm, kind)
 
 add_csym('vardefn')
 def c_assign_new_decl(var, e):
@@ -526,7 +540,7 @@ def c_assign_new_decl(var, e):
     else:
         s = set_identifier(var, nm, global_scope())
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
-        export_identifier(var, s)
+        export_identifier(var, s, ValueIdent())
 
 add_csym('=')
 def c_assign_existing(var, e):
@@ -595,7 +609,7 @@ def c_DT(dt, cs, vs, nm):
         ci = CGLOBAL.cgCtors[ctor]
         ctornm = str_(getname(ctor))
         func = make_func_atom(ctor, ctornm)
-        export_identifier(ctor, ctornm)
+        export_identifier(ctor, ctornm, FuncIdent())
         varnm = '_%s' % (ctornm.strVal.lower(),) # TEMP for name conflict
         body, var = vardefn_malloced(varnm, struct_ref(dt),
                                      csym('sizeof', [struct_ref(dt)]))
@@ -624,9 +638,9 @@ def make_func_atom(f, nm):
     atom = f if f is not None else fa
     assert isinstance(nm, Str)
     assert atom not in CSCOPE.csIdentifierAtoms
-    CSCOPE.csIdentifierAtoms[atom] = nm
+    CSCOPE.csIdentifierAtoms[atom] = (nm, FuncIdent())
     if CSCOPE.csOuterScope is None:
-        export_identifier(atom, nm)
+        export_identifier(atom, nm, FuncIdent())
     return fa
 
 add_csym('args', 'body')

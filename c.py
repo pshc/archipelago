@@ -93,7 +93,7 @@ def just_identifier(e):
                    ('Ref(Str(s, _), _)', identity),
                    ('_', lambda: None))
 
-unary_ops = {'negate': '-'}
+unary_ops = {'negate': '-', 'addrof': '&', 'deref': '*'}
 binary_ops = {'+': ' + ', '-': ' - ', '*': ' * ', '/': ' / ',
         '.': '.', '->': '->',
         '==': ' == ', '!=': ' != ', '<': ' < ', '>': ' > ',
