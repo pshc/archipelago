@@ -53,9 +53,6 @@ def ident_ref(nm, create, is_type=False, export=False):
 def refs_existing(nm):
     return ident_ref(nm, False)
 
-def create_or_update_ident(nm):
-    return ident_ref(nm, True, export=True)
-
 def type_ref(nm):
     return ident_ref(nm, False, is_type=True)
 
@@ -501,7 +498,9 @@ def conv_assign(s, context):
         (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
         cout(context, spt)
         return spa
-    (lefta, leftt) = unzip(map(conv_ass, s.nodes))
+    global CUR_CONTEXT
+    is_global = CUR_CONTEXT.indent == 0
+    (lefta, leftt) = unzip(conv_ass(node, is_global) for node in s.nodes)
     assa = []
     for ass in lefta: # backwards
         assa.append(symref('=', [ass, expra]))
@@ -567,16 +566,16 @@ def conv_discard(s, context):
 
 add_sym('tuplelit')
 add_sym('attr')
-def conv_ass(s):
+def conv_ass(s, global_scope=False):
     if isinstance(s, AssName):
-        return (create_or_update_ident(s.name), s.name)
+        return (ident_ref(s.name, True, export=global_scope), s.name)
     elif isinstance(s, AssTuple):
-        (itemsa, itemst) = unzip(map(conv_ass, s.nodes))
+        (itemsa, itemst) = unzip(conv_ass(node, global_scope) for node in s.nodes)
         itemsa.insert(0, int_len(itemsa))
         return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
     elif isinstance(s, AssAttr):
         (expra, exprt) = conv_expr(s.expr)
-        (attra, attrt) = (create_or_update_ident(s.attrname), s.attrname)
+        (attra, attrt) = (ident_ref(s.attrname, True, export=False), s.attrname)
         return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
         return conv_expr(s)
