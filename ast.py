@@ -40,12 +40,12 @@ def ident_ref(nm, create, is_type=False, export=False):
     key = (nm, is_type)
     while context is not None:
         if key in context.syms:
-            return Ref(context.syms[key], [])
+            return ref_(context.syms[key])
         context = context.prevContext
     if create:
         var = identifier('var', nm, is_type=is_type, export=export)
         return var
-    fwd_ref = Ref(nm, [])
+    fwd_ref = ref_(nm)
     context = OMNI_CONTEXT
     context.missingRefs[key] = context.missingRefs.get(key, []) + [fwd_ref]
     return fwd_ref
@@ -116,7 +116,7 @@ def conv_type(t, tvars, dt=None):
         if len(s) == 1:
             if s not in tvars:
                 tvars[s] = symref('typevar', [symname(s)])
-            return Ref(tvars[s], [])
+            return ref_(tvars[s])
         if '(' in s and s[-1] == ')':
             ctor, p, args = s[:-1].partition('(')
             return type_apply(type_str(ctor), map(type_str, args.split(',')))
@@ -233,7 +233,7 @@ SPECIAL_CASES = {
 def conv_match_case(context, code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
-    ref = lambda s: Ref(s, [])
+    ref = lambda s: ref_(s)
     special = SPECIAL_CASES.get(getattr(f, 'refAtom', None))
     if special:
         e = special(lambda i: ref(bs[i]))

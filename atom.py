@@ -31,7 +31,7 @@ def symref(name, subs):
 
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    func = Ref(boot_sym_names[name], [])
+    func = ref_(boot_sym_names[name])
     return symref('call', [func, int_len(subs)] + subs)
 
 def getident(ref):
@@ -85,7 +85,7 @@ def add_sym(name, extra_prop=None, extra_str=None):
 
 def type_to_atoms(t):
     return match(t,
-        ("TVar(a)", lambda a: Ref(a, [])),
+        ("TVar(a)", lambda a: ref_(a)),
         ("TInt()", lambda: symref('int', [])),
         ("TStr()", lambda: symref('str', [])),
         ("TChar()", lambda: symref('char', [])),
@@ -96,7 +96,7 @@ def type_to_atoms(t):
         ("TAnyTuple()", lambda: symref('tuple*', [])),
         ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
             + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
-        ("TData(a)", lambda a: Ref(a, [])),
+        ("TData(a)", lambda a: ref_(a)),
         ("TApply(t, ss)", lambda t, ss: symref('typeapply',
             [type_to_atoms(t), int_len(ss)] + map(type_to_atoms, ss))))
 

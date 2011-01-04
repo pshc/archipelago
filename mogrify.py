@@ -69,7 +69,7 @@ def cname(nm):
 
 def nmref(atom):
     assert isinstance(atom, Str), "Expected Str, got %s" % (atom,)
-    return Ref(atom, [])
+    return ref_(atom)
 
 def lookup_scheme(e):
     global CGLOBAL

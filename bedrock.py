@@ -12,6 +12,8 @@ def str_(st):
     return Str(st, [])
 def int_(n):
     return Int(n, [])
+def ref_(a):
+    return Ref(a, [])
 
 Module = DT('Module', ('name', str), ('digest', str), ('roots', 'List(Atom)'))
 
