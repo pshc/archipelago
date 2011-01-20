@@ -139,6 +139,10 @@ def load_module_dep(filename, deps):
     from hm import infer_types
     hm_overlays = infer_types(mod.roots)
     write_mod_repr('views/' + name + '.txt', mod, hm_overlays)
+    from expand import expand_ast
+    ex_overlays = expand_ast(mod.roots)
+    hm_overlays.update(ex_overlays)
+    write_mod_repr('views/' + name + '.txt', mod, hm_overlays)
     from mogrify import mogrify
     c = mogrify(mod, hm_overlays)
     write_mod_repr('views/' + name + '.c.txt', c, {})

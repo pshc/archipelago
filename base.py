@@ -204,6 +204,10 @@ def concat_map(f, xs):
         result += f(x)
     return result
 
+def map_(f, xs):
+    for x in xs:
+        f(x)
+
 def unzip(list):
     first = []
     second = []
