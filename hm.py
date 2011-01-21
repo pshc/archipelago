@@ -2,6 +2,7 @@
 from atom import *
 from base import *
 from types_builtin import *
+import globs
 
 OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
                         ('omniTypeCasts', {Atom: (Scheme, Scheme)}),
@@ -491,6 +492,6 @@ def infer_types(roots):
                                ("_", lambda: None))
             if root is not None:
                 export_type(root, annots[root])
-    return {TypeAnnot: annots, CastAnnot: casts}
+    return {globs.TypeAnnot: annots, globs.CastAnnot: casts}
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

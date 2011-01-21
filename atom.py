@@ -127,11 +127,6 @@ def atoms_to_scheme(a):
             ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
     return Scheme(vs, atoms_to_type(t))
 
-Overlay = DT('Overlay', ('annotate', 'Atom -> str'))
-
-TypeAnnot = Overlay(repr)
-CastAnnot = Overlay(lambda t: '.. => %r' % t)
-
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
     name = filename.replace('/', '_')[:-3]

@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 from base import *
 from atom import *
+import globs
 
 IdentKind, ValueIdent, FuncIdent = ADT('IdentKind', 'ValueIdent', 'FuncIdent')
 
@@ -737,7 +738,7 @@ def setup_global_env(roots, overlays):
             ctors[c] = CtorInfo(dtinfo, enumname, structname)
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
-    return CGlobal(overlays[TypeAnnot], overlays[CastAnnot], set(),
+    return CGlobal(overlays[globs.TypeAnnot], overlays[globs.CastAnnot], set(),
             set(['archipelago.h']), dts, ctors, fields)
 
 add_csym('includesys', 'includelocal')
