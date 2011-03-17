@@ -20,11 +20,14 @@ def DT(*members):
         stmts += '    assert self.check_invariant(), "Invariant failure"\n'
     code = """class %(name)s(object):
   __slots__ = [%(slots)s]
+  __types__ = []
   def __init__(self%(args)s):
     self._ix = %(ix)d
 %(stmts)s""" % locals()
     exec code
     dt = DATATYPES[name] = eval(name)
+    for nm, t in members:
+        dt.__types__.append(t)
     if invariant:
         dt.check_invariant = invariant
     return dt
