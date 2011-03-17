@@ -4,6 +4,7 @@ from hashlib import sha256
 from base import *
 from types_builtin import *
 from bedrock import *
+from globs import loaded_modules, loaded_module_atoms
 
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
@@ -16,9 +17,6 @@ boot_syms = boot_mod.roots
 boot_syms += [_b_symbol, _b_name]
 boot_sym_names = {'symbol': _b_symbol, 'name': _b_name}
 boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
-
-loaded_modules = {}
-loaded_module_atoms = {}
 
 csym_roots = []
 
