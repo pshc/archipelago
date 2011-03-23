@@ -3,7 +3,7 @@ from base import *
 from atom import *
 import globs
 
-ExScope = DT('ExScope', ('freeParams', {Atom: Atom}),
+ExScope = DT('ExScope', ('freeParams', [Atom]),
                         ('localVars', {Atom: Atom}),
                         ('closedVars', {Atom: Atom}),
                         ('prevScope', 'ExScope'))
@@ -12,6 +12,8 @@ EXSCOPE = Nothing()
 
 ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Atom),
                           ('egFuncAugs', {Atom: Atom}),
+                          ('egTypeAugs', {Atom: Atom}),
+                          ('egLambdaRefs', {Atom: Atom}),
                           ('egRefReplacements', {Atom: Atom}))
 
 EXGLOBAL = Nothing()
@@ -20,7 +22,7 @@ def setup_ex_env(roots):
     global EXSCOPE
     EXSCOPE = Nothing()
     global EXGLOBAL
-    EXGLOBAL = Just(ExGlobal(roots[0], {}, {}))
+    EXGLOBAL = Just(ExGlobal(roots[0], {}, {}, {}, {}))
 
 def ex_call(f, args):
     ex_expr(f)
@@ -28,10 +30,15 @@ def ex_call(f, args):
 
 def ex_lambda(lam, args, e):
     # Closure time
-    # Gotta rebind them args?
     nm = symname('lambda_func')
-    fargs = [int_len(args)] + [ref_(a) for a in args] # XXX
-    fbody = [int_(1), symref('return', [ref_(e)])]
+    fargs = [int_len(args)] + args
+
+    global EXSCOPE
+    EXSCOPE = ExScope(args, {}, {}, EXSCOPE)
+    ex_expr(e)
+    EXSCOPE = EXSCOPE.prevScope
+
+    fbody = [int_(1), symref('return', [symref('xref', [ref_(e)])])]
     f = symref('func', [nm, symref('args', fargs), symref('body', fbody)])
 
     global EXGLOBAL
@@ -41,8 +48,8 @@ def ex_lambda(lam, args, e):
     if key not in eg.egFuncAugs:
         eg.egFuncAugs[key] = []
     eg.egFuncAugs[key].append(f)
-
-    ex_expr(e)
+    eg.egTypeAugs[f] = lam
+    eg.egLambdaRefs[lam] = f
 
 def ex_match_case(c):
     pass
@@ -116,9 +123,12 @@ def expand_ast(roots):
         return {}
     setup_ex_env(roots)
     global EXGLOBAL
+    eg = EXGLOBAL.just
     for root in roots:
-        EXGLOBAL.just.egCurTopLevelDecl = root
+        eg.egCurTopLevelDecl = root
         ex_body(roots)
-    return {globs.FuncAnnot: EXGLOBAL.just.egFuncAugs}
+    return {globs.FuncAnnot: eg.egFuncAugs,
+            globs.ExTypeAnnot: eg.egTypeAugs,
+            globs.ExLambdaAnnot: eg.egLambdaRefs}
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

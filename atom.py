@@ -162,6 +162,7 @@ add_sym('length')
 add_sym('deps')
 add_sym('roots')
 add_sym('type')
+add_sym('xref')
 add_sym('instantiation')
 map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
 add_sym('tuple*')
@@ -339,6 +340,10 @@ def _do_repr(s, r, indent):
         label = '<ref>'
         if s.refAtom in boot_syms:
             label = s.refAtom.subs[0].subs[0].strVal
+            if label == 'xref':
+                r.append('  ' * indent + 'xref:')
+                _do_repr(s.subs[0].refAtom, r, indent+1)
+                return
         elif s.refAtom in csym_roots:
             label = s.refAtom.subs[0].subs[0].strVal + '*'
         elif hasattr(s.refAtom, 'strVal'):

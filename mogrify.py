@@ -23,7 +23,9 @@ FieldInfo = DT('FieldInfo', ('fiDtInfo', DtInfo),
 
 CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
                         ('cgTypeCasts', {Atom: Scheme}),
-                        ('cgLambdaFuncs', {Atom: Atom}),
+                        ('cgFuncHelpers', {Atom: Atom}),
+                        ('cgLambdaFuncRefs', {Atom: Atom}),
+                        ('cgExTypeAnnots', {Atom: Atom}),
                         ('cgSysIncludes', set([str])),
                         ('cgLocalIncludes', set([str])),
                         ('cgDTs', {Atom: DtInfo}),
@@ -32,7 +34,7 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
 CGLOBAL = None
 
 # As usual, defeats the whole purpose.
-CIMPORT = CGlobal({}, {}, {}, set(), set(), {}, {}, {})
+CIMPORT = CGlobal({}, {}, {}, {}, {}, set(), set(), {}, {}, {})
 loaded_export_struct_name_atoms = {}
 loaded_export_identifier_atoms = {}
 
@@ -226,24 +228,9 @@ def c_call(f, args):
 
 add_csym('arg', 'return', 'static')
 def c_lambda(lam):
-    # TODO: Fetch name from earlier gen'd func
-    fnm = str_('lambda')
-    return nmref(fnm)
-
-    argTs, retT = match(lookup_scheme(lam), ('Scheme(_, TFunc(a, r))', tuple2))
-    fnm = str_('lambda')
-    cargs = [csym('arg', [c_type(t), None]) for a, t in zip(args, argTs)]
-    # XXX: use _setup_func instead OR REVAMP THIS CRAP
-    def _setup_lambda(scope):
-        scope.csFuncName = fnm.strVal
-        for a, ca in zip(args, cargs):
-            ca.subs[1] = set_identifier(a, getname(a), scope)
-    cb = c_body([_atom_symref('return', [e])], _setup_lambda)
-    lam = make_func_atom(None, fnm)
-    lam.subs = make_func_subs(c_type(retT), fnm, cargs, cb)
-    lam.subs.append(csym_('static'))
-    insert_global_decl(lam)
-    return nmref(fnm)
+    # TODO: Don't duplicate name
+    global CGLOBAL
+    return str_(getname(CGLOBAL.cgLambdaFuncRefs[lam]))
 
 add_csym('tuple')
 def c_tuple(ts):
@@ -495,6 +482,7 @@ def c_expr(e):
         ("key('listlit', sized(ls))", c_list),
         ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
+        ("key('xref', cons(Ref(e, _), _))", c_expr),
         ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
     if e in CGLOBAL.cgTypeCasts:
         c = csym('cast', [c_type(CGLOBAL.cgTypeCasts[e]), c])
@@ -675,12 +663,12 @@ def c_func(f, args, body, nm, t):
 add_csym('exprstmt', 'return')
 def c_stmt(s):
     global CGLOBAL
-    if s in CGLOBAL.cgLambdaFuncs:
-        for f in CGLOBAL.cgLambdaFuncs[s]:
+    if s in CGLOBAL.cgFuncHelpers:
+        for f in CGLOBAL.cgFuncHelpers[s]:
             a, b = match(f, ("key('func', contains(key('args', sized(a)))"
-                             " and contains(key('body', sized(b))))"))
-            # TODO
-            c_func(f, a, b, getname(f), lookup_scheme(f))
+                             " and contains(key('body', sized(b))))", tuple2))
+            lam = CGLOBAL.cgExTypeAnnots[f]
+            c_func(f, a, b, getname(f), lookup_scheme(lam))
     match(s,
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
@@ -750,8 +738,9 @@ def setup_global_env(roots, overlays):
             for f, fnm in fs:
                 fields[f] = FieldInfo(dtinfo, str_(fnm), structname)
     return CGlobal(overlays[globs.TypeAnnot], overlays[globs.CastAnnot],
-            overlays[globs.FuncAnnot], set(),
-            set(['archipelago.h']), dts, ctors, fields)
+            overlays[globs.FuncAnnot], overlays[globs.ExLambdaAnnot],
+            overlays[globs.ExTypeAnnot],
+            set(), set(['archipelago.h']), dts, ctors, fields)
 
 add_csym('includesys', 'includelocal')
 def mogrify(mod, type_overlays):

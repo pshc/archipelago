@@ -4,7 +4,10 @@ Overlay = base.DT('Overlay', ('annotate', 'Atom -> str'))
 
 TypeAnnot = Overlay(repr)
 CastAnnot = Overlay(lambda t: '.. => %r' % t)
+
 FuncAnnot = Overlay(lambda fs: 'w/ helpers: ' + repr(fs))
+ExTypeAnnot = Overlay(lambda t: '(expanded lambda)')
+ExLambdaAnnot = Overlay(lambda x: '(named)')
 
 PropAnnot = Overlay(repr)
 PROP_ANNOT = {}
