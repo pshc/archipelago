@@ -14,15 +14,20 @@ ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Atom),
                           ('egFuncAugs', {Atom: Atom}),
                           ('egTypeAugs', {Atom: Atom}),
                           ('egLambdaRefs', {Atom: Atom}),
-                          ('egRefReplacements', {Atom: Atom}))
+                          ('egVarLifetime', {Atom: Atom}),
+                          ('egVarUses', {Atom: Atom}))
 
 EXGLOBAL = Nothing()
+
+VarLifetime = DT('VarLifetime', ('staticCtr', int))
+
+VarUse = DT('VarUse', ('useIndex', int))
 
 def setup_ex_env(roots):
     global EXSCOPE
     EXSCOPE = Nothing()
     global EXGLOBAL
-    EXGLOBAL = Just(ExGlobal(roots[0], {}, {}, {}, {}))
+    EXGLOBAL = Just(ExGlobal(roots[0], {}, {}, {}, {}, {}))
 
 def ex_call(f, args):
     ex_expr(f)
@@ -33,7 +38,12 @@ def ex_lambda(lam, args, e):
     nm = symname('lambda_func')
     fargs = [int_len(args)] + args
 
-    global EXSCOPE
+    global EXGLOBAL, EXSCOPE
+    eg = fromJust(EXGLOBAL)
+
+    for a in args:
+        eg.egVarLifetime[a] = VarLifetime(0)
+
     EXSCOPE = ExScope(args, {}, {}, EXSCOPE)
     ex_expr(e)
     EXSCOPE = EXSCOPE.prevScope
@@ -41,8 +51,6 @@ def ex_lambda(lam, args, e):
     fbody = [int_(1), symref('return', [symref('xref', [ref_(e)])])]
     f = symref('func', [nm, symref('args', fargs), symref('body', fbody)])
 
-    global EXGLOBAL
-    eg = fromJust(EXGLOBAL)
     key = eg.egCurTopLevelDecl
 
     if key not in eg.egFuncAugs:
@@ -59,9 +67,14 @@ def ex_match(m, e, cs):
     for c in cs:
         ex_match_case(c)
 
-def ex_defref(a):
-    # Check for closed-over func vars
-    pass
+def ex_var(r, v):
+    global EXGLOBAL
+    eg = fromJust(EXGLOBAL)
+    life = eg.egVarLifetime[v]
+    eg.egVarUses[r] = VarUse(life.staticCtr)
+
+def ex_unknown_expr(e):
+    assert False, 'Unknown expr for expansion:\n' + repr(e)
 
 def ex_expr(e):
     match(e,
@@ -73,7 +86,20 @@ def ex_expr(e):
         ("key('listlit', sized(ls))", lambda ls: map_(ex_expr, ls)),
         ("m==key('match', cons(e, all(cs, c==key('case'))))", ex_match),
         ("key('attr', cons(s, cons(Ref(_, _), _)))", ex_expr),
-        ("Ref(a, _)", ex_defref)) # XXX: catch-all still sucks
+        ("r==Ref(v==key('var'), _)", ex_var),
+        ("Ref(key('func' or 'ctor'), _)", nop),
+        ("Ref(key('symbol', contains(key('type'))), _)", nop),
+        ("otherwise", ex_unknown_expr))
+
+def ex_defn(v, e):
+    global EXGLOBAL
+    EXGLOBAL.just.egVarLifetime[v] = VarLifetime(0)
+    ex_expr(e)
+
+def ex_assign(v, e):
+    ex_expr(e) # Must come first!
+    global EXGLOBAL
+    EXGLOBAL.just.egVarLifetime[v].staticCtr += 1
 
 def ex_cond(ss, cs):
     for t, b in cs:
@@ -90,8 +116,11 @@ def ex_assert(t, m):
     ex_expr(t)
     ex_expr(m)
 
-def ex_func(f, a, b):
-    global EXSCOPE
+def ex_func(f, args, b):
+    global EXGLOBAL, EXSCOPE
+    eg = fromJust(EXGLOBAL)
+    for a in args:
+        eg.egVarLifetime[a] = VarLifetime(0)
 
     EXSCOPE = ExScope({}, {}, {}, EXSCOPE)
     ex_body(b)
@@ -100,8 +129,8 @@ def ex_func(f, a, b):
 def ex_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))", ex_expr),
-        ("key('defn', cons(_, cons(e, _)))", ex_expr),
-        ("key('=', cons(Ref(_, _), cons(e, _)))", ex_expr),
+        ("key('defn', cons(v, cons(e, _)))", ex_defn),
+        ("key('=', cons(Ref(v, _), cons(e, _)))", ex_assign),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",
             ex_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", ex_while),
