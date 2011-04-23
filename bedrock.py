@@ -27,6 +27,9 @@ def maybe_(no, val):
     return match(val, ('Just(j)', identity), ('Nothing()', lambda: no))
 def fromJust(val):
     return match(val, ('Just(j)', identity))
+def mapMaybe(f, val):
+    return match(val, ('Just(j)', lambda j: Just(f(j))),
+                      ('Nothing()', Nothing))
 
 def identity(val): return val
 def tuple2(a, b): return (a, b)

@@ -3,10 +3,15 @@ from base import *
 from atom import *
 import globs
 
-ExScope = DT('ExScope', ('freeParams', [Atom]),
+FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
+                          ('returns', bool))
+
+ExScope = DT('ExScope', ('curFlow', 'FlowNode'),
+                        ('formalParams', [Atom]),
                         ('localVars', {Atom: Atom}),
                         ('closedVars', {Atom: Atom}),
-                        ('prevScope', 'ExScope'))
+                        ('funcScope', 'Maybe(ExScope)'),
+                        ('prevScope', 'Maybe(ExScope)'))
 
 EXSCOPE = Nothing()
 
@@ -29,6 +34,32 @@ def setup_ex_env(roots):
     global EXGLOBAL
     EXGLOBAL = Just(ExGlobal(roots[0], {}, {}, {}, {}, {}))
 
+def in_new_scope(f, inflow, outflows):
+    global EXSCOPE
+    surroundingFunc = mapMaybe(lambda s: s.funcScope, EXSCOPE)
+    s = ExScope(inflow, [], {}, {}, surroundingFunc, EXSCOPE)
+    EXSCOPE = Just(s)
+    ret = f(s)
+    assert s is EXSCOPE.just, "Scope inconsistency"
+    # the last flow in this scope exits to the outer scope
+    add_outflows(s.curFlow, outflows)
+    EXSCOPE = s.prevScope
+    return ret
+
+def new_flow():
+    return FlowNode(set(), False)
+
+def cur_flow():
+    global EXSCOPE
+    return fromJust(EXSCOPE).curFlow
+
+def activate_flow(flow):
+    global EXSCOPE
+    fromJust(EXSCOPE).curFlow = flow
+
+def add_outflows(flow, outflows):
+    flow.outflows.update(outflows)
+
 def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
@@ -38,15 +69,17 @@ def ex_lambda(lam, args, e):
     nm = symname('lambda_func')
     fargs = [int_len(args)] + args
 
-    global EXGLOBAL, EXSCOPE
+    global EXGLOBAL
     eg = fromJust(EXGLOBAL)
 
     for a in args:
         eg.egVarLifetime[a] = VarLifetime(0)
 
-    EXSCOPE = ExScope(args, {}, {}, EXSCOPE)
-    ex_expr(e)
-    EXSCOPE = EXSCOPE.prevScope
+    def lam_body(scope):
+        scope.formalParams = args
+        ex_expr(e)
+    flow = new_flow()
+    in_new_scope(lam_body, flow, set())
 
     fbody = [int_(1), symref('return', [symref('xref', [ref_(e)])])]
     f = symref('func', [nm, symref('args', fargs), symref('body', fbody)])
@@ -92,54 +125,92 @@ def ex_expr(e):
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
-    global EXGLOBAL
+    global EXGLOBAL, EXSCOPE
     EXGLOBAL.just.egVarLifetime[v] = VarLifetime(0)
+    EXSCOPE.just.localVars[v] = None # What to store?
     ex_expr(e)
 
 def ex_assign(v, e):
     ex_expr(e) # Must come first!
-    global EXGLOBAL
+    global EXGLOBAL, EXSCOPE
     EXGLOBAL.just.egVarLifetime[v].staticCtr += 1
+    destScope = fromJust(EXSCOPE)
+    scope = EXSCOPE
+    while True:
+        assert isJust(scope), "Never-defined local var " + repr(v)
+        s = fromJust(scope)
+        if v in s.localVars:
+            # TODO
+            #destScope.assignments[v] = s
+            return
+        scope = s.prevScope
 
-def ex_cond(ss, cs):
+def ex_flow(s, b, top):
+    s.flowFrom = [top]
+    ex_body(b)
+
+def ex_cond(cond, ss, cs):
+    incomingFlow = cur_flow()
+    outgoingFlow = new_flow()
     for t, b in cs:
         ex_expr(t)
-        ex_body(b)
-    match(ss, ("contains(key('else', sized(body)))", ex_body),
-              ("_", lambda: None))
+        flow = new_flow()
+        add_outflows(incomingFlow, set([flow]))
+        in_new_scope(lambda s: ex_body(b), flow, set([outgoingFlow]))
+    eb = match(ss, ("contains(key('else', sized(body)))", Just),
+                   ("_", Nothing))
+    if isJust(eb):
+        flow = new_flow()
+        add_outflows(incomingFlow, set([flow]))
+        in_new_scope(lambda s: ex_body(fromJust(eb)), flow, set([outgoingFlow]))
+    activate_flow(outgoingFlow)
 
 def ex_while(t, b):
+    incomingFlow = cur_flow()
+    outgoingFlow = new_flow()
     ex_expr(t)
-    ex_body(b)
+    flow = new_flow()
+    in_new_scope(lambda s: ex_body(b), flow, set([f, outgoingFlow]))
+    activate_flow(outgoingFlow)
 
 def ex_assert(t, m):
     ex_expr(t)
     ex_expr(m)
 
 def ex_func(f, args, b):
-    global EXGLOBAL, EXSCOPE
+    global EXGLOBAL
     eg = fromJust(EXGLOBAL)
     for a in args:
         eg.egVarLifetime[a] = VarLifetime(0)
 
-    EXSCOPE = ExScope({}, {}, {}, EXSCOPE)
-    ex_body(b)
-    EXSCOPE = EXSCOPE.prevScope
+    def f_body(scope):
+        scope.formalParams = args
+        scope.funcScope = Just(scope)
+        ex_body(b)
+    in_new_scope(f_body, new_flow(), set())
+
+def ex_return(e):
+    if isJust(e):
+        ex_expr(fromJust(e))
+    cur_flow().returns = True
+    # New flow is guaranteed dead. Blah. But OK for now.
+    # (Avoiding dead code removal for now for debugability)
+    activate_flow(new_flow())
 
 def ex_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))", ex_expr),
         ("key('defn', cons(v, cons(e, _)))", ex_defn),
         ("key('=', cons(Ref(v, _), cons(e, _)))", ex_assign),
-        ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",
+        ("c==key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",
             ex_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", ex_while),
         ("key('assert', cons(t, cons(m, _)))", ex_assert),
         ("key('DT')", nop),
         ("f==key('func', contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b))))", ex_func),
-        ("key('return', cons(e, _))", ex_expr),
-        ("key('returnnothing')", nop))
+        ("key('return', cons(e, _))", lambda e: ex_return(Just(e))),
+        ("key('returnnothing')", lambda: ex_return(Nothing())))
 
 def nop():
     pass
