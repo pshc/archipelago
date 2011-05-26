@@ -184,7 +184,7 @@ def c_op(op, ss):
         out('[')
         c_expr(ss[1])
         out(']')
-    elif op == ':?':
+    elif op == '?:':
         c_expr(ss[0])
         out(' ? ')
         c_expr(ss[1])
