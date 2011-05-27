@@ -213,6 +213,45 @@ def make_dt(left, args):
     dtsubs += tvars.values()
     return ([fa], '%s = DT(%s)' % (nm, ', '.join(f for f, s in fs)))
 
+add_sym('CTXT')
+def make_context(left, args):
+    nm, t = match(args, ('cons(Str(nm, _), cons(t, _))', tuple2))
+    tvars = {}
+    ta = symref('type', [conv_type(t, tvars)])
+    ctxt = identifier('CTXT', nm, [ta], export=True)
+    return ([ctxt], '%s = Context(...)' % (nm,))
+
+add_sym('getctxt')
+def conv_get_context(args):
+    assert len(args) == 1
+    return symref('getctxt', args)
+
+add_sym('inctxt')
+def conv_in_context(args):
+    assert len(args) == 3
+    return symref('inctxt', args)
+
+def conv_special(e):
+    """
+    For DT and context argument conversion into types
+    """
+    c = e.__class__
+    if c is Name:
+        return (type_ref(e.name), e.name)
+    elif c is Const:
+        assert isinstance(e.value, basestring), 'Bad type repr: %s' % e.value
+        return (str_(e.value), repr(e.value))
+    elif c is Tuple:
+        assert len(e.nodes) == 2
+        assert isinstance(e.nodes[0], Const)
+        nm = e.nodes[0].value
+        assert isinstance(nm, basestring), 'Expected field name: %s' % nm
+        ta, tt = conv_special(e.nodes[1])
+        return (symref('tuplelit', [int_(2), str_(nm), ta]),
+                '(%r, %s)' % (nm, tt))
+    else:
+        assert False, 'Unexpected %s' % c
+
 def replace_refs(mapping, e):
     ra = getattr(e, 'refAtom', None)
     if ra in mapping:
@@ -306,21 +345,29 @@ def conv_match_try(ast, bs):
 
 
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
-special_call_forms = {'ADT': make_adt, 'DT': make_dt}
+special_call_forms = {
+        'ADT': make_adt, 'DT': make_dt,
+        'new_context': make_context,
+}
 
 add_sym('call')
 add_sym('char')
 @expr(CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
+    if isinstance(e.node, Name) and e.node.name in special_call_forms:
+        argsa, argst = unzip(map(conv_special, e.args))
+        return (SpecialCallForm(e.node.name, argsa), argst)
     (argsa, argst) = unzip(map(conv_expr, e.args))
     argstt = '(%s)' % (', '.join(argst),)
     if isinstance(e.node, Name):
         argsttt = e.node.name + argstt
-        if e.node.name in special_call_forms:
-            return (SpecialCallForm(e.node.name, argsa), argsttt)
-        elif e.node.name == 'match':
+        if e.node.name == 'match':
             return (conv_match(argsa), argsttt)
+        elif e.node.name == 'context':
+            return (conv_get_context(argsa), argsttt)
+        elif e.node.name == 'in_context':
+            return (conv_in_context(argsa), argsttt)
         elif e.node.name == 'char':
             assert len(argsa) == 1 and isinstance(argsa[0], Str) \
                    and len(argsa[0].strVal) == 1

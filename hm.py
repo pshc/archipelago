@@ -7,6 +7,7 @@ import globs
 OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
                         ('omniTypeCasts', {Atom: (Scheme, Scheme)}),
                         ('omniFieldDTs', {Atom: Atom}),
+                        ('omniContextTypes', {Atom: Atom}),
                         ('omniASTContext', 'Maybe(Atom)'))
 
 Env = DT('Env', ('envTable', {Atom: Scheme}),
@@ -278,6 +279,18 @@ def check_attr(tv, struct, a, ref):
     unify(ENV.omniEnv.omniFieldDTs[a], infer_expr(struct))
     unify(tv, get_type(a, ref))
 
+def check_getctxt(tv, ctxt):
+    global ENV
+    # TODO: Add ctxt to func scope
+    unify(tv, ENV.omniEnv.omniContextTypes[ctxt])
+
+def check_inctxt(tv, ctxt, init, f):
+    global ENV
+    t = ENV.omniEnv.omniContextTypes[ctxt]
+    check_expr(t, init)
+    # TODO: Add ctxt to func attributes
+    check_expr(TFunc([], tv), f)
+
 def unknown_infer(a):
     assert False, with_context('Unknown infer case:\n%s' % (a,))
 
@@ -304,6 +317,10 @@ def check_expr(tv, e):
             lambda m, p, cs: check_match(tv, m, p, cs)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))",
             lambda s, a: check_attr(tv, s, a, e)),
+        ("key('getctxt', cons(Ref(ctxt, _), _))",
+            lambda ctxt: check_getctxt(tv, ctxt)),
+        ("key('inctxt', cons(Ref(ctxt, _), cons(init, cons(f, _))))",
+            lambda ctxt, init, f: check_inctxt(tv, ctxt, init, f)),
         ("Ref(v==key('var'), _)",
             lambda v: check_binding(tv, v, e)),
         ("Ref(f==key('func' or 'ctor'), _)",
@@ -337,6 +354,10 @@ def infer_DT(dt, cs, vs, nm):
     if nm == 'List':
         global LIST_TYPE
         LIST_TYPE = dtT
+
+def infer_CTXT(ctxt, t):
+    global ENV
+    ENV.omniEnv.omniContextTypes[ctxt] = atoms_to_scheme(t).schemeType
 
 def infer_defn(a, e):
     t = fresh()
@@ -403,6 +424,7 @@ def infer_stmt(a):
     match(a,
         ("dt==key('DT', all(cs, c==key('ctor'))\
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
+        ("ctxt==key('CTXT', contains(t==key('type')))", infer_CTXT),
         ("key('defn', cons(a, cons(e, _)))", infer_defn),
         ("key('=', cons(a, cons(e, _)))",
             lambda a, e: check_expr(get_type(a.refAtom, e), e)),
@@ -431,7 +453,7 @@ def setup_infer_env(roots):
             fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
             for f in fs:
                 fields[f] = dtT
-    omni = OmniEnv({}, {}, fields, Nothing())
+    omni = OmniEnv({}, {}, fields, {}, Nothing())
     return GlobalEnv(omni, None)
 
 # Collapse strings of metavars

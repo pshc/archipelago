@@ -470,6 +470,14 @@ def c_attr(struct, a):
     fi = CGLOBAL.cgFields[a]
     return c_field_lookup(c_expr(struct), fi)
 
+def c_getctxt(ctxt):
+    # TODO
+    return callnamed('getctxt', [strlit(getname(ctxt))])
+
+def c_inctxt(ctxt, i, f):
+    # TODO
+    return callnamed('inctxt', [strlit(getname(ctxt)), c_expr(i), c_expr(f)])
+
 add_csym('cast')
 def c_expr(e):
     global CGLOBAL
@@ -482,6 +490,8 @@ def c_expr(e):
         ("key('listlit', sized(ls))", c_list),
         ("key('match')", lambda: c_match(e)),
         ("key('attr', cons(s, cons(Ref(a, _), _)))", c_attr),
+        ("key('getctxt', cons(Ref(ctxt, _), _))", c_getctxt),
+        ("key('inctxt', cons(Ref(ctxt, _), cons(i, cons(f, _))))", c_inctxt),
         ("key('xref', cons(Ref(e, _), _))", c_expr),
         ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
     if e in CGLOBAL.cgTypeCasts:
@@ -626,6 +636,10 @@ def c_DT(dt, cs, vs, nm):
         func.subs = make_func_subs(cptr(struct_ref(dt)), ctornm, args, body)
         stmt(func)
 
+add_csym('comment')
+def c_CTXT(nm):
+    stmt(csym('comment', [str_("Context %s defined here." % (nm,))]))
+
 add_csym('func')
 def make_func_atom(f, nm):
     global CSCOPE
@@ -679,6 +693,7 @@ def c_stmt(s):
         ("key('assert', cons(t, cons(m, _)))", c_assert),
         ("dt==key('DT', all(cs, c==key('ctor'))\
                 and all(vs, v==key('typevar'))) and named(nm)", c_DT),
+        ("key('CTXT') and named(nm)", c_CTXT),
         ("f==key('func', contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b))))",
             lambda f, a, b: c_func(f, a, b, getname(f), lookup_scheme(f))),

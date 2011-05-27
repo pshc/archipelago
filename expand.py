@@ -100,6 +100,13 @@ def ex_match(m, e, cs):
     for c in cs:
         ex_match_case(c)
 
+def ex_getctxt(ctxt):
+    pass
+
+def ex_inctxt(ctxt, init, f):
+    ex_expr(init)
+    ex_expr(f)
+
 def ex_var(r, v):
     global EXGLOBAL
     eg = fromJust(EXGLOBAL)
@@ -119,6 +126,8 @@ def ex_expr(e):
         ("key('listlit', sized(ls))", lambda ls: map_(ex_expr, ls)),
         ("m==key('match', cons(e, all(cs, c==key('case'))))", ex_match),
         ("key('attr', cons(s, cons(Ref(_, _), _)))", ex_expr),
+        ("key('getctxt', cons(Ref(ctxt, _), _))", ex_getctxt),
+        ("key('inctxt', cons(Ref(ctxt, _), cons(i, cons(f, _))))", ex_inctxt),
         ("r==Ref(v==key('var'), _)", ex_var),
         ("Ref(key('func' or 'ctor'), _)", nop),
         ("Ref(key('symbol', contains(key('type'))), _)", nop),
@@ -207,6 +216,7 @@ def ex_stmt(s):
         ("key('while', cons(t, contains(key('body', sized(b)))))", ex_while),
         ("key('assert', cons(t, cons(m, _)))", ex_assert),
         ("key('DT')", nop),
+        ("key('CTXT')", nop),
         ("f==key('func', contains(key('args', sized(a))) "
                  "and contains(key('body', sized(b))))", ex_func),
         ("key('return', cons(e, _))", lambda e: ex_return(Just(e))),
