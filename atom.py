@@ -52,7 +52,7 @@ def builtin_type_to_atoms(name):
         if None in t:
             return None
         t = map(_fix_type, t)
-        t = TFunc(t[:-1], t[-1])
+        t = TFunc_(t[:-1], t[-1])
     else:
         t = _fix_type(t)
     tvars = {}
@@ -92,7 +92,9 @@ def type_to_atoms(t):
         ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
             + [type_to_atoms(a) for a in ts])),
         ("TAnyTuple()", lambda: symref('tuple*', [])),
-        ("TFunc(a, r)", lambda args, r: symref('func', [Int(len(args)+1, [])]
+        # TODO
+        ("TFunc(a, r, ext)", lambda args, r, ext: symref('func',
+            [Int(len(args)+1, [])]
             + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
         ("TData(a)", lambda a: ref_(a)),
         ("TApply(t, ss)", lambda t, ss: symref('typeapply',
@@ -116,9 +118,10 @@ def atoms_to_type(a):
         ("key('tuple', sized(ts))", lambda ts:
             TTuple([atoms_to_type(t) for t in ts])),
         ("key('tuple*')", lambda: TAnyTuple()),
+        # TODO
         ("key('func', sized(args))", lambda args:
             TFunc([atoms_to_type(arg) for arg in args[:-1]],
-                atoms_to_type(args[-1]))))
+                atoms_to_type(args[-1]), blank_func_ext())))
 
 def atoms_to_scheme(a):
     t, vs = match(a,

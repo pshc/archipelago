@@ -41,7 +41,7 @@ def unify_tuples(t1, list1, t2, list2, desc):
     for a1, a2 in zip(list1, list2):
         unify(a1, a2)
 
-def unify_funcs(f1, args1, ret1, f2, args2, ret2):
+def unify_funcs(f1, args1, ret1, e1, f2, args2, ret2, e2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
@@ -82,7 +82,7 @@ def unify(e1, e2):
                                  else fail("mismatched type vars")),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
-        ("(e1==TFunc(a1, r1), e2==TFunc(a2, r2))", unify_funcs),
+        ("(e1==TFunc(a1, r1, e1), e2==TFunc(a2, r2, e2))", unify_funcs),
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
         ("(e1==TApply(t1, ss1), e2==TApply(t2, ss2))", unify_applications),
@@ -182,7 +182,7 @@ def _free_meta_check(v, j):
 def _free_metas(t):
     return match(t, ('v==TMeta(j)', _free_meta_check),
                     ('TTuple(ts)', free_tuple_meta_vars),
-                    ('TFunc(args, ret)', free_func_meta_vars),
+                    ('TFunc(args, ret, _)', free_func_meta_vars),
                     ('TApply(t, ss)', free_apply_meta_vars),
                     ('_', lambda: set()))
 
@@ -200,12 +200,12 @@ def check_list(t, elems):
     unify(t, TApply(LIST_TYPE, [elemT]))
 
 def decompose_func_type(ft, nargs):
-    argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
+    argTs, retT = match(ft, ("TFunc(argTs, retT, _)", tuple2),
                             ("_", lambda: ([], None)))
     if retT is None:
         argTs = [fresh() for n in range(nargs)]
         retT = fresh()
-        unify(ft, TFunc(argTs, retT))
+        unify(ft, TFunc_(argTs, retT))
     assert len(argTs) == nargs
     return (argTs, retT)
 
@@ -237,7 +237,7 @@ def pat_capture(tv, v, p):
 # XXX: Instantiation has to be consistent across all match cases...
 def pat_ctor(tv, ctor, args, ref):
     ctorT = instantiate_scheme(get_scheme(ctor), ref)
-    fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
+    fieldTs, dt = match(ctorT, ("TFunc(fs, dt, _)", tuple2))
     unify(tv, dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
     for arg, fieldT in zip(args, fieldTs):
@@ -289,7 +289,7 @@ def check_inctxt(tv, ctxt, init, f):
     t = ENV.omniEnv.omniContextTypes[ctxt]
     check_expr(t, init)
     # TODO: Add ctxt to func attributes
-    check_expr(TFunc([], tv), f)
+    check_expr(TFunc_([], tv), f)
 
 def unknown_infer(a):
     assert False, with_context('Unknown infer case:\n%s' % (a,))
@@ -346,7 +346,7 @@ def infer_DT(dt, cs, vs, nm):
                           lambda t: atoms_to_type(t)))
             fieldTs.append(t)
             set_monotype(f, t, False)
-        funcT = TFunc(fieldTs, dtT)
+        funcT = TFunc_(fieldTs, dtT)
         # TODO: Should use only the typevars that appear in this ctor
         cT = Scheme(tvs, funcT)
         set_scheme(c, cT, True)
@@ -405,7 +405,7 @@ def infer_func_scheme(f, args, body):
 
         if not env.envReturned:
             unify(retT, TVoid())
-        unify(funcT, TFunc(argTs, retT))
+        unify(funcT, TFunc_(argTs, retT))
         return generalize_type(funcT, env)
     return in_new_env(inside_func_env)
 
@@ -467,8 +467,8 @@ def _zonk_meta(meta):
 
 def zonk_type(t):
     return match(t, ("m==TMeta(_)", _zonk_meta),
-                    ("TFunc(args, ret)", lambda args, ret:
-                        TFunc(map(zonk_type, args), zonk_type(ret))),
+                    ("TFunc(args, ret, ext)", lambda args, ret, ext:
+                        TFunc(map(zonk_type, args), zonk_type(ret), ext)),
                     ("TTuple(ts)", lambda ts: TTuple(map(zonk_type, ts))),
                     ("TApply(t, ss)", lambda t, ss:
                         TApply(zonk_type(t), map(zonk_type, ss))),
@@ -481,8 +481,9 @@ def normalize_meta(t):
 
 def normalize_type(t):
     return match(t, ("TMeta(t)", normalize_meta),
-                    ("TFunc(args, ret)", lambda args, ret:
-                        TFunc(map(normalize_type, args), normalize_type(ret))),
+                    ("TFunc(args, ret, ext)", lambda args, ret, ext:
+                        TFunc(map(normalize_type, args), normalize_type(ret),
+                            ext)),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
                     ("TApply(t, ss)", lambda t, ss:
                         TApply(normalize_type(t), map(normalize_type, ss))),
