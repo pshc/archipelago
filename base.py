@@ -5,8 +5,9 @@ from types import FunctionType
 DATATYPES = {}
 ALGETYPES = {}
 
-def DT(*members):
+def DT(*members, **opts):
     members = list(members)
+    superclass = opts.get('superclass', object)
     name = members.pop(0)
     invariant = None
     if members and isinstance(members[-1], FunctionType):
@@ -18,7 +19,7 @@ def DT(*members):
     stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
     if invariant:
         stmts += '    assert self.check_invariant(), "Invariant failure"\n'
-    code = """class %(name)s(object):
+    code = """class %(name)s(superclass):
   __slots__ = [%(slots)s]
   __types__ = []
   def __init__(self%(args)s):
@@ -36,15 +37,17 @@ def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
     exec 'class %s(object): ctors = []' % (tname,)
-    data = [eval(tname)]
-    ALGETYPES[tname] = data[0]
+    t = eval(tname)
+    data = [t]
+    ALGETYPES[tname] = t
     while ctors:
         ctor = ctors.pop(0)
         members = []
         while ctors and not isinstance(ctors[0], basestring):
             members.append(ctors.pop(0))
-        d = DT(ctor, *members)
-        data[0].ctors.append(d)
+        d = DT(ctor, *members, **dict(superclass=t))
+        d.__module__ = tname
+        t.ctors.append(d)
         data.append(d)
     return tuple(data)
 
