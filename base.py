@@ -51,6 +51,32 @@ def ADT(*ctors):
         data.append(d)
     return tuple(data)
 
+# Contexts
+
+ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'type'),
+                                ('ctxtStack', '[a]'))
+
+def new_context(name, t):
+    assert isinstance(name, basestring)
+    assert isinstance(t, type)
+    return ContextInfo(name, t, [])
+
+def in_context(ctxt, initial, func):
+    assert isinstance(initial, ctxt.ctxtType)
+    stack = ctxt.ctxtStack
+    stack.append(initial)
+    count = len(stack)
+    ret = func()
+    assert len(stack) == count, 'Imbalanced context %s stack' % ctxt.ctxtName
+    stack.pop()
+    return ret
+
+def context(ctxt):
+    assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
+    return ctxt.ctxtStack[-1]
+
+# Matching
+
 named_match_dispatch = {}
 
 def match_try(atom, ast):
