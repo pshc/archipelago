@@ -140,14 +140,13 @@ def load_module_dep(filename, deps):
     write_mod_repr('views/' + name + '.txt', mod, {})
     serialize_module(mod)
     from hm import infer_types
-    hm_overlays = infer_types(mod.roots)
-    write_mod_repr('views/' + name + '.txt', mod, hm_overlays)
+    overlays = infer_types(mod.roots)
+    write_mod_repr('views/' + name + '.txt', mod, overlays)
     from expand import expand_ast
-    ex_overlays = expand_ast(mod.roots)
-    hm_overlays.update(ex_overlays)
-    write_mod_repr('views/' + name + '.txt', mod, hm_overlays)
+    overlays.update(expand_ast(mod.roots))
+    write_mod_repr('views/' + name + '.txt', mod, overlays)
     from mogrify import mogrify
-    c = mogrify(mod, hm_overlays)
+    c = mogrify(mod, overlays)
     write_mod_repr('views/' + name + '.c.txt', c, {})
     from c import write_c
     write_c(c, 'views')
