@@ -5,23 +5,22 @@ import sys
 
 CEnv = DT('CEnv', ('cenvIndent', int),
                   ('cenvOuterEnv', 'CEnv'))
-# The final version of this will thread this state through the functions
-# using the type system.
-CENV = None
+CENV = new_context('CENV', CEnv)
 
-CENV_C_HANDLE = None
-CENV_H_HANDLE = None
-CENV_CUR_HANDLE = None
+CGlobal = DT('CGlobal', ('handleC', file), ('handleH', file),
+                        ('inHeader', bool))
+CGLOBAL = new_context('CGLOBAL', CGlobal)
 
 def out(s):
-    global CENV_CUR_HANDLE
     assert isinstance(s, basestring), "Expected string, got: %s" % (s,)
-    if CENV_CUR_HANDLE == CENV_C_HANDLE:
+    cglobal = context(CGLOBAL)
+    if cglobal.inHeader:
+        cglobal.handleH.write(s)
+    else:
         sys.stdout.write(s)
-    CENV_CUR_HANDLE.write(s)
+        cglobal.handleC.write(s)
 def indent():
-    global CENV
-    out('  ' * CENV.cenvIndent)
+    out('  ' * context(CENV).cenvIndent)
 def open_brace():
     out(') {\n')
 def close_brace():
@@ -31,16 +30,13 @@ def semicolon():
     out(';\n')
 
 def begin_header():
-    global CENV_CUR_HANDLE, CENV_H_HANDLE
-    assert CENV_CUR_HANDLE != CENV_H_HANDLE
-    CENV_CUR_HANDLE = CENV_H_HANDLE
+    assert not context(CGLOBAL).inHeader
+    context(CGLOBAL).inHeader = True
 def end_header():
-    global CENV_CUR_HANDLE, CENV_C_HANDLE
-    assert CENV_CUR_HANDLE != CENV_C_HANDLE
-    CENV_CUR_HANDLE = CENV_C_HANDLE
+    assert context(CGLOBAL).inHeader
+    context(CGLOBAL).inHeader = False
 def is_global_scope():
-    global CENV
-    return CENV.cenvIndent == 0
+    return context(CENV).cenvIndent == 0
 
 def comma_exprs(es):
     n = len(es)
@@ -375,22 +371,23 @@ def c_stmt(s):
         )
 
 def c_body(ss):
-    global CENV
-    corig = CENV
-    CENV = CEnv(corig.cenvIndent + 1, corig)
-    for s in ss:
-        c_stmt(s)
-    assert corig is CENV.cenvOuterEnv
-    CENV = corig
+    def go():
+        for s in ss:
+            c_stmt(s)
+
+    cenv = context(CENV)
+    in_context(CENV, CEnv(cenv.cenvIndent + 1, cenv), go)
 
 def write_c(mod, dir):
-    global CENV, CENV_C_HANDLE, CENV_H_HANDLE, CENV_CUR_HANDLE
     name = mod.name[2:]
-    CENV_C_HANDLE = open('%s/%s.c' % (dir, name), 'w')
-    CENV_H_HANDLE = open('%s/%s.h' % (dir, name), 'w')
-    CENV_CUR_HANDLE = CENV_C_HANDLE
-    CENV = CEnv(-1, None)
+    handleC = open('%s/%s.c' % (dir, name), 'w')
+    handleH = open('%s/%s.h' % (dir, name), 'w')
+    in_context(CGLOBAL, CGlobal(handleC, handleH, False),
+            lambda: _write_c(mod, dir, name))
+    handleC.close()
+    handleH.close()
 
+def _write_c(mod, dir, name):
     name_def = name.upper()
 
     begin_header()
@@ -398,14 +395,11 @@ def write_c(mod, dir):
     end_header()
 
     out('#include "%s.h"\n' % (name,))
-    c_body(mod.roots)
+    in_context(CENV, CEnv(-1, None), lambda: c_body(mod.roots))
 
     begin_header()
     out('\n#endif\n')
     end_header()
-
-    CENV_H_HANDLE.close()
-    CENV_C_HANDLE.close()
 
 def compile_module(filename):
     mod, deps = load_module(filename)
