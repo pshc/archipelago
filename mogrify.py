@@ -10,7 +10,7 @@ CScope = DT('CScope', ('csStmts', [Atom]),
                       ('csIdentifierAtoms', {Atom: (Atom, IdentKind)}),
                       ('csStructNameAtoms', {Atom: Atom}),
                       ('csOuterScope', 'CScope'))
-CSCOPE = None
+CSCOPE = new_context('CSCOPE', CScope)
 
 DtInfo = DT('DtInfo', ('diIndexName', Atom),
                       ('diUnionName', Atom))
@@ -112,8 +112,7 @@ def as_c_op(a):
 
 def set_identifier(atom, nm, scope):
     if scope is None:
-        global CSCOPE
-        scope = CSCOPE
+        scope = context(CSCOPE)
     assert isinstance(nm, basestring)
     s = str_(nm)
     assert atom not in scope.csIdentifierAtoms
@@ -123,11 +122,10 @@ def set_identifier(atom, nm, scope):
 # Bleh duplication
 add_csym('name')
 def set_struct_name(atom, nm):
-    global CSCOPE
     assert isinstance(nm, basestring)
     s = str_(nm)
-    assert atom not in CSCOPE.csStructNameAtoms
-    CSCOPE.csStructNameAtoms[atom] = s
+    assert atom not in context(CSCOPE).csStructNameAtoms
+    context(CSCOPE).csStructNameAtoms[atom] = s
     # export struct
     loaded_export_struct_name_atoms[atom] = s
     return csym('name', [s])
@@ -146,8 +144,7 @@ def _lookup_and_wrap(a, map):
     return Nothing()
 
 def identifier_ref(a):
-    global CSCOPE
-    scope = CSCOPE
+    scope = context(CSCOPE)
     while scope is not None:
         ref = _lookup_and_wrap(a, scope.csIdentifierAtoms)
         if isJust(ref):
@@ -164,8 +161,7 @@ def identifier_ref(a):
 
 add_csym('structref')
 def struct_ref(a):
-    global CSCOPE
-    scope = CSCOPE
+    scope = context(CSCOPE)
     while scope is not None:
         s = scope.csStructNameAtoms.get(a)
         if s is not None:
@@ -242,8 +238,7 @@ def c_list(ts):
     return callnamed('list', cons(int_len(ts), map(c_expr, ts)))
 
 def global_scope():
-    global CSCOPE
-    scope = CSCOPE
+    scope = context(CSCOPE)
     while scope.csOuterScope is not None:
         scope = scope.csOuterScope
     return scope
@@ -391,11 +386,10 @@ def c_match_cases(cs, argnm, result_f):
             matchvars[orig_var] = (var_nm, ValueIdent())
             decls.append(new_var)
         # Convert the success expr with the match vars bound to their decls
-        global CSCOPE
-        old_scope = CSCOPE
-        CSCOPE = CScope([], 'matchfunc', matchvars, {}, old_scope)
-        case = CMATCH.cmAssigns + [result_f(c_expr(b))]
-        CSCOPE = old_scope
+        old_scope = context(CSCOPE)
+        inner_scope = CScope([], 'matchfunc', matchvars, {}, old_scope)
+        case_expr = in_context(CSCOPE, inner_scope, lambda: c_expr(b))
+        case = CMATCH.cmAssigns + [result_f(case_expr)]
         if len(CMATCH.cmConds) == 0:
             if len(cases) == 0:
                 body = case
@@ -509,8 +503,7 @@ def is_func_scope(scope):
     return scope.csFuncName is not None
 
 def surrounding_func():
-    global CSCOPE
-    func = CSCOPE
+    func = context(CSCOPE)
     while func is not None and not is_func_scope(func):
         func = func.csOuterScope
     return func
@@ -642,13 +635,13 @@ def c_CTXT(nm):
 
 add_csym('func')
 def make_func_atom(f, nm):
-    global CSCOPE
     fa = csym('func', [])
     atom = f if f is not None else fa
     assert isinstance(nm, Str)
-    assert atom not in CSCOPE.csIdentifierAtoms
-    CSCOPE.csIdentifierAtoms[atom] = (nm, FuncIdent())
-    if CSCOPE.csOuterScope is None:
+    scope = context(CSCOPE)
+    assert atom not in scope.csIdentifierAtoms
+    scope.csIdentifierAtoms[atom] = (nm, FuncIdent())
+    if scope.csOuterScope is None:
         export_identifier(atom, nm, FuncIdent())
     return fa
 
@@ -703,25 +696,21 @@ def c_stmt(s):
         ("key('returnnothing')", lambda: stmt(csym_("returnnothing"))))
 
 def stmt(s):
-    global CSCOPE
-    CSCOPE.csStmts.append(s)
+    context(CSCOPE).csStmts.append(s)
 
 def stmts(ss):
-    global CSCOPE
-    CSCOPE.csStmts += ss
+    context(CSCOPE).csStmts += ss
 
 def c_body(ss, scope_func):
-    global CSCOPE
-    outer = CSCOPE
-    CSCOPE = CScope([], None, {}, {}, outer)
-    if scope_func is not None:
-        scope_func(CSCOPE)
-    for s in ss:
-        c_stmt(s)
-    assert outer is CSCOPE.csOuterScope
-    ss = CSCOPE.csStmts
-    CSCOPE = outer
-    return ss
+    def go():
+        inner = context(CSCOPE)
+        if scope_func is not None:
+            scope_func(inner)
+        for s in ss:
+            c_stmt(s)
+        return inner.csStmts
+    outer = context(CSCOPE)
+    return in_context(CSCOPE, CScope([], None, {}, {}, outer), go)
 
 add_csym('typedef', 'void')
 def setup_global_env(roots, overlays):
@@ -760,15 +749,16 @@ def setup_global_env(roots, overlays):
 
 add_csym('includesys', 'includelocal')
 def mogrify(mod, type_overlays):
-    global CSCOPE
-    CSCOPE = CScope([], None, {}, {}, None)
     global CGLOBAL
     CGLOBAL = setup_global_env(mod.roots, type_overlays)
-    for s in mod.roots:
-        c_stmt(s)
+    def go():
+        for s in mod.roots:
+            c_stmt(s)
+    cstmts = []
+    in_context(CSCOPE, CScope(cstmts, None, {}, {}, None), go)
     incls = [csym('includesys', [str_(i)]) for i in CGLOBAL.cgSysIncludes] + \
             [csym('includelocal', [str_(i)]) for i in CGLOBAL.cgLocalIncludes]
-    cstmts = incls + CSCOPE.csStmts
+    cstmts = incls + cstmts
     return Module("c_" + mod.name, None, cstmts)
 
 # ALL CSYMS CREATED
