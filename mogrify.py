@@ -31,7 +31,7 @@ CGlobal = DT('CGlobal', ('cgTypeAnnotations', {Atom: Scheme}),
                         ('cgDTs', {Atom: DtInfo}),
                         ('cgCtors', {Atom: CtorInfo}),
                         ('cgFields', {Atom: FieldInfo}))
-CGLOBAL = None
+CGLOBAL = new_context('CGLOBAL', CGlobal)
 
 # As usual, defeats the whole purpose.
 CIMPORT = CGlobal({}, {}, {}, {}, {}, set(), set(), {}, {}, {})
@@ -39,12 +39,10 @@ loaded_export_struct_name_atoms = {}
 loaded_export_identifier_atoms = {}
 
 def add_sys_include(filename):
-    global CGLOBAL
-    CGLOBAL.cgSysIncludes.add(filename)
+    context(CGLOBAL).cgSysIncludes.add(filename)
 
 def add_local_include(filename):
-    global CGLOBAL
-    CGLOBAL.cgLocalIncludes.add(filename)
+    context(CGLOBAL).cgLocalIncludes.add(filename)
 
 # ensure we don't accidentally use symref() since it will be accepted silently
 _atom_symref = symref
@@ -76,13 +74,12 @@ def nmref(atom):
     return ref_(atom)
 
 def lookup_scheme(e):
-    global CGLOBAL
-    assert e in CGLOBAL.cgTypeAnnotations, "No type annotation for %s" % (e,)
-    return CGLOBAL.cgTypeAnnotations[e]
+    cglobal = context(CGLOBAL)
+    assert e in cglobal.cgTypeAnnotations, "No type annotation for %s" % (e,)
+    return cglobal.cgTypeAnnotations[e]
 
 add_csym('int', 'char', 'void', 'funcptr', 'tuple_t')
 def c_type(t):
-    global CGLOBAL
     return match(t,
         ("TInt() or TBool()", lambda: csym_('int')),
         ("TStr()", lambda: cptr(csym_('char'))),
@@ -225,8 +222,7 @@ def c_call(f, args):
 add_csym('arg', 'return', 'static')
 def c_lambda(lam):
     # TODO: Don't duplicate name
-    global CGLOBAL
-    return str_(getname(CGLOBAL.cgLambdaFuncRefs[lam]))
+    return str_(getname(context(CGLOBAL).cgLambdaFuncRefs[lam]))
 
 add_csym('tuple')
 def c_tuple(ts):
@@ -306,9 +302,9 @@ def c_ctor_index_test(mogrified_expr, test_op, ctorinfo):
 add_csym('==')
 def c_match_ctor(c, args):
     global CMATCH
-    global CGLOBAL
+    cglobal = context(CGLOBAL)
     # Check index
-    ci = CGLOBAL.cgCtors[c]
+    ci = cglobal.cgCtors[c]
     old_expr = CMATCH.cmCurExpr
     if ci.ciEnumName is not None:
         CMATCH.cmConds.append(c_ctor_index_test(old_expr, '==', ci))
@@ -316,7 +312,7 @@ def c_match_ctor(c, args):
                        identity))
     for arg, field in zip(args, fields):
         # TODO: cmCurExpr will be duplicated across the AST... ugh...
-        CMATCH.cmCurExpr = c_field_lookup(old_expr, CGLOBAL.cgFields[field])
+        CMATCH.cmCurExpr = c_field_lookup(old_expr, cglobal.cgFields[field])
         c_match_case(arg)
     CMATCH.cmCurExpr = old_expr
 
@@ -460,8 +456,7 @@ def c_match_inline(matchExpr, inline_f):
         stmt(inline_f(nmref(res_nm)))
 
 def c_attr(struct, a):
-    global CGLOBAL
-    fi = CGLOBAL.cgFields[a]
+    fi = context(CGLOBAL).cgFields[a]
     return c_field_lookup(c_expr(struct), fi)
 
 def c_getctxt(ctxt):
@@ -474,7 +469,6 @@ def c_inctxt(ctxt, i, f):
 
 add_csym('cast')
 def c_expr(e):
-    global CGLOBAL
     c = match(e,
         ("Int(i, _)", int_),
         ("Str(s, _)", strlit),
@@ -488,8 +482,9 @@ def c_expr(e):
         ("key('inctxt', cons(Ref(ctxt, _), cons(i, cons(f, _))))", c_inctxt),
         ("key('xref', cons(Ref(e, _), _))", c_expr),
         ("r==Ref(a, _)", c_defref)) # XXX: catch-all sucks
-    if e in CGLOBAL.cgTypeCasts:
-        c = csym('cast', [c_type(CGLOBAL.cgTypeCasts[e]), c])
+    cglobal = context(CGLOBAL)
+    if e in cglobal.cgTypeCasts:
+        c = csym('cast', [c_type(cglobal.cgTypeCasts[e]), c])
     return c
 
 # Can inline stmts required for computing `e' right here; and the final value
@@ -572,7 +567,7 @@ def c_assert(t, m):
 add_csym('field', 'struct', 'enumerator', 'decl', 'enum', 'union', 'sizeof',
         '=', 'arg', 'return')
 def c_DT(dt, cs, vs, nm):
-    global CGLOBAL
+    cglobal = context(CGLOBAL)
     discrim = len(cs) > 1
     ctors = []
     structs = []
@@ -582,11 +577,11 @@ def c_DT(dt, cs, vs, nm):
     for c in cs:
         fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
         fields = [match(f, ("f==key('field', contains(key('type',cons(t,_))))",
-                            lambda f, t: (c_type_(t), CGLOBAL.cgFields[f])))
+                            lambda f, t: (c_type_(t), cglobal.cgFields[f])))
                   for f in fs]
         cfields = [csym('field', [t, fi.fiFieldName]) for (t, fi) in fields]
         if discrim:
-            ci = CGLOBAL.cgCtors[c]
+            ci = cglobal.cgCtors[c]
             if len(cfields) > 0:
                 structs.append(csym('field', [csym('struct', cfields),
                                                     ci.ciStructName]))
@@ -594,7 +589,7 @@ def c_DT(dt, cs, vs, nm):
         else:
             stmt(csym('decl', [csym('struct', [dt_nm_atom] + cfields)]))
         ctors.append((c, fields))
-    dtinfo = CGLOBAL.cgDTs[dt]
+    dtinfo = cglobal.cgDTs[dt]
     if discrim:
         # Generate our extra struct-around-union-around-ctors
         enum = csym('enum', enumsyms)
@@ -604,7 +599,7 @@ def c_DT(dt, cs, vs, nm):
                 csym('field', [union, dtinfo.diUnionName])])]))
     # Ctor functions
     for (ctor, fields) in ctors:
-        ci = CGLOBAL.cgCtors[ctor]
+        ci = cglobal.cgCtors[ctor]
         ctornm = str_(getname(ctor))
         func = make_func_atom(ctor, ctornm)
         export_identifier(ctor, ctornm, FuncIdent())
@@ -670,12 +665,12 @@ def c_func(f, args, body, nm, t):
 
 add_csym('exprstmt', 'return')
 def c_stmt(s):
-    global CGLOBAL
-    if s in CGLOBAL.cgFuncHelpers:
-        for f in CGLOBAL.cgFuncHelpers[s]:
+    cglobal = context(CGLOBAL)
+    if s in cglobal.cgFuncHelpers:
+        for f in cglobal.cgFuncHelpers[s]:
             a, b = match(f, ("key('func', contains(key('args', sized(a)))"
                              " and contains(key('body', sized(b))))", tuple2))
-            lam = CGLOBAL.cgExTypeAnnots[f]
+            lam = cglobal.cgExTypeAnnots[f]
             c_func(f, a, b, getname(f), lookup_scheme(lam))
     match(s,
         ("key('exprstmt', cons(e, _))",
@@ -749,15 +744,15 @@ def setup_global_env(roots, overlays):
 
 add_csym('includesys', 'includelocal')
 def mogrify(mod, type_overlays):
-    global CGLOBAL
-    CGLOBAL = setup_global_env(mod.roots, type_overlays)
+    cglobal = setup_global_env(mod.roots, type_overlays)
     def go():
         for s in mod.roots:
             c_stmt(s)
     cstmts = []
-    in_context(CSCOPE, CScope(cstmts, None, {}, {}, None), go)
-    incls = [csym('includesys', [str_(i)]) for i in CGLOBAL.cgSysIncludes] + \
-            [csym('includelocal', [str_(i)]) for i in CGLOBAL.cgLocalIncludes]
+    in_context(CGLOBAL, cglobal, lambda:
+            in_context(CSCOPE, CScope(cstmts, None, {}, {}, None), go))
+    incls = [csym('includesys', [str_(i)]) for i in cglobal.cgSysIncludes] + \
+            [csym('includelocal', [str_(i)]) for i in cglobal.cgLocalIncludes]
     cstmts = incls + cstmts
     return Module("c_" + mod.name, None, cstmts)
 
