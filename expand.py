@@ -179,7 +179,7 @@ def ex_while(t, b):
     outgoingFlow = new_flow()
     ex_expr(t)
     flow = new_flow()
-    in_new_scope(lambda s: ex_body(b), flow, set([f, outgoingFlow]))
+    in_new_scope(lambda s: ex_body(b), flow, set([flow, outgoingFlow]))
     activate_flow(outgoingFlow)
 
 def ex_assert(t, m):
