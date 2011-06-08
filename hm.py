@@ -334,6 +334,12 @@ def infer_expr(e):
     check_expr(tv, e)
     return tv
 
+def infer_lhs(a):
+    return get_type(a.refAtom, a)
+
+def check_lhs(t, a):
+    unify(t, get_type(a.refAtom, a))
+
 def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)
     tvs = match(dt, ("key('DT', all(tvs, tv==key('typevar')))", identity))
@@ -364,6 +370,14 @@ def infer_defn(a, e):
     check_expr(t, e)
     global ENV
     set_scheme(a, generalize_type(t, ENV.curEnv), True)
+
+def infer_assign(a, e):
+    t = infer_lhs(a)
+    check_expr(t, e)
+
+def infer_augassign(a, e):
+    check_lhs(TInt(), a)
+    check_expr(TInt(), e)
 
 def infer_exprstmt(e):
     t = infer_expr(e)
@@ -426,8 +440,8 @@ def infer_stmt(a):
                     and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
         ("ctxt==key('CTXT', contains(t==key('type')))", infer_CTXT),
         ("key('defn', cons(a, cons(e, _)))", infer_defn),
-        ("key('=', cons(a, cons(e, _)))",
-            lambda a, e: check_expr(get_type(a.refAtom, e), e)),
+        ("key('=', cons(a, cons(e, _)))", infer_assign),
+        ("key('+=' or '-=', cons(a, cons(e, _)))", infer_augassign),
         ("key('exprstmt', cons(e, _))", infer_exprstmt),
         ("key('cond', subs and all(cases, key('case', cons(t, sized(b)))))",
             infer_cond),

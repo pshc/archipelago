@@ -210,10 +210,10 @@ def c_exprstmt(e):
     c_expr(e)
     out(';\n')
 
-def c_assign(a, e):
+def c_assign(op, a, e):
     indent()
     c_expr(a)
-    out(' = ')
+    out(' %s ' % (op,))
     c_expr(e)
     semicolon()
 
@@ -348,7 +348,8 @@ def c_comment(s):
 def c_stmt(s):
     match(s,
         ("sym('csyms', 'exprstmt', cons(e, _))", c_exprstmt),
-        ("sym('csyms', '=', cons(a, cons(e, _)))", c_assign),
+        ("sym('csyms', op==('=' or '+=' or '-='), cons(a, cons(e, _)))",
+            c_assign),
         ("sym('csyms', 'decl', cons(t, _))", c_decl),
         ("sym('csyms', 'vardecl', cons(nm, cons(t, _)))", c_vardecl),
         ("sym('csyms', 'vardefn', cons(nm, cons(t, cons(e, _))))", c_vardefn),

@@ -535,9 +535,9 @@ def c_assign_new_decl(var, e):
         stmt(csym('vardefn', [s, ct, c_expr(e)]))
         export_identifier(var, s, ValueIdent())
 
-add_csym('=')
-def c_assign_existing(var, e):
-    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), '=', c))
+add_csym('=', '+=', '-=')
+def c_assign_existing(op, var, e):
+    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), op, c))
 
 add_csym('case', 'else', 'if')
 def c_cond(subs, cs):
@@ -676,7 +676,8 @@ def c_stmt(s):
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
         ("key('defn', cons(v, cons(e, _)))", c_assign_new_decl),
-        ("key('=', cons(Ref(v, _), cons(e, _)))", c_assign_existing),
+        ("key(o==('=' or '+=' or '-='), cons(Ref(v, _), cons(e, _)))",
+            c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),
         ("key('assert', cons(t, cons(m, _)))", c_assert),

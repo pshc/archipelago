@@ -139,9 +139,10 @@ def ex_defn(v, e):
     EXSCOPE.just.localVars[v] = None # What to store?
     ex_expr(e)
 
-def ex_assign(v, e):
+def ex_assign(a, e):
     ex_expr(e) # Must come first!
     global EXGLOBAL, EXSCOPE
+    v = a.refAtom # TEMP
     EXGLOBAL.just.egVarLifetime[v].staticCtr += 1
     destScope = fromJust(EXSCOPE)
     scope = EXSCOPE
@@ -210,7 +211,7 @@ def ex_stmt(s):
     match(s,
         ("key('exprstmt', cons(e, _))", ex_expr),
         ("key('defn', cons(v, cons(e, _)))", ex_defn),
-        ("key('=', cons(Ref(v, _), cons(e, _)))", ex_assign),
+        ("key('=' or '+=' or '-=', cons(a, cons(e, _)))", ex_assign),
         ("c==key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",
             ex_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", ex_while),
