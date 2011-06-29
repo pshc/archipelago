@@ -536,8 +536,9 @@ def c_assign_new_decl(var, e):
         export_identifier(var, s, ValueIdent())
 
 add_csym('=', '+=', '-=')
-def c_assign_existing(op, var, e):
-    c_expr_inline_stmt(e, lambda c: bop(identifier_ref(var), op, c))
+def c_assign_existing(op, lhs, e):
+    # XXX: Do we need to special-case LHS stuff at this point?
+    c_expr_inline_stmt(e, lambda c: bop(c_expr(lhs), op, c))
 
 add_csym('case', 'else', 'if')
 def c_cond(subs, cs):
@@ -676,7 +677,7 @@ def c_stmt(s):
         ("key('exprstmt', cons(e, _))",
             lambda e: c_expr_inline_stmt(e, lambda c: csym('exprstmt', [c]))),
         ("key('defn', cons(v, cons(e, _)))", c_assign_new_decl),
-        ("key(o==('=' or '+=' or '-='), cons(Ref(v, _), cons(e, _)))",
+        ("key(o==('=' or '+=' or '-='), cons(lhs, cons(e, _)))",
             c_assign_existing),
         ("key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",c_cond),
         ("key('while', cons(t, contains(key('body', sized(b)))))", c_while),

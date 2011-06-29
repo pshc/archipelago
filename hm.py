@@ -276,7 +276,12 @@ def check_match(retT, m, e, cs):
 
 def check_attr(tv, struct, a, ref):
     global ENV
-    unify(ENV.omniEnv.omniFieldDTs[a], infer_expr(struct))
+    check_expr(ENV.omniEnv.omniFieldDTs[a], struct)
+    unify(tv, get_type(a, ref))
+
+def check_attr_lhs(tv, struct, a, ref):
+    global ENV
+    check_lhs(ENV.omniEnv.omniFieldDTs[a], struct)
     unify(tv, get_type(a, ref))
 
 def check_getctxt(tv, ctxt):
@@ -334,11 +339,17 @@ def infer_expr(e):
     check_expr(tv, e)
     return tv
 
-def infer_lhs(a):
-    return get_type(a.refAtom, a)
+def check_lhs(tv, lhs):
+    return match(lhs,
+        ("key('attr', cons(e, cons(Ref(a, _), _)))",
+            lambda s, a: check_attr_lhs(tv, s, a, lhs)),
+        ("Ref(v==key('var'), _)", lambda v: check_binding(tv, v, lhs)),
+        ("_", lambda: unknown_infer(lhs)))
 
-def check_lhs(t, a):
-    unify(t, get_type(a.refAtom, a))
+def infer_lhs(a):
+    tv = fresh()
+    check_lhs(tv, a)
+    return tv
 
 def infer_DT(dt, cs, vs, nm):
     dtT = TData(dt)

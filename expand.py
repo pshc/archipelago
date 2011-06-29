@@ -141,8 +141,15 @@ def ex_defn(v, e):
 
 def ex_assign(a, e):
     ex_expr(e) # Must come first!
+    ex_lhs(a)
+
+def ex_lhs(a):
+    match(a,
+        ("key('attr', cons(s, cons(Ref(_, _), _)))", ex_lhs),
+        ("Ref(v==key('var'), _)", ex_lhs_var))
+
+def ex_lhs_var(v):
     global EXGLOBAL, EXSCOPE
-    v = a.refAtom # TEMP
     EXGLOBAL.just.egVarLifetime[v].staticCtr += 1
     destScope = fromJust(EXSCOPE)
     scope = EXSCOPE
