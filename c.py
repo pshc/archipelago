@@ -17,7 +17,6 @@ def out(s):
     if cglobal.inHeader:
         cglobal.handleH.write(s)
     else:
-        sys.stdout.write(s)
         cglobal.handleC.write(s)
 def indent():
     out('  ' * context(CENV).cenvIndent)
