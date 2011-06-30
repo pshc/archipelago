@@ -1,7 +1,7 @@
 from atom import *
 from base import *
 import compiler
-from compiler.ast import *
+from compiler import ast
 
 # HACK: Need context, storing a global...
 CUR_CONTEXT = None
@@ -140,9 +140,11 @@ def conv_exprs(elist):
 add_sym('binaryop')
 add_sym('unaryop')
 
-for (cls, op) in {Add: '+', Sub: '-', Mul: '*', Div: '/', FloorDiv: '//',
-                  Mod: '%', Bitand: '&', Bitor: '|', Bitxor: '^',
-                  LeftShift: '<<', RightShift: '>>'}.iteritems():
+for (cls, op) in {ast.Add: '+', ast.Sub: '-',
+                  ast.Mul: '*', ast.Mod: '%',
+                  ast.Div: '/', ast.FloorDiv: '//',
+                  ast.Bitand: '&', ast.Bitor: '|', ast.Bitxor: '^',
+                  ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
     add_sym(op, extra_prop='binaryop', extra_str=op.replace('//','/'))
     @expr(cls)
     def binop(e, o=op):
@@ -150,10 +152,10 @@ for (cls, op) in {Add: '+', Sub: '-', Mul: '*', Div: '/', FloorDiv: '//',
         (ra, rt) = conv_expr(e.right)
         return (symcall(o, [la, ra]), '%s %s %s' % (lt, o, rt))
 
-for (cls, (op, sym)) in {UnaryAdd: ('+', 'positive'),
-                         UnarySub: ('-', 'negate'),
-                         Not: ('not ', 'not'),
-                         Invert: ('~', 'invert')}.iteritems():
+for (cls, (op, sym)) in {ast.UnaryAdd: ('+', 'positive'),
+                         ast.UnarySub: ('-', 'negate'),
+                         ast.Not: ('not ', 'not'),
+                         ast.Invert: ('~', 'invert')}.iteritems():
     add_sym(sym, extra_prop='unaryop', extra_str=op.replace('not ', '!'))
     @expr(cls)
     def unaop(e, o=op, s=sym):
@@ -162,7 +164,7 @@ for (cls, (op, sym)) in {UnaryAdd: ('+', 'positive'),
 del cls, op
 
 add_sym('and', extra_prop='binaryop', extra_str='&&')
-@expr(And)
+@expr(ast.And)
 def conv_and(e):
     assert len(e.nodes) == 2
     (exprsa, exprst) = conv_exprs(e.nodes)
@@ -236,14 +238,14 @@ def conv_special(e):
     For DT and context argument conversion into types
     """
     c = e.__class__
-    if c is Name:
+    if c is ast.Name:
         return (type_ref(e.name), e.name)
-    elif c is Const:
+    elif c is ast.Const:
         assert isinstance(e.value, basestring), 'Bad type repr: %s' % e.value
         return (str_(e.value), repr(e.value))
-    elif c is Tuple:
+    elif c is ast.Tuple:
         assert len(e.nodes) == 2
-        assert isinstance(e.nodes[0], Const)
+        assert isinstance(e.nodes[0], ast.Const)
         nm = e.nodes[0].value
         assert isinstance(nm, basestring), 'Expected field name: %s' % nm
         ta, tt = conv_special(e.nodes[1])
@@ -302,46 +304,46 @@ for nm, ns in named_match_cases.iteritems():
         add_sym('%s%d' % (nm, n))
 add_sym('capture')
 add_sym('wildcard')
-def conv_match_try(ast, bs):
-    if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
-        nm = ast.node.name
+def conv_match_try(node, bs):
+    if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
+        nm = node.node.name
         named_matcher = named_match_cases.get(nm)
         if nm in ('all', 'every'):
-            assert len(ast.args) == 2 and isinstance(ast.args[0], Name)
-            i = conv_match_try(ast.args[0], bs)
+            assert len(node.args) == 2 and isinstance(node.args[0], ast.Name)
+            i = conv_match_try(node.args[0], bs)
             dummy = []
-            return symref(nm + '2', [i, conv_match_try(ast.args[1], dummy)])
-        args = [conv_match_try(n, bs) for n in ast.args]
+            return symref(nm + '2', [i, conv_match_try(node.args[1], dummy)])
+        args = [conv_match_try(n, bs) for n in node.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             return symref("%s%d" % (nm, len(args)), args)
         else:
             return symref('ctor', [refs_existing(nm), int_len(args)] + args)
-    elif isinstance(ast, Name):
-        if ast.name == '_':
+    elif isinstance(node, ast.Name):
+        if node.name == '_':
             return symref('wildcard', [])
-        i = identifier('var', ast.name)
+        i = identifier('var', node.name)
         bs.append(i)
         return i
-    elif isinstance(ast, Const):
-        va, vt = conv_const(ast)
+    elif isinstance(node, ast.Const):
+        va, vt = conv_const(node)
         return va
-    elif isinstance(ast, Tuple):
-        return symref('tuplelit', [int_len(ast.nodes)]
-                                  + [conv_match_try(n, bs) for n in ast.nodes])
-    elif isinstance(ast, Or):
-        return symref('or', [int_len(ast.nodes)]
-                            + [conv_match_try(n, bs) for n in ast.nodes])
-    elif isinstance(ast, And):
-        return symref('and', [int_len(ast.nodes)]
-                             + [conv_match_try(n, bs) for n in ast.nodes])
-    elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
-        assert isinstance(ast.expr, Name) and ast.expr.name != '_'
-        i = identifier('var', ast.expr.name)
+    elif isinstance(node, ast.Tuple):
+        return symref('tuplelit', [int_len(node.nodes)]
+                                  + [conv_match_try(n,bs) for n in node.nodes])
+    elif isinstance(node, ast.Or):
+        return symref('or', [int_len(node.nodes)]
+                            + [conv_match_try(n, bs) for n in node.nodes])
+    elif isinstance(node, ast.And):
+        return symref('and', [int_len(node.nodes)]
+                             + [conv_match_try(n, bs) for n in node.nodes])
+    elif isinstance(node, ast.Compare) and node.ops[0][0] == '==':
+        assert isinstance(node.expr, ast.Name) and node.expr.name != '_'
+        i = identifier('var', node.expr.name)
         bs.append(i)
-        return symref('capture', [i, conv_match_try(ast.ops[0][1], bs)])
-    assert False, "Unknown match case: %s" % ast
+        return symref('capture', [i, conv_match_try(node.ops[0][1], bs)])
+    assert False, "Unknown match case: %s" % node
 
 
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
@@ -352,15 +354,15 @@ special_call_forms = {
 
 add_sym('call')
 add_sym('char')
-@expr(CallFunc)
+@expr(ast.CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
-    if isinstance(e.node, Name) and e.node.name in special_call_forms:
+    if isinstance(e.node, ast.Name) and e.node.name in special_call_forms:
         argsa, argst = unzip(map(conv_special, e.args))
         return (SpecialCallForm(e.node.name, argsa), argst)
     (argsa, argst) = unzip(map(conv_expr, e.args))
     argstt = '(%s)' % (', '.join(argst),)
-    if isinstance(e.node, Name):
+    if isinstance(e.node, ast.Name):
         argsttt = e.node.name + argstt
         if e.node.name == 'match':
             return (conv_match(argsa), argsttt)
@@ -378,7 +380,7 @@ def conv_callfunc(e):
 map(lambda s: add_sym(s, extra_prop='binaryop', extra_str=s),
     ['<', '>', '==', '!=', '<=', '>='])
 map(add_sym, ['is', 'is not', 'in', 'not in'])
-@expr(Compare)
+@expr(ast.Compare)
 def conv_compare(e):
     assert len(e.ops) == 1
     (la, lt) = conv_expr(e.expr)
@@ -386,7 +388,7 @@ def conv_compare(e):
     op = e.ops[0][0]
     return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
 
-@expr(Const)
+@expr(ast.Const)
 def conv_const(e):
     v = e.value
     if isinstance(v, int):
@@ -397,7 +399,7 @@ def conv_const(e):
 
 add_sym('dictlit')
 add_sym('pair')
-@expr(Dict)
+@expr(ast.Dict)
 def conv_dict(e):
     # This is pretty gross
     keys = map(conv_expr, map(fst, e.items))
@@ -407,12 +409,12 @@ def conv_dict(e):
     return (symref('dictlit', apairs),
             '{%s}' % ', '.join('%s: %s' % kv for kv in map(snd, pairs)))
 
-@expr(GenExpr)
+@expr(ast.GenExpr)
 def conv_genexpr(e):
     return conv_expr(e.code)
 
 add_sym('genexpr')
-@expr(GenExprInner)
+@expr(ast.GenExprInner)
 def conv_genexprinner(e):
     assert len(e.quals) == 1
     (ea, et) = conv_expr(e.expr)
@@ -430,20 +432,20 @@ def conv_genexprinner(e):
             '%s for %s in %s%s' % (et, asst, listt, iftext))
 
 add_sym('attr')
-@expr(Getattr)
+@expr(ast.Getattr)
 def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
     return (symref('attr', [ea, refs_existing(nm)]), '%s.%s' % (et, nm))
 
 add_sym('keyword')
-@expr(Keyword)
+@expr(ast.Keyword)
 def conv_keyword(e):
     (ea, et) = conv_expr(e.expr)
     return (symref('keyword', [Str(e.name, []), ea]), '%s=%s' % (e.name, et))
 
 add_sym('?:')
-@expr(IfExp)
+@expr(ast.IfExp)
 def conv_ifexp(e):
     (ca, ct) = conv_expr(e.test)
     (ta, tt) = conv_expr(e.then)
@@ -460,7 +462,7 @@ def extract_arglist(s):
     return ([identifier('var', nm) for nm in names], names)
 
 add_sym('lambda')
-@expr(Lambda)
+@expr(ast.Lambda)
 @inside_scope
 def conv_lambda(context, e):
     (argsa, argst) = extract_arglist(e)
@@ -469,30 +471,30 @@ def conv_lambda(context, e):
             'lambda %s: %s' % (', '.join(argst), codet))
 
 add_sym('listlit')
-@expr(List)
+@expr(ast.List)
 def conv_list(e):
     (itemsa, itemst) = conv_exprs(e.nodes)
     return (symref('listlit', [int_len(itemsa)] + itemsa),
             '[%s]' % ', '.join(itemst))
 
-@expr(ListComp)
+@expr(ast.ListComp)
 def conv_listcomp(e):
     (compa, compt) = conv_genexprinner(e)
     return (compa, '[%s]' % compt)
 
-@expr(Name)
+@expr(ast.Name)
 def conv_name(e):
     return (refs_existing(e.name), e.name)
 
 add_sym('or', extra_prop='binaryop', extra_str='||')
-@expr(Or)
+@expr(ast.Or)
 def conv_or(e):
     assert len(e.nodes) == 2
     (exprsa, exprst) = conv_exprs(e.nodes)
     return (symref('or', exprsa), ' or '.join(exprst))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
-@expr(Slice)
+@expr(ast.Slice)
 def conv_slice(e):
     (ea, et) = conv_expr(e.expr)
     sym = 'arraycopy'
@@ -509,7 +511,7 @@ def conv_slice(e):
     return (symcall(sym, args), '%s[%s:%s]' % (et, lt, ut))
 
 add_sym('subscript')
-@expr(Subscript)
+@expr(ast.Subscript)
 def conv_subscript(e):
     assert len(e.subs) == 1
     (ea, et) = conv_expr(e.expr)
@@ -517,7 +519,7 @@ def conv_subscript(e):
     return (symref('subscript', [ea, sa]), '%s[%s]' % (et, st))
 
 add_sym('tuplelit')
-@expr(Tuple)
+@expr(ast.Tuple)
 def conv_tuple(e):
     if len(e.nodes) == 1:
         (fa, ft) = conv_expr(e.nodes[0])
@@ -529,7 +531,7 @@ def conv_tuple(e):
 # STATEMENTS
 
 add_sym('assert')
-@stmt(Assert)
+@stmt(ast.Assert)
 def conv_assert(s, context):
     (testa, testt) = conv_expr(s.test)
     (faila, failt) = conv_expr(s.fail) if s.fail else (Str('', []), None)
@@ -537,7 +539,7 @@ def conv_assert(s, context):
     return [symref('assert', [testa, faila])]
 
 map(add_sym, ['defn', '='])
-@stmt(Assign)
+@stmt(ast.Assign)
 def conv_assign(s, context):
     assert len(s.nodes) == 1
     (expra, exprt) = conv_expr(s.expr)
@@ -551,13 +553,13 @@ def conv_assign(s, context):
     k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
     return [symref(k, [lefta, expra])]
 
-@stmt(AssList)
+@stmt(ast.AssList)
 def conv_asslist(s, context):
     assert False, 'TODO: Unpack list'
     # map(conv_ass, s.nodes)
 
 add_sym('del')
-@stmt(AssTuple)
+@stmt(ast.AssTuple)
 def conv_asstuple(s, context):
     ata = []
     for node in s.nodes:
@@ -569,7 +571,7 @@ def conv_asstuple(s, context):
     return ata
 
 map(add_sym, ['+=', '-=', '*=', '/=', '%='])
-@stmt(AugAssign)
+@stmt(ast.AugAssign)
 def conv_augassign(s, context):
     (assa, asst) = conv_expr(s.node)
     (ea, et) = conv_expr(s.expr)
@@ -577,13 +579,13 @@ def conv_augassign(s, context):
     return [symref(s.op, [assa, ea])]
 
 add_sym('break')
-@stmt(Break)
+@stmt(ast.Break)
 def conv_break(s, context):
     cout(context, 'break')
     return [symref('break', [])]
 
 add_sym('class')
-@stmt(Class)
+@stmt(ast.Class)
 def conv_class(s, context):
     cout(context, 'class %s%s:', s.name,
             '(%s)' % ', '.join(s.bases) if s.bases else '')
@@ -593,15 +595,15 @@ def conv_class(s, context):
     return [symref('class', [])] # XXX: Will likely not support classes
 
 add_sym('continue')
-@stmt(Continue)
+@stmt(ast.Continue)
 def conv_continue(s, context):
     cout(context, 'continue')
     return [symref('continue', [])]
 
 add_sym('exprstmt')
-@stmt(Discard)
+@stmt(ast.Discard)
 def conv_discard(s, context):
-    if isinstance(s.expr, Const) and s.expr.value is None:
+    if isinstance(s.expr, ast.Const) and s.expr.value is None:
         return []
     (ea, et) = conv_expr(s.expr)
     cout(context, '%s', et)
@@ -610,22 +612,22 @@ def conv_discard(s, context):
 add_sym('tuplelit')
 add_sym('attr')
 def conv_ass(s, global_scope=False):
-    if isinstance(s, AssName):
+    if isinstance(s, ast.AssName):
         return (ident_ref(s.name, True, export=global_scope), s.name)
-    elif isinstance(s, AssTuple):
-        (itemsa, itemst) = unzip(conv_ass(node, global_scope) for node in s.nodes)
+    elif isinstance(s, ast.AssTuple):
+        (itemsa, itemst) = unzip(conv_ass(n, global_scope) for n in s.nodes)
         itemsa.insert(0, int_len(itemsa))
         return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
-    elif isinstance(s, AssAttr):
+    elif isinstance(s, ast.AssAttr):
         (expra, exprt) = conv_expr(s.expr)
-        (attra, attrt) = (ident_ref(s.attrname, True, export=False), s.attrname)
+        (attra, attrt) = (ident_ref(s.attrname,True,export=False), s.attrname)
         return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
     else:
         return conv_expr(s)
 
 add_sym('for')
 add_sym('body')
-@stmt(For)
+@stmt(ast.For)
 @inside_scope
 def conv_for(context, s, prev):
     (assa, asst) = conv_ass(s.assign)
@@ -637,7 +639,7 @@ def conv_for(context, s, prev):
         assert False
     return [symref('for', fora)]
 
-@stmt(From)
+@stmt(ast.From)
 def conv_from(s, context):
     names = ', '.join(import_names(s.names))
     cout(context, 'from %s import %s', s.modname, names)
@@ -656,7 +658,7 @@ add_sym('args')
 add_sym('body')
 add_sym('doc')
 add_sym('decorators')
-@stmt(Function)
+@stmt(ast.Function)
 def conv_function(s, context):
     decs = []
     for decorator in s.decorators or []:
@@ -685,7 +687,7 @@ def conv_function(s, context):
 add_sym('cond')
 add_sym('case')
 add_sym('else')
-@stmt(If)
+@stmt(ast.If)
 def conv_if(s, context):
     conds = []
     keyword = 'if'
@@ -704,26 +706,26 @@ def conv_if(s, context):
 def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
 
-@stmt(Import)
+@stmt(ast.Import)
 def conv_import(s, context):
     cout(context, 'import %s', ', '.join(import_names(s.names)))
     assert False, "This style of import is not supported"
 
-@stmt(Pass)
+@stmt(ast.Pass)
 def conv_pass(s, context):
     cout(context, 'pass')
     return []
 
 add_sym('print')
-@stmt(Printnl)
+@stmt(ast.Printnl)
 def conv_printnl(s, context):
     assert s.dest is None
     node = s.nodes[0]
-    if isinstance(node, Const):
+    if isinstance(node, ast.Const):
         exprsa = [Str(node.value+'\n', []),
                 symref('tuplelit', [Int(0, [])])]
         exprst = repr(node.value)
-    elif isinstance(node, Mod):
+    elif isinstance(node, ast.Mod):
         format = s.nodes[0].left.value
         argsa, argst = conv_expr(s.nodes[0].right)
         exprsa = [Str(format+'\n', []), argsa]
@@ -735,9 +737,9 @@ def conv_printnl(s, context):
 
 add_sym('return')
 add_sym('returnnothing')
-@stmt(Return)
+@stmt(ast.Return)
 def conv_return(s, context):
-    if isinstance(s.value, Const) and s.value.value is None:
+    if isinstance(s.value, ast.Const) and s.value.value is None:
         cout(context, 'return')
         return [symref('returnnothing', [])]
     (vala, valt) = conv_expr(s.value)
@@ -753,7 +755,7 @@ def conv_stmts_noscope(stmts, context):
 
 add_sym('while')
 add_sym('body')
-@stmt(While)
+@stmt(ast.While)
 def conv_while(s, context):
     (testa, testt) = conv_expr(s.test)
     cout(context, 'while %s:', testt)
@@ -779,8 +781,7 @@ def convert_file(filename, name, deps):
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
-    from atom import Module as Module_
-    mod = Module_(name, None, [])
+    mod = Module(name, None, [])
     deps.add(mod)
     context = ConvertContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():

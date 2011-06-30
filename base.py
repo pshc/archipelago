@@ -1,5 +1,4 @@
 import compiler
-from compiler.ast import *
 from types import FunctionType
 
 DATATYPES = {}
@@ -80,7 +79,8 @@ def context(ctxt):
 named_match_dispatch = {}
 
 def match_try(atom, ast):
-    if isinstance(ast, CallFunc) and isinstance(ast.node, Name):
+    if isinstance(ast, compiler.ast.CallFunc
+                ) and isinstance(ast.node, compiler.ast.Name):
         if ast.node.name in DATATYPES:
             dt = DATATYPES[ast.node.name]
             if atom.__class__ != dt:
@@ -101,13 +101,13 @@ def match_try(atom, ast):
         named_matcher = named_match_dispatch.get(ast.node.name)
         if named_matcher is not None:
             return named_matcher(atom, ast)
-    elif isinstance(ast, Name):
+    elif isinstance(ast, compiler.ast.Name):
         # Just a simple variable name match; always succeeds
         return [] if ast.name == '_' else [atom]
-    elif isinstance(ast, Const):
+    elif isinstance(ast, compiler.ast.Const):
         # Literal match
         return [] if ast.value == atom else None
-    elif isinstance(ast, Tuple):
+    elif isinstance(ast, compiler.ast.Tuple):
         if not isinstance(atom, tuple) or len(atom) != len(ast.nodes):
             return None
         tuple_args = []
@@ -117,14 +117,14 @@ def match_try(atom, ast):
                 return None
             tuple_args += args
         return tuple_args
-    elif isinstance(ast, Or):
+    elif isinstance(ast, compiler.ast.Or):
         # First that doesn't fail
         for case in ast.nodes:
             or_args = match_try(atom, case)
             if or_args is not None:
                 return or_args
         return None
-    elif isinstance(ast, And):
+    elif isinstance(ast, compiler.ast.And):
         and_args = []
         for case in ast.nodes:
             case_args = match_try(atom, case)
@@ -132,9 +132,9 @@ def match_try(atom, ast):
                 return None
             and_args += case_args
         return and_args
-    elif isinstance(ast, Compare) and ast.ops[0][0] == '==':
+    elif isinstance(ast, compiler.ast.Compare) and ast.ops[0][0] == '==':
         # capture right side
-        assert isinstance(ast.expr, Name) and ast.expr.name != '_'
+        assert isinstance(ast.expr, compiler.ast.Name) and ast.expr.name != '_'
         capture_args = match_try(atom, ast.ops[0][1])
         return [atom] + capture_args if capture_args is not None else None
     assert False, "Unknown match case: %s" % ast
@@ -187,7 +187,7 @@ def _match_cons(atom, ast):
 @matcher('all')
 def _match_all(atom, ast):
     assert len(ast.args) == 2
-    assert isinstance(ast.args[0], Name)
+    assert isinstance(ast.args[0], compiler.ast.Name)
     assert isinstance(atom, list)
     results = []
     all_singular = True
@@ -204,7 +204,7 @@ def _match_all(atom, ast):
 @matcher('every')
 def _match_every(atom, ast):
     assert len(ast.args) == 2
-    assert isinstance(ast.args[0], Name)
+    assert isinstance(ast.args[0], compiler.ast.Name)
     assert isinstance(atom, list)
     results = []
     all_singular = True
