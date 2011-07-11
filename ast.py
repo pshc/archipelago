@@ -3,51 +3,58 @@ from base import *
 import compiler
 from compiler import ast
 
-# HACK: Need context, storing a global...
-CUR_CONTEXT = None
-OMNI_CONTEXT = None
+ScopeContext = DT('ScopeContext', ('indent', int),
+                                  ('syms', {(str, bool): Atom}),
+                                  ('prevContext', None))
+SCOPE = new_context('SCOPE', ScopeContext)
+
+OmniContext = DT('OmniContext', ('imports', [Atom]),
+                                ('exports', [Atom]),
+                                ('missingRefs', {(str, bool): [Atom]}),
+                                ('loadedDeps', set([Module])))
+OMNI = new_context('OMNI', OmniContext)
+
 
 loaded_module_export_names = {}
 
 def identifier(bootkey, name, subs=None, is_type=False,
                permissible_nms=frozenset(), export=False):
-    global CUR_CONTEXT
-    context = CUR_CONTEXT
+    scope = context(SCOPE)
     key = (name, is_type)
-    assert name in permissible_nms or key not in context.syms, (
+    assert name in permissible_nms or key not in scope.syms, (
             "Symbol '%s' already in %s context\n%s" % (
             name, 'type' if is_type else 'term',
-            '\n'.join('\t'+str(s) for s, t in context.syms if t == is_type)))
+            '\n'.join('\t'+str(s) for s, t in scope.syms if t == is_type)))
     if subs is None:
         subs = []
     subs.insert(0, symname(name))
     s = symref(bootkey, subs)
-    context.syms[key] = s
-    global OMNI_CONTEXT
-    missing_refs = OMNI_CONTEXT.missingRefs.get(key)
+    scope.syms[key] = s
+
+    omni = context(OMNI)
+    missing_refs = omni.missingRefs.get(key)
     if missing_refs is not None:
         for ref in missing_refs:
             ref.refAtom = s
-        del OMNI_CONTEXT.missingRefs[key]
+        del omni.missingRefs[key]
     if export:
-        OMNI_CONTEXT.exports[key] = s
+        omni.exports[key] = s
     return s
 
 add_sym('var')
 def ident_ref(nm, create, is_type=False, export=False):
-    global CUR_CONTEXT
-    context = CUR_CONTEXT
+    scope = context(SCOPE)
     key = (nm, is_type)
-    while context is not None:
-        if key in context.syms:
-            return ref_(context.syms[key])
-        context = context.prevContext
+    while scope is not None:
+        if key in scope.syms:
+            return ref_(scope.syms[key])
+        scope = scope.prevContext
     if create:
         var = identifier('var', nm, is_type=is_type, export=export)
         return var
     fwd_ref = ref_(nm)
-    context = OMNI_CONTEXT
-    context.missingRefs[key] = context.missingRefs.get(key, []) + [fwd_ref]
+    omni = context(OMNI)
+    omni.missingRefs[key] = omni.missingRefs.get(key, []) + [fwd_ref]
     return fwd_ref
 
 def refs_existing(nm):
@@ -59,28 +66,24 @@ def type_ref(nm):
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
         return
-    global OMNI_CONTEXT
+    omni = context(OMNI)
     for t in (True, False):
         key = (ref.refAtom, t)
-        refs = OMNI_CONTEXT.missingRefs.get(key, [])
+        refs = omni.missingRefs.get(key, [])
         if ref in refs:
             refs.remove(ref)
             if not refs:
-                del OMNI_CONTEXT.missingRefs[key]
+                del omni.missingRefs[key]
             return
     assert False, "Couldn't find forward ref for destruction"
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
-        global CUR_CONTEXT
-        prev = CUR_CONTEXT
-        context = ConvertContext(prev.indent + 1, {}, prev)
-        CUR_CONTEXT = context
-        r = f(context, *args, **kwargs)
-        CUR_CONTEXT = prev
-        return r
+        prev = context(SCOPE)
+        new = ScopeContext(prev.indent + 1, {}, prev)
+        return in_context(SCOPE, new, lambda: f(new, *args, **kwargs))
+    new_scope.__name__ = f.__name__
     return new_scope
-
 
 def unknown_stmt(node, context):
     cout(context, '??%s %s??', node.__class__,
@@ -540,16 +543,15 @@ def conv_assert(s, context):
 
 map(add_sym, ['defn', '='])
 @stmt(ast.Assign)
-def conv_assign(s, context):
+def conv_assign(s, con):
     assert len(s.nodes) == 1
     (expra, exprt) = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
         (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
-        cout(context, spt)
+        cout(con, spt)
         return spa
-    global CUR_CONTEXT
-    lefta, leftt = conv_ass(s.nodes[0], CUR_CONTEXT.indent == 0)
-    cout(context, '%s = %s', leftt, exprt)
+    lefta, leftt = conv_ass(s.nodes[0], context(SCOPE).indent == 0)
+    cout(con, '%s = %s', leftt, exprt)
     k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
     return [symref(k, [lefta, expra])]
 
@@ -640,17 +642,18 @@ def conv_for(context, s, prev):
     return [symref('for', fora)]
 
 @stmt(ast.From)
-def conv_from(s, context):
+def conv_from(s, con):
     names = ', '.join(import_names(s.names))
-    cout(context, 'from %s import %s', s.modname, names)
+    cout(con, 'from %s import %s', s.modname, names)
     if s.modname != 'base':
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
-        global loaded_module_export_names, OMNI_CONTEXT
+        global loaded_module_export_names
+        omni = context(OMNI)
         mod = load_module_dep(s.modname.replace('.', '/') + '.py',
-                OMNI_CONTEXT.loadedDeps)
+                omni.loadedDeps)
         symbols = loaded_module_export_names[mod]
-        OMNI_CONTEXT.imports.update(symbols)
+        omni.imports.update(symbols)
     return []
 
 add_sym('func')
@@ -762,15 +765,6 @@ def conv_while(s, context):
     stmts = conv_stmts(s.body, context)
     return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
 
-ConvertContext = DT('ConvertContext', ('indent', int),
-                                      ('syms', {(str, bool): Atom}),
-                                      ('prevContext', None))
-
-OmniContext = DT('OmniContext', ('imports', [Atom]),
-                                ('exports', [Atom]),
-                                ('missingRefs', {(str, bool): [Atom]}),
-                                ('loadedDeps', set([Module])))
-
 def cout(context, format, *args, **kwargs):
     indent = context.indent + kwargs.get('indent_offset', 0)
     line = '    ' * indent + format % args
@@ -783,24 +777,25 @@ def convert_file(filename, name, deps):
     stmts = compiler.parseFile(filename).node.nodes
     mod = Module(name, None, [])
     deps.add(mod)
-    context = ConvertContext(-1, {}, None)
+    scope = ScopeContext(-1, {}, None)
     for k, v in boot_sym_names.iteritems():
         t = k in ('str', 'int')
-        context.syms[(k, t)] = v
-    global CUR_CONTEXT, OMNI_CONTEXT, loaded_module_export_names
-    CUR_CONTEXT = context
-    OMNI_CONTEXT = OmniContext({}, {}, {}, deps)
-    mod.roots = conv_stmts(stmts, context)
+        scope.syms[(k, t)] = v
+    omni = OmniContext({}, {}, {}, deps)
+    mod.roots = in_context(OMNI, omni, lambda:
+            in_context(SCOPE, scope, lambda:
+                conv_stmts(stmts, scope)))
     # Resolve imports for missing symbols
-    missing = OMNI_CONTEXT.missingRefs
+    missing = omni.missingRefs
     for key, refs in missing.items():
-        if key in OMNI_CONTEXT.imports:
+        if key in omni.imports:
             for ref in refs:
-                ref.refAtom = OMNI_CONTEXT.imports[key]
+                ref.refAtom = omni.imports[key]
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
                 ('type %s' if t else '%s') % s for s, t in missing)
-    loaded_module_export_names[mod] = OMNI_CONTEXT.exports
+    global loaded_module_export_names
+    loaded_module_export_names[mod] = omni.exports
     return mod
 
 def escape(text):
