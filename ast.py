@@ -81,16 +81,16 @@ def inside_scope(f):
     def new_scope(*args, **kwargs):
         prev = context(SCOPE)
         new = ScopeContext(prev.indent + 1, {}, prev)
-        return in_context(SCOPE, new, lambda: f(new, *args, **kwargs))
+        return in_context(SCOPE, new, lambda: f(*args, **kwargs))
     new_scope.__name__ = f.__name__
     return new_scope
 
-def unknown_stmt(node, context):
-    cout(context, '??%s %s??', node.__class__,
+def unknown_stmt(node):
+    print '??%s %s??' % (node.__class__,
           ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
 
 def unknown_expr(node):
-    return '%s?(%s)' % (str(node.__class__),
+    print '%s?(%s)' % (str(node.__class__),
           ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
 
 def make_grammar_decorator(default_dispatch):
@@ -274,7 +274,7 @@ SPECIAL_CASES = {
 }
 
 @inside_scope
-def conv_match_case(context, code, f):
+def conv_match_case(code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
     ref = lambda s: ref_(s)
@@ -467,7 +467,7 @@ def extract_arglist(s):
 add_sym('lambda')
 @expr(ast.Lambda)
 @inside_scope
-def conv_lambda(context, e):
+def conv_lambda(e):
     (argsa, argst) = extract_arglist(e)
     (codea, codet) = conv_expr(e.code)
     return (symref('lambda', [int_len(argsa)] + argsa + [codea]),
@@ -535,38 +535,34 @@ def conv_tuple(e):
 
 add_sym('assert')
 @stmt(ast.Assert)
-def conv_assert(s, context):
+def conv_assert(s):
     (testa, testt) = conv_expr(s.test)
     (faila, failt) = conv_expr(s.fail) if s.fail else (Str('', []), None)
-    cout(context, 'assert %s%s', testt, ', ' + failt if failt else '')
     return [symref('assert', [testa, faila])]
 
 map(add_sym, ['defn', '='])
 @stmt(ast.Assign)
-def conv_assign(s, con):
+def conv_assign(s):
     assert len(s.nodes) == 1
     (expra, exprt) = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
         (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
-        cout(con, spt)
         return spa
     lefta, leftt = conv_ass(s.nodes[0], context(SCOPE).indent == 0)
-    cout(con, '%s = %s', leftt, exprt)
     k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
     return [symref(k, [lefta, expra])]
 
 @stmt(ast.AssList)
-def conv_asslist(s, context):
+def conv_asslist(s):
     assert False, 'TODO: Unpack list'
     # map(conv_ass, s.nodes)
 
 add_sym('del')
 @stmt(ast.AssTuple)
-def conv_asstuple(s, context):
+def conv_asstuple(s):
     ata = []
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
-            cout(context, 'del %s', node.name)
             ata.append(symref('del', [refs_existing(node.name)]))
         else:
             assert False, 'Unknown AssTuple node: ' + repr(node)
@@ -574,41 +570,33 @@ def conv_asstuple(s, context):
 
 map(add_sym, ['+=', '-=', '*=', '/=', '%='])
 @stmt(ast.AugAssign)
-def conv_augassign(s, context):
+def conv_augassign(s):
     (assa, asst) = conv_expr(s.node)
     (ea, et) = conv_expr(s.expr)
-    cout(context, '%s %s %s', asst, s.op, et)
     return [symref(s.op, [assa, ea])]
 
 add_sym('break')
 @stmt(ast.Break)
-def conv_break(s, context):
-    cout(context, 'break')
+def conv_break(s):
     return [symref('break', [])]
 
 add_sym('class')
 @stmt(ast.Class)
-def conv_class(s, context):
-    cout(context, 'class %s%s:', s.name,
-            '(%s)' % ', '.join(s.bases) if s.bases else '')
-    if s.doc:
-        cout(context, '    ' + s.doc)
-    conv_stmts(s.code, context)
+def conv_class(s):
+    conv_stmts(s.code)
     return [symref('class', [])] # XXX: Will likely not support classes
 
 add_sym('continue')
 @stmt(ast.Continue)
-def conv_continue(s, context):
-    cout(context, 'continue')
+def conv_continue(s):
     return [symref('continue', [])]
 
 add_sym('exprstmt')
 @stmt(ast.Discard)
-def conv_discard(s, context):
+def conv_discard(s):
     if isinstance(s.expr, ast.Const) and s.expr.value is None:
         return []
     (ea, et) = conv_expr(s.expr)
-    cout(context, '%s', et)
     return [symref('exprstmt', [ea])]
 
 add_sym('tuplelit')
@@ -631,20 +619,18 @@ add_sym('for')
 add_sym('body')
 @stmt(ast.For)
 @inside_scope
-def conv_for(context, s, prev):
+def conv_for(s):
     (assa, asst) = conv_ass(s.assign)
     (lista, listt) = conv_expr(s.list)
-    cout(context, 'for %s in %s:', asst, listt, indent_offset=-1)
-    stmts = conv_stmts_noscope(s.body, context)
+    stmts = conv_stmts_noscope(s.body)
     fora = [assa, lista, symref('body', [int_len(stmts)] + stmts)]
     if s.else_:
         assert False
     return [symref('for', fora)]
 
 @stmt(ast.From)
-def conv_from(s, con):
+def conv_from(s):
     names = ', '.join(import_names(s.names))
-    cout(con, 'from %s import %s', s.modname, names)
     if s.modname != 'base':
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
@@ -662,21 +648,16 @@ add_sym('body')
 add_sym('doc')
 add_sym('decorators')
 @stmt(ast.Function)
-def conv_function(s, context):
+def conv_function(s):
     decs = []
     for decorator in s.decorators or []:
         (deca, dect) = conv_expr(decorator)
-        cout(context, '@%s', dect)
         decs.append(deca)
     func = identifier('func', s.name, export=True) # XXX: Maybe not?
     @inside_scope
-    def rest(context):
+    def rest():
         (argsa, argst) = extract_arglist(s)
-        cout(context, 'def %s(%s):', s.name, ', '.join(argst),
-                indent_offset=-1)
-        if s.doc:
-            cout(context, '%s', repr(s.doc))
-        stmts = conv_stmts_noscope(s.code, context)
+        stmts = conv_stmts_noscope(s.code)
         funca = [symref('args', [int_len(argsa)] + argsa),
                  symref('body', [int_len(stmts)] + stmts)]
         if s.doc:
@@ -691,18 +672,16 @@ add_sym('cond')
 add_sym('case')
 add_sym('else')
 @stmt(ast.If)
-def conv_if(s, context):
+def conv_if(s):
     conds = []
     keyword = 'if'
     for (test, body) in s.tests:
         (testa, testt) = conv_expr(test)
-        cout(context, '%s %s:', keyword, testt)
-        stmts = conv_stmts(body, context)
+        stmts = conv_stmts(body)
         conds.append(symref('case', [testa, int_len(stmts)] + stmts))
         keyword = 'elif'
     if s.else_:
-        cout(context, 'else:')
-        stmts = conv_stmts(s.else_, context)
+        stmts = conv_stmts(s.else_)
         conds.append(symref('else', [int_len(stmts)] + stmts))
     return [symref('cond', conds)]
 
@@ -710,18 +689,16 @@ def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
 
 @stmt(ast.Import)
-def conv_import(s, context):
-    cout(context, 'import %s', ', '.join(import_names(s.names)))
+def conv_import(s):
     assert False, "This style of import is not supported"
 
 @stmt(ast.Pass)
-def conv_pass(s, context):
-    cout(context, 'pass')
+def conv_pass(s):
     return []
 
 add_sym('print')
 @stmt(ast.Printnl)
-def conv_printnl(s, context):
+def conv_printnl(s):
     assert s.dest is None
     node = s.nodes[0]
     if isinstance(node, ast.Const):
@@ -735,40 +712,31 @@ def conv_printnl(s, context):
         exprst = '%r %% %s' % (format, argst)
     else:
         assert False, "Unexpected print form: %s" % s
-    cout(context, 'print %s', exprst)
     return [symref('exprstmt', [symcall('printf', exprsa)])]
 
 add_sym('return')
 add_sym('returnnothing')
 @stmt(ast.Return)
-def conv_return(s, context):
+def conv_return(s):
     if isinstance(s.value, ast.Const) and s.value.value is None:
-        cout(context, 'return')
         return [symref('returnnothing', [])]
     (vala, valt) = conv_expr(s.value)
-    cout(context, 'return %s', valt)
     return [symref('return', [vala])]
 
 @inside_scope
-def conv_stmts(context, stmts, prev_context):
-    return concat([conv_stmt(stmt, context) for stmt in stmts])
+def conv_stmts(stmts):
+    return concat([conv_stmt(stmt) for stmt in stmts])
 
-def conv_stmts_noscope(stmts, context):
-    return concat([conv_stmt(stmt, context) for stmt in stmts])
+def conv_stmts_noscope(stmts):
+    return concat([conv_stmt(stmt) for stmt in stmts])
 
 add_sym('while')
 add_sym('body')
 @stmt(ast.While)
-def conv_while(s, context):
+def conv_while(s):
     (testa, testt) = conv_expr(s.test)
-    cout(context, 'while %s:', testt)
-    stmts = conv_stmts(s.body, context)
+    stmts = conv_stmts(s.body)
     return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
-
-def cout(context, format, *args, **kwargs):
-    indent = context.indent + kwargs.get('indent_offset', 0)
-    line = '    ' * indent + format % args
-    #print line
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
@@ -783,8 +751,7 @@ def convert_file(filename, name, deps):
         scope.syms[(k, t)] = v
     omni = OmniContext({}, {}, {}, deps)
     mod.roots = in_context(OMNI, omni, lambda:
-            in_context(SCOPE, scope, lambda:
-                conv_stmts(stmts, scope)))
+            in_context(SCOPE, scope, lambda: conv_stmts(stmts)))
     # Resolve imports for missing symbols
     missing = omni.missingRefs
     for key, refs in missing.items():
