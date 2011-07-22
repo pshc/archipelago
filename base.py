@@ -74,6 +74,34 @@ def context(ctxt):
     assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
+# Extrinsics
+
+ExtInfo = DT('ExtInfo', ('label', str), ('t', type), ('stack', [{'a': 't'}]))
+
+def new_extrinsic(label, t):
+    return ExtInfo(label, t, [])
+
+def extrinsic(ext, obj):
+    return ext.stack[-1][obj]
+
+def scope_extrinsic(ext, func):
+    new = ext.stack[-1].copy() if len(ext.stack) else {}
+    ext.stack.append(new)
+    ret = func()
+    n = ext.stack.pop()
+    assert n is new, "Extrinsic stack imbalance"
+    return ret
+
+def add_extrinsic(ext, obj, val):
+    map = ext.stack[-1]
+    assert obj not in map
+    map[obj] = val
+
+def update_extrinsic(ext, obj, val):
+    map = ext.stack[-1]
+    assert obj in map
+    map[obj] = val
+
 # Matching
 
 named_match_dispatch = {}

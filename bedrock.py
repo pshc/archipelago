@@ -1,4 +1,4 @@
-from base import DT, ADT, match
+from base import DT, ADT, match, new_extrinsic
 
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
@@ -16,6 +16,8 @@ def ref_(a):
     return Ref(a, [])
 
 Module = DT('Module', ('name', str), ('digest', str), ('roots', 'List(Atom)'))
+
+Name = new_extrinsic('Name', str)
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
