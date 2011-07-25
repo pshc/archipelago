@@ -92,15 +92,26 @@ def scope_extrinsic(ext, func):
     assert n is new, "Extrinsic stack imbalance"
     return ret
 
+def in_extrinsic_scope(ext):
+    return bool(ext.stack)
+
 def add_extrinsic(ext, obj, val):
+    assert not isinstance(obj, _value_types), "No extrinsics on values"
     map = ext.stack[-1]
     assert obj not in map
     map[obj] = val
 
 def update_extrinsic(ext, obj, val):
+    assert not isinstance(obj, _value_types), "No extrinsics on values"
     map = ext.stack[-1]
     assert obj in map
     map[obj] = val
+
+def has_extrinsic(ext, obj):
+    assert not isinstance(obj, _value_types), "No extrinsics on values"
+    return obj in ext.stack[-1]
+
+_value_types = (basestring, bool, int, float, tuple, type(None))
 
 # Matching
 
