@@ -6,7 +6,7 @@ ALGETYPES = {}
 
 def DT(*members, **opts):
     members = list(members)
-    superclass = opts.get('superclass', object)
+    superclass = opts.get('superclass', DataType)
     name = members.pop(0)
     invariant = None
     if members and isinstance(members[-1], FunctionType):
@@ -35,7 +35,7 @@ def DT(*members, **opts):
 def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
-    exec 'class %s(object): ctors = []' % (tname,)
+    exec 'class %s(DataType): ctors = []' % (tname,)
     t = eval(tname)
     data = [t]
     ALGETYPES[tname] = t
@@ -49,6 +49,9 @@ def ADT(*ctors):
         t.ctors.append(d)
         data.append(d)
     return tuple(data)
+
+class DataType(object):
+    pass
 
 # Contexts
 
@@ -112,6 +115,24 @@ def has_extrinsic(ext, obj):
     return obj in ext.stack[-1]
 
 _value_types = (basestring, bool, int, float, tuple, type(None))
+
+# Pretty printing
+# (naive quadratic version)
+
+PrettyPrinted = new_extrinsic('PrettyPrinted', type(None))
+
+def __repr__(o):
+    if not in_extrinsic_scope(PrettyPrinted):
+        return scope_extrinsic(PrettyPrinted, lambda: repr(o))
+    t = type(o)
+    name = t.__name__
+    if has_extrinsic(PrettyPrinted, o):
+        return '<%s at 0x%x>' % (name, id(o))
+    add_extrinsic(PrettyPrinted, o, None)
+    params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
+    return '%s(%s)' % (name, ', '.join(params))
+
+DataType.__repr__ = __repr__
 
 # Matching
 
