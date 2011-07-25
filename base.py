@@ -135,8 +135,9 @@ def match_try(atom, ast):
     elif isinstance(ast, compiler.ast.Const):
         # Literal match
         return [] if ast.value == atom else None
-    elif isinstance(ast, compiler.ast.Tuple):
-        if not isinstance(atom, tuple) or len(atom) != len(ast.nodes):
+    elif isinstance(ast, (compiler.ast.Tuple, compiler.ast.List)):
+        t = tuple if isinstance(ast, compiler.ast.Tuple) else list
+        if not isinstance(atom, t) or len(atom) != len(ast.nodes):
             return None
         tuple_args = []
         for a, node in zip(atom, ast.nodes):
