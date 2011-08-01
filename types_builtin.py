@@ -7,10 +7,12 @@ def blank_func_ext():
 def TFunc_(args, ret):
     return TFunc(args, ret, blank_func_ext())
 
+TypeVar = DT('TypeVar')
+
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
     TTuple, TAnyTuple, TFunc, TData, TApply \
     = ADT('Type',
-        'TVar', ('varAtom', 'Atom'),
+        'TVar', ('typeVar', '*TypeVar'),
         'TMeta', ('metaType', 'Maybe(Type)'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
@@ -18,7 +20,7 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
                  ('funcExt', FuncExt),
-        'TData', ('dataAtom', 'Atom'),
+        'TData', ('data', '*DTStmt'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']))
 
 

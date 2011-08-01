@@ -55,13 +55,15 @@ def ident_ref(nm, create, is_type=False, export=False):
             var, b = o
             return Just(b(var))
         scope = scope.prevContext
-    return False
     if create:
         return Nothing()
-    fwd_ref = Bind(None)
+    fwd_ref = Bind(key)
     omni = context(OMNI)
-    omni.missingRefs.setDefault(key, []).append(fwd_ref)
+    omni.missingRefs.setdefault(key, []).append(fwd_ref)
     return Just(fwd_ref)
+
+def no_bind(v):
+    return "No bindings to %s" % (type(v),)
 
 def bind_kind(v):
     if isinstance(v, Var):
@@ -72,14 +74,16 @@ def bind_kind(v):
         return BindFunc
     elif isinstance(v, Ctor):
         return BindCtor
+    elif isinstance(v, (DTStmt, Field)):
+        return no_bind
     else:
         raise ValueError("Can't bind to %r" % (v,))
 
 def refs_existing(nm):
-    return ident_ref(nm, False)
+    return fromJust(ident_ref(nm, False))
 
 def type_ref(nm):
-    return ident_ref(nm, False, is_type=True)
+    return fromJust(ident_ref(nm, False, is_type=True))
 
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
@@ -122,10 +126,6 @@ def make_grammar_decorator(default_dispatch):
         return dispatch_index.get(nd.__class__, default_dispatch)(nd, *args)
     return (decorator, dispatch)
 
-add_sym('typeapply')
-def type_apply(tref, args):
-    return symref('typeapply', [tref, int_len(args)] + args)
-
 def conv_type(t, tvars, dt=None):
     def unknown():
         assert isinstance(getattr(t, 'refAtom', None), basestring
@@ -135,20 +135,22 @@ def conv_type(t, tvars, dt=None):
         return type_ref(type_nm)
     def type_str(s):
         if len(s) == 1:
-            if s not in tvars:
-                tvars[s] = symref('typevar', [symname(s)])
-            return ref_(tvars[s])
+            tvar = tvars.get(s)
+            if not s:
+                tvar = TypeVar()
+                add_extrinsic(Name, tvar, s)
+                tvars[s] = tvar
+            return TVar(tvar)
         if '(' in s and s[-1] == ')':
             ctor, p, args = s[:-1].partition('(')
-            return type_apply(type_str(ctor), map(type_str, args.split(',')))
+            return TApply(type_str(ctor), map(type_str, args.split(',')))
         return type_ref(s)
     return match(t,
-        ("key('str' or 'int')", lambda: t),
         ("BindBuiltin(_)", lambda: t),
         ("BindDT(_)", lambda: t),
         ("StrLit(s)", type_str),
-        ("key('listlit', sized(cons(lt, _)))",
-            lambda t: type_apply(type_ref('List'), [conv_type(t, tvars, dt)])),
+        ("ListLit([t])",
+            lambda t: TApply(type_ref('List'), [conv_type(t, tvars, dt)])),
         ("_", unknown))
 
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
@@ -167,7 +169,7 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
                   ast.Div: '/', ast.FloorDiv: '//',
                   ast.Bitand: '&', ast.Bitor: '|', ast.Bitxor: '^',
                   ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
-    add_sym(op, extra_prop='binaryop', extra_str=op.replace('//','/'))
+    add_sym(op)
     @expr(cls)
     def binop(e, o=op):
         return symcall(o, [conv_expr(e.left), conv_expr(e.right)])
@@ -176,7 +178,7 @@ for (cls, (op, sym)) in {ast.UnaryAdd: ('+', 'positive'),
                          ast.UnarySub: ('-', 'negate'),
                          ast.Not: ('not ', 'not'),
                          ast.Invert: ('~', 'invert')}.iteritems():
-    add_sym(sym, extra_prop='unaryop', extra_str=op.replace('not ', '!'))
+    add_sym(sym)
     @expr(cls)
     def unaop(e, o=op, s=sym):
         return symcall(s, [conv_expr(e.expr)])
@@ -383,8 +385,7 @@ def conv_callfunc(e):
     fa = conv_expr(e.node)
     return Call(conv_expr(e.node), argsa)
 
-map(lambda s: add_sym(s, extra_prop='binaryop', extra_str=s),
-    ['<', '>', '==', '!=', '<=', '>='])
+map(lambda s: add_sym(s), ['<', '>', '==', '!=', '<=', '>='])
 map(add_sym, ['is', 'is not', 'in', 'not in'])
 @expr(ast.Compare)
 def conv_compare(e):
@@ -458,10 +459,6 @@ def conv_ifexp(e):
     (fa, ft) = conv_expr(e.else_)
     return (symref('?:', [ca, ta, fa]), '%s if %s else %s' % (tt, ct, ft))
 
-def arg_pair(name):
-    assert isinstance(name, str)
-    return (symname(name), name)
-
 def extract_arglist(s):
     names = s.argnames[:]
     assert not s.kwargs and not s.varargs and not s.defaults
@@ -492,7 +489,7 @@ def conv_listcomp(e):
 def conv_name(e):
     return (refs_existing(e.name), e.name)
 
-add_sym('or', extra_prop='binaryop', extra_str='||')
+add_sym('or')
 @expr(ast.Or)
 def conv_or(e):
     assert len(e.nodes) == 2

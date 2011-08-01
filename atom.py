@@ -86,16 +86,10 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
         'While', ('test', Expr), ('body', Body))
 
 # Bootstrap module
-boot_mod = Module('bootstrap', None, [])
-_b_symbol = Ref(None, [Ref(None, [Str('symbol', [])])])
-_b_name = Ref(_b_symbol, [Ref(None, [Str('name', [])])])
-_b_symbol.refAtom = _b_symbol
-_b_symbol.subs[0].refAtom = _b_name
-_b_name.subs[0].refAtom = _b_name
-boot_syms = boot_mod.roots
-boot_syms += [_b_symbol, _b_name]
-boot_sym_names = {'symbol': _b_symbol, 'name': _b_name}
-boot_sym_names_rev = {_b_symbol: 'symbol', _b_name: 'name'}
+boot_syms = []
+boot_mod = Module('bootstrap', None, boot_syms)
+boot_sym_names = {}
+boot_sym_names_rev = {}
 
 csym_roots = []
 
@@ -114,9 +108,6 @@ def symcall(name, subs):
 
 def getident(ref):
     return match(ref, ('Ref(named(nm), _)', identity))
-
-def symname(name):
-    return symref('name', [Str(name, [])])
 
 def getname(sym):
     return match(sym, ('named(nm)', identity))
@@ -144,69 +135,19 @@ def builtin_type_to_atoms(name):
     t = map_type_vars(builtin_typevar, t)
     return scheme_to_atoms(Scheme(tvars.values(), t))
 
-def add_sym(name, extra_prop=None, extra_str=None):
+def add_sym(name):
     assert not boot_mod.digest, "Can't add symbols after bootstrap serialized"
     if name not in boot_sym_names:
+        """
         subs = [Ref(_b_name, [Str(name, [])])]
         t = builtin_type_to_atoms(name)
         if t is not None:
             subs.append(t)
-        node = Ref(_b_symbol, subs)
+        """
+        node = Builtin(name)
         boot_syms.append(node)
         boot_sym_names[name] = node
         boot_sym_names_rev[node] = name
-    else:
-        subs = boot_sym_names[name].subs
-    if extra_prop and boot_sym_names[extra_prop] not in subs:
-        ss = [Str(extra_str, [])] if extra_str else []
-        subs.append(symref(extra_prop, ss))
-
-def type_to_atoms(t):
-    return match(t,
-        ("TVar(a)", lambda a: ref_(a)),
-        ("TInt()", lambda: symref('int', [])),
-        ("TStr()", lambda: symref('str', [])),
-        ("TChar()", lambda: symref('char', [])),
-        ("TBool()", lambda: symref('bool', [])),
-        ("TVoid()", lambda: symref('void', [])),
-        ("TTuple(ts)", lambda ts: symref('tuple', [int_len(ts)]
-            + [type_to_atoms(a) for a in ts])),
-        ("TAnyTuple()", lambda: symref('tuple*', [])),
-        # TODO
-        ("TFunc(a, r, ext)", lambda args, r, ext: symref('func',
-            [Int(len(args)+1, [])]
-            + [type_to_atoms(a) for a in args] + [type_to_atoms(r)])),
-        ("TData(a)", lambda a: ref_(a)),
-        ("TApply(t, ss)", lambda t, ss: symref('typeapply',
-            [type_to_atoms(t), int_len(ss)] + map(type_to_atoms, ss))))
-
-def scheme_to_atoms(t):
-    s = symref('type', [type_to_atoms(t.schemeType)] + list(t.schemeVars))
-    return s
-
-def atoms_to_type(a):
-    return match(a,
-        ("Ref(v==key('typevar'), _)", TVar),
-        ("Ref(d==key('DT'), _)", TData),
-        ("key('typeapply', cons(t, sized(ss)))",
-            lambda t, ss: TApply(atoms_to_type(t), map(atoms_to_type, ss))),
-        ("key('int')", lambda: TInt()),
-        ("key('str')", lambda: TStr()),
-        ("key('char')", lambda: TChar()),
-        ("key('bool')", lambda: TBool()),
-        ("key('void')", lambda: TVoid()),
-        ("key('tuple', sized(ts))", lambda ts:
-            TTuple([atoms_to_type(t) for t in ts])),
-        ("key('tuple*')", lambda: TAnyTuple()),
-        # TODO
-        ("key('func', sized(args))", lambda args:
-            TFunc([atoms_to_type(arg) for arg in args[:-1]],
-                atoms_to_type(args[-1]), blank_func_ext())))
-
-def atoms_to_scheme(a):
-    t, vs = match(a,
-            ("key('type', cons(t, all(vs, v==key('typevar'))))", tuple2))
-    return Scheme(vs, atoms_to_type(t))
 
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
@@ -274,6 +215,8 @@ def serialize_module(module):
         return
     state = SerializeInit(0, {}, set(), set())
     def init_serialize(atom, state=state):
+        if hasattr(type(atom), '__types__'):
+            print type(atom).__types__
         assert hasattr(atom, 'subs'), "Expected atom, got: %s" % (atom,)
         state.atomixs[atom] = state.natoms
         state.natoms += 1
