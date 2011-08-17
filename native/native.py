@@ -20,6 +20,8 @@ AST, Num, Bind, Plus, Lam, App = ADT('AST',
         'Lam', ('param', Var), ('expr', 'AST'),
         'App', ('func', 'AST'), ('arg', 'AST'))
 
+Ptr = DT('Ptr', ('dest', 'a'))
+
 # Var' = Var w/ name annotations
 # AST' = AST w/ Var'
 
@@ -144,7 +146,8 @@ DeserialState = DT('DeserialState',
         ('file', file),
         ('module', Module),
         ('deps', dict),
-        ('ownIndex', list),
+        ('index', int),
+        ('ownMap', list),
         ('forwardRefs', dict))
 
 Deserialize = new_context('Deserialize', DeserialState)
@@ -179,22 +182,19 @@ def _read_str():
     n = _read_int()
     return context(Deserialize).read(n).decode('UTF-8')
 
-def _read_node(t, parent, succession):
+def _read_node(t):
     if isinstance(t, __builtins__.type) and issubclass(t, DataType):
         state = context(Deserialize)
-        index = len(state.ownIndex)
+        index = state.index
+        state.index += 1
         ctor = t.ctors[_read_int()]
 
-        # XXX HACK
-        #fields = []
-        val = ctor(*([None] * len(ctor.__types__)))
-        state.ownIndex[index] = val
-
-        for succ, type in enumerate(ctor.__types__):
-            child = _read_node(type, val, succ)
-            setattr(val, val.__slots__[succ], child)
-            #fields.append(child)
-        #val = ctor(*fields)
+        fields = []
+        for type in ctor.__types__:
+            child = _read_node(type)
+            fields.append(child)
+        val = ctor(*fields)
+        state.ownMap[index] = val
 
         add_extrinsic(Location, val, Pos(state.module, index))
         return val
@@ -208,14 +208,15 @@ def _read_node(t, parent, succession):
             depindex = _read_int()
             index = _read_int()
             if depindex == 0:
-                if index in state.ownIndex:
-                    return state.ownIndex[index]
+                if False or index in state.ownMap:
+                    return Ptr(state.ownMap[index])
                 else:
                     # Resolve later
-                    state.forwardRefs[(parent, succession)] = index
-                    return None
+                    ptr = Ptr(None)
+                    state.forwardRefs.setdefault(index, []).append(ptr)
+                    return ptr
             else:
-                return extrinsic(ModIndex, state.deps[depindex-1])[index]
+                return Ptr(extrinsic(ModIndex, state.deps[depindex-1])[index])
         else:
             assert False, "%r is not a type" % (t,)
 
@@ -228,7 +229,7 @@ def deserialize(digest, root_type=AST):
     f = file('mods/%s' % (digest,), 'rb')
     deps = []
     module = Module('unknown', Just(digest), None)
-    ownIndex = {}
+    ownMap = {}
     forwardRefs = {}
     def go():
         dep_count = _read_int()
@@ -238,16 +239,17 @@ def deserialize(digest, root_type=AST):
             if dep is None:
                 dep = deserialize(hash)
             deps.append(dep)
-        module.root = _read_node(root_type, module, 2)
-        for src, dest in forwardRefs.iteritems():
-            parent, succ = src
-            setattr(parent, parent.__slots__[succ], ownIndex[dest])
+        module.root = _read_node(root_type)
+        for index, ptrs in forwardRefs.iteritems():
+            dest = ownMap[index]
+            for ptr in ptrs:
+                ptr.dest = dest
         return module
-    state = DeserialState(f, module, deps, ownIndex, forwardRefs)
+    state = DeserialState(f, module, deps, 0, ownMap, forwardRefs)
     in_context(Deserialize, state, go)
     f.close()
-    ownIndex = [v for k, v in sorted(ownIndex.items())]
-    add_extrinsic(ModIndex, module, ownIndex)
+    ownMap = [v for k, v in sorted(ownMap.items())]
+    add_extrinsic(ModIndex, module, ownMap)
     LOADED_MODULES[digest] = module
     return module
 
