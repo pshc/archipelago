@@ -48,6 +48,8 @@ def _write(b):
     state.hash.update(b)
 
 def _write_ref(node):
+    assert isinstance(node, Ptr), 'Expected Ptr, got %r' % (node,)
+    node = node.dest
     if has_extrinsic(OwnIndex, node):
         a = 0
         b = extrinsic(OwnIndex, node)
@@ -57,7 +59,7 @@ def _write_ref(node):
         a = state.deps[loc.module]
         b = loc.index
     else:
-        assert False, 'Ref to unserialized'
+        assert False, 'Ptr to unserialized: %r' % (node,)
     _write(_encode_int(a) + _encode_int(b))
 
 def _encode_int(n):
@@ -256,8 +258,8 @@ def deserialize(digest, root_type=AST):
 def test():
     foo = Var()
     add_extrinsic(Name, foo, 'foo')
-    body = Plus(Num(1), Bind(foo))
-    sample = Plus(Bind(foo), App(Lam(foo, body), Num(0x3042)))
+    body = Plus(Num(1), Bind(Ptr(foo)))
+    sample = Plus(Bind(Ptr(foo)), App(Lam(foo, body), Num(0x3042)))
 
     print 'before', sample
     module = Module('test', Nothing(), sample)
