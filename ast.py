@@ -62,9 +62,6 @@ def ident_ref(nm, create, is_type=False, export=False):
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
     return Just(fwd_ref)
 
-def no_bind(v):
-    return "No bindings to %s" % (type(v),)
-
 def bind_kind(v):
     if isinstance(v, Var):
         return BindVar
@@ -72,10 +69,12 @@ def bind_kind(v):
         return BindBuiltin
     elif isinstance(v, Func):
         return BindFunc
+    elif isinstance(v, Field):
+        return BindField
     elif isinstance(v, Ctor):
         return BindCtor
-    elif isinstance(v, (DTStmt, Field)):
-        return no_bind
+    elif isinstance(v, DTStmt):
+        return BindDT
     else:
         raise ValueError("Can't bind to %r" % (v,))
 
@@ -493,8 +492,7 @@ add_sym('or')
 @expr(ast.Or)
 def conv_or(e):
     assert len(e.nodes) == 2
-    (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('or', exprsa), ' or '.join(exprst))
+    return Or(conv_exprs(e.nodes))
 
 map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
 @expr(ast.Slice)
