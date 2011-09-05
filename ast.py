@@ -14,6 +14,11 @@ OmniContext = DT('OmniContext', ('imports', [Atom]),
                                 ('loadedDeps', set([Module])))
 OMNI = new_context('OMNI', OmniContext)
 
+def ast_contexts():
+    omni = OmniContext({}, {}, {}, set())
+    scope = ScopeContext(-1, {}, None)
+    return omni, scope
+
 loaded_module_export_names = {}
 
 def identifier(obj, name, is_type=False,
@@ -48,7 +53,7 @@ def ident_ref(nm, create, is_type=False, export=False):
         o = scope.syms.get(key)
         if o is not None:
             var, b = o
-            return Just(Bind(b(var)))
+            return Just(b(var))
         scope = scope.prevContext
     return False
     if create:
@@ -139,8 +144,9 @@ def conv_type(t, tvars, dt=None):
         return type_ref(s)
     return match(t,
         ("key('str' or 'int')", lambda: t),
-        ("Ref(key('DT'), _)", lambda: t),
-        ("Str(s, _)", type_str),
+        ("BindBuiltin(_)", lambda: t),
+        ("BindDT(_)", lambda: t),
+        ("StrLit(s)", type_str),
         ("key('listlit', sized(cons(lt, _)))",
             lambda t: type_apply(type_ref('List'), [conv_type(t, tvars, dt)])),
         ("_", unknown))
@@ -197,7 +203,7 @@ def make_adt(left, args):
             if nm is None:
                 break
             field = Field(conv_type(t, tvars, dt=adt))
-            identifier('field', nm, permissible_nms=field_nms)
+            identifier(field, nm, permissible_nms=field_nms)
             field_nms.add(nm)
             args.pop(0)
         ctor = Ctor(members)
@@ -371,9 +377,9 @@ def conv_callfunc(e):
         if f:
             return f(argsa)
         elif e.node.name == 'char':
-            assert len(argsa) == 1 and isinstance(argsa[0], Str) \
-                   and len(argsa[0].strVal) == 1
-            return CharLit(argsa[0])
+            c = match(argsa[0], ('StrLit(s)', identity))
+            assert len(c) == 1
+            return CharLit(c)
     fa = conv_expr(e.node)
     return Call(conv_expr(e.node), argsa)
 
@@ -459,7 +465,7 @@ def arg_pair(name):
 def extract_arglist(s):
     names = s.argnames[:]
     assert not s.kwargs and not s.varargs and not s.defaults
-    return ([identifier('var', nm) for nm in names], names)
+    return ([identifier(Var(), nm) for nm in names], names)
 
 add_sym('lambda')
 @expr(ast.Lambda)
@@ -685,18 +691,34 @@ def conv_stmts_noscope(stmts):
 def conv_while(s):
     return [While(conv_expr(s.test), conv_stmts(s.body))]
 
+# Shouldn't this be a context or something?
+BUILTINS = {}
+
+def make_builtin(name, is_type=False):
+    builtin = Builtin(name)
+    BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
+    return identifier(builtin, name, is_type=is_type)
+
+def setup_builtin_module():
+    omni, scope = ast_contexts()
+    def go():
+        make_builtin('int', is_type=True)
+        make_builtin('str', is_type=True)
+    roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
+
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
+    if not BUILTINS:
+        setup_builtin_module()
     if not boot_mod.digest:
         serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     mod = Module(name, None, [])
     deps.add(mod)
-    omni = OmniContext({}, {}, {}, deps)
-    scope = ScopeContext(-1, {}, None)
+    omni, scope = ast_contexts()
+    omni.loadedModules = deps
     def go():
-        for k, v in boot_sym_names.iteritems():
-            identifier(v, k, is_type=(k in ['str', 'int']))
+        scope.syms.update(BUILTINS)
         conv_stmts(stmts)
     mod.roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
     # Resolve imports for missing symbols

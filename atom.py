@@ -16,9 +16,12 @@ Ctxt = DT('Ctxt', ('type', Type))
 
 Var = DT('Var')
 
-Binding, BindBuiltin, BindCtor, BindFunc, BindVar = ADT('Binding',
+Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
+    ADT('Binding',
         'BindBuiltin', ('builtin', '*Builtin'),
         'BindCtor', ('ctor', '*Ctor'),
+        'BindDT', ('dtStmt', '*DTStmt'),
+        'BindField', ('field', '*Field'),
         'BindFunc', ('func', '*Func'),
         'BindVar', ('var', '*Var'))
 
