@@ -14,48 +14,61 @@ OmniContext = DT('OmniContext', ('imports', [Atom]),
                                 ('loadedDeps', set([Module])))
 OMNI = new_context('OMNI', OmniContext)
 
-
 loaded_module_export_names = {}
 
-def identifier(bootkey, name, subs=None, is_type=False,
+def identifier(obj, name, is_type=False,
                permissible_nms=frozenset(), export=False):
     scope = context(SCOPE)
     key = (name, is_type)
+    kind = 'type' if is_type else 'term'
     assert name in permissible_nms or key not in scope.syms, (
             "Symbol '%s' already in %s context\n%s" % (
-            name, 'type' if is_type else 'term',
+            name, kind,
             '\n'.join('\t'+str(s) for s, t in scope.syms if t == is_type)))
-    if subs is None:
-        subs = []
-    subs.insert(0, symname(name))
-    s = symref(bootkey, subs)
-    scope.syms[key] = s
+    try:
+        b = bind_kind(obj)
+    except ValueError:
+        assert False, "Can't bind %s %r to %r" % (kind, obj, name)
+    scope.syms[key] = (obj, b)
+    add_extrinsic(Name, obj, name)
 
     omni = context(OMNI)
-    missing_refs = omni.missingRefs.get(key)
-    if missing_refs is not None:
-        for ref in missing_refs:
-            ref.refAtom = s
+    missing_binds = omni.missingRefs.get(key)
+    if missing_binds is not None:
+        for bind in missing_binds:
+            bind.binding = b(obj)
         del omni.missingRefs[key]
     if export:
-        omni.exports[key] = s
-    return s
+        omni.exports[key] = obj
 
-add_sym('var')
 def ident_ref(nm, create, is_type=False, export=False):
     scope = context(SCOPE)
     key = (nm, is_type)
     while scope is not None:
-        if key in scope.syms:
-            return ref_(scope.syms[key])
+        o = scope.syms.get(key)
+        if o is not None:
+            var, b = o
+            return Just(Bind(b(var)))
         scope = scope.prevContext
+    return False
     if create:
-        var = identifier('var', nm, is_type=is_type, export=export)
-        return var
-    fwd_ref = ref_(nm)
+        return Nothing()
+    fwd_ref = Bind(None)
     omni = context(OMNI)
-    omni.missingRefs[key] = omni.missingRefs.get(key, []) + [fwd_ref]
-    return fwd_ref
+    omni.missingRefs.setDefault(key, []).append(fwd_ref)
+    return Just(fwd_ref)
+
+def bind_kind(v):
+    if isinstance(v, Var):
+        return BindVar
+    elif isinstance(v, Builtin):
+        return BindBuiltin
+    elif isinstance(v, Func):
+        return BindFunc
+    elif isinstance(v, Ctor):
+        return BindCtor
+    else:
+        raise ValueError("Can't bind to %r" % (v,))
 
 def refs_existing(nm):
     return ident_ref(nm, False)
@@ -136,7 +149,7 @@ def conv_type(t, tvars, dt=None):
 (expr, conv_expr) = make_grammar_decorator(unknown_expr)
 
 def conv_exprs(elist):
-    return unzip(map(conv_expr, elist))
+    return map(conv_expr, elist)
 
 # EXPRESSIONS
 
@@ -151,9 +164,7 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
     add_sym(op, extra_prop='binaryop', extra_str=op.replace('//','/'))
     @expr(cls)
     def binop(e, o=op):
-        (la, lt) = conv_expr(e.left)
-        (ra, rt) = conv_expr(e.right)
-        return (symcall(o, [la, ra]), '%s %s %s' % (lt, o, rt))
+        return symcall(o, [conv_expr(e.left), conv_expr(e.right)])
 
 for (cls, (op, sym)) in {ast.UnaryAdd: ('+', 'positive'),
                          ast.UnarySub: ('-', 'negate'),
@@ -162,44 +173,38 @@ for (cls, (op, sym)) in {ast.UnaryAdd: ('+', 'positive'),
     add_sym(sym, extra_prop='unaryop', extra_str=op.replace('not ', '!'))
     @expr(cls)
     def unaop(e, o=op, s=sym):
-        (a, t) = conv_expr(e.expr)
-        return (symcall(s, [a]), o + t)
+        return symcall(s, [conv_expr(e.expr)])
 del cls, op
 
-add_sym('and', extra_prop='binaryop', extra_str='&&')
 @expr(ast.And)
 def conv_and(e):
     assert len(e.nodes) == 2
-    (exprsa, exprst) = conv_exprs(e.nodes)
-    return (symref('and', exprsa), ' and '.join(exprst))
+    return And(*map(conv_expr, e.nodes))
 
-add_sym('DT')
-add_sym('ctor')
 def make_adt(left, args):
-    adt_nm = match(args.pop(0), ('Str(nm, _)', identity))
+    adt_nm = match(args.pop(0), ('StrLit(nm)', identity))
     ctors = []
-    adt = identifier('DT', adt_nm, ctors, is_type=True, export=True)
-    ctor_nms = []
+    adt = DTStmt(ctors, [])
+    identifier(adt, adt_nm, is_type=True, export=True)
     tvars = {}
     field_nms = set()
     while args:
-        ctor = match(args.pop(0), ('Str(s, _)', identity))
+        ctor_nm = match(args.pop(0), ('StrLit(s)', identity))
         members = []
         while args:
-            nm, t = match(args[0], ('Str(_, _)', lambda: (None, None)),
-                                   ('key("tuplelit", sized(cons(Str(nm, _), \
-                                     cons(t, _))))', tuple2))
+            nm, t = match(args[0], ('StrLit(_)', lambda: (None, None)),
+                                   ('TupleLit([StrLit(nm), t])', tuple2))
             if nm is None:
                 break
-            members.append(identifier('field', nm,
-                    [symref('type', [conv_type(t, tvars, dt=adt)])],
-                    is_type=False, permissible_nms=field_nms))
+            field = Field(conv_type(t, tvars, dt=adt))
+            identifier('field', nm, permissible_nms=field_nms)
             field_nms.add(nm)
             args.pop(0)
-        ctor_nms.append(ctor)
-        ctors.append(identifier('ctor', ctor, members, export=True))
-    adt.subs += tvars.values()
-    return ([adt], '%s = ADT(%s)' % (adt_nm, ', '.join(ctor_nms)))
+        ctor = Ctor(members)
+        identifier(ctor, ctor_nm, export=True)
+        ctors.append(ctor)
+    adt.tvars = tvars.values()
+    return [adt]
 
 
 add_sym('DT')
@@ -218,23 +223,21 @@ def make_dt(left, args):
     dtsubs += tvars.values()
     return ([fa], '%s = DT(%s)' % (nm, ', '.join(f for f, s in fs)))
 
-add_sym('CTXT')
 def make_context(left, args):
-    nm, t = match(args, ('cons(Str(nm, _), cons(t, _))', tuple2))
+    nm, t = match(args, ('cons(nm==StrLit(_), cons(t, _))', tuple2))
     tvars = {}
-    ta = symref('type', [conv_type(t, tvars)])
-    ctxt = identifier('CTXT', nm, [ta], export=True)
-    return ([ctxt], '%s = Context(...)' % (nm,))
+    #ctxt = identifier('CTXT', nm, [ta], export=True)
+    return [CtxtStmt(Ctxt(conv_type(t, tvars)))]
 
-add_sym('getctxt')
 def conv_get_context(args):
     assert len(args) == 1
-    return symref('getctxt', args)
+    # XXX Need to deref
+    return GetCtxt(args[0])
 
-add_sym('inctxt')
 def conv_in_context(args):
     assert len(args) == 3
-    return symref('inctxt', args)
+    # XXX Need to deref the first arg...
+    return InCtxt(*args)
 
 def conv_special(e):
     """
@@ -242,18 +245,16 @@ def conv_special(e):
     """
     c = e.__class__
     if c is ast.Name:
-        return (type_ref(e.name), e.name)
+        return type_ref(e.name)
     elif c is ast.Const:
         assert isinstance(e.value, basestring), 'Bad type repr: %s' % e.value
-        return (str_(e.value), repr(e.value))
+        return StrLit(e.value)
     elif c is ast.Tuple:
         assert len(e.nodes) == 2
         assert isinstance(e.nodes[0], ast.Const)
         nm = e.nodes[0].value
         assert isinstance(nm, basestring), 'Expected field name: %s' % nm
-        ta, tt = conv_special(e.nodes[1])
-        return (symref('tuplelit', [int_(2), str_(nm), ta]),
-                '(%r, %s)' % (nm, tt))
+        return TupleLit([StrLit(nm), conv_special(e.nodes[1])])
     else:
         assert False, 'Unexpected %s' % c
 
@@ -354,31 +355,27 @@ special_call_forms = {
         'ADT': make_adt, 'DT': make_dt,
         'new_context': make_context,
 }
+extra_call_forms = {
+        'match': conv_match,
+        'context': conv_get_context, 'in_context': conv_in_context,
+}
 
-add_sym('call')
-add_sym('char')
 @expr(ast.CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
     if isinstance(e.node, ast.Name) and e.node.name in special_call_forms:
-        argsa, argst = unzip(map(conv_special, e.args))
-        return (SpecialCallForm(e.node.name, argsa), argst)
-    (argsa, argst) = unzip(map(conv_expr, e.args))
-    argstt = '(%s)' % (', '.join(argst),)
+        return SpecialCallForm(e.node.name, map(conv_special, e.args))
+    argsa = map(conv_expr, e.args)
     if isinstance(e.node, ast.Name):
-        argsttt = e.node.name + argstt
-        if e.node.name == 'match':
-            return (conv_match(argsa), argsttt)
-        elif e.node.name == 'context':
-            return (conv_get_context(argsa), argsttt)
-        elif e.node.name == 'in_context':
-            return (conv_in_context(argsa), argsttt)
+        f = extra_call_forms.get(e.node.name)
+        if f:
+            return f(argsa)
         elif e.node.name == 'char':
             assert len(argsa) == 1 and isinstance(argsa[0], Str) \
                    and len(argsa[0].strVal) == 1
-            return (symref('char', [argsa[0]]), argsttt)
-    (fa, ft) = conv_expr(e.node)
-    return (symref('call', [fa, int_len(argsa)] + argsa), ft + argstt)
+            return CharLit(argsa[0])
+    fa = conv_expr(e.node)
+    return Call(conv_expr(e.node), argsa)
 
 map(lambda s: add_sym(s, extra_prop='binaryop', extra_str=s),
     ['<', '>', '==', '!=', '<=', '>='])
@@ -395,9 +392,9 @@ def conv_compare(e):
 def conv_const(e):
     v = e.value
     if isinstance(v, int):
-        return (Int(v, []), str(v))
+        return IntLit(v)
     elif isinstance(v, str):
-        return (Str(v, []), repr(v))
+        return StrLit(v)
     assert False, 'Unknown literal %s' % (e,)
 
 add_sym('dictlit')
@@ -533,22 +530,20 @@ def conv_tuple(e):
 
 # STATEMENTS
 
-add_sym('assert')
 @stmt(ast.Assert)
 def conv_assert(s):
-    (testa, testt) = conv_expr(s.test)
-    (faila, failt) = conv_expr(s.fail) if s.fail else (Str('', []), None)
-    return [symref('assert', [testa, faila])]
+    fail = conv_expr(s.fail) if s.fail else StrLit('')
+    return [Assert(conv_expr(s.test), fail)]
 
 map(add_sym, ['defn', '='])
 @stmt(ast.Assign)
 def conv_assign(s):
     assert len(s.nodes) == 1
-    (expra, exprt) = conv_expr(s.expr)
+    expra = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
-        (spa, spt) = special_call_forms[expra.name](s.nodes[0], expra.args)
-        return spa
-    lefta, leftt = conv_ass(s.nodes[0], context(SCOPE).indent == 0)
+        return special_call_forms[expra.name](s.nodes[0], expra.args)
+    lefta = conv_ass(s.nodes[0], context(SCOPE).indent == 0)
+    # XXX Distinguish between defn and binding earlier
     k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
     return [symref(k, [lefta, expra])]
 
@@ -568,65 +563,48 @@ def conv_asstuple(s):
             assert False, 'Unknown AssTuple node: ' + repr(node)
     return ata
 
-map(add_sym, ['+=', '-=', '*=', '/=', '%='])
+def op_to_aug(op):
+    return {'+=': AugAdd, '-=': AugSubtract, '*=': AugMultiply,
+            '/=': AugDivide, '%=': AugModulo}[op]()
+
 @stmt(ast.AugAssign)
 def conv_augassign(s):
-    (assa, asst) = conv_expr(s.node)
-    (ea, et) = conv_expr(s.expr)
-    return [symref(s.op, [assa, ea])]
+    return [AugAssign(op_to_aug(s.op), conv_lhs(s.node), conv_expr(s.expr))]
 
-add_sym('break')
 @stmt(ast.Break)
 def conv_break(s):
-    return [symref('break', [])]
+    return [Break()]
 
-add_sym('class')
-@stmt(ast.Class)
-def conv_class(s):
-    conv_stmts(s.code)
-    return [symref('class', [])] # XXX: Will likely not support classes
-
-add_sym('continue')
 @stmt(ast.Continue)
 def conv_continue(s):
-    return [symref('continue', [])]
+    return [Continue()]
 
-add_sym('exprstmt')
 @stmt(ast.Discard)
 def conv_discard(s):
     if isinstance(s.expr, ast.Const) and s.expr.value is None:
         return []
-    (ea, et) = conv_expr(s.expr)
-    return [symref('exprstmt', [ea])]
+    return [ExprStmt(conv_expr(s.expr))]
 
-add_sym('tuplelit')
-add_sym('attr')
 def conv_ass(s, global_scope=False):
     if isinstance(s, ast.AssName):
-        return (ident_ref(s.name, True, export=global_scope), s.name)
+        # LhsVar
+        return ident_ref(s.name, True, export=global_scope)
     elif isinstance(s, ast.AssTuple):
-        (itemsa, itemst) = unzip(conv_ass(n, global_scope) for n in s.nodes)
-        itemsa.insert(0, int_len(itemsa))
-        return (symref('tuplelit', itemsa), '(%s)' % (', '.join(itemst),))
+        return LhsTuple([conv_ass(n, global_scope) for n in s.nodes])
     elif isinstance(s, ast.AssAttr):
-        (expra, exprt) = conv_expr(s.expr)
-        (attra, attrt) = (ident_ref(s.attrname,True,export=False), s.attrname)
-        return (symref('attr', [expra, attra]), '%s.%s' % (exprt, attrt))
+        expra = conv_expr(s.expr)
+        attra = ident_ref(s.attrname, True, export=False)
+        return LhsAttr([expra, attra])
     else:
         return conv_expr(s)
 
-add_sym('for')
-add_sym('body')
 @stmt(ast.For)
 @inside_scope
 def conv_for(s):
-    (assa, asst) = conv_ass(s.assign)
-    (lista, listt) = conv_expr(s.list)
-    stmts = conv_stmts_noscope(s.body)
-    fora = [assa, lista, symref('body', [int_len(stmts)] + stmts)]
     if s.else_:
         assert False
-    return [symref('for', fora)]
+    return [For(conv_ass(s.assign), conv_expr(s.list),
+            conv_stmts_noscope(s.body))]
 
 @stmt(ast.From)
 def conv_from(s):
@@ -642,48 +620,29 @@ def conv_from(s):
         omni.imports.update(symbols)
     return []
 
-add_sym('func')
-add_sym('args')
-add_sym('body')
-add_sym('doc')
-add_sym('decorators')
+add_sym('local')
 @stmt(ast.Function)
 def conv_function(s):
-    decs = []
-    for decorator in s.decorators or []:
-        (deca, dect) = conv_expr(decorator)
-        decs.append(deca)
-    func = identifier('func', s.name, export=True) # XXX: Maybe not?
+    export = True
+    for dec in s.decorators or []:
+        e = conv_expr(dec)
+        if match(e, ("somekindofreference(nm)", lambda nm: nm == 'local'),
+                    ("_", lambda: False)):
+            export = False
+    #func = identifier('func', s.name, export=export)
     @inside_scope
     def rest():
-        (argsa, argst) = extract_arglist(s)
-        stmts = conv_stmts_noscope(s.code)
-        funca = [symref('args', [int_len(argsa)] + argsa),
-                 symref('body', [int_len(stmts)] + stmts)]
-        if s.doc:
-            funca.append(symref('doc', [Str(s.doc, [])]))
-        if decs:
-            funca.append(symref('decorators', [int_len(decs)] + decs))
-        return funca
-    func.subs += rest()
-    return [func]
+        return Func(extract_arglist(s), conv_stmts_noscope(s.code))
+    #func.subs += rest()
+    return [rest()]
 
-add_sym('cond')
-add_sym('case')
-add_sym('else')
 @stmt(ast.If)
 def conv_if(s):
     conds = []
-    keyword = 'if'
     for (test, body) in s.tests:
-        (testa, testt) = conv_expr(test)
-        stmts = conv_stmts(body)
-        conds.append(symref('case', [testa, int_len(stmts)] + stmts))
-        keyword = 'elif'
-    if s.else_:
-        stmts = conv_stmts(s.else_)
-        conds.append(symref('else', [int_len(stmts)] + stmts))
-    return [symref('cond', conds)]
+        conds.append(Case(conv_expr(test), conv_stmts(body)))
+    else_ = Just(conv_stmts(s.else_)) if s.else_ else Nothing()
+    return [Cond(conds, else_)]
 
 def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
@@ -696,32 +655,24 @@ def conv_import(s):
 def conv_pass(s):
     return []
 
-add_sym('print')
 @stmt(ast.Printnl)
 def conv_printnl(s):
     assert s.dest is None
     node = s.nodes[0]
     if isinstance(node, ast.Const):
-        exprsa = [Str(node.value+'\n', []),
-                symref('tuplelit', [Int(0, [])])]
-        exprst = repr(node.value)
+        exprsa = [StrLit(node.value+'\n'), TupleLit([])]
     elif isinstance(node, ast.Mod):
         format = s.nodes[0].left.value
-        argsa, argst = conv_expr(s.nodes[0].right)
-        exprsa = [Str(format+'\n', []), argsa]
-        exprst = '%r %% %s' % (format, argst)
+        exprsa = [StrLit(format+'\n'), conv_expr(s.nodes[0].right)]
     else:
         assert False, "Unexpected print form: %s" % s
-    return [symref('exprstmt', [symcall('printf', exprsa)])]
+    return [ExprStmt(symcall('printf', exprsa))]
 
-add_sym('return')
-add_sym('returnnothing')
 @stmt(ast.Return)
 def conv_return(s):
     if isinstance(s.value, ast.Const) and s.value.value is None:
-        return [symref('returnnothing', [])]
-    (vala, valt) = conv_expr(s.value)
-    return [symref('return', [vala])]
+        return [ReturnNothing()]
+    return [Return(conv_expr(s.value))]
 
 @inside_scope
 def conv_stmts(stmts):
@@ -730,13 +681,9 @@ def conv_stmts(stmts):
 def conv_stmts_noscope(stmts):
     return concat([conv_stmt(stmt) for stmt in stmts])
 
-add_sym('while')
-add_sym('body')
 @stmt(ast.While)
 def conv_while(s):
-    (testa, testt) = conv_expr(s.test)
-    stmts = conv_stmts(s.body)
-    return [symref('while', [testa, symref('body', [int_len(stmts)] + stmts)])]
+    return [While(conv_expr(s.test), conv_stmts(s.body))]
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
@@ -745,19 +692,21 @@ def convert_file(filename, name, deps):
     stmts = compiler.parseFile(filename).node.nodes
     mod = Module(name, None, [])
     deps.add(mod)
-    scope = ScopeContext(-1, {}, None)
-    for k, v in boot_sym_names.iteritems():
-        t = k in ('str', 'int')
-        scope.syms[(k, t)] = v
     omni = OmniContext({}, {}, {}, deps)
-    mod.roots = in_context(OMNI, omni, lambda:
-            in_context(SCOPE, scope, lambda: conv_stmts(stmts)))
+    scope = ScopeContext(-1, {}, None)
+    def go():
+        for k, v in boot_sym_names.iteritems():
+            identifier(v, k, is_type=(k in ['str', 'int']))
+        conv_stmts(stmts)
+    mod.roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
     # Resolve imports for missing symbols
     missing = omni.missingRefs
-    for key, refs in missing.items():
+    for key, binds in missing.items():
         if key in omni.imports:
-            for ref in refs:
-                ref.refAtom = omni.imports[key]
+            obj = omni.imports[key]
+            b = bind_kind(obj)
+            for bind in binds:
+                bind.binding = b(obj)
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
                 ('type %s' if t else '%s') % s for s, t in missing)

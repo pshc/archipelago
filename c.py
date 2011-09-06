@@ -411,9 +411,12 @@ def compile_module(filename):
     except subprocess.CalledProcessError, e:
         print '`%s` returned %d' % (' '.join(e.cmd), e.returncode)
 
-if __name__ == '__main__':
+def main():
     import sys
     for filename in sys.argv[1:]:
         compile_module(filename)
+
+if __name__ == '__main__':
+    scope_extrinsic(Name, main)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
