@@ -705,8 +705,6 @@ def convert_file(filename, name, deps):
     assert filename.endswith('.py')
     if not BUILTINS:
         setup_builtin_module()
-    if not boot_mod.digest:
-        serialize_module(boot_mod)
     stmts = compiler.parseFile(filename).node.nodes
     mod = Module(name, None, [])
     deps.add(mod)
