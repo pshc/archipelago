@@ -6,6 +6,82 @@ from types_builtin import *
 from bedrock import *
 from globs import loaded_modules, loaded_module_atoms
 
+Builtin = DT('Builtin', ('name', str))
+
+Field = DT('Field', ('type', Type))
+
+Ctor = DT('Ctor', ('fields', [Field]))
+
+Ctxt = DT('Ctxt', ('type', Type))
+
+Var = DT('Var')
+
+Binding, BindBuiltin, BindCtor, BindFunc, BindVar = ADT('Binding',
+        'BindBuiltin', ('builtin', '*Builtin'),
+        'BindCtor', ('ctor', '*Ctor'),
+        'BindFunc', ('func', '*Func'),
+        'BindVar', ('var', '*Var'))
+
+Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
+    ADT('Pat',
+        'PatCtor', ('ctor', '*Ctor'), ('args', '[Pattern]'),
+        'PatCapture', ('var', Var), ('pattern', 'Pattern'),
+        'PatInt', ('val', int),
+        'PatStr', ('val', str),
+        'PatTuple', ('vals', '[Pattern]'),
+        'PatVar', ('var', Var),
+        'PatWild')
+
+MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
+
+Expr, And, Attr, Bind, Call, GetCtxt, InCtxt, IntLit, Lambda, ListLit, Match, \
+        Or, StrLit, TupleLit = \
+    ADT('Expr',
+        'And', ('left', 'Expr'), ('right', 'Expr'),
+        'Attr', ('expr', 'Expr'), ('field', '*Field'),
+        'Bind', ('binding', 'Binding'),
+        'Call', ('func', 'Expr'), ('args', '[Expr]'),
+        'GetCtxt', ('ctxt', '*Ctxt'),
+        'InCtxt', ('ctxt', '*Ctxt'), ('init', 'Expr'), ('expr', 'Expr'),
+        'IntLit', ('val', int),
+        'Lambda', ('params', [Var]), ('expr', 'Expr'),
+        'ListLit', ('vals', '[Expr]'),
+        'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
+        'Or', ('left', 'Expr'), ('right', 'Expr'),
+        'StrLit', ('val', str),
+        'TupleLit', ('vals', '[Expr]'))
+
+AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
+        'AugAdd', 'AugSubtract', 'AugMultiply', 'AugDivide', 'AugModulo')
+
+Body = DT('Body', ('stmts', '[Stmt]'))
+
+CondCase = DT('CondCase', ('test', Expr), ('body', Body))
+
+Func = DT('Func', ('params', [Var]), ('body', Body))
+
+Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
+        'LhsVar', ('var', '*Var'),
+        'LhsAttr', ('sub', 'Lhs'), ('attr', '*Field'),
+        'LhsTuple', ('vals', '[Lhs]'))
+
+Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
+    DTStmt, ExprStmt, FuncStmt, Return, ReturnNothing, While = ADT('Stmt',
+        'Assert', ('test', Expr), ('message', Expr),
+        'Assign', ('lhs', Lhs), ('expr', Expr),
+        'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', Expr),
+        'Break',
+        'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
+        'Continue',
+        'CtxtStmt', ('type', Type),
+        'Defn', ('var', 'Var'), ('expr', Expr),
+        'DTStmt', ('ctors', [Ctor]), ('tvars', ['TypeVar']),
+        'ExprStmt', ('expr', Expr),
+        'FuncStmt', ('func', Func),
+        'Return', ('expr', Expr),
+        'ReturnNothing',
+        'While', ('test', Expr), ('body', Body))
+
 # Bootstrap module
 boot_mod = Module('bootstrap', None, [])
 _b_symbol = Ref(None, [Ref(None, [Str('symbol', [])])])
