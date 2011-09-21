@@ -1,7 +1,10 @@
 TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
 
-all: tada
+all: llvm
+
+llvm:
+	@./llvm.py
 
 tada: mods views
 	./c.py short.py
@@ -24,7 +27,7 @@ test: remake_tests
 	@echo
 	@echo Done.
 
-.PHONY: all clean remake_tests test
+.PHONY: all clean llvm remake_tests tada test
 
 clean:
 	rm -f -- mods/* views/* *.pyc a.out
