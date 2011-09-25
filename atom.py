@@ -87,18 +87,16 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
 
 # Bootstrap module
 boot_syms = []
-boot_mod = Module('bootstrap', None, boot_syms)
 boot_sym_names = {}
-boot_sym_names_rev = {}
 
 csym_roots = []
 
 def int_len(list):
     return Int(len(list), [])
 
-def symref(name, subs):
+def symref(name):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return Ref(boot_sym_names[name], subs)
+    return boot_sym_names[name]
 
 def symcall(name, subs):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
@@ -136,7 +134,6 @@ def builtin_type_to_atoms(name):
     return scheme_to_atoms(Scheme(tvars.values(), t))
 
 def add_sym(name):
-    assert not boot_mod.digest, "Can't add symbols after bootstrap serialized"
     if name not in boot_sym_names:
         """
         subs = [Ref(_b_name, [Str(name, [])])]
@@ -147,7 +144,6 @@ def add_sym(name):
         node = Builtin(name)
         boot_syms.append(node)
         boot_sym_names[name] = node
-        boot_sym_names_rev[node] = name
 
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
@@ -307,16 +303,10 @@ def _match_sized(atom, ast):
 
 @matcher('key')
 def _match_key(atom, ast):
-    assert 1 <= len(ast.args) <= 2
-    if isinstance(atom, Ref):
-        key = boot_sym_names_rev.get(atom.refAtom)
-        if key is not None:
-            m = match_try(key, ast.args[0])
-            if m is None or len(ast.args) == 1:
-                return m
-            msubs = match_try(atom.subs, ast.args[1])
-            return None if msubs is None else m + msubs
-    return None
+    assert len(ast.args) == 1
+    name = ast.args[0].value
+    target = boot_sym_names.get(name)
+    return [] if atom is target else None
 
 @matcher('sym')
 def _match_sym(atom, ast):
