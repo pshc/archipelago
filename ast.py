@@ -472,12 +472,9 @@ def conv_lambda(e):
     return (symref('lambda', [int_len(argsa)] + argsa + [codea]),
             'lambda %s: %s' % (', '.join(argst), codet))
 
-add_sym('listlit')
 @expr(ast.List)
 def conv_list(e):
-    (itemsa, itemst) = conv_exprs(e.nodes)
-    return (symref('listlit', [int_len(itemsa)] + itemsa),
-            '[%s]' % ', '.join(itemst))
+    return ListLit(conv_exprs(e.nodes))
 
 @expr(ast.ListComp)
 def conv_listcomp(e):
