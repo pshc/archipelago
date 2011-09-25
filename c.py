@@ -417,6 +417,6 @@ def main():
         compile_module(filename)
 
 if __name__ == '__main__':
-    scope_extrinsic(Name, main)
+    main()
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

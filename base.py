@@ -82,7 +82,11 @@ def context(ctxt):
 ExtInfo = DT('ExtInfo', ('label', str), ('t', type), ('stack', [{'a': 't'}]))
 
 def new_extrinsic(label, t):
-    return ExtInfo(label, t, [])
+    stack = []
+    # XXX: Omnipresent for now
+    if label == 'Name':
+        stack = [{}]
+    return ExtInfo(label, t, stack)
 
 def extrinsic(ext, obj):
     return ext.stack[-1][obj]
@@ -100,6 +104,7 @@ def in_extrinsic_scope(ext):
 
 def add_extrinsic(ext, obj, val):
     assert not isinstance(obj, _value_types), "No extrinsics on values"
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     map = ext.stack[-1]
     assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
     map[obj] = val
