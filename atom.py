@@ -6,7 +6,7 @@ from types_builtin import *
 from bedrock import *
 from globs import loaded_modules, loaded_module_atoms
 
-Builtin = DT('Builtin', ('name', str))
+Builtin = DT('Builtin')
 
 Field = DT('Field', ('type', Type))
 
@@ -134,16 +134,19 @@ def builtin_type_to_atoms(name):
     return scheme_to_atoms(Scheme(tvars.values(), t))
 
 def add_sym(name):
-    if name not in boot_sym_names:
+    node = boot_sym_names.get(name)
+    if not node:
         """
         subs = [Ref(_b_name, [Str(name, [])])]
         t = builtin_type_to_atoms(name)
         if t is not None:
             subs.append(t)
         """
-        node = Builtin(name)
+        node = Builtin()
+        add_extrinsic(Name, node, name)
         boot_syms.append(node)
         boot_sym_names[name] = node
+    return node
 
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')

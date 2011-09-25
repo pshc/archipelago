@@ -690,7 +690,7 @@ def conv_while(s):
 BUILTINS = {}
 
 def make_builtin(name, is_type=False):
-    builtin = Builtin(name)
+    builtin = Builtin()
     BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
     return identifier(builtin, name, is_type=is_type)
 
