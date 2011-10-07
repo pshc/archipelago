@@ -134,6 +134,18 @@ def __repr__(o):
     if has_extrinsic(PrettyPrinted, o):
         return '<%s at 0x%x>' % (name, id(o))
     add_extrinsic(PrettyPrinted, o, None)
+
+    # Brevity
+    if name == 'BindBuiltin':
+        from bedrock import Name
+        return '&%s' % extrinsic(Name, o.builtin)
+    elif name == 'IntLit':
+        return 'i%d' % (o.val,)
+    elif name == 'StrLit':
+        return 's%r' % (o.val,)
+    elif name == 'TupleLit':
+        return 't%r' % (tuple(o.vals),)
+
     params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
     return '%s(%s)' % (name, ', '.join(params))
 
