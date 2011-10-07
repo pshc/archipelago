@@ -206,6 +206,7 @@ def make_adt(left, args):
             field = Field(conv_type(t, tvars, dt=adt))
             identifier(field, nm, permissible_nms=field_nms)
             field_nms.add(nm)
+            members.append(field)
             args.pop(0)
         ctor = Ctor(members)
         identifier(ctor, ctor_nm, export=True)
@@ -218,17 +219,20 @@ add_sym('DT')
 add_sym('ctor')
 add_sym('field')
 def make_dt(left, args):
-    (nm, fs) = match(args, ('cons(Str(dt_nm, _), all(nms, key("tuplelit", \
-                             sized(cons(Str(nm, _), cons(t, _))))))', tuple2))
+    (nm, fs) = match(args, ('cons(StrLit(dt_nm), all(nms, TupleLit('
+                            '[StrLit(nm), t])))', tuple2))
     fields = []
-    dtsubs = [identifier('ctor', nm, fields, export=True)]
-    fa = identifier('DT', nm, dtsubs, is_type=True, export=True)
+    ctor = Ctor(fields)
+    identifier(ctor, nm, export=True)
+    dt = DTStmt([ctor], [])
+    identifier(dt, nm, is_type=True, export=True)
     tvars = {}
-    fields += [identifier('field', fnm,
-                          [symref('type', [conv_type(t, tvars, dt=fa)])])
-               for (fnm, t) in fs]
-    dtsubs += tvars.values()
-    return ([fa], '%s = DT(%s)' % (nm, ', '.join(f for f, s in fs)))
+    for fnm, t in fs:
+        field = Field(conv_type(t, tvars, dt=dt))
+        identifier(field, fnm)
+        fields.append(field)
+    dt.tvars = tvars.values()
+    return [dt]
 
 def make_context(left, args):
     nm, t = match(args, ('cons(nm==StrLit(_), cons(t, _))', tuple2))
