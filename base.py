@@ -217,7 +217,8 @@ def match(atom, *cases):
         call_args = match_try(atom, ast)
         if call_args is not None:
             return f(*call_args)
-    assert False, "Match failed: %s %s" % (atom, cases)
+    case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
+    assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom, case_list)
 
 # decorator
 def matcher(name):
