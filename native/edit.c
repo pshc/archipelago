@@ -7,6 +7,8 @@
 
 struct editor *editor = NULL;
 
+static void render_cached_text(const char *);
+
 void create_editor(void) {
     editor = calloc(1, sizeof *editor);
 
@@ -41,38 +43,99 @@ void resize_editor(struct size size) {
     glMatrixMode(GL_MODELVIEW);
 }
 
-static void render_cached_text(const char *text) {
-    struct map *cache = editor->text_cache;
-    struct text_texture *texture;
-    if (map_has(cache, text)) {
-        texture = map_get(cache, text);
-    }
-    else {
-        texture = create_text_texture(text);
-        map_set(cache, strdup(text), texture);
-    }
-    render_text_texture(texture);
+static struct position layout_pos;
+#define LO_LINE_HEIGHT 50
+#define LO_INDENT 50
+
+struct layout_node {
+    struct position pos;
+    enum { LAYOUT_INT, LAYOUT_OBJ, LAYOUT_REF } kind;
+    intptr_t *obj;
+    void *context;
+};
+
+static void layout_int(int i) {
+    layout_pos.y += LO_LINE_HEIGHT;
+    struct layout_node *node = malloc(sizeof *node);
+    node->pos = layout_pos;
+    node->pos.x += LO_INDENT;
+    node->kind = LAYOUT_INT;
+    node->obj = (intptr_t *) i;
+    editor->layout = cons(node, editor->layout);
+}
+static void layout_open(intptr_t *object, struct adt *adt, struct ctor *ctor) {
+    layout_pos.x += LO_INDENT;
+    layout_pos.y += LO_LINE_HEIGHT;
+    struct layout_node *node = malloc(sizeof *node);
+    node->pos = layout_pos;
+    node->kind = LAYOUT_OBJ;
+    node->obj = object;
+    node->context = ctor;
+    editor->layout = cons(node, editor->layout);
+    map_set(editor->layout_map, object, node);
+}
+static void layout_close(void) {
+    layout_pos.x -= LO_INDENT;
+}
+static void layout_ref(intptr_t *object) {
+    layout_pos.y += LO_LINE_HEIGHT;
+    struct layout_node *node = malloc(sizeof *node);
+    node->pos = layout_pos;
+    node->kind = LAYOUT_REF;
+    node->obj = object;
+    editor->layout = cons(node, editor->layout);
 }
 
-static void render_int(int i) {
-    char buf[10];
-    sprintf(buf, "%d", i);
-    glTranslatef(0, 50, 0);
-    render_cached_text(buf);
+static void layout_editor(void) {
+    layout_pos.x = layout_pos.y = 0;
+    editor->layout = nope();
+    editor->layout_map = new_map(NULL);
+
+    struct walker walker = {&layout_int, NULL, &layout_open, &layout_close, &layout_ref};
+    walk_object(editor->module->root, editor->module->root_type, &walker);
 }
-static void render_obj(intptr_t *obj, struct adt *adt, struct ctor *ctor) {
-    glTranslatef(0, 50, 0);
-    render_cached_text(ctor->name);
-    glTranslatef(50, 0, 0);
+
+void editor_set_module(struct module *module) {
+    editor->module = module;
+    layout_editor();
 }
-static void render_pop(void) {
-    glTranslatef(-50, 0, 0);
+
+static void render_arrow(struct position a, struct position b) {
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBegin(GL_LINES);
+    glVertex2i(a.x, a.y);
+    glVertex2i(b.x, b.y);
+    glEnd();
 }
-static void render_ref(intptr_t *dest) {
-    char buf[21];
-    sprintf(buf, "->0x%x", (unsigned int) dest);
-    glTranslatef(0, 50, 0);
-    render_cached_text(buf);
+
+static void render_layout_node(struct layout_node *node) {
+
+    if (node->kind == LAYOUT_REF) {
+        struct layout_node *dest = map_get(editor->layout_map, node->obj);
+        render_arrow(node->pos, dest->pos);
+        return;
+    }
+
+    glPushMatrix();
+    glTranslatef(node->pos.x, node->pos.y, 0);
+    switch (node->kind) {
+        case LAYOUT_INT:
+        {
+            char buf[10];
+            sprintf(buf, "%d", (int) node->obj);
+            render_cached_text(buf);
+            break;
+        }
+        case LAYOUT_OBJ:
+        {
+            struct ctor *ctor = node->context;
+            render_cached_text(ctor->name);
+            break;
+        }
+        default:
+            fail("Unexpected layout node %d", node->kind);
+    }
+    glPopMatrix();
 }
 
 void render_editor(void) {
@@ -106,8 +169,9 @@ void render_editor(void) {
     glEnd();
 
     if (editor->module) {
-        struct walker walker = {&render_int, NULL, &render_obj, &render_pop, &render_ref};
-        walk_object(editor->module->root, editor->module->root_type, &walker);
+        struct list *pos;
+        for (pos = editor->layout; IS_CONS(pos); pos = pos->next)
+            render_layout_node(pos->val);
     }
 
     // flush done by platform
@@ -117,6 +181,19 @@ void destroy_editor(void) {
     glDeleteTextures(1, &editor->background_texture);
     free(editor);
     editor = NULL;
+}
+
+static void render_cached_text(const char *text) {
+    struct map *cache = editor->text_cache;
+    struct text_texture *texture;
+    if (map_has(cache, text)) {
+        texture = map_get(cache, text);
+    }
+    else {
+        texture = create_text_texture(text);
+        map_set(cache, strdup(text), texture);
+    }
+    render_text_texture(texture);
 }
 
 /* TEXT TEXTURES */

@@ -13,7 +13,8 @@ void control_setup(void) {
     free(dir);
 
     char *hash = module_hash_by_name("test");
-    editor->module = load_module(hash, adtT(AST));
+    struct module *test_module = load_module(hash, adtT(AST));
+    editor_set_module(test_module);
     free(hash);
 }
 

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+struct list;
 struct map;
 struct module;
 
@@ -36,6 +37,8 @@ struct editor {
     struct position view_pos;
     struct size view_size;
     struct map *text_cache;
+    struct list *layout;
+    struct map *layout_map;
     unsigned int background_texture;
 };
 
@@ -50,6 +53,7 @@ void destroy_text_texture(struct text_texture *);
 
 void create_editor(void);
 void resize_editor(struct size);
+void editor_set_module(struct module *);
 void render_editor(void);
 void destroy_editor(void);
 
