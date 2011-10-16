@@ -57,6 +57,7 @@
         [StyledWindow installCustomDrawRectIntoWindow:window];
     }
     control_setup();
+    viewport.needsDisplay = YES;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification

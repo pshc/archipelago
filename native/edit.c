@@ -57,14 +57,21 @@ static void render_cached_text(const char *text) {
 static void render_int(int i) {
     char buf[10];
     sprintf(buf, "%d", i);
+    glTranslatef(0, 50, 0);
     render_cached_text(buf);
 }
 static void render_obj(intptr_t *obj, struct adt *adt, struct ctor *ctor) {
+    glTranslatef(0, 50, 0);
     render_cached_text(ctor->name);
+    glTranslatef(50, 0, 0);
+}
+static void render_pop(void) {
+    glTranslatef(-50, 0, 0);
 }
 static void render_ref(intptr_t *dest) {
     char buf[21];
-    sprintf(buf, "0x%x", (unsigned int) dest);
+    sprintf(buf, "->0x%x", (unsigned int) dest);
+    glTranslatef(0, 50, 0);
     render_cached_text(buf);
 }
 
@@ -99,7 +106,7 @@ void render_editor(void) {
     glEnd();
 
     if (editor->module) {
-        struct walker walker = {&render_int, NULL, &render_obj, NULL, &render_ref};
+        struct walker walker = {&render_int, NULL, &render_obj, &render_pop, &render_ref};
         walk_object(editor->module->root, editor->module->root_type, &walker);
     }
 
