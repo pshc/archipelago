@@ -29,4 +29,7 @@ void map_set(struct map *, void *, void *);
 int map_has(struct map *, const void *);
 void *map_get(struct map *, const void *);
 
+typedef void (*map_foreach_f)(void *, void *);
+void map_foreach(struct map *map, map_foreach_f func);
+
 #endif /* UTIL_H */

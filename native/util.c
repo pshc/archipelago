@@ -88,3 +88,12 @@ void *map_get(struct map *map, const void *key) {
 	}
 	fail("Does not exist in map");
 }
+
+void map_foreach(struct map *map, map_foreach_f func) {
+	struct entry *entry;
+	struct list *pos;
+	for (pos = map->entries; IS_CONS(pos); pos = pos->next) {
+		entry = pos->val;
+		func(entry->key, entry->val);
+	}
+}
