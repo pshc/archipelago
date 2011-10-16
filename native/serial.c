@@ -305,6 +305,47 @@ struct module *load_module(const char *hash, type_t root_type) {
 	return module;
 }
 
+
+void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
+	struct adt *adt;
+	intptr_t ix;
+	struct ctor *ctor;
+	size_t i, len;
+	switch (type->kind) {
+	case KIND_INT:
+		if (walker->walk_int)
+			walker->walk_int((int)(intptr_t) obj);
+		break;
+
+	case KIND_STR:
+		if (walker->walk_str)
+			walker->walk_str((char *) obj);
+		break;
+
+	case KIND_ADT:
+		adt = type->adt;
+		ix = *obj;
+		CHECK(ix < adt->ctor_count, "%d >= %d on %s", (int) ix,
+			(int) adt->ctor_count, adt->name);
+		ctor = adt->ctors[ix];
+		if (walker->walk_obj)
+			walker->walk_obj(obj, adt, ctor);
+		len = ctor->field_count;
+		for (i = 0; i < len; i++)
+			walk_object((intptr_t *) obj[i + 1],
+					ctor->fields[i]->type, walker);
+		break;
+
+	case KIND_WEAK:
+		if (walker->walk_ref)
+			walker->walk_ref(obj);
+		break;
+
+	default:
+		fail("Invalid object kind %d", (int) type->kind);
+	}
+}
+
 #ifdef STANDALONE
 int main(void) {
 	setup_serial("");

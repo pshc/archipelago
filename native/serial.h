@@ -52,4 +52,13 @@ extern struct map *loaded_modules;
 char *module_hash_by_name(const char *name);
 struct module *load_module(const char *hash, type_t root_type);
 
+struct walker {
+	void (*walk_int)(int);
+	void (*walk_str)(char *);
+	void (*walk_obj)(intptr_t *, struct adt *, struct ctor *);
+	void (*walk_ref)(intptr_t *);
+};
+
+void walk_object(intptr_t *, type_t, struct walker *);
+
 #endif /* SERIAL_H */
