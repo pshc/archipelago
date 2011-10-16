@@ -2,6 +2,8 @@
 #include <OpenGL/gl.h>
 #include "control.h"
 #include "edit.h"
+#include "serial.h"
+#include "util.h"
 
 struct editor *editor = NULL;
 
@@ -12,7 +14,7 @@ void create_editor(void) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    editor->text = create_text_texture("the quick brown fox");
+    editor->text_cache = new_map(&strcmp);
 
     unsigned int background;
     glGenTextures(1, &background);
@@ -37,6 +39,33 @@ void resize_editor(struct size size) {
     glOrtho(0, size.width, size.height, 0, -1, 1);
     glViewport(0, 0, size.width, size.height);
     glMatrixMode(GL_MODELVIEW);
+}
+
+static void render_cached_text(const char *text) {
+    struct map *cache = editor->text_cache;
+    struct text_texture *texture;
+    if (map_has(cache, text)) {
+        texture = map_get(cache, text);
+    }
+    else {
+        texture = create_text_texture(text);
+        map_set(cache, strdup(text), texture);
+    }
+    render_text_texture(texture);
+}
+
+static void render_int(int i) {
+    char buf[10];
+    sprintf(buf, "%d", i);
+    render_cached_text(buf);
+}
+static void render_obj(intptr_t *obj, struct adt *adt, struct ctor *ctor) {
+    render_cached_text(ctor->name);
+}
+static void render_ref(intptr_t *dest) {
+    char buf[21];
+    sprintf(buf, "0x%x", (unsigned int) dest);
+    render_cached_text(buf);
 }
 
 void render_editor(void) {
@@ -69,15 +98,15 @@ void render_editor(void) {
     glVertex2i(0, 1000);
     glEnd();
 
-    // sample text
-    glTranslatef(10, 50, 0);
-    render_text(editor->text);
+    if (editor->module) {
+        struct walker walker = {&render_int, NULL, &render_obj, &render_ref};
+        walk_object(editor->module->root, editor->module->root_type, &walker);
+    }
 
     // flush done by platform
 }
 
 void destroy_editor(void) {
-    destroy_text_texture(editor->text);
     glDeleteTextures(1, &editor->background_texture);
     free(editor);
     editor = NULL;
@@ -187,7 +216,7 @@ struct text_texture *create_text_texture(const char *text) {
     return texture;
 }
 
-void render_text(struct text_texture *text) {
+void render_text_texture(struct text_texture *text) {
     struct text_metrics m = text->metrics;
     int w = m.size.width, h = m.size.height;
     int a = m.ascent;

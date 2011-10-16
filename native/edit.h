@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+struct map;
+struct module;
+
 struct position {
     int x, y;
 };
@@ -29,9 +32,10 @@ struct text_texture {
 };
 
 struct editor {
+    struct module *module;
     struct position view_pos;
     struct size view_size;
-    struct text_texture *text;
+    struct map *text_cache;
     unsigned int background_texture;
 };
 
@@ -41,7 +45,7 @@ struct rasterized_text *create_rasterized_text(const char *);
 void destroy_rasterized_text(struct rasterized_text *);
 
 struct text_texture *create_text_texture(const char *);
-void render_text(struct text_texture *text);
+void render_text_texture(struct text_texture *text);
 void destroy_text_texture(struct text_texture *);
 
 void create_editor(void);
