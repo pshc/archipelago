@@ -17,7 +17,7 @@ void error_out(const char *context) {
 	exit(EXIT_FAILURE);
 }
 
-struct list *nil(void) {
+struct list *nope(void) {
 	return calloc(1, sizeof(struct list));
 }
 
@@ -43,7 +43,7 @@ struct entry {
 struct map *new_map(void *compare) {
 	struct map *map = malloc(sizeof *map);
 	map->compare = (compare_t) compare;
-	map->entries = nil();
+	map->entries = nope();
 	return map;
 }
 

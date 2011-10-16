@@ -190,7 +190,7 @@ static void *read_weak(type_t type) {
 			if (map_has(forward_refs, key))
 				refs = map_get(forward_refs, key);
 			else
-				refs = nil();
+				refs = nope();
 			ref = cur_obj + 1 + cur_field_index;
 			refs = cons(ref, refs);
 			map_set(forward_refs, key, refs);

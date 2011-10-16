@@ -16,7 +16,7 @@ struct list {
 	struct list *next;
 };
 
-struct list *nil(void);
+struct list *nope(void);
 struct list *cons(void *, struct list *);
 
 #define IS_CONS(x) ((x)->next)
