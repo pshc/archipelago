@@ -1,6 +1,7 @@
 #include <ApplicationServices/ApplicationServices.h>
-#include "edit.h"
 #include <OpenGL/gl.h>
+#include "control.h"
+#include "edit.h"
 
 struct editor *editor = NULL;
 
