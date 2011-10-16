@@ -55,7 +55,8 @@ struct module *load_module(const char *hash, type_t root_type);
 struct walker {
 	void (*walk_int)(int);
 	void (*walk_str)(char *);
-	void (*walk_obj)(intptr_t *, struct adt *, struct ctor *);
+	void (*walk_open)(intptr_t *, struct adt *, struct ctor *);
+	void (*walk_close)(void);
 	void (*walk_ref)(intptr_t *);
 };
 

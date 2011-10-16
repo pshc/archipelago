@@ -328,12 +328,14 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 		CHECK(ix < adt->ctor_count, "%d >= %d on %s", (int) ix,
 			(int) adt->ctor_count, adt->name);
 		ctor = adt->ctors[ix];
-		if (walker->walk_obj)
-			walker->walk_obj(obj, adt, ctor);
+		if (walker->walk_open)
+			walker->walk_open(obj, adt, ctor);
 		len = ctor->field_count;
 		for (i = 0; i < len; i++)
 			walk_object((intptr_t *) obj[i + 1],
 					ctor->fields[i]->type, walker);
+		if (walker->walk_close)
+			walker->walk_close();
 		break;
 
 	case KIND_WEAK:

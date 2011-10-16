@@ -99,7 +99,7 @@ void render_editor(void) {
     glEnd();
 
     if (editor->module) {
-        struct walker walker = {&render_int, NULL, &render_obj, &render_ref};
+        struct walker walker = {&render_int, NULL, &render_obj, NULL, &render_ref};
         walk_object(editor->module->root, editor->module->root_type, &walker);
     }
 
