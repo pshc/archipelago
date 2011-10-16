@@ -10,7 +10,13 @@ struct adt *AST, *Var;
 struct map *loaded_modules;
 
 static char *base_dir = NULL;
+
+/* Deserialization context */
 static FILE *f = NULL;
+static intptr_t node_ctr;
+static struct map *own_map, *forward_refs;
+static intptr_t *cur_obj;
+static size_t cur_field_index;
 
 static void *read_node(type_t type);
 
@@ -157,19 +163,49 @@ static void *read_adt(struct adt *adt) {
 	inst[0] = ix;
 	src = ctor->fields;
 	dest = inst + 1;
-	for (i = 0; i < field_count; i++)
+	for (i = 0; i < field_count; i++) {
+		/* Provide context for forward refs */
+		cur_obj = inst; /* Need to set every time */
+		cur_field_index = i;
+
 		*dest++ = (intptr_t) read_node((*src++)->type);
+	}
 	return inst;
 }
 
 static void *read_weak(type_t type) {
 	size_t atom_ix, mod_ix;
+	void *dest = NULL;
+	intptr_t *ref;
+	void *key;
+	struct list *refs;
 	mod_ix = read_int();
 	atom_ix = read_int();
-	return NULL;
+	if (mod_ix == 0) {
+		if (atom_ix < node_ctr) {
+			dest = map_get(own_map, (void *) atom_ix);
+		}
+		else {
+			key = (void *) atom_ix;
+			if (map_has(forward_refs, key))
+				refs = map_get(forward_refs, key);
+			else
+				refs = nil();
+			ref = cur_obj + 1 + cur_field_index;
+			refs = cons(ref, refs);
+			map_set(forward_refs, key, refs);
+			dest = (void *) 0xaaaaaaaa;
+		}
+	}
+	else {
+		/* TODO */
+	}
+	return dest;
 }
 
 static void *read_node(type_t type) {
+	intptr_t ix;
+	void *node;
 	switch (type->kind) {
 		case KIND_INT:
 			return (void *)(intptr_t)read_int();
@@ -178,7 +214,10 @@ static void *read_node(type_t type) {
 			return read_str();
 
 		case KIND_ADT:
-			return read_adt(type->adt);
+			ix = node_ctr++;
+			node = read_adt(type->adt);
+			map_set(own_map, (void *) ix, node);
+			return node;
 
 		case KIND_WEAK:
 			return read_weak(type->ref);
@@ -200,6 +239,15 @@ char *module_hash_by_name(const char *name) {
 	hash[read] = '\0';
 	CHECK(read == 64, "Bad hash: %s", hash);
 	return hash;
+}
+
+static void resolve_forward_refs(void *ix, struct list *refs) {
+	intptr_t dest, *field;
+	dest = (intptr_t) map_get(own_map, ix);
+	for (; IS_CONS(refs); refs = refs->next) {
+		field = refs->val;
+		*field = dest;
+	}
 }
 
 struct module *load_module(const char *hash, type_t root_type) {
@@ -236,7 +284,14 @@ struct module *load_module(const char *hash, type_t root_type) {
 	}
 
 	f = saved;
+	node_ctr = 0;
+	cur_obj = NULL;
+	cur_field_index = 0;
+	own_map = new_map(NULL);
+	forward_refs = new_map(NULL);
 	root = read_node(root_type);
+
+	map_foreach(forward_refs, (map_foreach_f) &resolve_forward_refs);
 
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing data");
 	fclose(f);
