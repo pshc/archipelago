@@ -81,6 +81,7 @@ static void layout_ref(intptr_t *object) {
     layout_pos.y += LO_LINE_HEIGHT;
     struct layout_node *node = malloc(sizeof *node);
     node->pos = layout_pos;
+    node->pos.x += LO_INDENT;
     node->kind = LAYOUT_REF;
     node->obj = object;
     editor->layout = cons(node, editor->layout);
@@ -100,11 +101,60 @@ void editor_set_module(struct module *module) {
     layout_editor();
 }
 
+static struct position cubic_bezier(const struct position v[4], float t) {
+    float t2 = t*t;
+    float t3 = t2*t;
+    float s = 1 - t;
+    float s2 = s*s;
+    float s3 = s2*s;
+    struct position p = {
+            s3*v[0].x + 3*s2*t*v[1].x + 3*s*t2*v[2].x + t3*v[3].x,
+            s3*v[0].y + 3*s2*t*v[1].y + 3*s*t2*v[2].y + t3*v[3].y
+    };
+    return p;
+}
+
+static void cubic_bezier_deriv(const struct position v[4], float t, float *dx, float *dy) {
+    float t2 = t*t;
+    *dx = 3*(-t2 + 2*t - 1)*v[0].x + 3*(3*t2 - 4*t + 1)*v[1].x + 3*(-3*t2 + 2*t)*v[2].x + 3*t2*v[3].x;
+    *dy = 3*(-t2 + 2*t - 1)*v[0].y + 3*(3*t2 - 4*t + 1)*v[1].y + 3*(-3*t2 + 2*t)*v[2].y + 3*t2*v[3].y;
+}
+
 static void render_arrow(struct position a, struct position b) {
+    struct position points[4] = {a, {0, a.y}, {0, b.y}, b};
+    struct position pos;
+    float t;
+
+    points[0].y -= LO_LINE_HEIGHT/3;
+    points[3].y -= LO_LINE_HEIGHT/3;
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    pos = points[0];
+    float radius = 7;
+    glBegin(GL_LINE_STRIP);
+    for (t = 0; t <= M_PI * 2 + 0.0001; t += M_PI/8) {
+        glVertex2f(pos.x + cosf(t)*radius, pos.y - sinf(t)*radius);
+    }
+    glEnd();
+
+    glBegin(GL_LINE_STRIP);
+    for (t = 0; t <= 0.9001; t += 0.05) {
+        pos = cubic_bezier(points, t);
+        glVertex2i(pos.x, pos.y);
+    }
+    glEnd();
+
+    float dx, dy;
+    cubic_bezier_deriv(points, 0.9, &dx, &dy);
+    t = atan2f(-dy, dx);
+    float t1 = t + (M_PI * 8/9);
+    float t2 = t + (M_PI * 10/9);
+    float arrow_mag = 10;
     glBegin(GL_LINES);
-    glVertex2i(a.x, a.y);
-    glVertex2i(b.x, b.y);
+    glVertex2f(pos.x, pos.y);
+    glVertex2f(pos.x + cosf(t1)*arrow_mag, pos.y - sinf(t1)*arrow_mag);
+    glVertex2f(pos.x, pos.y);
+    glVertex2f(pos.x + cosf(t2)*arrow_mag, pos.y - sinf(t2)*arrow_mag);
     glEnd();
 }
 
