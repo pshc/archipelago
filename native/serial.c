@@ -209,6 +209,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 	size_t count;
 	void *root;
 	struct module *module;
+	FILE *saved;
 
 	if (map_has(loaded_modules, hash))
 		return map_get(loaded_modules, hash);
@@ -223,14 +224,18 @@ struct module *load_module(const char *hash, type_t root_type) {
 
 	dep_count = read_int();
 	printf("%s has %d dep(s).\n", hash, dep_count);
+
+	/* Loading deps will change f. Preserve it. */
+	saved = f;
 	for (i = 0; i < dep_count; i++) {
-		count = fread(dep, sizeof dep, 1, f);
+		count = fread(dep, sizeof dep, 1, saved);
 		if (!count)
 			error_out(full);
 		/* TODO: Where do we get the dep root type? */
 		load_module(dep, root_type);
 	}
 
+	f = saved;
 	root = read_node(root_type);
 
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing data");
