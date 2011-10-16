@@ -15,8 +15,7 @@ static char *base_dir = NULL;
 static FILE *f = NULL;
 static intptr_t node_ctr;
 static struct map *own_map, *forward_refs;
-static intptr_t *cur_obj;
-static size_t cur_field_index;
+static intptr_t *cur_field;
 
 static void *read_node(type_t type);
 
@@ -165,8 +164,7 @@ static void *read_adt(struct adt *adt) {
 	dest = inst + 1;
 	for (i = 0; i < field_count; i++) {
 		/* Provide context for forward refs */
-		cur_obj = inst; /* Need to set every time */
-		cur_field_index = i;
+		cur_field = dest;
 
 		*dest++ = (intptr_t) read_node((*src++)->type);
 	}
@@ -176,7 +174,6 @@ static void *read_adt(struct adt *adt) {
 static void *read_weak(type_t type) {
 	size_t atom_ix, mod_ix;
 	void *dest = NULL;
-	intptr_t *ref;
 	void *key;
 	struct list *refs;
 	mod_ix = read_int();
@@ -191,8 +188,7 @@ static void *read_weak(type_t type) {
 				refs = map_get(forward_refs, key);
 			else
 				refs = nope();
-			ref = cur_obj + 1 + cur_field_index;
-			refs = cons(ref, refs);
+			refs = cons(cur_field, refs);
 			map_set(forward_refs, key, refs);
 			dest = (void *) 0xaaaaaaaa;
 		}
@@ -285,8 +281,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 
 	f = saved;
 	node_ctr = 0;
-	cur_obj = NULL;
-	cur_field_index = 0;
+	cur_field = NULL;
 	own_map = new_map(NULL);
 	forward_refs = new_map(NULL);
 	root = read_node(root_type);
