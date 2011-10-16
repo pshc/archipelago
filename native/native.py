@@ -210,7 +210,7 @@ def _read_node(t):
             depindex = _read_int()
             index = _read_int()
             if depindex == 0:
-                if False or index in state.ownMap:
+                if index in state.ownMap:
                     return Ptr(state.ownMap[index])
                 else:
                     # Resolve later
