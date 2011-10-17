@@ -9,7 +9,7 @@ struct map;
 struct module;
 
 struct position {
-    int x, y;
+    float x, y;
 };
 
 struct size {
