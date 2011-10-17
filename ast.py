@@ -4,13 +4,13 @@ import compiler
 from compiler import ast
 
 ScopeContext = DT('ScopeContext', ('indent', int),
-                                  ('syms', {(str, bool): Atom}),
+                                  ('syms', {(str, bool): object}),
                                   ('prevContext', None))
 SCOPE = new_context('SCOPE', ScopeContext)
 
-OmniContext = DT('OmniContext', ('imports', [Atom]),
-                                ('exports', [Atom]),
-                                ('missingRefs', {(str, bool): [Atom]}),
+OmniContext = DT('OmniContext', ('imports', [object]),
+                                ('exports', [object]),
+                                ('missingRefs', {(str, bool): [object]}),
                                 ('loadedDeps', set([Module])))
 OMNI = new_context('OMNI', OmniContext)
 
@@ -97,6 +97,10 @@ def destroy_forward_ref(ref):
                 del omni.missingRefs[key]
             return
     assert False, "Couldn't find forward ref for destruction"
+
+def symcall(name, subs):
+    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
+    return Call(Bind(BindBuiltin(symref(name))), subs)
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
@@ -270,44 +274,39 @@ def conv_special(e):
         assert False, 'Unexpected %s' % c
 
 def replace_refs(mapping, e):
-    ra = getattr(e, 'refAtom', None)
-    if ra in mapping:
-        e.refAtom = mapping[ra]
-    for sub in e.subs:
-        replace_refs(mapping, sub)
+    # XXX: Need to walk expression, replacing bindings.
+    print 'WARNING: replace_refs not implemented'
     return e
 
 SPECIAL_CASES = {
     'identity': lambda r: r(0),
-    'tuple2': lambda r: symref('tuplelit', [int_(2), r(0), r(1)]),
-    'tuple3': lambda r: symref('tuplelit', [int_(3), r(0), r(1), r(2)]),
-    'tuple4': lambda r: symref('tuplelit', [int_(4), r(0), r(1), r(2), r(3)]),
-    'tuple5': lambda r: symref('tuplelit', [int_(5),r(0),r(1),r(2),r(3),r(4)]),
+    'tuple2': lambda r: TupleLit([r(0), r(1)]),
+    'tuple3': lambda r: TupleLit([r(0), r(1), r(2)]),
+    'tuple4': lambda r: TupleLit([r(0), r(1), r(2), r(3)]),
+    'tuple5': lambda r: TupleLit([r(0),r(1),r(2),r(3),r(4)]),
 }
 
 @inside_scope
 def conv_match_case(code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
-    ref = lambda s: ref_(s)
-    special = SPECIAL_CASES.get(getattr(f, 'refAtom', None))
+    special = SPECIAL_CASES.get(match(f, ('BindBuiltin(nm)', identity),
+                                         ('_', lambda: None)))
     if special:
-        e = special(lambda i: ref(bs[i]))
+        e = special(lambda i: bs[i])
     else:
-        e = match(f, ('key("lambda", sized(every(args, arg==key("var")), \
-                                           cons(e, _)))',
-                      lambda args, e: replace_refs(dict(zip(args, bs)), e)),
-                     ('_', lambda: symref('call', [f, int_len(bs)]
-                                          + [ref(b) for b in bs])))
-    return symref('case', [c, e])
+        e = match(f, ('Lambda(params, e)', lambda params, e:
+                         replace_refs(dict(zip(params, bs)), e)),
+                     ('_', lambda: Call(f, [BindVar(b) for b in bs])))
+    return MatchCase(c, e)
 
 add_sym('match')
 add_sym('case')
 def conv_match(args):
     expra = args.pop(0)
-    casesa = [match(a, ('key("tuplelit", sized(cons(Str(c, _), cons(f, _))))',
-                        conv_match_case)) for a in args]
-    return symref('match', [expra] + casesa)
+    casesa = [match(a, ('TupleLit([StrLit(c), f])', conv_match_case))
+              for a in args]
+    return Match(expra, casesa)
 
 named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
                      'subs': [1], 'sym': [2, 3],
@@ -317,8 +316,6 @@ assert set(named_match_cases) == set(named_match_dispatch)
 for nm, ns in named_match_cases.iteritems():
     for n in ns:
         add_sym('%s%d' % (nm, n))
-add_sym('capture')
-add_sym('wildcard')
 def conv_match_try(node, bs):
     if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
         nm = node.node.name
@@ -334,19 +331,19 @@ def conv_match_try(node, bs):
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             return symref("%s%d" % (nm, len(args)), args)
         else:
-            return symref('ctor', [refs_existing(nm), int_len(args)] + args)
+            return PatCtor(refs_existing(nm), [args])
     elif isinstance(node, ast.Name):
         if node.name == '_':
-            return symref('wildcard', [])
-        i = identifier('var', node.name)
+            return PatWild()
+        i = Var()
+        identifier(i, node.name)
         bs.append(i)
-        return i
+        return PatVar(i)
     elif isinstance(node, ast.Const):
         va, vt = conv_const(node)
         return va
     elif isinstance(node, ast.Tuple):
-        return symref('tuplelit', [int_len(node.nodes)]
-                                  + [conv_match_try(n,bs) for n in node.nodes])
+        return PatTuple([conv_match_try(n,bs) for n in node.nodes])
     elif isinstance(node, ast.Or):
         return symref('or', [int_len(node.nodes)]
                             + [conv_match_try(n, bs) for n in node.nodes])
@@ -355,13 +352,14 @@ def conv_match_try(node, bs):
                              + [conv_match_try(n, bs) for n in node.nodes])
     elif isinstance(node, ast.Compare) and node.ops[0][0] == '==':
         assert isinstance(node.expr, ast.Name) and node.expr.name != '_'
-        i = identifier('var', node.expr.name)
+        i = Var()
+        identifier(i, node.expr.name)
         bs.append(i)
-        return symref('capture', [i, conv_match_try(node.ops[0][1], bs)])
+        return PatCapture(i, conv_match_try(node.ops[0][1], bs))
     assert False, "Unknown match case: %s" % node
 
 
-SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [Atom]))
+SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [object]))
 special_call_forms = {
         'ADT': make_adt, 'DT': make_dt,
         'new_context': make_context,
@@ -393,10 +391,10 @@ map(add_sym, ['is', 'is not', 'in', 'not in'])
 @expr(ast.Compare)
 def conv_compare(e):
     assert len(e.ops) == 1
-    (la, lt) = conv_expr(e.expr)
-    (ra, rt) = conv_expr(e.ops[0][1])
+    la = conv_expr(e.expr)
+    ra = conv_expr(e.ops[0][1])
     op = e.ops[0][0]
-    return (symcall(op, [la, ra]), '%s %s %s' % (lt, op, rt))
+    return symcall(op, [la, ra])
 
 @expr(ast.Const)
 def conv_const(e):
@@ -407,17 +405,10 @@ def conv_const(e):
         return StrLit(v)
     assert False, 'Unknown literal %s' % (e,)
 
-add_sym('dictlit')
-add_sym('pair')
 @expr(ast.Dict)
 def conv_dict(e):
-    # This is pretty gross
-    keys = map(conv_expr, map(fst, e.items))
-    vals = map(conv_expr, map(snd, e.items))
-    pairs = [([ka, va], (kt, vt)) for ((ka, kt), (va, vt)) in zip(keys, vals)]
-    apairs = [symref('pair', [k, v]) for (k, v) in map(fst, pairs)]
-    return (symref('dictlit', apairs),
-            '{%s}' % ', '.join('%s: %s' % kv for kv in map(snd, pairs)))
+    return DictLit([TupleLit([conv_expr(a), conv_expr(b)])
+                    for (a, b) in e.items])
 
 @expr(ast.GenExpr)
 def conv_genexpr(e):
@@ -427,19 +418,13 @@ add_sym('genexpr')
 @expr(ast.GenExprInner)
 def conv_genexprinner(e):
     assert len(e.quals) == 1
-    (ea, et) = conv_expr(e.expr)
+    ea = conv_expr(e.expr)
     comp = e.quals[0]
-    (assa, asst) = conv_ass(comp.assign)
-    (lista, listt) = conv_expr(comp.iter if hasattr(comp, 'iter')
-                               else comp.list)
-    preds = []
-    iftext = ''
-    for if_ in comp.ifs:
-        (ifa, ift) = conv_expr(if_.test)
-        preds.append(ifa)
-        iftext += ' if %s' % (ift,)
-    return (symref('genexpr', [ea, assa, lista, int_len(preds)] + preds),
-            '%s for %s in %s%s' % (et, asst, listt, iftext))
+    # TODO: Ought to be a pattern. Unify?
+    assa = conv_ass(comp.assign)
+    lista = conv_expr(comp.iter if hasattr(comp, 'iter') else comp.list)
+    preds = [conv_expr(if_.test) for if_ in comp.ifs]
+    return GenExpr(ea, assa, lista, preds)
 
 add_sym('attr')
 @expr(ast.Getattr)
@@ -447,12 +432,6 @@ def conv_getattr(e):
     (ea, et) = conv_expr(e.expr)
     nm = e.attrname
     return (symref('attr', [ea, refs_existing(nm)]), '%s.%s' % (et, nm))
-
-add_sym('keyword')
-@expr(ast.Keyword)
-def conv_keyword(e):
-    (ea, et) = conv_expr(e.expr)
-    return (symref('keyword', [Str(e.name, []), ea]), '%s=%s' % (e.name, et))
 
 add_sym('?:')
 @expr(ast.IfExp)
@@ -465,16 +444,17 @@ def conv_ifexp(e):
 def extract_arglist(s):
     names = s.argnames[:]
     assert not s.kwargs and not s.varargs and not s.defaults
-    return ([identifier(Var(), nm) for nm in names], names)
+    args = []
+    for nm in names:
+        arg = Var()
+        identifier(arg, nm)
+        args.append(arg)
+    return args
 
-add_sym('lambda')
 @expr(ast.Lambda)
 @inside_scope
 def conv_lambda(e):
-    (argsa, argst) = extract_arglist(e)
-    (codea, codet) = conv_expr(e.code)
-    return (symref('lambda', [int_len(argsa)] + argsa + [codea]),
-            'lambda %s: %s' % (', '.join(argst), codet))
+    return Lambda(extract_arglist(e), conv_expr(e.code))
 
 @expr(ast.List)
 def conv_list(e):
@@ -482,12 +462,11 @@ def conv_list(e):
 
 @expr(ast.ListComp)
 def conv_listcomp(e):
-    (compa, compt) = conv_genexprinner(e)
-    return (compa, '[%s]' % compt)
+    return conv_genexprinner(e)
 
 @expr(ast.Name)
 def conv_name(e):
-    return (refs_existing(e.name), e.name)
+    return refs_existing(e.name)
 
 add_sym('or')
 @expr(ast.Or)
@@ -516,19 +495,14 @@ add_sym('subscript')
 @expr(ast.Subscript)
 def conv_subscript(e):
     assert len(e.subs) == 1
-    (ea, et) = conv_expr(e.expr)
-    (sa, st) = conv_expr(e.subs[0])
-    return (symref('subscript', [ea, sa]), '%s[%s]' % (et, st))
+    ea = conv_expr(e.expr)
+    sa = conv_expr(e.subs[0])
+    return symcall('subscript', [ea, sa])
 
-add_sym('tuplelit')
 @expr(ast.Tuple)
 def conv_tuple(e):
-    if len(e.nodes) == 1:
-        (fa, ft) = conv_expr(e.nodes[0])
-        return (symref('tuplelit', [Int(1, []), fa]), '(%s,)' % (ft,))
-    (itemsa, itemst) = conv_exprs(e.nodes)
-    return (symref('tuplelit', [int_len(itemsa)] + itemsa),
-            '(%s)' % ', '.join(itemst))
+    itemsa = conv_exprs(e.nodes)
+    return TupleLit(conv_exprs(e.nodes))
 
 # STATEMENTS
 
@@ -544,26 +518,30 @@ def conv_assign(s):
     expra = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
         return special_call_forms[expra.name](s.nodes[0], expra.args)
-    lefta = conv_ass(s.nodes[0], context(SCOPE).indent == 0)
+    lefta = conv_ass(s.nodes[0])
     # XXX Distinguish between defn and binding earlier
-    k = match(lefta, ("key('var')", lambda: 'defn'), ('_', lambda: '='))
-    return [symref(k, [lefta, expra])]
+    if isJust(lefta):
+        ass = Assign(fromJust(lefta), expra)
+    else:
+        global_scope = context(SCOPE).indent == 0
+        var = identifier(Var(), nm, export=global_scope)
+        ass = Defn(var, expra)
+    return [ass]
 
 @stmt(ast.AssList)
 def conv_asslist(s):
     assert False, 'TODO: Unpack list'
     # map(conv_ass, s.nodes)
 
-add_sym('del')
 @stmt(ast.AssTuple)
 def conv_asstuple(s):
-    ata = []
     for node in s.nodes:
         if getattr(node, 'flags', '') == 'OP_DELETE':
-            ata.append(symref('del', [refs_existing(node.name)]))
+            assert False, 'Del not supported'
         else:
+            # TODO
             assert False, 'Unknown AssTuple node: ' + repr(node)
-    return ata
+    return []
 
 def op_to_aug(op):
     return {'+=': AugAdd, '-=': AugSubtract, '*=': AugMultiply,
@@ -587,18 +565,19 @@ def conv_discard(s):
         return []
     return [ExprStmt(conv_expr(s.expr))]
 
-def conv_ass(s, global_scope=False):
+def conv_ass(s):
     if isinstance(s, ast.AssName):
         # LhsVar
-        return ident_ref(s.name, True, export=global_scope)
+        return ident_ref(s.name, True)
     elif isinstance(s, ast.AssTuple):
-        return LhsTuple([conv_ass(n, global_scope) for n in s.nodes])
+        return Just(LhsTuple([conv_ass(n) for n in s.nodes]))
     elif isinstance(s, ast.AssAttr):
         expra = conv_expr(s.expr)
         attra = ident_ref(s.attrname, True, export=False)
-        return LhsAttr([expra, attra])
+        return Just(LhsAttr([expra, attra]))
     else:
-        return conv_expr(s)
+        # ???
+        return Just(conv_expr(s))
 
 @stmt(ast.For)
 @inside_scope
@@ -631,11 +610,13 @@ def conv_function(s):
         if match(e, ("somekindofreference(nm)", lambda nm: nm == 'local'),
                     ("_", lambda: False)):
             export = False
-    #func = identifier('func', s.name, export=export)
+    func = Func([], [])
+    identifier(func, s.name, export=export)
     @inside_scope
     def rest():
-        return Func(extract_arglist(s), conv_stmts_noscope(s.code))
-    #func.subs += rest()
+        func.params = extract_arglist(s)
+        func.body = conv_stmts_noscope(s.code)
+        return func
     return [rest()]
 
 @stmt(ast.If)

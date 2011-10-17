@@ -27,23 +27,26 @@ Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
 
 Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
     ADT('Pat',
-        'PatCtor', ('ctor', '*Ctor'), ('args', '[Pattern]'),
-        'PatCapture', ('var', Var), ('pattern', 'Pattern'),
+        'PatCtor', ('ctor', '*Ctor'), ('args', '[Pat]'),
+        'PatCapture', ('var', Var), ('pattern', 'Pat'),
         'PatInt', ('val', int),
         'PatStr', ('val', str),
-        'PatTuple', ('vals', '[Pattern]'),
+        'PatTuple', ('vals', '[Pat]'),
         'PatVar', ('var', Var),
         'PatWild')
 
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
-Expr, And, Attr, Bind, Call, GetCtxt, InCtxt, IntLit, Lambda, ListLit, Match, \
-        Or, StrLit, TupleLit = \
+Expr, And, Attr, Bind, Call, DictLit, GenExpr, GetCtxt, InCtxt, IntLit, \
+        Lambda, ListLit, Match, Or, StrLit, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'Attr', ('expr', 'Expr'), ('field', '*Field'),
         'Bind', ('binding', 'Binding'),
         'Call', ('func', 'Expr'), ('args', '[Expr]'),
+        'DictLit', ('vals', '[(Expr, Expr)]'),
+        'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
+                   ('listExpr', 'Expr'), ('preds', '[Expr]'),
         'GetCtxt', ('ctxt', '*Ctxt'),
         'InCtxt', ('ctxt', '*Ctxt'), ('init', 'Expr'), ('expr', 'Expr'),
         'IntLit', ('val', int),
@@ -91,18 +94,9 @@ boot_sym_names = {}
 
 csym_roots = []
 
-def int_len(list):
-    return Int(len(list), [])
-
 def symref(name):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
     return boot_sym_names[name]
-
-def symcall(name, subs):
-    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    # TEMP
-    from ast import Call, BuiltinExpr
-    return Call(BuiltinExpr(name), subs)
 
 def getident(ref):
     return match(ref, ('Ref(named(nm), _)', identity))
@@ -204,9 +198,9 @@ def escape_str(s):
                              else c for c in s),)
 
 SerializeInit = DT('SerializeInit', ('natoms', int),
-                                    ('atomixs', {Atom: int}),
+                                    ('atomixs', {object: int}),
                                     ('modset', set([Module])),
-                                    ('unknown_refatoms', set([Atom])))
+                                    ('unknown_refatoms', set([object])))
 
 def serialize_module(module):
     if module.digest:
@@ -400,13 +394,5 @@ def _do_repr(s, r, indent):
         else:
             for sub in s.subs:
                 _do_repr(sub, r, indent + 1)
-
-def atom_repr(s):
-    r = []
-    _do_repr(s, r, 0)
-    r.append('')
-    return '\n'.join(r)
-
-Int.__repr__ = Str.__repr__ = Ref.__repr__ = atom_repr
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

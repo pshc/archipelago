@@ -3,19 +3,7 @@ from base import DT, ADT, match, new_extrinsic
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
 
-(Atom, Int, Str, Ref) = ADT('Atom',
-                            'Int', ('intVal', int), ('subs', 'List(Atom)'),
-                            'Str', ('strVal', str), ('subs', 'List(Atom)'),
-                            'Ref', ('refAtom', 'Atom'), ('subs', 'List(Atom)'))
-
-def str_(st):
-    return Str(st, [])
-def int_(n):
-    return Int(n, [])
-def ref_(a):
-    return Ref(a, [])
-
-Module = DT('Module', ('name', str), ('digest', str), ('roots', 'List(Atom)'))
+Module = DT('Module', ('name', str), ('digest', str), ('roots', 'a'))
 
 Name = new_extrinsic('Name', str)
 

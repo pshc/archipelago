@@ -1,5 +1,5 @@
 from base import *
-from bedrock import Int, Str, Ref, List, maybe
+from bedrock import List, maybe
 
 FuncExt = DT('FuncExt', ('funcContexts', ['Atom']))
 def blank_func_ext():
@@ -140,7 +140,7 @@ TSet = None
 TFile = None
 THash = None
 
-def _var(n): return TVar(Int(n, []))
+def _var(n): return TVar(n)
 
 # Tuples are a shortcut for functions
 builtins_types = {
