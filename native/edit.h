@@ -8,9 +8,9 @@ struct list;
 struct map;
 struct module;
 
-struct position {
+typedef struct {
     float x, y;
-};
+} vec2;
 
 struct size {
     unsigned short width, height;
@@ -34,7 +34,7 @@ struct text_texture {
 
 struct editor {
     struct module *module;
-    struct position view_pos;
+    vec2 view_pos;
     struct size view_size;
     struct map *text_cache;
     struct list *layout;

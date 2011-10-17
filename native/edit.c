@@ -43,12 +43,12 @@ void resize_editor(struct size size) {
     glMatrixMode(GL_MODELVIEW);
 }
 
-static struct position layout_pos;
+static vec2 layout_pos;
 #define LO_LINE_HEIGHT 50
 #define LO_INDENT 50
 
 struct layout_node {
-    struct position pos;
+    vec2 pos;
     enum { LAYOUT_INT, LAYOUT_OBJ, LAYOUT_REF } kind;
     intptr_t *obj;
     void *context;
@@ -101,29 +101,29 @@ void editor_set_module(struct module *module) {
     layout_editor();
 }
 
-static struct position cubic_bezier(const struct position v[4], float t) {
+static vec2 cubic_bezier(const vec2 v[4], float t) {
     float t2 = t*t;
     float t3 = t2*t;
     float s = 1 - t;
     float s2 = s*s;
     float s3 = s2*s;
-    struct position p = {
+    vec2 p = {
             s3*v[0].x + 3*s2*t*v[1].x + 3*s*t2*v[2].x + t3*v[3].x,
             s3*v[0].y + 3*s2*t*v[1].y + 3*s*t2*v[2].y + t3*v[3].y
     };
     return p;
 }
 
-static struct position cubic_bezier_deriv(const struct position v[4], float t) {
+static vec2 cubic_bezier_deriv(const vec2 v[4], float t) {
     float t2 = t*t;
-    struct position p = {
+    vec2 p = {
             3*(-t2 + 2*t - 1)*v[0].x + 3*(3*t2 - 4*t + 1)*v[1].x + 3*(-3*t2 + 2*t)*v[2].x + 3*t2*v[3].x,
             3*(-t2 + 2*t - 1)*v[0].y + 3*(3*t2 - 4*t + 1)*v[1].y + 3*(-3*t2 + 2*t)*v[2].y + 3*t2*v[3].y
     };
     return p;
 }
 
-static struct position normalize(struct position v) {
+static vec2 normalize(vec2 v) {
     float mag = sqrtf(v.x*v.x + v.y*v.y), invmag;
     if (mag) {
         invmag = 1.0/mag;
@@ -136,16 +136,16 @@ static struct position normalize(struct position v) {
     return v;
 }
 
-static struct position rotate(struct position d, float rad) {
+static vec2 rotate(vec2 d, float rad) {
     float c = cosf(rad), s = sinf(rad);
     // y flipped
-    struct position pos = {d.x*c + d.y*s, d.x*s - d.y*c};
+    vec2 pos = {d.x*c + d.y*s, d.x*s - d.y*c};
     return pos;
 }
 
-static void render_arrow(struct position a, struct position b) {
-    struct position points[4] = {a, {0, a.y}, {0, b.y}, b};
-    struct position pos;
+static void render_arrow(vec2 a, vec2 b) {
+    vec2 points[4] = {a, {0, a.y}, {0, b.y}, b};
+    vec2 pos;
     float t;
 
     points[0].y -= LO_LINE_HEIGHT/3;
@@ -167,9 +167,9 @@ static void render_arrow(struct position a, struct position b) {
     }
     glEnd();
 
-    struct position d = cubic_bezier_deriv(points, 0.9);
+    vec2 d = cubic_bezier_deriv(points, 0.9);
     d = normalize(d);
-    struct position p1 = rotate(d, M_PI * 8/9), p2 = rotate(d, M_PI * 10/9);
+    vec2 p1 = rotate(d, M_PI * 8/9), p2 = rotate(d, M_PI * 10/9);
     float arrow_mag = 15;
     glBegin(GL_LINES);
     glVertex2f(pos.x, pos.y);
@@ -217,7 +217,7 @@ void render_editor(void) {
     glColor4f(1, 1, 1, 1);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, editor->background_texture);
-    struct position pos = editor->view_pos;
+    vec2 pos = editor->view_pos;
     struct size size = editor->view_size;
     float y = pos.y / 16.0;
     float w = size.width / 16.0, h = size.height / 16.0;

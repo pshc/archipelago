@@ -5,7 +5,7 @@
 
 @interface Viewport ()
 {
-    struct position pointerOrigin, scrollOrigin;
+    vec2 pointerOrigin, scrollOrigin;
 }
 @end
 
