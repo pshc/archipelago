@@ -7,23 +7,6 @@ def blank_func_ext():
 def TFunc_(args, ret):
     return TFunc(args, ret, blank_func_ext())
 
-TypeVar = DT('TypeVar')
-
-Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
-    TTuple, TAnyTuple, TFunc, TData, TApply \
-    = ADT('Type',
-        'TVar', ('typeVar', '*TypeVar'),
-        'TMeta', ('metaType', 'Maybe(Type)'),
-        'TInt', 'TStr', 'TChar', 'TBool',
-        'TVoid',
-        'TTuple', ('tupleTypes', ['Type']),
-        'TAnyTuple',
-        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-                 ('funcExt', FuncExt),
-        'TData', ('data', '*DTStmt'),
-        'TApply', ('appType', 'Type'), ('appVars', ['Type']))
-
-
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):
         if not type_equal(t1, t2):

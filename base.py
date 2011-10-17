@@ -26,7 +26,11 @@ def DT(*members, **opts):
 %(stmts)s""" % locals()
     exec code
     dt = DATATYPES[name] = eval(name)
+    dt.ctors = [dt]
     for nm, t in members:
+        if getattr(opts.get('superclass'), '__name__', '') not in (
+                'Type', 'TypeVar'):
+            t = _parse_type(t)
         dt.__types__.append(t)
     if invariant:
         dt.check_invariant = invariant
@@ -39,6 +43,7 @@ def ADT(*ctors):
     t = eval(tname)
     data = [t]
     ALGETYPES[tname] = t
+    ctor_ix = 0
     while ctors:
         ctor = ctors.pop(0)
         members = []
@@ -46,6 +51,8 @@ def ADT(*ctors):
             members.append(ctors.pop(0))
         d = DT(ctor, *members, **dict(superclass=t))
         d.__module__ = tname
+        d._ctor_ix = ctor_ix
+        ctor_ix += 1
         t.ctors.append(d)
         data.append(d)
     return tuple(data)
@@ -53,9 +60,49 @@ def ADT(*ctors):
 class DataType(object):
     pass
 
+# Type representations
+
+TypeVar = DT('TypeVar')
+
+Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
+    TTuple, TAnyTuple, TFunc, TData, TApply, TRef \
+    = ADT('Type',
+        'TVar', ('typeVar', '*TypeVar'),
+        'TMeta', ('metaType', 'Maybe(Type)'),
+        'TInt', 'TStr', 'TChar', 'TBool',
+        'TVoid',
+        'TTuple', ('tupleTypes', ['Type']),
+        'TAnyTuple',
+        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
+                 ('funcExt', 'FuncExt'),
+        'TData', ('data', '*DTStmt'),
+        'TApply', ('appType', 'Type'), ('appVars', ['Type']),
+        'TRef', ('refType', 'Type'))
+
+def _parse_type(t):
+    if isinstance(t, DataType):
+        return TData(t)
+    elif isinstance(t, basestring):
+        if t.startswith('*'):
+            return TRef(_parse_type(t[1:]))
+        elif len(t) == 1:
+            return TVar(t)
+        elif t in ALGETYPES:
+            return ALGETYPES[t]
+        elif t in DATATYPES:
+            return DATATYPES[t]
+        elif t.startswith('[') and t.endswith(']'):
+            return TApply(list, [_parse_type(t[1:-1])])
+        assert False, "Unknown data type: %s" % t
+    elif t is int:
+        return TInt()
+    elif t is str:
+        return TStr()
+    return t
+
 # Contexts
 
-ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'type'),
+ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', type),
                                 ('ctxtStack', '[a]'))
 
 def new_context(name, t):
