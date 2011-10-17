@@ -1,20 +1,13 @@
 from base import *
 from bedrock import List, maybe
 
-FuncExt = DT('FuncExt', ('funcContexts', ['Atom']))
-def blank_func_ext():
-    return FuncExt([])
-def TFunc_(args, ret):
-    return TFunc(args, ret, blank_func_ext())
-
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):
         if not type_equal(t1, t2):
             return False
     return True
 
-def _type_func_equal(as1, r1, e1, as2, r2, e2):
-    # TODO: e1, e2?
+def _type_func_equal(as1, r1, as2, r2):
     for a1, a2 in zip(as1, as2):
         if not type_equal(a1, a2):
             return False
@@ -42,7 +35,7 @@ def type_equal(a, b):
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TAnyTuple(), TAnyTuple())", lambda: True),
-        ("(TFunc(args1, r1, e1), TFunc(args2, r2, e2))", _type_func_equal),
+        ("(TFunc(args1, r1), TFunc(args2, r2))", _type_func_equal),
         ("(TData(a), TData(b))", lambda: a is b),
         ("(TApply(t1, vs1), TApply(t2, vs2))", _type_apply_equal),
         ("_", lambda: False))
@@ -72,7 +65,7 @@ def _type_repr(t):
                     ("TTuple(ts)", lambda ts: '(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),
                     ("TAnyTuple()", lambda: 'tuple(*)'),
-                    ("TFunc(s, r, _)", lambda s, r: '(%s)' %
+                    ("TFunc(s, r)", lambda s, r: '(%s)' %
                         (' -> '.join(_type_repr(t) for t in s + [r]),)),
                     ("TData(d)", _get_name),
                     ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
@@ -98,9 +91,9 @@ def map_type_vars(f, t):
     return match(t, ("tv==TVar(_)", f),
                     ("m==TMeta(r)", lambda m, r:
                         maybe(m, lambda r: map_type_vars(f, r), r)),
-                    ("TFunc(args, ret, ext)", lambda args, ret, ext:
+                    ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a) for a in args],
-                              map_type_vars(f, ret), ext)),
+                              map_type_vars(f, ret))),
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))

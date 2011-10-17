@@ -87,7 +87,7 @@ def c_type(t):
         ("TVoid()", lambda: csym_('void')),
         ("TVar(_)", lambda: cptr(csym_('void'))),
         ("TData(a)", lambda a: cptr(struct_ref(a))),
-        ("TFunc(args, r, ext)", lambda args, r, ext: # TODO
+        ("TFunc(args, r)", lambda args, r:
             csym('funcptr', [c_type(r), int_len(args)] + map(c_type, args))),
         ("TApply(t, _)", c_type),
         ("_", lambda: cptr(csym_('void')))) # XXX: NOPE
@@ -655,8 +655,7 @@ def _setup_func(scope, nm, args, argTs, cargs):
         cargs.append(carg)
 
 def c_func(f, args, body, nm, t):
-    # TODO
-    argTs, retT, ext = match(t, ("Scheme(_, TFunc(args, ret, ext))", tuple3))
+    argTs, retT = match(t, ("Scheme(_, TFunc(args, ret))", tuple2))
     ca = []
     fnm = str_(nm)
     fa = make_func_atom(f, fnm)

@@ -120,7 +120,7 @@ def builtin_type_to_atoms(name):
         if None in t:
             return None
         t = map(_fix_type, t)
-        t = TFunc_(t[:-1], t[-1])
+        t = TFunc(t[:-1], t[-1])
     else:
         t = _fix_type(t)
     tvars = {}

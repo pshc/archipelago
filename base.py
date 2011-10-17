@@ -74,7 +74,6 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-                 ('funcExt', 'FuncExt'),
         'TData', ('data', '*DTStmt'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
         'TWeak', ('refType', 'Type'))
