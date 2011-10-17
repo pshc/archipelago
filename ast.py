@@ -173,9 +173,6 @@ def conv_exprs(elist):
 
 # EXPRESSIONS
 
-add_sym('binaryop')
-add_sym('unaryop')
-
 for (cls, op) in {ast.Add: '+', ast.Sub: '-',
                   ast.Mul: '*', ast.Mod: '%',
                   ast.Div: '/', ast.FloorDiv: '//',
@@ -186,15 +183,15 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
     def binop(e, o=op):
         return symcall(o, [conv_expr(e.left), conv_expr(e.right)])
 
-for (cls, (op, sym)) in {ast.UnaryAdd: ('+', 'positive'),
-                         ast.UnarySub: ('-', 'negate'),
-                         ast.Not: ('not ', 'not'),
-                         ast.Invert: ('~', 'invert')}.iteritems():
+for (cls, sym) in {ast.UnaryAdd: 'positive',
+                   ast.UnarySub: 'negate',
+                   ast.Not: 'not',
+                   ast.Invert: 'invert'}.iteritems():
     add_sym(sym)
     @expr(cls)
-    def unaop(e, o=op, s=sym):
+    def unaop(e, s=sym):
         return symcall(s, [conv_expr(e.expr)])
-del cls, op
+del cls, sym
 
 @expr(ast.And)
 def conv_and(e):
@@ -227,10 +224,6 @@ def make_adt(left, args):
     adt.tvars = tvars.values()
     return [adt]
 
-
-add_sym('DT')
-add_sym('ctor')
-add_sym('field')
 def make_dt(left, args):
     (nm, fs) = match(args, ('cons(StrLit(dt_nm), all(nms, TupleLit('
                             '[StrLit(nm), t])))', tuple2))
@@ -316,8 +309,6 @@ def conv_match_case(code, f):
                      ('_', lambda: Call(f, [BindVar(b) for b in bs])))
     return MatchCase(c, e)
 
-add_sym('match')
-add_sym('case')
 def conv_match(args):
     expra = args.pop(0)
     casesa = [match(a, ('TupleLit([StrLit(c), f])', conv_match_case))
@@ -403,7 +394,7 @@ def conv_callfunc(e):
     fa = conv_expr(e.node)
     return Call(conv_expr(e.node), argsa)
 
-map(lambda s: add_sym(s), ['<', '>', '==', '!=', '<=', '>='])
+map(add_sym, ['<', '>', '==', '!=', '<=', '>='])
 map(add_sym, ['is', 'is not', 'in', 'not in'])
 @expr(ast.Compare)
 def conv_compare(e):
@@ -431,7 +422,6 @@ def conv_dict(e):
 def conv_genexpr(e):
     return conv_expr(e.code)
 
-add_sym('genexpr')
 @expr(ast.GenExprInner)
 def conv_genexprinner(e):
     assert len(e.quals) == 1
@@ -443,20 +433,13 @@ def conv_genexprinner(e):
     preds = [conv_expr(if_.test) for if_ in comp.ifs]
     return GenExpr(ea, assa, lista, preds)
 
-add_sym('attr')
 @expr(ast.Getattr)
 def conv_getattr(e):
-    (ea, et) = conv_expr(e.expr)
-    nm = e.attrname
-    return (symref('attr', [ea, refs_existing(nm)]), '%s.%s' % (et, nm))
+    return Attr(conv_expr(e.expr), refs_existing(e.attrname))
 
-add_sym('?:')
 @expr(ast.IfExp)
 def conv_ifexp(e):
-    (ca, ct) = conv_expr(e.test)
-    (ta, tt) = conv_expr(e.then)
-    (fa, ft) = conv_expr(e.else_)
-    return (symref('?:', [ca, ta, fa]), '%s if %s else %s' % (tt, ct, ft))
+    return Ternary(conv_expr(e.test), conv_expr(e.then), conv_expr(e.else_))
 
 def extract_arglist(s):
     names = s.argnames[:]
@@ -485,7 +468,6 @@ def conv_listcomp(e):
 def conv_name(e):
     return refs_existing(e.name)
 
-add_sym('or')
 @expr(ast.Or)
 def conv_or(e):
     assert len(e.nodes) == 2
@@ -528,7 +510,6 @@ def conv_assert(s):
     fail = conv_expr(s.fail) if s.fail else StrLit('')
     return [Assert(conv_expr(s.test), fail)]
 
-map(add_sym, ['defn', '='])
 @stmt(ast.Assign)
 def conv_assign(s):
     assert len(s.nodes) == 1
@@ -618,7 +599,6 @@ def conv_from(s):
         omni.imports.update(symbols)
     return []
 
-add_sym('local')
 @stmt(ast.Function)
 def conv_function(s):
     export = True

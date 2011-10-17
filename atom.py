@@ -40,7 +40,7 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
 Expr, And, Attr, Bind, Call, DictLit, GenExpr, GetCtxt, InCtxt, IntLit, \
-        Lambda, ListLit, Match, Or, StrLit, TupleLit = \
+        Lambda, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'Attr', ('expr', 'Expr'), ('field', '*Field'),
@@ -57,6 +57,7 @@ Expr, And, Attr, Bind, Call, DictLit, GenExpr, GetCtxt, InCtxt, IntLit, \
         'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
         'Or', ('left', 'Expr'), ('right', 'Expr'),
         'StrLit', ('val', str),
+        'Ternary', ('test', 'Expr'), ('then', 'Expr'), ('else_', 'Expr'),
         'TupleLit', ('vals', '[Expr]'))
 
 AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
