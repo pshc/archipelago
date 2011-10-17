@@ -10,6 +10,7 @@ struct adt *AST, *Var;
 struct map *loaded_modules;
 
 static char *base_dir = NULL;
+static char *mod_dir = "../mods/";
 
 /* Deserialization context */
 static FILE *f = NULL;
@@ -222,9 +223,9 @@ static void *read_node(type_t type) {
 }
 
 char *module_hash_by_name(const char *name) {
-	char *full = alloca(strlen(base_dir) + strlen(name) + 6);
+	char *full = alloca(strlen(base_dir) + strlen(mod_dir) + strlen(name));
 	strcpy(full, base_dir);
-	strcat(full, "mods/");
+	strcat(full, mod_dir);
 	strcat(full, name);
 	char *hash = malloc(65);
 	ssize_t read = readlink(full, hash, 64);
@@ -258,9 +259,9 @@ struct module *load_module(const char *hash, type_t root_type) {
 	if (map_has(loaded_modules, hash))
 		return map_get(loaded_modules, hash);
 
- 	full = alloca(strlen(base_dir) + strlen(hash) + 6);
+	full = alloca(strlen(base_dir) + strlen(mod_dir) + strlen(hash));
 	strcpy(full, base_dir);
-	strcat(full, "mods/");
+	strcat(full, mod_dir);
 	strcat(full, hash);
 	f = fopen(full, "rb");
 	if (!f)

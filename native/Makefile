@@ -1,9 +1,6 @@
 CFLAGS = -Wall -DSTANDALONE
 
-all: mods serial
+all: serial
 	./serial
-
-mods:
-	mkdir mods
 
 serial: serial.c util.c
