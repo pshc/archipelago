@@ -65,7 +65,7 @@ class DataType(object):
 TypeVar = DT('TypeVar')
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
-    TTuple, TAnyTuple, TFunc, TData, TApply, TRef \
+    TTuple, TAnyTuple, TFunc, TData, TApply, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TMeta', ('metaType', 'Maybe(Type)'),
@@ -77,14 +77,14 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
                  ('funcExt', 'FuncExt'),
         'TData', ('data', '*DTStmt'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
-        'TRef', ('refType', 'Type'))
+        'TWeak', ('refType', 'Type'))
 
 def _parse_type(t):
     if isinstance(t, DataType):
         return TData(t)
     elif isinstance(t, basestring):
         if t.startswith('*'):
-            return TRef(_parse_type(t[1:]))
+            return TWeak(_parse_type(t[1:]))
         elif len(t) == 1:
             return TVar(t)
         elif t in ALGETYPES:

@@ -75,7 +75,7 @@ def _serialize_node(node):
         _write(_encode_int(ix))
         for (field, type) in zip(node.__slots__[:-1], node.__types__):
             sub = getattr(node, field)
-            if isinstance(type, TRef):
+            if isinstance(type, TWeak):
                 _write_ref(sub)
             else:
                 _serialize_node(sub)
@@ -106,7 +106,7 @@ def _inspect_node(node):
         state.count += 1
         for (field, type) in zip(node.__slots__[:-1], node.__types__):
             sub = getattr(node, field)
-            if isinstance(type, TRef):
+            if isinstance(type, TWeak):
                 # Record this ref's target digest
                 if has_extrinsic(Location, sub):
                     mod = extrinsic(Location, sub).module
@@ -205,7 +205,7 @@ def _read_node(t):
             return _read_int()
         elif isinstance(t, TStr):
             return _read_str()
-        elif isinstance(t, TRef):
+        elif isinstance(t, TWeak):
             state = context(Deserialize)
             depindex = _read_int()
             index = _read_int()
