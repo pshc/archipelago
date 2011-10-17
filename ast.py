@@ -675,7 +675,7 @@ def setup_builtin_module():
         for name in builtins_types:
             builtin = Builtin()
             BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
-    roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
+    in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
@@ -688,8 +688,8 @@ def convert_file(filename, name, deps):
     omni.loadedModules = deps
     def go():
         scope.syms.update(BUILTINS)
-        conv_stmts(stmts)
-    mod.roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
+        return Body(conv_stmts(stmts))
+    mod.root = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
     # Resolve imports for missing symbols
     missing = omni.missingRefs
     for key, binds in missing.items():

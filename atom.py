@@ -181,7 +181,6 @@ def load_module(filename):
 
 add_sym('length')
 add_sym('deps')
-add_sym('roots')
 add_sym('type')
 add_sym('xref')
 add_sym('instantiation')
