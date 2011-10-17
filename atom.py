@@ -14,6 +14,8 @@ Ctor = DT('Ctor', ('fields', [Field]))
 
 Ctxt = DT('Ctxt', ('type', Type))
 
+Extrinsic = DT('Extrinsic', ('type', Type))
+
 Var = DT('Var')
 
 Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
@@ -72,17 +74,19 @@ Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsTuple', ('vals', '[Lhs]'))
 
 Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
-    DTStmt, ExprStmt, FuncStmt, Return, ReturnNothing, While = ADT('Stmt',
+    DTStmt, ExprStmt, ExtrinsicStmt, FuncStmt, Return, ReturnNothing, While = \
+    ADT('Stmt',
         'Assert', ('test', Expr), ('message', Expr),
         'Assign', ('lhs', Lhs), ('expr', Expr),
         'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', Expr),
         'Break',
         'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
         'Continue',
-        'CtxtStmt', ('type', Type),
+        'CtxtStmt', ('ctxt', Ctxt),
         'Defn', ('var', 'Var'), ('expr', Expr),
         'DTStmt', ('ctors', [Ctor]), ('tvars', ['TypeVar']),
         'ExprStmt', ('expr', Expr),
+        'ExtrinsicStmt', ('extrinsic', Extrinsic),
         'FuncStmt', ('func', Func),
         'Return', ('expr', Expr),
         'ReturnNothing',

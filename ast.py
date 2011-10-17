@@ -250,8 +250,9 @@ def make_dt(left, args):
 def make_context(left, args):
     nm, t = match(args, ('cons(nm==StrLit(_), cons(t, _))', tuple2))
     tvars = {}
-    #ctxt = identifier('CTXT', nm, [ta], export=True)
-    return [CtxtStmt(Ctxt(conv_type(t, tvars)))]
+    ctxt = Ctxt(conv_type(t, tvars))
+    #identifier(ctxt, nm, export=True)
+    return [CtxtStmt(ctxt)]
 
 def conv_get_context(args):
     assert len(args) == 1
@@ -262,6 +263,12 @@ def conv_in_context(args):
     assert len(args) == 3
     # XXX Need to deref the first arg...
     return InCtxt(*args)
+
+def make_extrinsic(left, args):
+    nm, t = match(args, ('[nm==StrLit(_), t]', tuple2))
+    tvars = {}
+    extrinsic = Extrinsic(conv_type(t, tvars))
+    return [ExtrinsicStmt(extrinsic)]
 
 def conv_special(e):
     """
@@ -372,6 +379,7 @@ SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [object]))
 special_call_forms = {
         'ADT': make_adt, 'DT': make_dt,
         'new_context': make_context,
+        'new_extrinsic': make_extrinsic,
 }
 extra_call_forms = {
         'match': conv_match,
