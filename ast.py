@@ -46,7 +46,7 @@ def identifier(obj, name, is_type=False,
     if export:
         omni.exports[key] = obj
 
-def ident_ref(nm, create, is_type=False, export=False):
+def ident_exists(nm, is_type=False):
     scope = context(SCOPE)
     key = (nm, is_type)
     while scope is not None:
@@ -55,12 +55,23 @@ def ident_ref(nm, create, is_type=False, export=False):
             var, b = o
             return Just(b(var))
         scope = scope.prevContext
-    if create:
-        return Nothing()
+    return Nothing()
+
+def refs_existing(nm, is_type=False):
+    ref = ident_exists(nm, is_type=is_type)
+    if isJust(ref):
+        return fromJust(ref)
+    if is_type:
+        if nm == 'int':
+            return TInt()
+        if nm == 'str':
+            return TStr()
+        # Bind() is wrong for types... or is it?
+    key = (nm, is_type)
     fwd_ref = Bind(key)
     omni = context(OMNI)
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
-    return Just(fwd_ref)
+    return fwd_ref
 
 def bind_kind(v):
     if isinstance(v, Var):
@@ -78,11 +89,8 @@ def bind_kind(v):
     else:
         raise ValueError("Can't bind to %r" % (v,))
 
-def refs_existing(nm):
-    return fromJust(ident_ref(nm, False))
-
 def type_ref(nm):
-    return fromJust(ident_ref(nm, False, is_type=True))
+    return refs_existing(nm, is_type=True)
 
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
@@ -151,6 +159,7 @@ def conv_type(t, tvars, dt=None):
     return match(t,
         ("BindBuiltin(_)", lambda: t),
         ("BindDT(_)", lambda: t),
+        ("TStr() or TInt()", lambda: t),
         ("StrLit(s)", type_str),
         ("ListLit([t])",
             lambda t: TApply(type_ref('List'), [conv_type(t, tvars, dt)])),
@@ -568,7 +577,7 @@ def conv_discard(s):
 def conv_ass(s):
     if isinstance(s, ast.AssName):
         # LhsVar
-        return ident_ref(s.name, True)
+        return ident_exists(s.name)
     elif isinstance(s, ast.AssTuple):
         return Just(LhsTuple([conv_ass(n) for n in s.nodes]))
     elif isinstance(s, ast.AssAttr):
@@ -671,16 +680,13 @@ def conv_while(s):
 # Shouldn't this be a context or something?
 BUILTINS = {}
 
-def make_builtin(name, is_type=False):
-    builtin = Builtin()
-    BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
-    return identifier(builtin, name, is_type=is_type)
-
 def setup_builtin_module():
     omni, scope = ast_contexts()
     def go():
-        make_builtin('int', is_type=True)
-        make_builtin('str', is_type=True)
+        is_type = False
+        for name in builtins_types:
+            builtin = Builtin()
+            BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
     roots = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
 
 def convert_file(filename, name, deps):
