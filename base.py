@@ -30,7 +30,7 @@ def DT(*members, **opts):
     for nm, t in members:
         if getattr(opts.get('superclass'), '__name__', '') not in (
                 'Type', 'TypeVar'):
-            t = _parse_type(t)
+            t = parse_type(t)
         dt.__types__.append(t)
     if invariant:
         dt.check_invariant = invariant
@@ -78,26 +78,73 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
         'TWeak', ('refType', 'Type'))
 
-def _parse_type(t):
-    if isinstance(t, DataType):
+_parsed_type_cache = {}
+
+def parse_type(t):
+    if type(t) is type and issubclass(t, DataType):
         return TData(t)
     elif isinstance(t, basestring):
-        if t.startswith('*'):
-            return TWeak(_parse_type(t[1:]))
-        elif len(t) == 1:
-            return TVar(t)
-        elif t in ALGETYPES:
-            return ALGETYPES[t]
-        elif t in DATATYPES:
-            return DATATYPES[t]
-        elif t.startswith('[') and t.endswith(']'):
-            return TApply(list, [_parse_type(t[1:-1])])
-        assert False, "Unknown data type: %s" % t
+        key = t.replace('->', '>').replace('*', '-')
+        t = _parsed_type_cache.get(key)
+        if not t:
+            t = compiler.parse(key, mode='eval').node
+            _parsed_type_cache[key] = t
+        return realize_type(t)
     elif t is int:
         return TInt()
     elif t is str:
         return TStr()
-    return t
+    elif isinstance(t, list):
+        assert len(t) == 1
+        return _apply_list_type(parse_type(t[0]))
+    elif isinstance(t, dict):
+        assert len(t) == 1
+        [(key, val)] = t.iteritems()
+        return _apply_dict_type(parse_type(key), parse_type(val))
+    elif t is type:
+        # MAGIC!
+        return t
+    assert False, "Unknown type repr of type %r: %r" % (type(t), t)
+
+def realize_type(t):
+    ast = compiler.ast
+    if isinstance(t, ast.CallFunc):
+        return TApply(realize_type(t.node), map(realize_type, t.args))
+    elif isinstance(t, ast.Compare):
+        tuplify = lambda x: x.nodes if isinstance(x, ast.Tuple) else [x]
+        ops = [tuplify(t.expr)]
+        for o, e in t.ops[:-1]:
+            assert o == '>'
+            ops.insert(0, tuplify(e))
+        # Don't tuplify the last one (final result)
+        o, e = t.ops[-1]
+        assert o == '>'
+        r = realize_type(e)
+        return reduce(lambda r, ts: TFunc(map(realize_type, ts), r), ops, r)
+    elif isinstance(t, ast.List):
+        assert len(t.nodes) == 1
+        return _apply_list_type([realize_type(t.nodes[0])])
+    elif isinstance(t, ast.Name):
+        t = t.name
+        if len(t) == 1:
+            return TVar(t)
+        elif t in ALGETYPES:
+            return TData(ALGETYPES[t])
+        elif t in DATATYPES:
+            return TData(DATATYPES[t])
+        elif t == 'str':
+            return TStr()
+        elif t == 'int':
+            return TInt()
+    elif isinstance(t, ast.UnarySub):
+        return TWeak(realize_type(t.expr))
+    assert False, "Unknown type ast repr: %r" % (t,)
+
+def _apply_list_type(t):
+    return TApply(list, [t])
+
+def _apply_dict_type(k, v):
+    return TApply(dict, [k, v])
 
 # Contexts
 

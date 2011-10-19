@@ -1,6 +1,6 @@
 import base
 
-Overlay = base.DT('Overlay', ('annotate', 'Atom -> str'))
+Overlay = base.DT('Overlay', ('annotate', 'a -> str'))
 
 TypeAnnot = Overlay(repr)
 CastAnnot = Overlay(lambda t: '.. => %r' % t)
