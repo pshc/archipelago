@@ -18,13 +18,16 @@ struct list {
 
 struct list *nope(void);
 struct list *cons(void *, struct list *);
+void free_list(struct list *);
+void free_list_by(struct list *, void *free_val);
 
 #define IS_CONS(x) ((x)->next)
 #define IS_NIL(x) (!(IS_CONS(x)))
 
 struct map;
 
-struct map *new_map(void *compare_func);
+struct map *new_map(void *compare_func, void *free_key, void *free_val);
+void destroy_map(struct map *);
 void map_set(struct map *, void *, void *);
 int map_has(struct map *, const void *);
 void *map_get(struct map *, const void *);

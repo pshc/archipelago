@@ -13,8 +13,10 @@ void control_setup(void) {
     free(dir);
 
     char *hash = module_hash_by_name("test");
-    struct module *test_module = load_module(hash, adtT(AST));
+    type_t ast_type = adtT(AST);
+    struct module *test_module = load_module(hash, ast_type);
     editor_set_module(test_module);
+    destroy_type(ast_type);
     free(hash);
 }
 

@@ -19,6 +19,7 @@ static struct map *own_map, *forward_refs;
 static intptr_t *cur_field;
 
 static void *read_node(type_t type);
+static void destroy_module(struct module *);
 
 type_t intT(void) {
 	type_t type = malloc(sizeof *type);
@@ -41,7 +42,26 @@ type_t weak(type_t t) {
 	return wrapper;
 }
 
-struct ctor *Ctor(char *name, size_t field_count, ...) {
+type_t copy_type(type_t t) {
+	type_t copy = malloc(sizeof *t);
+	memcpy(copy, t, sizeof *t);
+	return copy;
+}
+
+void destroy_type(type_t t) {
+	switch (t->kind) {
+		case KIND_INT:
+		case KIND_STR:
+		case KIND_ADT:
+			break;
+		case KIND_WEAK:
+			destroy_type(t->ref);
+			break;
+	}
+	free(t);
+}
+
+struct ctor *Ctor(const char *name, size_t field_count, ...) {
 	struct ctor *ctor;
 	va_list field_list;
 	struct field *field, **fields;
@@ -50,21 +70,36 @@ struct ctor *Ctor(char *name, size_t field_count, ...) {
 	va_start(field_list, field_count);
 	for (i = 0; i < field_count; i++) {
 		field = malloc(sizeof(struct field));
-		field->name = va_arg(field_list, char *);
+		field->name = strdup(va_arg(field_list, char *));
+		/* Take ownership of the types */
 		field->type = va_arg(field_list, type_t);
 		fields[i] = field;
 	}
 	va_end(field_list);
 	ctor = malloc(sizeof *ctor);
-	ctor->name = name;
+	ctor->name = strdup(name);
 	ctor->field_count = field_count;
 	ctor->fields = fields;
 	return ctor;
 }
 
-struct adt *ADT(char *name) {
+static void destroy_ctor(struct ctor *ctor) {
+	size_t i, count;
+	struct field *field;
+	for (i = 0, count = ctor->field_count; i < count; i++) {
+		field = ctor->fields[i];
+		free(field->name);
+		destroy_type(field->type);
+		free(field);
+	}
+	free(ctor->fields);
+	free(ctor->name);
+	free(ctor);
+}
+
+struct adt *ADT(const char *name) {
 	struct adt *adt = malloc(sizeof *adt);
-	adt->name = name;
+	adt->name = strdup(name);
 	adt->ctor_count = 0;
 	adt->ctors = NULL;
 	return adt;
@@ -75,13 +110,24 @@ void ADT_ctors(struct adt *adt, size_t ctor_count, ...) {
 	struct ctor **ctors;
 	size_t i;
 	CHECK(adt->ctors == NULL, "ADT %s already has ctors", adt->name);
-	ctors = malloc(ctor_count * sizeof ctors);
 	va_start(ctor_list, ctor_count);
-	for (i = 0; i < ctor_count; i++)
-		ctors[i] = va_arg(ctor_list, struct ctor *);
+	if (ctor_count) {
+		ctors = malloc(ctor_count * sizeof ctors);
+		for (i = 0; i < ctor_count; i++)
+			ctors[i] = va_arg(ctor_list, struct ctor *);
+		adt->ctors = ctors;
+	}
 	va_end(ctor_list);
 	adt->ctor_count = ctor_count;
-	adt->ctors = ctors;
+}
+
+static void destroy_ADT(struct adt *adt) {
+	size_t i, count;
+	for (i = 0, count = adt->ctor_count; i < count; i++)
+		destroy_ctor(adt->ctors[i]);
+	free(adt->ctors);
+	free(adt->name);
+	free(adt);
 }
 
 void setup_serial(const char *dir) {
@@ -99,7 +145,14 @@ void setup_serial(const char *dir) {
 	);
 
 	base_dir = strdup(dir);
-	loaded_modules = new_map(&strcmp);
+	loaded_modules = new_map(&strcmp, &free, &destroy_module);
+}
+
+void cleanup_serial(void) {
+	destroy_map(loaded_modules);
+	free(base_dir);
+	destroy_ADT(AST);
+	destroy_ADT(Var);
 }
 
 static int read_char() {
@@ -283,24 +336,39 @@ struct module *load_module(const char *hash, type_t root_type) {
 	f = saved;
 	node_ctr = 0;
 	cur_field = NULL;
-	own_map = new_map(NULL);
-	forward_refs = new_map(NULL);
+	own_map = new_map(NULL, NULL, NULL);
+	forward_refs = new_map(NULL, NULL, &free_list);
 	root = read_node(root_type);
 
 	map_foreach(forward_refs, (map_foreach_f) &resolve_forward_refs);
+	destroy_map(forward_refs);
+	destroy_map(own_map);
 
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing data");
 	fclose(f);
 	f = NULL;
 
 	module = malloc(sizeof *module);
-	module->root_type = root_type;
+	module->root_type = copy_type(root_type);
 	module->root = root;
 	map_set(loaded_modules, strdup(hash), module);
 
 	return module;
 }
 
+static void free_str(char *str) {
+	free(str);
+}
+static void free_obj(intptr_t *obj) {
+	free(obj);
+}
+
+static void destroy_module(struct module *module) {
+	struct walker walker = {NULL, &free_str, NULL, &free_obj, NULL};
+	walk_object(module->root, module->root_type, &walker);
+	destroy_type(module->root_type);
+	free(module);
+}
 
 void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	struct adt *adt;
@@ -331,7 +399,7 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 			walk_object((intptr_t *) obj[i + 1],
 					ctor->fields[i]->type, walker);
 		if (walker->walk_close)
-			walker->walk_close();
+			walker->walk_close(obj);
 		break;
 
 	case KIND_WEAK:
@@ -349,13 +417,16 @@ int main(void) {
 	setup_serial("");
 
 	char *hash = module_hash_by_name("test");
-	load_module(hash, adtT(AST));
+	type_t ast_type = adtT(AST);
+	load_module(hash, ast_type);
 
 	CHECK(map_has(loaded_modules, hash), "Not loaded?");
 	CHECK(!map_has(loaded_modules, "fgsfds"), "Bogus hash");
 
+	destroy_type(ast_type);
 	free(hash);
 
+	cleanup_serial();
 	return 0;
 }
 #endif /* STANDALONE */

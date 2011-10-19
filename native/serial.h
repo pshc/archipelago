@@ -32,13 +32,17 @@ struct adt {
 extern struct adt *AST, *Var;
 
 type_t intT(void);
-type_t adtT(struct adt *adt);
-type_t weak(type_t t);
-struct ctor *Ctor(char *name, size_t field_count, ...);
-struct adt *ADT(char *name);
+type_t adtT(struct adt *);
+type_t weak(type_t);
+type_t copy_type(type_t);
+void destroy_type(type_t);
+
+struct ctor *Ctor(const char *name, size_t field_count, ...);
+struct adt *ADT(const char *name);
 void ADT_ctors(struct adt *adt, size_t ctor_count, ...);
 
 void setup_serial(const char *base_dir);
+void cleanup_serial(void);
 
 struct module {
 	type_t root_type;
@@ -56,7 +60,7 @@ struct walker {
 	void (*walk_int)(int);
 	void (*walk_str)(char *);
 	void (*walk_open)(intptr_t *, struct adt *, struct ctor *);
-	void (*walk_close)(void);
+	void (*walk_close)(intptr_t *);
 	void (*walk_ref)(intptr_t *);
 };
 

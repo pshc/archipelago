@@ -16,8 +16,6 @@ void create_editor(void) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    editor->text_cache = new_map(&strcmp);
-
     unsigned int background;
     glGenTextures(1, &background);
     glBindTexture(GL_TEXTURE_2D, background);
@@ -31,6 +29,8 @@ void create_editor(void) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, 16, 16, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pattern);
     free(pattern);
     editor->background_texture = background;
+
+    editor->text_cache = new_map(&strcmp, &free, &destroy_rasterized_text);
 }
 
 void resize_editor(struct size size) {
@@ -74,7 +74,7 @@ static void layout_open(intptr_t *object, struct adt *adt, struct ctor *ctor) {
     editor->layout = cons(node, editor->layout);
     map_set(editor->layout_map, object, node);
 }
-static void layout_close(void) {
+static void layout_close(intptr_t *object) {
     layout_pos.x -= LO_INDENT;
 }
 static void layout_ref(intptr_t *object) {
@@ -90,7 +90,7 @@ static void layout_ref(intptr_t *object) {
 static void layout_editor(void) {
     layout_pos.x = layout_pos.y = 0;
     editor->layout = nope();
-    editor->layout_map = new_map(NULL);
+    editor->layout_map = new_map(NULL, NULL, NULL);
 
     struct walker walker = {&layout_int, NULL, &layout_open, &layout_close, &layout_ref};
     walk_object(editor->module->root, editor->module->root_type, &walker);
@@ -249,6 +249,11 @@ void render_editor(void) {
 }
 
 void destroy_editor(void) {
+    if (editor->layout_map)
+        destroy_map(editor->layout_map);
+    if (editor->layout)
+        free_list(editor->layout);
+    destroy_map(editor->text_cache);
     glDeleteTextures(1, &editor->background_texture);
     free(editor);
     editor = NULL;
