@@ -94,14 +94,21 @@ def parse_type(t):
         return TInt()
     elif t is str:
         return TStr()
+    elif t is bool:
+        return TBool()
+    elif isinstance(t, tuple):
+        return TTuple(map(parse_type, t))
     elif isinstance(t, list):
         assert len(t) == 1
         return _apply_list_type(parse_type(t[0]))
+    elif isinstance(t, set):
+        assert len(t) == 1
+        return _apply_set_type(parse_type(list(t)[0]))
     elif isinstance(t, dict):
         assert len(t) == 1
         [(key, val)] = t.iteritems()
         return _apply_dict_type(parse_type(key), parse_type(val))
-    elif t is type:
+    elif t is None or t is type or t is object or t is file:
         # MAGIC!
         return t
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
@@ -124,6 +131,8 @@ def realize_type(t):
     elif isinstance(t, ast.List):
         assert len(t.nodes) == 1
         return _apply_list_type([realize_type(t.nodes[0])])
+    elif isinstance(t, ast.Tuple):
+        return TTuple(map(realize_type, t.nodes))
     elif isinstance(t, ast.Name):
         t = t.name
         if len(t) == 1:
@@ -136,12 +145,19 @@ def realize_type(t):
             return TStr()
         elif t == 'int':
             return TInt()
+        else:
+            return TForward(t)
     elif isinstance(t, ast.UnarySub):
         return TWeak(realize_type(t.expr))
     assert False, "Unknown type ast repr: %r" % (t,)
 
+TForward = DT('TForward', ('name', str))
+
 def _apply_list_type(t):
     return TApply(list, [t])
+
+def _apply_set_type(t):
+    return TApply(set, [t])
 
 def _apply_dict_type(k, v):
     return TApply(dict, [k, v])
