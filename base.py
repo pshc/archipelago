@@ -198,7 +198,9 @@ def new_extrinsic(label, t):
     return ExtInfo(label, t, stack)
 
 def extrinsic(ext, obj):
-    return ext.stack[-1][obj]
+    record = ext.stack[-1]
+    assert obj in record, '%r has no %s' % (obj, ext.label)
+    return record[obj]
 
 def scope_extrinsic(ext, func):
     new = ext.stack[-1].copy() if len(ext.stack) else {}
@@ -212,28 +214,40 @@ def in_extrinsic_scope(ext):
     return bool(ext.stack)
 
 def add_extrinsic(ext, obj, val):
-    assert not isinstance(obj, _value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "No extrinsics on values"
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     map = ext.stack[-1]
     assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
     map[obj] = val
 
 def update_extrinsic(ext, obj, val):
-    assert not isinstance(obj, _value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "No extrinsics on values"
     map = ext.stack[-1]
     assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
     map[obj] = val
 
 def has_extrinsic(ext, obj):
-    assert not isinstance(obj, _value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "No extrinsics on values"
     return obj in ext.stack[-1]
 
-_value_types = (basestring, bool, int, float, tuple, type(None))
+value_types = (basestring, bool, int, float, tuple, type(None))
 
 # Pretty printing
 # (naive quadratic version)
 
 PrettyPrinted = new_extrinsic('PrettyPrinted', type(None))
+
+def pretty_brief(name, o):
+    if name == 'BindBuiltin':
+        from bedrock import Name
+        return '&%s' % extrinsic(Name, o.builtin)
+    elif name == 'IntLit':
+        return 'i%d' % (o.val,)
+    elif name == 'StrLit':
+        return 's%r' % (o.val,)
+    elif name == 'TupleLit':
+        return 't%r' % (tuple(o.vals),)
+    return None
 
 def __repr__(o):
     if not in_extrinsic_scope(PrettyPrinted):
@@ -244,16 +258,9 @@ def __repr__(o):
         return '<%s at 0x%x>' % (name, id(o))
     add_extrinsic(PrettyPrinted, o, None)
 
-    # Brevity
-    if name == 'BindBuiltin':
-        from bedrock import Name
-        return '&%s' % extrinsic(Name, o.builtin)
-    elif name == 'IntLit':
-        return 'i%d' % (o.val,)
-    elif name == 'StrLit':
-        return 's%r' % (o.val,)
-    elif name == 'TupleLit':
-        return 't%r' % (tuple(o.vals),)
+    brief = pretty_brief(name, o)
+    if brief is not None:
+        return brief
 
     params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
     return '%s(%s)' % (name, ', '.join(params))
