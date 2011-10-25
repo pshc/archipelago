@@ -674,6 +674,7 @@ def setup_builtin_module():
         is_type = False
         for name in builtins_types:
             builtin = Builtin()
+            add_extrinsic(Name, builtin, name)
             BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
     in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
 

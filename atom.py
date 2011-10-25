@@ -156,7 +156,7 @@ def load_module_dep(filename, deps):
         return mod
     from ast import convert_file
     mod = convert_file(filename, name, deps)
-    write_mod_repr('views/' + name + '.txt', mod, {})
+    write_mod_repr('views/' + name + '.txt', mod, [Name])
     serialize_module(mod)
     from hm import infer_types
     overlays = infer_types(mod.roots)
@@ -274,17 +274,6 @@ def serialize_module(module):
     loaded_module_atoms.update(selfixs)
     loaded_modules[module.name] = module
 
-# Everything went better than expected
-GLOBAL_OVERLAYS = {}
-
-def write_mod_repr(filename, m, overlays):
-    global GLOBAL_OVERLAYS
-    GLOBAL_OVERLAYS = overlays
-    with file(filename, 'w') as f:
-        for r in m.roots:
-            f.write(repr(r))
-    GLOBAL_OVERLAYS = {}
-
 @matcher('sized')
 def _match_sized(atom, ast):
     # specific to atoms; matches int(n) followed by n items
@@ -351,52 +340,73 @@ def _match_subs(atom, ast):
     assert len(ast.args) == 1
     return match_try(atom.subs, ast.args[0]) if hasattr(atom, 'subs') else None
 
-def _do_repr(s, r, indent):
-    if hasattr(s, 'refAtom'):
-        label = '<ref>'
-        if s.refAtom in boot_syms:
-            label = s.refAtom.subs[0].subs[0].strVal
-            if label == 'xref':
-                r.append('  ' * indent + 'xref:')
-                _do_repr(s.subs[0].refAtom, r, indent+1)
-                return
-        elif s.refAtom in csym_roots:
-            label = s.refAtom.subs[0].subs[0].strVal + '*'
-        elif hasattr(s.refAtom, 'strVal'):
-            label = '->%r' % (s.refAtom.strVal,)
-        elif getattr(s.refAtom, 'subs', []):
-            for sub in s.refAtom.subs:
-                if getattr(sub, 'refAtom', None) is _b_name:
-                    label = '->%s' % (sub.subs[0].strVal,)
-                    if getattr(s.refAtom, 'refAtom', None) in boot_syms:
-                        label = '%s (%s)' % (label,
-                                s.refAtom.refAtom.subs[0].subs[0].strVal)
-                    # TEMP
-                    label = '%s @%x' % (label, id(s.refAtom))
-                    break
+ModRepr = DT('ModRepr', ('write', 'str -> void'),
+                        ('indent', int),
+                        ('exts', [object]),
+                        ('seen', set([object])),
+                        ('weakIndices', {object: int}),
+                        ('weakCtr', int))
+MODREPR = new_context('MODREPR', ModRepr)
+
+def write_mod_repr(filename, m, exts):
+    with file(filename, 'w') as f:
+        def write(x):
+            f.write('%s%s\n' % ('  ' * context(MODREPR).indent, x))
+        init = ModRepr(write, 0, exts, set(), {}, 0)
+        in_context(MODREPR, init, lambda: _do_repr(m.root))
+
+def _do_repr(s):
+    c = context(MODREPR)
+    if isinstance(s, DataType):
+        if s in c.seen:
+            if s in c.weakIndices:
+                c.write('<cyclic #%d>' % c.weakIndices[s])
+            else:
+                c.write('<cyclic 0x%x>' % id(c.seen[s]))
+            return
+        c.seen.add(s)
+        dt = type(s)
+        name = dt.__name__
+        brief = pretty_brief(name, s)
+        if brief and name != 'TupleLit':
+            c.write(brief)
+            return
+        if s in c.weakIndices:
+            name = '%s #%d' % (name, c.weakIndices[s])
+        for ext in c.exts:
+            if has_extrinsic(ext, s):
+                name = '%s %s' % (name, extrinsic(ext, s))
+        c.write(name)
+        c.indent += 1
+        for slot, t in zip(dt.__slots__[:-1], dt.__types__):
+            f = getattr(s, slot)
+            p = match(t, ("TWeak(p)", Just), ("_", Nothing))
+            if isJust(p):
+                if isinstance(f, DataType):
+                    if has_extrinsic(Name, f):
+                        c.write('->%s' % (extrinsic(Name, f),))
+                    else:
+                        if f not in c.weakIndices:
+                            c.weakCtr += 1
+                            c.weakIndices[f] = c.weakCtr
+                        c.write('->#%d %r' % (c.weakIndices[f], f))
+                else:
+                    c.write('->?? %r' % (f,))
+            else:
+                _do_repr(f)
+        c.indent -= 1
+    elif isinstance(s, (tuple, list)):
+        l, r = '()' if isinstance(s, tuple) else '[]'
+        if not s:
+            c.write(l + r)
         else:
-            assert isinstance(s.refAtom, basestring
-                    ), "Unexpected %r::%s as refAtom" % (
-                    s.refAtom, type(s.refAtom).__name__)
-            label = '->[missing %s]' % s.refAtom
-    elif hasattr(s, 'intVal'):
-        label = str(s.intVal)
-    elif hasattr(s, 'strVal'):
-        label = repr(s.strVal)
+            c.write(l)
+            for o in s:
+                _do_repr(o)
+            c.write(r)
+    elif isinstance(s, value_types):
+        c.write(repr(s))
     else:
-        label = repr(type(s))
-    r.append('  ' * indent + label)
-    global GLOBAL_OVERLAYS
-    for info, overlay in GLOBAL_OVERLAYS.iteritems():
-        if s in overlay:
-            r.append('  ' * indent + info.annotate(overlay[s]))
-    if hasattr(s, 'subs'):
-        if not isinstance(s.subs, list):
-            invalid = 'INVALID SUBS: ' + repr(s.subs)
-            #print invalid
-            r.append('  ' * (indent+1) + invalid)
-        else:
-            for sub in s.subs:
-                _do_repr(sub, r, indent + 1)
+        assert False, "Can't deal with %r" % (s,)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

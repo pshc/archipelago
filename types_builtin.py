@@ -1,5 +1,5 @@
 from base import *
-from bedrock import List, maybe
+from bedrock import List, Name, maybe
 
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):
@@ -41,7 +41,9 @@ def type_equal(a, b):
         ("_", lambda: False))
 
 def _get_name(a):
-    return match(a, ("named(nm)", lambda nm: nm))
+    if not a or not has_extrinsic(Name, a):
+        return '?? %r' % (a,)
+    return extrinsic(Name, a)
 
 REPR_ENV = None
 
