@@ -50,9 +50,9 @@ def _serialize_node(node):
     if isinstance(node, DataType):
         ix = getattr(node, '_ctor_ix', 0)
         _write(_encode_int(ix))
-        for (field, type) in zip(node.__slots__[:-1], node.__types__):
+        for (field, t) in zip(node.__slots__[:-1], node.__types__):
             sub = getattr(node, field)
-            if isinstance(type, TWeak):
+            if isinstance(t, TWeak):
                 _write_ref(sub)
             else:
                 _serialize_node(sub)
@@ -81,9 +81,9 @@ def _inspect_node(node):
         state = context(Inspection)
         add_extrinsic(OwnIndex, node, state.count)
         state.count += 1
-        for (field, type) in zip(node.__slots__[:-1], node.__types__):
+        for (field, t) in zip(node.__slots__[:-1], node.__types__):
             sub = getattr(node, field)
-            if isinstance(type, TWeak):
+            if isinstance(t, TWeak):
                 # Record this ref's target digest
                 if has_extrinsic(Location, sub):
                     mod = extrinsic(Location, sub).module
@@ -169,8 +169,8 @@ def _read_node(t):
         ctor = t.data.ctors[_read_int()]
 
         fields = []
-        for type in ctor.__types__:
-            child = _read_node(type)
+        for ft in ctor.__types__:
+            child = _read_node(ft)
             fields.append(child)
         val = ctor(*fields)
         state.ownMap[index] = val
