@@ -226,3 +226,5 @@ def deserialize(digest, root_type):
     add_extrinsic(ModIndex, module, ownMap)
     LOADED_MODULES[digest] = module
     return module
+
+# vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
