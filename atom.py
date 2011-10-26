@@ -2,9 +2,9 @@
 from os import system
 from hashlib import sha256
 from base import *
-from types_builtin import *
 from bedrock import *
-from globs import loaded_modules, loaded_module_atoms
+from globs import *
+from types_builtin import *
 
 Builtin = DT('Builtin')
 
@@ -159,7 +159,12 @@ def load_module_dep(filename, deps):
     from ast import convert_file
     mod = convert_file(filename, name, deps)
     write_mod_repr('views/' + name + '.txt', mod, [Name])
-    serialize_module(mod)
+
+    import native
+    def go():
+        native.serialize(mod)
+    scope_extrinsic(Location, lambda: scope_extrinsic(ModIndex, go))
+
     from hm import infer_types
     overlays = infer_types(mod.roots)
     write_mod_repr('views/' + name + '.txt', mod, overlays)
@@ -171,7 +176,7 @@ def load_module_dep(filename, deps):
     write_mod_repr('views/' + name + '.c.txt', c, {})
     from c import write_c
     write_c(c, 'views')
-    serialize_module(c)
+    native.serialize(c)
     return mod
 
 def load_module(filename):
@@ -191,90 +196,6 @@ add_sym('tuple*')
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
         'slice,printf,object').split(','))
-
-def walk_atoms(atoms, f):
-    for atom in atoms:
-        f(atom)
-        walk_atoms(atom.subs, f)
-
-char_escapes = dict(zip('"\n\\\t\r\0\b\a\f\v', '"n\\tr0bafv'))
-
-def escape_str(s):
-    return '"%s"' % (''.join('\\' + char_escapes[c] if c in char_escapes
-                             else c for c in s),)
-
-SerializeInit = DT('SerializeInit', ('natoms', int),
-                                    ('atomixs', {object: int}),
-                                    ('modset', set([Module])),
-                                    ('unknown_refatoms', set([object])))
-
-def serialize_module(module):
-    if module.digest:
-        print '%s is already serialized' % (module.name,)
-        return
-    state = SerializeInit(0, {}, set(), set())
-    def init_serialize(atom, state=state):
-        if hasattr(type(atom), '__types__'):
-            print type(atom).__types__
-        assert hasattr(atom, 'subs'), "Expected atom, got: %s" % (atom,)
-        state.atomixs[atom] = state.natoms
-        state.natoms += 1
-        r = match(atom, ('Ref(r, _)', identity), ('_', lambda: None))
-        if r is not None:
-            m = loaded_module_atoms.get(r)
-            if m is not None:
-                state.modset.add(m[1])
-            else:
-                state.unknown_refatoms.add(r)
-    walk_atoms(module.roots, init_serialize)
-
-    nmods = len(state.modset)
-    base = 7 + nmods
-    natoms = base + state.natoms
-    selfixs = {}
-    for atom, i in state.atomixs.iteritems():
-        selfixs[atom] = (i + base + 1, module)
-        if atom in state.unknown_refatoms:
-            state.unknown_refatoms.remove(atom)
-    assert not state.unknown_refatoms, ("A dependency of %s has not been "
-            "serialized; %d atom(s) orphaned:\n%s") % (module.name,
-            len(state.unknown_refatoms),
-            '\n>'.join(repr(s) for s in state.unknown_refatoms))
-    deps = ""
-    modixs = {}
-    for m, mod in enumerate(sorted(state.modset)):
-        modixs[mod] = m + 1
-        deps += escape_str(mod.digest) + "\n"
-    nroots = len(module.roots)
-    header = '"";4\n1;1\n%s\n2;1\n%d\n3%s\n%s4%s\n' % (
-             escape_str(module.name), natoms, ";%d" % nmods if nmods else "",
-             deps, ";%d" % nroots if nroots else "")
-    hash = sha256(header)
-    temp = '/tmp/serialize'
-    f = file(temp, 'wb')
-    f.write(header)
-    def refstr(ra):
-        s = selfixs.get(ra)
-        if s is not None:
-            return 's%d' % (s[0],)
-        ix, mod = loaded_module_atoms[ra]
-        return 'r%d %d' % (ix, modixs[mod])
-    def output(str):
-        hash.update(str)
-        f.write(str)
-    def serialize_atom(atom):
-        match(atom, ("Int(i, _)", lambda i: output(str(i))),
-                    ("Str(s, _)", lambda s: output(escape_str(s))),
-                    ("Ref(r, _)", lambda r: output(refstr(r))))
-        n = len(atom.subs)
-        output(";%d\n" % n if n else "\n")
-    walk_atoms(module.roots, serialize_atom)
-    f.close()
-    module.digest = hash.digest().encode('hex')
-    system('mv -f -- %s mods/%s' % (temp, module.digest))
-    system('ln -sf -- %s mods/%s' % (module.digest, module.name))
-    loaded_module_atoms.update(selfixs)
-    loaded_modules[module.name] = module
 
 @matcher('key')
 def _match_key(atom, ast):

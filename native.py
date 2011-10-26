@@ -1,15 +1,10 @@
 from base import *
 from bedrock import *
+from globs import *
 from hashlib import sha256
 from os import system
 
-ModIndex = new_extrinsic('ModIndex', list)
-
 Ptr = DT('Ptr', ('dest', 'a'))
-
-Pos = DT('Pos', ('module', Module), ('index', int))
-
-Location = new_extrinsic('Location', Pos)
 
 SerialState = DT('SerialState',
         ('file', file),

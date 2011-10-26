@@ -1,6 +1,12 @@
-import base
+import base as _base
 
-Overlay = base.DT('Overlay', ('annotate', 'a -> str'))
+ModIndex = _base.new_extrinsic('ModIndex', list)
+
+Pos = _base.DT('Pos', ('module', 'Module'), ('index', int))
+
+Location = _base.new_extrinsic('Location', Pos)
+
+Overlay = _base.DT('Overlay', ('annotate', 'a -> str'))
 
 TypeAnnot = Overlay(repr)
 CastAnnot = Overlay(lambda t: '.. => %r' % t)
