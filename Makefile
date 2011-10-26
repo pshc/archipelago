@@ -9,6 +9,9 @@ llvm:
 tada: mods views
 	./c.py short.py
 
+demo:
+	./demo.py
+
 mods:
 	mkdir $@
 views:

@@ -1,34 +1,11 @@
 from base import *
+from bedrock import *
 from hashlib import sha256
 from os import system
 
-Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
-def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
-def isNothing(m): return match(m, ('Nothing()', lambda: True),
-                                  ('_', lambda: False))
-
-Module = DT('Module', ('name', str), ('digest', str), ('root', 'a'))
-
 ModIndex = new_extrinsic('ModIndex', list)
 
-Var = DT('Var')
-
-AST, Num, Bind, Plus, Lam, App = ADT('AST',
-        'Num', ('int', int),
-        'Bind', ('var', '*Var'),
-        'Plus', ('a', 'AST'), ('b', 'AST'),
-        'Lam', ('param', Var), ('expr', 'AST'),
-        'App', ('func', 'AST'), ('arg', 'AST'))
-
 Ptr = DT('Ptr', ('dest', 'a'))
-
-# Var' = Var w/ name annotations
-# AST' = AST w/ Var'
-
-Name = new_extrinsic('Name', str)
-
-def nameof(node):
-    return extrinsic(Name, node)
 
 Pos = DT('Pos', ('module', Module), ('index', int))
 
@@ -38,7 +15,7 @@ SerialState = DT('SerialState',
         ('file', file),
         ('hash', None),
         ('index', int),
-        ('deps', dict))
+        ('deps', {Module: int}))
 
 Serialize = new_context('Serialize', SerialState)
 
@@ -90,7 +67,7 @@ def _serialize_node(node):
 
 InspectState = DT('InspectState',
         ('count', int),
-        ('deps', set),
+        ('deps', set([str])),
         )
 
 Inspection = new_context('Inspection', InspectState)
@@ -147,10 +124,10 @@ def serialize(module):
 DeserialState = DT('DeserialState',
         ('file', file),
         ('module', Module),
-        ('deps', dict),
+        ('deps', {int: Module}),
         ('index', int),
-        ('ownMap', list),
-        ('forwardRefs', dict))
+        ('ownMap', {int: object}),
+        ('forwardRefs', {int: [Ptr]}))
 
 Deserialize = new_context('Deserialize', DeserialState)
 
@@ -185,11 +162,11 @@ def _read_str():
     return context(Deserialize).read(n).decode('UTF-8')
 
 def _read_node(t):
-    if isinstance(t, __builtins__.type) and issubclass(t, DataType):
+    if isinstance(t, TData):
         state = context(Deserialize)
         index = state.index
         state.index += 1
-        ctor = t.ctors[_read_int()]
+        ctor = t.data.ctors[_read_int()]
 
         fields = []
         for type in ctor.__types__:
@@ -224,7 +201,7 @@ def _read_node(t):
 
 LOADED_MODULES = {}
 
-def deserialize(digest, root_type=AST):
+def deserialize(digest, root_type):
     if digest in LOADED_MODULES:
         return LOADED_MODULES[digest]
     print 'deserialize', digest
@@ -254,25 +231,3 @@ def deserialize(digest, root_type=AST):
     add_extrinsic(ModIndex, module, ownMap)
     LOADED_MODULES[digest] = module
     return module
-
-def test():
-    foo = Var()
-    add_extrinsic(Name, foo, 'foo')
-    body = Plus(Num(1), Bind(Ptr(foo)))
-    sample = Plus(Bind(Ptr(foo)), App(Lam(foo, body), Num(0x3042)))
-
-    print 'before', sample
-    module = Module('test', Nothing(), sample)
-    serialize(module)
-    print 'digest', module.digest.just
-    module = deserialize(module.digest.just)
-    print 'after', module.root
-
-def main():
-    scope_extrinsic(Name,
-            lambda: scope_extrinsic(Location,
-            lambda: scope_extrinsic(ModIndex, test)))
-    return 0
-
-if __name__ == '__main__':
-    main()
