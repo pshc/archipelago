@@ -263,6 +263,11 @@ def make_extrinsic(left, args):
     extrinsic = Extrinsic(conv_type(t, tvars))
     return [ExtrinsicStmt(extrinsic)]
 
+def conv_get_extrinsic(args):
+    assert len(args) == 2
+    # XXX
+    return GetExtrinsic(*args)
+
 def conv_special(e):
     """
     For DT and context argument conversion into types
@@ -374,6 +379,7 @@ special_call_forms = {
 extra_call_forms = {
         'match': conv_match,
         'context': conv_get_context, 'in_context': conv_in_context,
+        'extrinsic': conv_get_extrinsic,
 }
 
 @expr(ast.CallFunc)
