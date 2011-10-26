@@ -274,23 +274,6 @@ def serialize_module(module):
     loaded_module_atoms.update(selfixs)
     loaded_modules[module.name] = module
 
-@matcher('sized')
-def _match_sized(atom, ast):
-    # specific to atoms; matches int(n) followed by n items
-    assert 1 <= len(ast.args) <= 2
-    assert isinstance(atom, list), "Expected list for 'sized"
-    if isinstance(atom[0], Int):
-        n = atom[0].intVal
-        if len(atom) > n:
-            atomsm = match_try(atom[1:n+1], ast.args[0])
-            if atomsm is not None:
-                if len(ast.args) == 1:
-                    return atomsm
-                restm = match_try(atom[n+1:], ast.args[1])
-                if restm is not None:
-                    return atomsm + restm
-    return None
-
 @matcher('key')
 def _match_key(atom, ast):
     assert len(ast.args) == 1
@@ -323,22 +306,10 @@ def _match_sym(atom, ast):
 
 @matcher('named')
 def _match_named(atom, ast):
-    assert 1 <= len(ast.args) <= 2
-    for sub in atom.subs:
-        if isinstance(sub, Ref) and sub.refAtom is boot_sym_names['name']:
-            name = sub.subs[0]
-            assert isinstance(name, Str)
-            m = match_try(name.strVal, ast.args[0])
-            if len(ast.args) == 1 or m is None:
-                return m
-            n = match_try(atom.subs, ast.args[1])
-            return None if n is None else m + n
-    return None
-
-@matcher('subs')
-def _match_subs(atom, ast):
     assert len(ast.args) == 1
-    return match_try(atom.subs, ast.args[0]) if hasattr(atom, 'subs') else None
+    if has_extrinsic(Name, atom):
+        return match_try(extrinsic(Name, atom), ast.args[0])
+    return None
 
 ModRepr = DT('ModRepr', ('write', 'str -> void'),
                         ('indent', int),

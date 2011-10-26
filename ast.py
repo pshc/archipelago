@@ -315,8 +315,7 @@ def conv_match(args):
               for a in args]
     return Match(expra, casesa)
 
-named_match_cases = {'sized': [1, 2], 'key': [1, 2], 'named': [1, 2],
-                     'subs': [1], 'sym': [2, 3],
+named_match_cases = {'key': [1], 'named': [1], 'sym': [2, 3],
                      'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
 assert set(named_match_cases) == set(named_match_dispatch)
 
