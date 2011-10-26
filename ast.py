@@ -21,19 +21,22 @@ def ast_contexts():
 
 loaded_module_export_names = {}
 
-def identifier(obj, name, is_type=False,
+valueNamespace = 'value'
+typeNamespace = 'type'
+symbolNamespace = 'symbol'
+
+def identifier(obj, name, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
     scope = context(SCOPE)
-    key = (name, is_type)
-    kind = 'type' if is_type else 'term'
+    key = (name, namespace)
     assert name in permissible_nms or key not in scope.syms, (
             "Symbol '%s' already in %s context\n%s" % (
-            name, kind,
-            '\n'.join('\t'+str(s) for s, t in scope.syms if t == is_type)))
+            name, namespace,
+            '\n'.join('\t'+str(s) for s, ns in scope.syms if ns == namespace)))
     try:
         b = bind_kind(obj)
     except ValueError:
-        assert False, "Can't bind %s %r to %r" % (kind, obj, name)
+        assert False, "Can't bind %s %r to %r" % (namespace, obj, name)
     scope.syms[key] = (obj, b)
     add_extrinsic(Name, obj, name)
 
@@ -46,9 +49,9 @@ def identifier(obj, name, is_type=False,
     if export:
         omni.exports[key] = obj
 
-def ident_exists(nm, is_type=False):
+def ident_exists(nm, namespace=valueNamespace):
     scope = context(SCOPE)
-    key = (nm, is_type)
+    key = (nm, namespace)
     while scope is not None:
         o = scope.syms.get(key)
         if o is not None:
@@ -57,17 +60,17 @@ def ident_exists(nm, is_type=False):
         scope = scope.prevContext
     return Nothing()
 
-def refs_existing(nm, is_type=False):
-    ref = ident_exists(nm, is_type=is_type)
+def refs_existing(nm, namespace=valueNamespace):
+    ref = ident_exists(nm, namespace)
     if isJust(ref):
         return fromJust(ref)
-    if is_type:
+    if namespace == typeNamespace:
         if nm == 'int':
             return TInt()
         if nm == 'str':
             return TStr()
         # Bind() is wrong for types... or is it?
-    key = (nm, is_type)
+    key = (nm, namespace)
     fwd_ref = Bind(key)
     omni = context(OMNI)
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
@@ -86,11 +89,13 @@ def bind_kind(v):
         return BindCtor
     elif isinstance(v, DTStmt):
         return BindDT
+    elif isinstance(v, (Ctxt, Extrinsic)):
+        return identity
     else:
         raise ValueError("Can't bind to %r" % (v,))
 
 def type_ref(nm):
-    return refs_existing(nm, is_type=True)
+    return refs_existing(nm, namespace=typeNamespace)
 
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
@@ -198,13 +203,13 @@ def conv_and(e):
     assert len(e.nodes) == 2
     return And(*map(conv_expr, e.nodes))
 
-def make_adt(left, args):
-    adt_nm = match(args.pop(0), ('StrLit(nm)', identity))
+def make_adt(adt_nm, *args):
     ctors = []
     adt = DTStmt(ctors, [])
-    identifier(adt, adt_nm, is_type=True, export=True)
+    identifier(adt, adt_nm.val, namespace=typeNamespace, export=True)
     tvars = {}
     field_nms = set()
+    args = list(args)
     while args:
         ctor_nm = match(args.pop(0), ('StrLit(s)', identity))
         members = []
@@ -224,14 +229,14 @@ def make_adt(left, args):
     adt.tvars = tvars.values()
     return [adt]
 
-def make_dt(left, args):
-    (nm, fs) = match(args, ('cons(StrLit(dt_nm), all(nms, TupleLit('
-                            '[StrLit(nm), t])))', tuple2))
+def make_dt(dt_nm, *args):
+    args = list(args)
+    fs = match(args, ('all(nms, TupleLit([StrLit(nm), t]))', identity))
     fields = []
     ctor = Ctor(fields)
-    identifier(ctor, nm, export=True)
+    identifier(ctor, dt_nm.val, export=True)
     dt = DTStmt([ctor], [])
-    identifier(dt, nm, is_type=True, export=True)
+    identifier(dt, dt_nm.val, namespace=typeNamespace, export=True)
     tvars = {}
     for fnm, t in fs:
         field = Field(conv_type(t, tvars, dt=dt))
@@ -240,12 +245,17 @@ def make_dt(left, args):
     dt.tvars = tvars.values()
     return [dt]
 
-def make_context(left, args):
-    nm, t = match(args, ('cons(nm==StrLit(_), cons(t, _))', tuple2))
+def make_context(nm, t):
     tvars = {}
     ctxt = Ctxt(conv_type(t, tvars))
-    #identifier(ctxt, nm, export=True)
+    identifier(ctxt, nm, namespace=symbolNamespace, export=True)
     return [CtxtStmt(ctxt)]
+
+def make_extrinsic(nm, t):
+    tvars = {}
+    extr = Extrinsic(conv_type(t, tvars))
+    identifier(extr, nm, namespace=symbolNamespace, export=True)
+    return [ExtrinsicStmt(extr)]
 
 def conv_get_context(args):
     assert len(args) == 1
@@ -256,12 +266,6 @@ def conv_in_context(args):
     assert len(args) == 3
     # XXX Need to deref the first arg...
     return InCtxt(*args)
-
-def make_extrinsic(left, args):
-    nm, t = match(args, ('[nm==StrLit(_), t]', tuple2))
-    tvars = {}
-    extrinsic = Extrinsic(conv_type(t, tvars))
-    return [ExtrinsicStmt(extrinsic)]
 
 def conv_get_extrinsic(args):
     assert len(args) == 2
@@ -385,8 +389,17 @@ extra_call_forms = {
 @expr(ast.CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
-    if isinstance(e.node, ast.Name) and e.node.name in special_call_forms:
-        return SpecialCallForm(e.node.name, map(conv_special, e.args))
+    if isinstance(e.node, ast.Name):
+        kind = e.node.name
+        if kind in ('DT', 'ADT'):
+            return SpecialCallForm(kind, map(conv_special, e.args))
+        elif kind in ('new_context', 'new_extrinsic'):
+            if e.args and isinstance(e.args[0], ast.Const):
+                name = e.args[0].value
+                if isinstance(name, basestring):
+                    assert len(e.args) == 2
+                    t = conv_special(e.args[1])
+                    return SpecialCallForm(kind, [name, t])
     argsa = map(conv_expr, e.args)
     if isinstance(e.node, ast.Name):
         f = extra_call_forms.get(e.node.name)
@@ -520,7 +533,8 @@ def conv_assign(s):
     assert len(s.nodes) == 1
     expra = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
-        return special_call_forms[expra.name](s.nodes[0], expra.args)
+        # s.nodes[0] is usually the same as args[0], skipped for now
+        return special_call_forms[expra.name](*expra.args)
     lefta = conv_ass(s.nodes[0])
     # XXX Distinguish between defn and binding earlier
     if isJust(lefta):
@@ -676,11 +690,11 @@ BUILTINS = {}
 def setup_builtin_module():
     omni, scope = ast_contexts()
     def go():
-        is_type = False
+        namespace = valueNamespace
         for name in builtins_types:
             builtin = Builtin()
             add_extrinsic(Name, builtin, name)
-            BUILTINS[(name, is_type)] = (builtin, BindBuiltin)
+            BUILTINS[(name, namespace)] = (builtin, BindBuiltin)
     in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
 
 def convert_file(filename, name, deps):
