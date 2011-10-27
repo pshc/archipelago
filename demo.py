@@ -8,7 +8,7 @@ Var = DT('Var')
 AST, Num, Bind, Plus, Lam, App = ADT('AST',
         'Num', ('int', int),
         'Bind', ('var', '*Var'),
-        'Plus', ('a', 'AST'), ('b', 'AST'),
+        'Plus', ('exprs', ['AST']),
         'Lam', ('param', Var), ('expr', 'AST'),
         'App', ('func', 'AST'), ('arg', 'AST'))
 
@@ -18,8 +18,8 @@ AST, Num, Bind, Plus, Lam, App = ADT('AST',
 def test():
     foo = Var()
     add_extrinsic(Name, foo, 'foo')
-    body = Plus(Num(1), Bind(Ptr(foo)))
-    sample = Plus(Bind(Ptr(foo)), App(Lam(foo, body), Num(0x3042)))
+    body = Plus([Num(1), Num(2), Bind(Ptr(foo))])
+    sample = Plus([Bind(Ptr(foo)), App(Lam(foo, body), Num(0x3042))])
 
     print 'before', sample
     module = Module('test', Nothing(), sample)

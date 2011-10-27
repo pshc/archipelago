@@ -92,7 +92,7 @@ static void layout_editor(void) {
     editor->layout = nope();
     editor->layout_map = new_map(NULL, NULL, NULL);
 
-    struct walker walker = {&layout_int, NULL, &layout_open, &layout_close, &layout_ref};
+    struct walker walker = {&layout_int, NULL, NULL, &layout_open, &layout_close, &layout_ref};
     walk_object(editor->module->root, editor->module->root_type, &walker);
 }
 

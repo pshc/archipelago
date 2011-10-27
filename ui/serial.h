@@ -4,13 +4,18 @@
 struct adt;
 
 struct type {
-	enum { KIND_INT, KIND_STR, KIND_ADT, KIND_WEAK } kind;
+	enum { KIND_INT, KIND_STR, KIND_ARRAY, KIND_ADT, KIND_WEAK } kind;
 	union {
 		struct adt *adt;
 		struct type *ref;
 	};
 };
 typedef struct type *type_t;
+
+struct array {
+	size_t len;
+	void *elems[0];
+};
 
 struct field {
 	char *name;
@@ -33,6 +38,7 @@ extern struct adt *AST, *Var;
 
 type_t intT(void);
 type_t adtT(struct adt *);
+type_t arrayT(type_t);
 type_t weak(type_t);
 type_t copy_type(type_t);
 void destroy_type(type_t);
@@ -59,6 +65,7 @@ struct module *load_module(const char *hash, type_t root_type);
 struct walker {
 	void (*walk_int)(int);
 	void (*walk_str)(char *);
+	void (*walk_array)(struct array *);
 	void (*walk_open)(intptr_t *, struct adt *, struct ctor *);
 	void (*walk_close)(intptr_t *);
 	void (*walk_ref)(intptr_t *);

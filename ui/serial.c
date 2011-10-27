@@ -35,6 +35,13 @@ type_t adtT(struct adt *adt) {
 	return type;
 }
 
+type_t arrayT(type_t elem) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_ARRAY;
+	type->ref = elem;
+	return type;
+}
+
 type_t weak(type_t t) {
 	type_t wrapper = malloc(sizeof *wrapper);
 	wrapper->kind = KIND_WEAK;
@@ -54,6 +61,7 @@ void destroy_type(type_t t) {
 		case KIND_STR:
 		case KIND_ADT:
 			break;
+		case KIND_ARRAY:
 		case KIND_WEAK:
 			destroy_type(t->ref);
 			break;
@@ -139,7 +147,7 @@ void setup_serial(const char *dir) {
 	ADT_ctors(AST, 5,
 		Ctor("Num", 1, "int", intT()),
 		Ctor("Bind", 1, "var", weak(adtT(Var))),
-		Ctor("Plus", 2, "a", adtT(AST), "b", adtT(AST)),
+		Ctor("Plus", 1, "elems", arrayT(adtT(AST))),
 		Ctor("Lam", 2, "param", adtT(Var), "expr", adtT(AST)),
 		Ctor("App", 2, "func", adtT(AST), "arg", adtT(AST))
 	);
@@ -198,6 +206,17 @@ static char *read_str() {
 	CHECK(count == 1, "String overflow");
 	str[len] = '\0';
 	return str;
+}
+
+static struct array *read_array(type_t elem_type) {
+	int i, len;
+	len = read_int();
+	struct array *array = malloc(sizeof array->len
+			+ sizeof array->elems[0] * len);
+	array->len = (size_t) len;
+	for (i = 0; i < len; i++)
+		array->elems[i] = read_node(elem_type);
+	return array;
 }
 
 static void *read_adt(struct adt *adt) {
@@ -262,6 +281,9 @@ static void *read_node(type_t type) {
 
 		case KIND_STR:
 			return read_str();
+
+		case KIND_ARRAY:
+			return read_array(type->ref);
 
 		case KIND_ADT:
 			ix = node_ctr++;
@@ -359,12 +381,16 @@ struct module *load_module(const char *hash, type_t root_type) {
 static void free_str(char *str) {
 	free(str);
 }
+static void free_array(struct array *array) {
+	free(array);
+}
 static void free_obj(intptr_t *obj) {
 	free(obj);
 }
 
 static void destroy_module(struct module *module) {
-	struct walker walker = {NULL, &free_str, NULL, &free_obj, NULL};
+	struct walker walker = {NULL, &free_str, &free_array, NULL, &free_obj,
+			NULL};
 	walk_object(module->root, module->root_type, &walker);
 	destroy_type(module->root_type);
 	free(module);
@@ -374,6 +400,7 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	struct adt *adt;
 	intptr_t ix;
 	struct ctor *ctor;
+	struct array *array;
 	size_t i, len;
 	switch (type->kind) {
 	case KIND_INT:
@@ -384,6 +411,16 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	case KIND_STR:
 		if (walker->walk_str)
 			walker->walk_str((char *) obj);
+		break;
+
+	case KIND_ARRAY:
+		array = (struct array *) obj;
+		for (i = 0, len = array->len; i < len; i++)
+			walk_object((intptr_t *) array->elems[i], type->ref,
+					walker);
+		/* Walking after for now due to cleanup needs */
+		if (walker->walk_array)
+			walker->walk_array(array);
 		break;
 
 	case KIND_ADT:

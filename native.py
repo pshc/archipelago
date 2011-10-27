@@ -51,14 +51,17 @@ def _serialize_node(node):
                 _write_ref(sub)
             else:
                 _serialize_node(sub)
+    elif isinstance(node, basestring):
+        _write(_encode_str(node))
+    elif isinstance(node, int):
+        _write(_encode_int(node))
+    elif isinstance(node, list):
+        _write(_encode_int(len(node)))
+        # TODO: Check list element type for weak
+        for item in node:
+            _serialize_node(item)
     else:
-        if isinstance(node, basestring):
-            b = _encode_str(node)
-        elif isinstance(node, int):
-            b = _encode_int(node)
-        else:
-            assert False, "Can't serialize %r" % (node,)
-        _write(b) # can't refer to these...
+        assert False, "Can't serialize %r" % (node,)
 
 InspectState = DT('InspectState',
         ('count', int),
@@ -172,27 +175,33 @@ def _read_node(t):
 
         add_extrinsic(Location, val, Pos(state.module, index))
         return val
-    else:
-        if isinstance(t, TInt):
-            return _read_int()
-        elif isinstance(t, TStr):
-            return _read_str()
-        elif isinstance(t, TWeak):
-            state = context(Deserialize)
-            depindex = _read_int()
-            index = _read_int()
-            if depindex == 0:
-                if index in state.ownMap:
-                    return Ptr(state.ownMap[index])
-                else:
-                    # Resolve later
-                    ptr = Ptr(None)
-                    state.forwardRefs.setdefault(index, []).append(ptr)
-                    return ptr
+    elif isinstance(t, TInt):
+        return _read_int()
+    elif isinstance(t, TStr):
+        return _read_str()
+    elif isinstance(t, TApply):
+        assert t.appType == list, 'TEMP'
+        count = _read_int()
+        array = []
+        for i in xrange(count):
+            array.append(_read_node(t.appVars[0]))
+        return array
+    elif isinstance(t, TWeak):
+        state = context(Deserialize)
+        depindex = _read_int()
+        index = _read_int()
+        if depindex == 0:
+            if index in state.ownMap:
+                return Ptr(state.ownMap[index])
             else:
-                return Ptr(extrinsic(ModIndex, state.deps[depindex-1])[index])
+                # Resolve later
+                ptr = Ptr(None)
+                state.forwardRefs.setdefault(index, []).append(ptr)
+                return ptr
         else:
-            assert False, "%r is not a type" % (t,)
+            return Ptr(extrinsic(ModIndex, state.deps[depindex-1])[index])
+    else:
+        assert False, "%r is not a type" % (t,)
 
 LOADED_MODULES = {}
 
