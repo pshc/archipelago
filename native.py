@@ -76,6 +76,7 @@ OwnIndex = new_extrinsic('OwnIndex', int)
 def _inspect_node(node):
     if isinstance(node, DataType):
         assert not has_extrinsic(Location, node), "Already serialized?!"
+        assert not has_extrinsic(OwnIndex, node), "Multiply used %r" % (node,)
         state = context(Inspection)
         add_extrinsic(OwnIndex, node, state.count)
         state.count += 1

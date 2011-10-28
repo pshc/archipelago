@@ -72,7 +72,7 @@ def _type_repr(t):
                     ("TData(d)", _get_name),
                     ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
                                 '.'.join(map(_type_repr, vs)))),
-                    ("_", lambda: '<bad %s>' % type(t)))
+                    ("_", lambda: '<bad type %s>' % type(t)))
     REPR_ENV.remove(t)
     return rstr
 

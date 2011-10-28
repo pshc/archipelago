@@ -252,14 +252,14 @@ def write_mod_repr(filename, m, exts):
 def _do_repr(s):
     c = context(MODREPR)
     if isinstance(s, DataType):
+        dt = type(s)
         if s in c.seen:
             if s in c.weakIndices:
                 c.write('<cyclic #%d>' % c.weakIndices[s])
             else:
-                c.write('<cyclic 0x%x>' % id(c.seen[s]))
+                c.write('<cyclic %s 0x%x>' % (dt.__name__, id(s)))
             return
         c.seen.add(s)
-        dt = type(s)
         name = dt.__name__
         brief = pretty_brief(name, s)
         if brief and name != 'TupleLit':

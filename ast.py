@@ -152,7 +152,7 @@ def conv_type(t, tvars, dt=None):
     def type_str(s):
         if len(s) == 1:
             tvar = tvars.get(s)
-            if not s:
+            if not tvar:
                 tvar = TypeVar()
                 add_extrinsic(Name, tvar, s)
                 tvars[s] = tvar
