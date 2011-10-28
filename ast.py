@@ -692,8 +692,11 @@ def setup_builtin_module():
     def go():
         namespace = valueNamespace
         for name in builtins_types:
-            builtin = Builtin()
-            add_extrinsic(Name, builtin, name)
+            # TODO: Deal with this conflict
+            builtin = boot_sym_names.get(name)
+            if builtin is None:
+                builtin = Builtin()
+                add_extrinsic(Name, builtin, name)
             BUILTINS[(name, namespace)] = (builtin, BindBuiltin)
     in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
 
