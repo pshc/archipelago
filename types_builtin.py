@@ -133,12 +133,9 @@ builtins_types = {
     'sha256': (THash,),
     'sha256_hexdigest': (THash, TStr),
     'sha256_update': (THash, TStr, TVoid),
-    # etc to tuple5
+
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
-    'identity': (_var(1), _var(1)),
-    'tuple2': (_var(1), _var(2), TTuple([_var(1), _var(2)])),
-
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
     '//': (TInt, TInt, TInt),
