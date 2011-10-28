@@ -83,10 +83,12 @@ def _cyclic_check_type_repr(t):
     REPR_ENV = None
     return r
 
-_temp = locals().copy()
-for _t in _temp:
-    if _t[0:1] == 'T':
-        _temp[_t].__repr__ = _cyclic_check_type_repr
+def _inject_type_reprs():
+    temp = locals().copy()
+    for t in temp:
+        if len(t) > 1 and t[0] == 'T' and t[1].lower() != t[1]:
+            temp[t].__repr__ = _cyclic_check_type_repr
+_inject_type_reprs()
 
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
