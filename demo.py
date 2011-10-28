@@ -18,8 +18,8 @@ AST, Num, Bind, Plus, Lam, App = ADT('AST',
 def test():
     foo = Var()
     add_extrinsic(Name, foo, 'foo')
-    body = Plus([Num(1), Num(2), Bind(Ptr(foo))])
-    sample = Plus([Bind(Ptr(foo)), App(Lam(foo, body), Num(0x3042))])
+    body = Plus([Num(1), Num(2), Bind(foo)])
+    sample = Plus([Bind(foo), App(Lam(foo, body), Num(0x3042))])
 
     print 'before', sample
     module = Module('test', Nothing(), sample)

@@ -4,8 +4,6 @@ from globs import *
 from hashlib import sha256
 from os import system
 
-Ptr = DT('Ptr', ('dest', 'a'))
-
 SerialState = DT('SerialState',
         ('file', file),
         ('hash', None),
@@ -20,8 +18,6 @@ def _write(b):
     state.hash.update(b)
 
 def _write_ref(node):
-    assert isinstance(node, Ptr), 'Expected Ptr, got %r' % (node,)
-    node = node.dest
     if has_extrinsic(OwnIndex, node):
         a = 0
         b = extrinsic(OwnIndex, node)
@@ -31,7 +27,7 @@ def _write_ref(node):
         a = state.deps[loc.module]
         b = loc.index
     else:
-        assert False, 'Ptr to unserialized: %r' % (node,)
+        assert False, 'Weak ref to unserialized: %r' % (node,)
     _write(_encode_int(a) + _encode_int(b))
 
 def _encode_int(n):
@@ -126,7 +122,7 @@ DeserialState = DT('DeserialState',
         ('deps', {int: Module}),
         ('index', int),
         ('ownMap', {int: object}),
-        ('forwardRefs', {int: [Ptr]}))
+        ('forwardRefs', {int: [object]}))
 
 Deserialize = new_context('Deserialize', DeserialState)
 
@@ -160,19 +156,19 @@ def _read_str():
     n = _read_int()
     return context(Deserialize).read(n).decode('UTF-8')
 
-def _read_node(t):
+def _read_node(t, path):
     if isinstance(t, TData):
         state = context(Deserialize)
         index = state.index
         state.index += 1
         ctor = t.data.ctors[_read_int()]
 
-        fields = []
-        for ft in ctor.__types__:
-            child = _read_node(ft)
-            fields.append(child)
-        val = ctor(*fields)
+        # Bleh.
+        val = ctor(*[None for t in ctor.__types__])
         state.ownMap[index] = val
+        for fnm, ft in zip(ctor.__slots__[:-1], ctor.__types__):
+            child = _read_node(ft, (val, fnm))
+            setattr(val, fnm, child)
 
         add_extrinsic(Location, val, Pos(state.module, index))
         return val
@@ -185,7 +181,7 @@ def _read_node(t):
         count = _read_int()
         array = []
         for i in xrange(count):
-            array.append(_read_node(t.appVars[0]))
+            array.append(_read_node(t.appVars[0], path + (i,)))
         return array
     elif isinstance(t, TWeak):
         state = context(Deserialize)
@@ -193,14 +189,13 @@ def _read_node(t):
         index = _read_int()
         if depindex == 0:
             if index in state.ownMap:
-                return Ptr(state.ownMap[index])
+                return state.ownMap[index]
             else:
                 # Resolve later
-                ptr = Ptr(None)
-                state.forwardRefs.setdefault(index, []).append(ptr)
-                return ptr
+                state.forwardRefs.setdefault(index, []).append(path)
+                return 'forward ref'
         else:
-            return Ptr(extrinsic(ModIndex, state.deps[depindex-1])[index])
+            return extrinsic(ModIndex, state.deps[depindex-1])[index]
     else:
         assert False, "%r is not a type" % (t,)
 
@@ -223,11 +218,29 @@ def deserialize(digest, root_type):
             if dep is None:
                 dep = deserialize(hash)
             deps.append(dep)
-        module.root = _read_node(root_type)
-        for index, ptrs in forwardRefs.iteritems():
+        module.root = _read_node(root_type, (module, 'root'))
+        for index, paths in forwardRefs.iteritems():
             dest = ownMap[index]
-            for ptr in ptrs:
-                ptr.dest = dest
+            # resolve & replace each
+            for path in paths:
+                assert len(path) > 1, 'Path is too short'
+                src = path[0]
+                for step in path[1:-1]:
+                    if isinstance(step, basestring):
+                        src = getattr(src, step)
+                    elif isinstance(step, int):
+                        src = src[step]
+                    else:
+                        assert False, 'Bad path component'
+                end = path[-1]
+                if isinstance(end, basestring):
+                    assert getattr(src, end) == 'forward ref'
+                    setattr(src, end, dest)
+                elif isinstance(end, int):
+                    assert src[end] == 'forward ref'
+                    src[end] = dest
+                else:
+                    assert False, 'Bad path end'
         return module
     state = DeserialState(f, module, deps, 0, ownMap, forwardRefs)
     in_context(Deserialize, state, go)
