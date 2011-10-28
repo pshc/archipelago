@@ -346,7 +346,7 @@ def conv_match_try(node, bs):
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             return symref("%s%d" % (nm, len(args)), args)
         else:
-            return PatCtor(refs_existing(nm), [args])
+            return PatCtor(refs_existing(nm).ctor, [args])
     elif isinstance(node, ast.Name):
         if node.name == '_':
             return PatWild()
