@@ -76,7 +76,7 @@ def _inspect_node(node):
                 if has_extrinsic(Location, sub):
                     mod = extrinsic(Location, sub).module
                     if mod != state.module:
-                        state.deps.add(mod.digest.just)
+                        state.deps.add(mod)
             else:
                 _inspect_node(sub)
     elif isinstance(node, list):
@@ -95,7 +95,7 @@ def serialize(module):
         depmap = {module: 0}
         for mod in sorted(inspect.deps,
                           lambda x, y: cmp(x.digest.just, y.digest.just)):
-            deps.append(mod.digest)
+            deps.append(mod.digest.just)
             depmap[mod] = len(deps) # one-based
         state = SerialState(f, hash, 0, depmap)
         def go():
