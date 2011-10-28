@@ -18,16 +18,12 @@ def _write(b):
     state.hash.update(b)
 
 def _write_ref(node):
-    if has_extrinsic(OwnIndex, node):
-        a = 0
-        b = extrinsic(OwnIndex, node)
-    elif has_extrinsic(Location, node):
-        state = context(Serialize)
-        loc = extrinsic(Location, node)
-        a = state.deps[loc.module]
-        b = loc.index
-    else:
-        assert False, 'Weak ref to unserialized: %r' % (node,)
+    assert has_extrinsic(Location, node), 'Weak ref to unserialized: %r' % (
+            node,)
+    state = context(Serialize)
+    loc = extrinsic(Location, node)
+    a = state.deps[loc.module]
+    b = loc.index
     _write(_encode_int(a) + _encode_int(b))
 
 def _encode_int(n):
@@ -60,21 +56,18 @@ def _serialize_node(node):
         assert False, "Can't serialize %r" % (node,)
 
 InspectState = DT('InspectState',
+        ('module', '*Module'),
         ('count', int),
         ('deps', set([str])),
         )
 
 Inspection = new_context('Inspection', InspectState)
 
-# XXX: Abuse of extrinsics. They are global.
-OwnIndex = new_extrinsic('OwnIndex', int)
-
 def _inspect_node(node):
     if isinstance(node, DataType):
-        assert not has_extrinsic(Location, node), "Already serialized?!"
-        assert not has_extrinsic(OwnIndex, node), "Multiply used %r" % (node,)
+        assert not has_extrinsic(Location, node), "Multiply used %r" % (node,)
         state = context(Inspection)
-        add_extrinsic(OwnIndex, node, state.count)
+        add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
         for (field, t) in zip(node.__slots__[:-1], node.__types__):
             sub = getattr(node, field)
@@ -82,7 +75,8 @@ def _inspect_node(node):
                 # Record this ref's target digest
                 if has_extrinsic(Location, sub):
                     mod = extrinsic(Location, sub).module
-                    state.deps.add(mod.digest.just)
+                    if mod != state.module:
+                        state.deps.add(mod.digest.just)
             else:
                 _inspect_node(sub)
     elif isinstance(node, list):
@@ -94,11 +88,11 @@ def serialize(module):
     temp = '/tmp/serialize'
     hash = sha256()
     def index():
-        inspect = InspectState(0, set())
+        inspect = InspectState(module, 0, set())
         in_context(Inspection, inspect, lambda: _inspect_node(module.root))
         f = file(temp, 'wb')
         deps = []
-        depmap = {}
+        depmap = {module: 0}
         for mod in sorted(inspect.deps,
                           lambda x, y: cmp(x.digest.just, y.digest.just)):
             deps.append(mod.digest)
@@ -110,7 +104,7 @@ def serialize(module):
             _serialize_node(module.root)
         in_context(Serialize, state, go)
         f.close()
-    scope_extrinsic(OwnIndex, index)
+    index()
     hex = hash.digest().encode('hex')
     module.digest = Just(hex)
     system('mv -f -- %s mods/%s' % (temp, hex))
@@ -170,7 +164,6 @@ def _read_node(t, path):
             child = _read_node(ft, (val, fnm))
             setattr(val, fnm, child)
 
-        add_extrinsic(Location, val, Pos(state.module, index))
         return val
     elif isinstance(t, TInt):
         return _read_int()

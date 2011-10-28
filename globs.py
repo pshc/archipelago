@@ -2,7 +2,7 @@ import base as _base
 
 ModIndex = _base.new_extrinsic('ModIndex', list)
 
-Pos = _base.DT('Pos', ('module', 'Module'), ('index', int))
+Pos = _base.DT('Pos', ('module', '*Module'), ('index', int))
 
 Location = _base.new_extrinsic('Location', Pos)
 
