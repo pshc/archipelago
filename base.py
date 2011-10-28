@@ -4,6 +4,8 @@ from types import FunctionType
 DATATYPES = {}
 ALGETYPES = {}
 
+_deferred_type_parses = []
+
 def DT(*members, **opts):
     members = list(members)
     superclass = opts.get('superclass', DataType)
@@ -28,12 +30,13 @@ def DT(*members, **opts):
     dt = DATATYPES[name] = eval(name)
     dt.ctors = [dt]
     for nm, t in members:
-        if getattr(opts.get('superclass'), '__name__', '') not in (
-                'Type', 'TypeVar'):
+        if _deferred_type_parses is None:
             t = parse_type(t)
         dt.__types__.append(t)
     if invariant:
         dt.check_invariant = invariant
+    if _deferred_type_parses is not None:
+        _deferred_type_parses.append(dt)
     return dt
 
 def ADT(*ctors):
@@ -161,6 +164,14 @@ def _apply_set_type(t):
 
 def _apply_dict_type(k, v):
     return TApply(dict, [k, v])
+
+# Parse the types in TypeVar, Type fields
+def _parse_deferred():
+    global _deferred_type_parses
+    for ctor in _deferred_type_parses:
+        ctor.__types__ = map(parse_type, ctor.__types__)
+    _deferred_type_parses = None
+_parse_deferred()
 
 # Contexts
 
