@@ -261,11 +261,14 @@ def pretty_brief(name, o):
     return None
 
 def __repr__(o):
+    from bedrock import Name
     if not in_extrinsic_scope(PrettyPrinted):
         return scope_extrinsic(PrettyPrinted, lambda: repr(o))
     t = type(o)
     name = t.__name__
     if has_extrinsic(PrettyPrinted, o):
+        if has_extrinsic(Name, o):
+            name = '%s "%s"' % (name, extrinsic(Name, o))
         return '<%s at 0x%x>' % (name, id(o))
     add_extrinsic(PrettyPrinted, o, None)
 
@@ -273,6 +276,8 @@ def __repr__(o):
     if brief is not None:
         return brief
 
+    if has_extrinsic(Name, o):
+        name = '%s "%s"' % (name, extrinsic(Name, o))
     params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
     return '%s(%s)' % (name, ', '.join(params))
 
