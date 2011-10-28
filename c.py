@@ -413,10 +413,12 @@ def compile_module(filename):
 
 def main():
     import sys
+    load_builtins()
+    load_module('bedrock.py')
     for filename in sys.argv[1:]:
         compile_module(filename)
 
 if __name__ == '__main__':
-    main()
+    scope_extrinsic(Location, lambda: scope_extrinsic(ModIndex, main))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

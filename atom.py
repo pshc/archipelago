@@ -161,9 +161,7 @@ def load_module_dep(filename, deps):
     write_mod_repr('views/' + name + '.txt', mod, [Name])
 
     import native
-    def go():
-        native.serialize(mod)
-    scope_extrinsic(Location, lambda: scope_extrinsic(ModIndex, go))
+    native.serialize(mod)
 
     from hm import infer_types
     overlays = infer_types(mod.roots)
@@ -186,13 +184,22 @@ def load_module(filename):
     print 'Loaded [%s] for %s' % (', '.join(d.name for d in deps), filename)
     return (mod, deps)
 
-add_sym('length')
-add_sym('deps')
-add_sym('type')
-add_sym('xref')
-add_sym('instantiation')
-map(add_sym, 'void,int,bool,char,str,tuple,func,typevar'.split(','))
-add_sym('tuple*')
+BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
+
+def load_builtins():
+    root = BuiltinList(boot_syms)
+    mod = Module('builtins', Nothing(), root)
+    exports = {}
+    for sym in boot_syms:
+        exports[extrinsic(Name, sym)] = sym
+    from ast import loaded_module_export_names
+    loaded_module_export_names[mod] = exports
+
+    write_mod_repr('views/symbols.txt', mod, [Name])
+
+    import native
+    native.serialize(mod)
+
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
         'slice,printf,object').split(','))
