@@ -292,8 +292,18 @@ def conv_special(e):
         assert False, 'Unexpected %s' % c
 
 def replace_refs(mapping, e):
-    # XXX: Need to walk expression, replacing bindings.
-    print 'WARNING: replace_refs not implemented'
+    # TODO: Need an expression walker
+    if isinstance(e, BindVar):
+        if e.var in mapping:
+            e.var = mapping[e.var]
+    elif isinstance(e, DataType):
+        for field, t in zip(e.__slots__, e.__types__):
+            if not isinstance(t, TWeak):
+                replace_refs(mapping, getattr(e, field))
+    elif isinstance(e, list):
+        # XXX: List of weak refs?
+        for i in e:
+            replace_refs(mapping, i)
     return e
 
 SPECIAL_CASES = {
