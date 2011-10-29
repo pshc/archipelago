@@ -184,6 +184,42 @@ def load_module(filename):
     print 'Loaded [%s] for %s' % (', '.join(d.name for d in deps), filename)
     return (mod, deps)
 
+def resolve_forward_type_refs():
+    for dt in DATATYPES.itervalues():
+        for i, t in enumerate(dt.__types__):
+            _resolve_walk(t, (dt.__types__, i))
+
+def _resolve_walk(node, path):
+    if isinstance(node, TForward):
+        nm = node.name
+        dest = ALGETYPES.get(nm)
+        if dest is None:
+            assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
+            dest = DATATYPES[nm]
+        dest = TData(dest)
+        # Assign using path
+        assert len(path) == 2
+        node, last = path
+        if isinstance(last, int):
+            node[last] = dest
+        elif isinstance(last, str):
+            setattr(node, last, dest)
+        else:
+            assert False
+    elif isinstance(node, TTuple):
+        for i, t in enumerate(node.tupleTypes):
+            _resolve_walk(t, (node.tupleTypes, i))
+    elif isinstance(node, TFunc):
+        for i, arg in enumerate(node.funcArgs):
+            _resolve_walk(arg, (node.funcArgs, i))
+        _resolve_walk(node.funcRet, (node, 'funcRet'))
+    elif isinstance(node, TApply):
+        _resolve_walk(node.appType, (node, 'appType'))
+        for i, v in enumerate(node.appVars):
+            _resolve_walk(v, (node.appVars, i))
+    elif isinstance(node, TWeak):
+        _resolve_walk(node.refType, (node, 'refType'))
+
 BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
 
 def load_builtins():
@@ -200,6 +236,7 @@ def load_builtins():
     import native
     native.serialize(mod)
 
+    resolve_forward_type_refs()
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
         'slice,printf,object').split(','))

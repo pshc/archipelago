@@ -99,6 +99,8 @@ def parse_type(t):
         return TStr()
     elif t is bool:
         return TBool()
+    elif t is None:
+        return TVoid()
     elif isinstance(t, tuple):
         return TTuple(map(parse_type, t))
     elif isinstance(t, list):
@@ -111,10 +113,12 @@ def parse_type(t):
         assert len(t) == 1
         [(key, val)] = t.iteritems()
         return _apply_dict_type(parse_type(key), parse_type(val))
-    elif t is None or t is type or t is object or t is file:
+    elif t is type or t is object or t is file:
         # MAGIC!
         return t
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
+
+_types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
 
 def realize_type(t):
     ast = compiler.ast
@@ -133,7 +137,7 @@ def realize_type(t):
         return reduce(lambda r, ts: TFunc(map(realize_type, ts), r), ops, r)
     elif isinstance(t, ast.List):
         assert len(t.nodes) == 1
-        return _apply_list_type([realize_type(t.nodes[0])])
+        return _apply_list_type(realize_type(t.nodes[0]))
     elif isinstance(t, ast.Tuple):
         return TTuple(map(realize_type, t.nodes))
     elif isinstance(t, ast.Name):
@@ -144,10 +148,8 @@ def realize_type(t):
             return TData(ALGETYPES[t])
         elif t in DATATYPES:
             return TData(DATATYPES[t])
-        elif t == 'str':
-            return TStr()
-        elif t == 'int':
-            return TInt()
+        elif t in _types_by_name:
+            return _types_by_name[t]()
         else:
             return TForward(t)
     elif isinstance(t, ast.UnarySub):
@@ -157,13 +159,13 @@ def realize_type(t):
 TForward = DT('TForward', ('name', str))
 
 def _apply_list_type(t):
-    return TApply(list, [t])
+    return TApply(parse_type('List'), [t])
 
 def _apply_set_type(t):
-    return TApply(set, [t])
+    return TApply(parse_type('Set'), [t])
 
 def _apply_dict_type(k, v):
-    return TApply(dict, [k, v])
+    return TApply(parse_type('Dict'), [k, v])
 
 # Parse the types in TypeVar, Type fields
 def _parse_deferred():
@@ -175,7 +177,7 @@ _parse_deferred()
 
 # Contexts
 
-ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', type),
+ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', Type),
                                 ('ctxtStack', '[a]'))
 
 def new_context(name, t):
@@ -199,7 +201,7 @@ def context(ctxt):
 
 # Extrinsics
 
-ExtInfo = DT('ExtInfo', ('label', str), ('t', type), ('stack', [{'a': 't'}]))
+ExtInfo = DT('ExtInfo', ('label', str), ('t', Type), ('stack', [{'a': 't'}]))
 
 def new_extrinsic(label, t):
     stack = []

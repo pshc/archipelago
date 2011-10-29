@@ -3,6 +3,10 @@ from base import DT, ADT, match, new_extrinsic
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
 
+# TEMP
+Set = DT('Set', ('contents', ['a']))
+Dict = DT('Dict', ('contents', [('a', 'b')]))
+
 Module = DT('Module', ('name', str), ('digest', str), ('root', 'a'))
 
 Name = new_extrinsic('Name', str)
