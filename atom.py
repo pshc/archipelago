@@ -237,6 +237,66 @@ def load_builtins():
     native.serialize(mod)
 
     resolve_forward_type_refs()
+
+    # Serialize AST and related types
+    pending = set(['Body'])
+    done = set()
+    forms = []
+
+    def found_dt(dt):
+        if dt not in done:
+            pending.add(dt.__name__)
+
+    def scan_type_deps(t):
+        assert isinstance(t, Type), "%r is not a type" % (t,)
+        match(t,
+            ('TTuple(ts)', lambda ts: map(scan_type_deps, ts)),
+            ('TFunc(a, r)', lambda a, r: map(scan_type_deps, a + [r])),
+            ('TData(dt)', found_dt),
+            ('TApply(a, vs)', lambda a, vs: map(scan_type_deps, [a] + vs)),
+            ('TWeak(t)', scan_type_deps),
+            ('_', lambda: None))
+
+    def ctor_form(dt):
+        done.add(dt.__name__)
+        fields = []
+        for nm, t in zip(dt.__slots__, dt.__types__):
+            scan_type_deps(t)
+            field = FieldForm(t)
+            add_extrinsic(Name, field, nm)
+            fields.append(field)
+        form = CtorForm(fields)
+        add_extrinsic(Name, form, dt.__name__)
+        return form
+
+    while pending:
+        nm = pending.pop()
+        if nm in ALGETYPES:
+            adt = ALGETYPES[nm]
+            done.add(adt)
+            for ctor in adt.ctors:
+                done.add(ctor)
+            form = DtForm(map(ctor_form, adt.ctors))
+            add_extrinsic(Name, form, nm)
+            forms.append(form)
+        elif nm in DATATYPES:
+            dt = DATATYPES[nm]
+            done.add(dt)
+            form = DtForm([ctor_form(dt)])
+            add_extrinsic(Name, form, dt.__name__)
+            forms.append(form)
+        else:
+            assert False, "Unknown datatype %s" % (nm,)
+
+    mod = Module('forms', Nothing(), DtList(forms))
+    write_mod_repr('views/forms.txt', mod, [Name])
+    native.serialize(mod)
+
+FieldForm = DT('FieldForm', ('type', Type))
+CtorForm = DT('CtorForm', ('fields', [FieldForm]))
+DtForm = DT('DtForm', ('ctors', [CtorForm]))
+DtList = DT('DtList', ('dts', [DtForm]))
+
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
         'slice,printf,object').split(','))
