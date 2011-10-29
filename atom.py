@@ -236,9 +236,9 @@ def load_builtins():
     import native
     native.serialize(mod)
 
+def load_forms():
     resolve_forward_type_refs()
 
-    # Serialize AST and related types
     pending = set(['Body'])
     done = set()
     forms = []
@@ -290,6 +290,7 @@ def load_builtins():
 
     mod = Module('forms', Nothing(), DtList(forms))
     write_mod_repr('views/forms.txt', mod, [Name])
+    import native
     native.serialize(mod)
 
 FieldForm = DT('FieldForm', ('type', Type))

@@ -414,6 +414,7 @@ def compile_module(filename):
 def main():
     import sys
     load_builtins()
+    load_forms()
     load_module('bedrock.py')
     for filename in sys.argv[1:]:
         compile_module(filename)
