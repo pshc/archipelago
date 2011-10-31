@@ -95,6 +95,8 @@ def context(ctxt):
     assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
+TVARS = new_context('TVARS', dict)
+
 # Extrinsics
 
 ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]))
@@ -144,7 +146,7 @@ value_types = (basestring, bool, int, float, tuple, type(None))
 
 FieldForm = DT('FieldForm', ('type', 'Type'))
 CtorForm = DT('CtorForm', ('fields', [FieldForm]))
-DtForm = DT('DtForm', ('ctors', [CtorForm]))
+DtForm = DT('DtForm', ('ctors', [CtorForm]), ('tvars', ['TypeVar']))
 
 del _dt_form
 
@@ -165,7 +167,9 @@ def _ctor_form(ctor):
     return form
 
 def _dt_form(dt):
-    form = DtForm(map(_ctor_form, dt.ctors))
+    tvs = {}
+    ctors = in_context(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
+    form = DtForm(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     return form
 
@@ -258,7 +262,13 @@ def realize_type(t):
     elif isinstance(t, ast.Name):
         t = t.name
         if len(t) == 1:
-            return TVar(t)
+            tvars = context(TVARS)
+            tvar = tvars.get(t)
+            if tvar is None:
+                tvar = TypeVar()
+                add_extrinsic(Name, tvar, t)
+                tvars[t] = tvar
+            return TVar(tvar)
         elif t in DATATYPES:
             return TData(DATATYPES[t].__form__)
         elif t in _types_by_name:
@@ -284,8 +294,12 @@ def _apply_dict_type(k, v):
 def _parse_deferred():
     global _deferred_type_parses
     for ctor in _deferred_type_parses:
-        for field in ctor.fields:
-            field.type = parse_type(field.type)
+        def parse():
+            for field in ctor.fields:
+                field.type = parse_type(field.type)
+        tvars = {}
+        in_context(TVARS, tvars, parse)
+        ctor.__dt__.tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()
 
