@@ -4,6 +4,9 @@ from types import FunctionType
 DATATYPES = {}
 ALGETYPES = {}
 
+class DataType(object):
+    pass
+
 _deferred_type_parses = []
 
 def DT(*members, **opts):
@@ -35,8 +38,12 @@ def DT(*members, **opts):
         dt.__types__.append(t)
     if invariant:
         dt.check_invariant = invariant
-    if _deferred_type_parses is not None:
-        _deferred_type_parses.append(dt)
+    defer = _deferred_type_parses is not None
+    if superclass is DataType:
+        form = _dt_form(dt, [dt])
+        if _deferred_type_parses is not None and form is not None:
+            _deferred_type_parses.append(form.ctors[0])
+        dt.__form__ = form
     return dt
 
 def ADT(*ctors):
@@ -58,10 +65,92 @@ def ADT(*ctors):
         ctor_ix += 1
         t.ctors.append(d)
         data.append(d)
+    t.__form__ = _dt_form(t, t.ctors)
+    for ctor, cf in zip(t.ctors, t.__form__.ctors):
+        ctor.__form__ = cf
+        if _deferred_type_parses is not None:
+            _deferred_type_parses.append(cf)
     return tuple(data)
 
-class DataType(object):
-    pass
+def _ctor_form(dt): pass
+def _dt_form(dt, ctors): pass
+
+# Extrinsics
+
+ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]))
+
+# Omnipresent for now
+Name = ExtInfo('Name', str, [{}])
+
+def new_extrinsic(label, t):
+    return ExtInfo(label, t, [])
+
+def extrinsic(ext, obj):
+    record = ext.stack[-1]
+    assert obj in record, '%r has no %s' % (obj, ext.label)
+    return record[obj]
+
+def scope_extrinsic(ext, func):
+    new = ext.stack[-1].copy() if len(ext.stack) else {}
+    ext.stack.append(new)
+    ret = func()
+    n = ext.stack.pop()
+    assert n is new, "Extrinsic stack imbalance"
+    return ret
+
+def in_extrinsic_scope(ext):
+    return bool(ext.stack)
+
+def add_extrinsic(ext, obj, val):
+    assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
+    map = ext.stack[-1]
+    assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
+    map[obj] = val
+
+def update_extrinsic(ext, obj, val):
+    assert not isinstance(obj, value_types), "No extrinsics on values"
+    map = ext.stack[-1]
+    assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
+    map[obj] = val
+
+def has_extrinsic(ext, obj):
+    assert not isinstance(obj, value_types), "No extrinsics on values"
+    return obj in ext.stack[-1]
+
+value_types = (basestring, bool, int, float, tuple, type(None))
+
+# Forms
+
+FieldForm = DT('FieldForm', ('type', 'Type'))
+CtorForm = DT('CtorForm', ('fields', [FieldForm]))
+DtForm = DT('DtForm', ('ctors', [CtorForm]))
+
+del _ctor_form, _dt_form
+
+def _ctor_form(dt):
+    fields = []
+    for nm, t in zip(dt.__slots__, dt.__types__):
+        field = FieldForm(t)
+        add_extrinsic(Name, field, nm)
+        fields.append(field)
+    form = CtorForm(fields)
+    add_extrinsic(Name, form, dt.__name__)
+    dt.__form__ = form
+    del dt.__types__
+    return form
+
+def _dt_form(adt, ctors):
+    form = DtForm(map(_ctor_form, ctors))
+    add_extrinsic(Name, form, adt.__name__)
+    return form
+
+def _restore_forms():
+    forms = [ExtInfo, FieldForm, CtorForm, DtForm]
+    for dt in forms:
+        dt.__form__ = form = _dt_form(dt, [dt])
+        _deferred_type_parses.append(form.ctors[0])
+_restore_forms()
 
 # Type representations
 
@@ -171,7 +260,8 @@ def _apply_dict_type(k, v):
 def _parse_deferred():
     global _deferred_type_parses
     for ctor in _deferred_type_parses:
-        ctor.__types__ = map(parse_type, ctor.__types__)
+        for field in ctor.fields:
+            field.type = parse_type(field.type)
     _deferred_type_parses = None
 _parse_deferred()
 
@@ -199,52 +289,6 @@ def context(ctxt):
     assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
-# Extrinsics
-
-ExtInfo = DT('ExtInfo', ('label', str), ('t', Type), ('stack', [{'a': 't'}]))
-
-def new_extrinsic(label, t):
-    stack = []
-    # XXX: Omnipresent for now
-    if label == 'Name':
-        stack = [{}]
-    return ExtInfo(label, t, stack)
-
-def extrinsic(ext, obj):
-    record = ext.stack[-1]
-    assert obj in record, '%r has no %s' % (obj, ext.label)
-    return record[obj]
-
-def scope_extrinsic(ext, func):
-    new = ext.stack[-1].copy() if len(ext.stack) else {}
-    ext.stack.append(new)
-    ret = func()
-    n = ext.stack.pop()
-    assert n is new, "Extrinsic stack imbalance"
-    return ret
-
-def in_extrinsic_scope(ext):
-    return bool(ext.stack)
-
-def add_extrinsic(ext, obj, val):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
-    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
-    map = ext.stack[-1]
-    assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
-    map[obj] = val
-
-def update_extrinsic(ext, obj, val):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
-    map = ext.stack[-1]
-    assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
-    map[obj] = val
-
-def has_extrinsic(ext, obj):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
-    return obj in ext.stack[-1]
-
-value_types = (basestring, bool, int, float, tuple, type(None))
-
 # Pretty printing
 # (naive quadratic version)
 
@@ -252,7 +296,6 @@ PrettyPrinted = new_extrinsic('PrettyPrinted', type(None))
 
 def pretty_brief(name, o):
     if name == 'BindBuiltin':
-        from bedrock import Name
         return '&%s' % extrinsic(Name, o.builtin)
     elif name == 'IntLit':
         return 'i%d' % (o.val,)
@@ -263,7 +306,6 @@ def pretty_brief(name, o):
     return None
 
 def __repr__(o):
-    from bedrock import Name
     if not in_extrinsic_scope(PrettyPrinted):
         return scope_extrinsic(PrettyPrinted, lambda: repr(o))
     t = type(o)

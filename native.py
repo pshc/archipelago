@@ -18,8 +18,8 @@ def _write(b):
     state.hash.update(b)
 
 def _write_ref(node):
-    assert has_extrinsic(Location, node), 'Weak ref to unserialized: %r' % (
-            node,)
+    assert has_extrinsic(Location, node), \
+            'Weak ref to unserialized: %r 0x%x' % (node, id(node))
     state = context(Serialize)
     loc = extrinsic(Location, node)
     a = state.deps[loc.module]
@@ -37,9 +37,13 @@ def _serialize_node(node):
     if isinstance(node, DataType):
         ix = getattr(node, '_ctor_ix', 0)
         _write(_encode_int(ix))
-        for (field, t) in zip(node.__slots__[:-1], node.__types__):
-            sub = getattr(node, field)
-            if isinstance(t, TWeak):
+        form = node.__form__
+        # XXX
+        if isinstance(form, DtForm):
+            form = form.ctors[0]
+        for field in form.fields:
+            sub = getattr(node, extrinsic(Name, field))
+            if isinstance(field.type, TWeak):
                 _write_ref(sub)
             else:
                 _serialize_node(sub)
@@ -69,9 +73,13 @@ def _inspect_node(node):
         state = context(Inspection)
         add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
-        for (field, t) in zip(node.__slots__[:-1], node.__types__):
-            sub = getattr(node, field)
-            if isinstance(t, TWeak):
+        form = node.__form__
+        # XXX
+        if isinstance(form, DtForm):
+            form = form.ctors[0]
+        for field in form.fields:
+            sub = getattr(node, extrinsic(Name, field))
+            if isinstance(field.type, TWeak):
                 # Record this ref's target digest
                 if has_extrinsic(Location, sub):
                     mod = extrinsic(Location, sub).module
@@ -101,6 +109,7 @@ def serialize(module):
         def go():
             _write(_encode_int(len(deps)))
             map_(_write, deps)
+            print 'serializing', module.root
             _serialize_node(module.root)
         in_context(Serialize, state, go)
         f.close()
@@ -156,12 +165,15 @@ def _read_node(t, path):
         index = state.index
         state.index += 1
         ctor = t.data.ctors[_read_int()]
+        form = ctor.__form__
+        assert isinstance(form, CtorForm)
 
         # Bleh.
-        val = ctor(*[None for t in ctor.__types__])
+        val = ctor(*[None for f in form.fields])
         state.ownMap[index] = val
-        for fnm, ft in zip(ctor.__slots__[:-1], ctor.__types__):
-            child = _read_node(ft, (val, fnm))
+        for field in form.fields:
+            fnm = extrinsic(Name, field)
+            child = _read_node(field.type, (val, fnm))
             setattr(val, fnm, child)
 
         return val

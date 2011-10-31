@@ -185,9 +185,15 @@ def load_module(filename):
     return (mod, deps)
 
 def resolve_forward_type_refs():
+    for adt in ALGETYPES.itervalues():
+        for ctor in adt.__form__.ctors:
+            for i, f in enumerate(ctor.fields):
+                _resolve_walk(f.type, (f, 'type'))
     for dt in DATATYPES.itervalues():
-        for i, t in enumerate(dt.__types__):
-            _resolve_walk(t, (dt.__types__, i))
+        form = dt.__form__
+        if isinstance(form, DtForm):
+            for i, f in enumerate(form.ctors[0].fields):
+                _resolve_walk(f.type, (f, 'type'))
 
 def _resolve_walk(node, path):
     if isinstance(node, TForward):
@@ -257,17 +263,9 @@ def load_forms():
             ('TWeak(t)', scan_type_deps),
             ('_', lambda: None))
 
-    def ctor_form(dt):
-        done.add(dt.__name__)
-        fields = []
-        for nm, t in zip(dt.__slots__, dt.__types__):
-            scan_type_deps(t)
-            field = FieldForm(t)
-            add_extrinsic(Name, field, nm)
-            fields.append(field)
-        form = CtorForm(fields)
-        add_extrinsic(Name, form, dt.__name__)
-        return form
+    def scan_ctor_deps(ctor_form):
+        for field in ctor_form.fields:
+            scan_type_deps(field.type)
 
     while pending:
         nm = pending.pop()
@@ -276,15 +274,15 @@ def load_forms():
             done.add(adt)
             for ctor in adt.ctors:
                 done.add(ctor)
-            form = DtForm(map(ctor_form, adt.ctors))
-            add_extrinsic(Name, form, nm)
-            forms.append(form)
+            for ctor in adt.__form__.ctors:
+                scan_ctor_deps(ctor)
+            forms.append(adt.__form__)
         elif nm in DATATYPES:
             dt = DATATYPES[nm]
             done.add(dt)
-            form = DtForm([ctor_form(dt)])
-            add_extrinsic(Name, form, dt.__name__)
-            forms.append(form)
+            assert isinstance(dt.__form__, DtForm)
+            scan_ctor_deps(dt.__form__.ctors[0])
+            forms.append(dt.__form__)
         else:
             assert False, "Unknown datatype %s" % (nm,)
 
@@ -293,9 +291,6 @@ def load_forms():
     import native
     native.serialize(mod)
 
-FieldForm = DT('FieldForm', ('type', Type))
-CtorForm = DT('CtorForm', ('fields', [FieldForm]))
-DtForm = DT('DtForm', ('ctors', [CtorForm]))
 DtList = DT('DtList', ('dts', [DtForm]))
 
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
@@ -377,9 +372,14 @@ def _do_repr(s):
                 name = '%s %s' % (name, extrinsic(ext, s))
         c.write(name)
         c.indent += 1
-        for slot, t in zip(dt.__slots__[:-1], dt.__types__):
-            f = getattr(s, slot)
-            p = match(t, ("TWeak(p)", Just), ("_", Nothing))
+        form = dt.__form__
+        # XXX shouldn't be getting dtforms really
+        #assert not isinstance(form, DtForm)
+        if isinstance(form, DtForm):
+            form = form.ctors[0]
+        for field in form.fields:
+            f = getattr(s, extrinsic(Name, field))
+            p = match(field.type, ("TWeak(p)", Just), ("_", Nothing))
             if isJust(p):
                 if isinstance(f, DataType):
                     if has_extrinsic(Name, f):

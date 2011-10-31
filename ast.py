@@ -297,9 +297,9 @@ def replace_refs(mapping, e):
         if e.var in mapping:
             e.var = mapping[e.var]
     elif isinstance(e, DataType):
-        for field, t in zip(e.__slots__, e.__types__):
-            if not isinstance(t, TWeak):
-                replace_refs(mapping, getattr(e, field))
+        for field in e.__form__.ctors[e._ix].fields:
+            if not isinstance(field.type, TWeak):
+                replace_refs(mapping, getattr(e, extrinsic(Name, field)))
     elif isinstance(e, list):
         # XXX: List of weak refs?
         for i in e:

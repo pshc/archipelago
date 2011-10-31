@@ -1,5 +1,5 @@
 from base import *
-from bedrock import List, Name, maybe
+from bedrock import List, maybe
 
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):

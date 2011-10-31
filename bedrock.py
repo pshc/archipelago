@@ -9,8 +9,6 @@ Dict = DT('Dict', ('contents', [('a', 'b')]))
 
 Module = DT('Module', ('name', str), ('digest', str), ('root', 'a'))
 
-Name = new_extrinsic('Name', str)
-
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
 def isNothing(m): return match(m, ('Nothing()', lambda: True),
