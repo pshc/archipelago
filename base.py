@@ -2,17 +2,14 @@ import compiler
 from types import FunctionType
 
 DATATYPES = {}
-ALGETYPES = {}
+CTORS = {}
 
 class DataType(object):
     pass
 
 _deferred_type_parses = []
 
-def DT(*members, **opts):
-    members = list(members)
-    superclass = opts.get('superclass', DataType)
-    name = members.pop(0)
+def _make_ctor(name, members, superclass):
     invariant = None
     if members and isinstance(members[-1], FunctionType):
         invariant = members.pop()
@@ -30,21 +27,30 @@ def DT(*members, **opts):
     self._ix = %(ix)d
 %(stmts)s""" % locals()
     exec code
-    dt = DATATYPES[name] = eval(name)
-    dt.ctors = [dt]
+    ctor = CTORS[name] = eval(name)
     for nm, t in members:
         if _deferred_type_parses is None:
             t = parse_type(t)
-        dt.__types__.append(t)
+        ctor.__types__.append(t)
     if invariant:
-        dt.check_invariant = invariant
-    defer = _deferred_type_parses is not None
-    if superclass is DataType:
-        form = _dt_form(dt, [dt])
-        if _deferred_type_parses is not None and form is not None:
-            _deferred_type_parses.append(form.ctors[0])
-        dt.__form__ = form
-    return dt
+        ctor.check_invariant = invariant
+    return ctor
+
+def DT(*members):
+    members = list(members)
+    name = members.pop(0)
+    ctor = _make_ctor(name, members, DataType)
+    exec 'class %s(DataType): ctors = []' % (name,)
+    t = eval(name)
+    t.ctors.append(ctor)
+    ctor.__dt__ = t
+    form = t.__form__ = _dt_form(t, t.ctors)
+    DATATYPES[name] = t
+    if form is not None:
+        ctor.__form__ = cf = form.ctors[0]
+        if _deferred_type_parses is not None:
+            _deferred_type_parses.append(cf)
+    return ctor
 
 def ADT(*ctors):
     ctors = list(ctors)
@@ -52,20 +58,20 @@ def ADT(*ctors):
     exec 'class %s(DataType): ctors = []' % (tname,)
     t = eval(tname)
     data = [t]
-    ALGETYPES[tname] = t
     ctor_ix = 0
     while ctors:
         ctor = ctors.pop(0)
         members = []
         while ctors and not isinstance(ctors[0], basestring):
             members.append(ctors.pop(0))
-        d = DT(ctor, *members, **dict(superclass=t))
+        d = _make_ctor(ctor, members, t)
         d.__module__ = tname
         d._ctor_ix = ctor_ix
         ctor_ix += 1
         t.ctors.append(d)
         data.append(d)
     t.__form__ = _dt_form(t, t.ctors)
+    DATATYPES[tname] = t
     for ctor, cf in zip(t.ctors, t.__form__.ctors):
         ctor.__form__ = cf
         if _deferred_type_parses is not None:
@@ -147,8 +153,9 @@ def _dt_form(adt, ctors):
 
 def _restore_forms():
     forms = [ExtInfo, FieldForm, CtorForm, DtForm]
-    for dt in forms:
-        dt.__form__ = form = _dt_form(dt, [dt])
+    for ctor in forms:
+        dt = DATATYPES[ctor.__name__]
+        dt.__form__ = form = _dt_form(dt, [ctor])
         _deferred_type_parses.append(form.ctors[0])
 _restore_forms()
 
@@ -166,7 +173,7 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-        'TData', ('data', '*DTStmt'),
+        'TData', ('data', '*DtForm'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
         'TWeak', ('refType', 'Type'))
 
@@ -174,7 +181,10 @@ _parsed_type_cache = {}
 
 def parse_type(t):
     if type(t) is type and issubclass(t, DataType):
-        return TData(t)
+        form = t.__form__
+        if isinstance(form, CtorForm):
+            form = t.__dt__.__form__
+        return TData(form)
     elif isinstance(t, basestring):
         key = t.replace('->', '>').replace('*', '-')
         t = _parsed_type_cache.get(key)
@@ -233,10 +243,8 @@ def realize_type(t):
         t = t.name
         if len(t) == 1:
             return TVar(t)
-        elif t in ALGETYPES:
-            return TData(ALGETYPES[t])
         elif t in DATATYPES:
-            return TData(DATATYPES[t])
+            return TData(DATATYPES[t].__form__)
         elif t in _types_by_name:
             return _types_by_name[t]()
         else:
@@ -334,8 +342,8 @@ named_match_dispatch = {}
 def match_try(atom, ast):
     if isinstance(ast, compiler.ast.CallFunc
                 ) and isinstance(ast.node, compiler.ast.Name):
-        if ast.node.name in DATATYPES:
-            dt = DATATYPES[ast.node.name]
+        if ast.node.name in CTORS:
+            dt = CTORS[ast.node.name]
             if atom.__class__ != dt:
                 return None
             slots = filter(lambda s: s != '_ix', dt.__slots__)

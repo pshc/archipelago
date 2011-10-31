@@ -22,7 +22,7 @@ Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
     ADT('Binding',
         'BindBuiltin', ('builtin', '*Builtin'),
         'BindCtor', ('ctor', '*Ctor'),
-        'BindDT', ('dtStmt', '*DTStmt'),
+        'BindDT', ('form', '*DtForm'), # XXX
         'BindField', ('field', '*Field'),
         'BindFunc', ('func', '*Func'),
         'BindVar', ('var', '*Var'))
@@ -87,7 +87,7 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
         'Continue',
         'CtxtStmt', ('ctxt', Ctxt),
         'Defn', ('var', 'Var'), ('expr', Expr),
-        'DTStmt', ('ctors', [Ctor]), ('tvars', ['TypeVar']),
+        'DTStmt', ('form', 'DtForm'),
         'ExprStmt', ('expr', Expr),
         'ExtrinsicStmt', ('extrinsic', Extrinsic),
         'FuncStmt', ('func', Func),
@@ -185,24 +185,18 @@ def load_module(filename):
     return (mod, deps)
 
 def resolve_forward_type_refs():
-    for adt in ALGETYPES.itervalues():
-        for ctor in adt.__form__.ctors:
-            for i, f in enumerate(ctor.fields):
-                _resolve_walk(f.type, (f, 'type'))
     for dt in DATATYPES.itervalues():
-        form = dt.__form__
-        if isinstance(form, DtForm):
-            for i, f in enumerate(form.ctors[0].fields):
+        for ctor in dt.__form__.ctors:
+            for f in ctor.fields:
                 _resolve_walk(f.type, (f, 'type'))
 
 def _resolve_walk(node, path):
     if isinstance(node, TForward):
         nm = node.name
-        dest = ALGETYPES.get(nm)
-        if dest is None:
-            assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
-            dest = DATATYPES[nm]
-        dest = TData(dest)
+        assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
+        form = DATATYPES[nm].__form__
+        assert isinstance(form, DtForm), "Bad form %s" % (form,)
+        dest = TData(form)
         # Assign using path
         assert len(path) == 2
         node, last = path
@@ -245,13 +239,14 @@ def load_builtins():
 def load_forms():
     resolve_forward_type_refs()
 
-    pending = set(['Body'])
+    pending = set([Body.__dt__.__form__])
     done = set()
     forms = []
 
     def found_dt(dt):
         if dt not in done:
-            pending.add(dt.__name__)
+            assert isinstance(dt, DtForm), '%s is not a DT form' % (dt,)
+            pending.add(dt)
 
     def scan_type_deps(t):
         assert isinstance(t, Type), "%r is not a type" % (t,)
@@ -263,28 +258,13 @@ def load_forms():
             ('TWeak(t)', scan_type_deps),
             ('_', lambda: None))
 
-    def scan_ctor_deps(ctor_form):
-        for field in ctor_form.fields:
-            scan_type_deps(field.type)
-
     while pending:
-        nm = pending.pop()
-        if nm in ALGETYPES:
-            adt = ALGETYPES[nm]
-            done.add(adt)
-            for ctor in adt.ctors:
-                done.add(ctor)
-            for ctor in adt.__form__.ctors:
-                scan_ctor_deps(ctor)
-            forms.append(adt.__form__)
-        elif nm in DATATYPES:
-            dt = DATATYPES[nm]
-            done.add(dt)
-            assert isinstance(dt.__form__, DtForm)
-            scan_ctor_deps(dt.__form__.ctors[0])
-            forms.append(dt.__form__)
-        else:
-            assert False, "Unknown datatype %s" % (nm,)
+        dt = pending.pop()
+        done.add(dt)
+        for ctor in dt.ctors:
+            for field in ctor.fields:
+                scan_type_deps(field.type)
+        forms.append(dt)
 
     mod = Module('forms', Nothing(), DtList(forms))
     write_mod_repr('views/forms.txt', mod, [Name])
@@ -373,10 +353,7 @@ def _do_repr(s):
         c.write(name)
         c.indent += 1
         form = dt.__form__
-        # XXX shouldn't be getting dtforms really
-        #assert not isinstance(form, DtForm)
-        if isinstance(form, DtForm):
-            form = form.ctors[0]
+        assert not isinstance(form, DtForm)
         for field in form.fields:
             f = getattr(s, extrinsic(Name, field))
             p = match(field.type, ("TWeak(p)", Just), ("_", Nothing))

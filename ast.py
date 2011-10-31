@@ -204,6 +204,7 @@ def conv_and(e):
     return And(*map(conv_expr, e.nodes))
 
 def make_adt(adt_nm, *args):
+    # XXX
     ctors = []
     adt = DTStmt(ctors, [])
     identifier(adt, adt_nm.val, namespace=typeNamespace, export=True)
@@ -230,6 +231,7 @@ def make_adt(adt_nm, *args):
     return [adt]
 
 def make_dt(dt_nm, *args):
+    # XXX
     args = list(args)
     fs = match(args, ('all(nms, TupleLit([StrLit(nm), t]))', identity))
     fields = []

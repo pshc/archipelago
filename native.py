@@ -38,9 +38,7 @@ def _serialize_node(node):
         ix = getattr(node, '_ctor_ix', 0)
         _write(_encode_int(ix))
         form = node.__form__
-        # XXX
-        if isinstance(form, DtForm):
-            form = form.ctors[0]
+        assert isinstance(form, CtorForm)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             if isinstance(field.type, TWeak):
@@ -74,9 +72,7 @@ def _inspect_node(node):
         add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
         form = node.__form__
-        # XXX
-        if isinstance(form, DtForm):
-            form = form.ctors[0]
+        assert isinstance(form, CtorForm)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             if isinstance(field.type, TWeak):
