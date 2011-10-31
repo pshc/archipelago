@@ -81,6 +81,30 @@ def ADT(*ctors):
 def _ctor_form(dt): pass
 def _dt_form(dt, ctors): pass
 
+# Contexts
+
+ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'Type'),
+                                ('ctxtStack', '[a]'))
+
+def new_context(name, t):
+    assert isinstance(name, basestring)
+    assert isinstance(t, type)
+    return ContextInfo(name, t, [])
+
+def in_context(ctxt, initial, func):
+    assert isinstance(initial, ctxt.ctxtType)
+    stack = ctxt.ctxtStack
+    stack.append(initial)
+    count = len(stack)
+    ret = func()
+    assert len(stack) == count, 'Imbalanced context %s stack' % ctxt.ctxtName
+    stack.pop()
+    return ret
+
+def context(ctxt):
+    assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
+    return ctxt.ctxtStack[-1]
+
 # Extrinsics
 
 ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]))
@@ -152,8 +176,7 @@ def _dt_form(adt, ctors):
     return form
 
 def _restore_forms():
-    forms = [ExtInfo, FieldForm, CtorForm, DtForm]
-    for ctor in forms:
+    for ctor in CTORS.itervalues():
         dt = DATATYPES[ctor.__name__]
         dt.__form__ = form = _dt_form(dt, [ctor])
         _deferred_type_parses.append(form.ctors[0])
@@ -272,30 +295,6 @@ def _parse_deferred():
             field.type = parse_type(field.type)
     _deferred_type_parses = None
 _parse_deferred()
-
-# Contexts
-
-ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', Type),
-                                ('ctxtStack', '[a]'))
-
-def new_context(name, t):
-    assert isinstance(name, basestring)
-    assert isinstance(t, type)
-    return ContextInfo(name, t, [])
-
-def in_context(ctxt, initial, func):
-    assert isinstance(initial, ctxt.ctxtType)
-    stack = ctxt.ctxtStack
-    stack.append(initial)
-    count = len(stack)
-    ret = func()
-    assert len(stack) == count, 'Imbalanced context %s stack' % ctxt.ctxtName
-    stack.pop()
-    return ret
-
-def context(ctxt):
-    assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
-    return ctxt.ctxtStack[-1]
 
 # Pretty printing
 # (naive quadratic version)
