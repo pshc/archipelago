@@ -29,8 +29,6 @@ def _make_ctor(name, members, superclass):
     exec code
     ctor = CTORS[name] = eval(name)
     for nm, t in members:
-        if _deferred_type_parses is None:
-            t = parse_type(t)
         ctor.__types__.append(t)
     if invariant:
         ctor.check_invariant = invariant
@@ -44,12 +42,8 @@ def DT(*members):
     t = eval(name)
     t.ctors.append(ctor)
     ctor.__dt__ = t
-    form = t.__form__ = _dt_form(t, t.ctors)
+    t.__form__ = _dt_form(t)
     DATATYPES[name] = t
-    if form is not None:
-        ctor.__form__ = cf = form.ctors[0]
-        if _deferred_type_parses is not None:
-            _deferred_type_parses.append(cf)
     return ctor
 
 def ADT(*ctors):
@@ -70,16 +64,12 @@ def ADT(*ctors):
         ctor_ix += 1
         t.ctors.append(d)
         data.append(d)
-    t.__form__ = _dt_form(t, t.ctors)
+    t.__form__ = _dt_form(t)
     DATATYPES[tname] = t
-    for ctor, cf in zip(t.ctors, t.__form__.ctors):
-        ctor.__form__ = cf
-        if _deferred_type_parses is not None:
-            _deferred_type_parses.append(cf)
     return tuple(data)
 
-def _ctor_form(dt): pass
-def _dt_form(dt, ctors): pass
+def _dt_form(dt):
+    pass
 
 # Contexts
 
@@ -156,30 +146,33 @@ FieldForm = DT('FieldForm', ('type', 'Type'))
 CtorForm = DT('CtorForm', ('fields', [FieldForm]))
 DtForm = DT('DtForm', ('ctors', [CtorForm]))
 
-del _ctor_form, _dt_form
+del _dt_form
 
-def _ctor_form(dt):
+def _ctor_form(ctor):
     fields = []
-    for nm, t in zip(dt.__slots__, dt.__types__):
+    for nm, t in zip(ctor.__slots__, ctor.__types__):
+        if _deferred_type_parses is None:
+            t = parse_type(t)
         field = FieldForm(t)
         add_extrinsic(Name, field, nm)
         fields.append(field)
     form = CtorForm(fields)
-    add_extrinsic(Name, form, dt.__name__)
-    dt.__form__ = form
-    del dt.__types__
+    add_extrinsic(Name, form, ctor.__name__)
+    ctor.__form__ = form
+    del ctor.__types__
+    if _deferred_type_parses is not None:
+        _deferred_type_parses.append(form)
     return form
 
-def _dt_form(adt, ctors):
-    form = DtForm(map(_ctor_form, ctors))
-    add_extrinsic(Name, form, adt.__name__)
+def _dt_form(dt):
+    form = DtForm(map(_ctor_form, dt.ctors))
+    add_extrinsic(Name, form, dt.__name__)
     return form
 
 def _restore_forms():
     for ctor in CTORS.itervalues():
         dt = DATATYPES[ctor.__name__]
-        dt.__form__ = form = _dt_form(dt, [ctor])
-        _deferred_type_parses.append(form.ctors[0])
+        dt.__form__ = form = _dt_form(dt)
 _restore_forms()
 
 # Type representations
