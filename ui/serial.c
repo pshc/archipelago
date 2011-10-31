@@ -6,7 +6,7 @@
 #include "serial.h"
 #include "util.h"
 
-struct adt *AST, *Var;
+struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
 struct map *loaded_modules;
 
 static char *base_dir = NULL;
@@ -118,6 +118,7 @@ void ADT_ctors(struct adt *adt, size_t ctor_count, ...) {
 	struct ctor **ctors;
 	size_t i;
 	CHECK(adt->ctors == NULL, "ADT %s already has ctors", adt->name);
+	CHECK(ctor_count > 0, "No phantom types");
 	va_start(ctor_list, ctor_count);
 	if (ctor_count) {
 		ctors = malloc(ctor_count * sizeof ctors);
@@ -139,18 +140,37 @@ static void destroy_ADT(struct adt *adt) {
 }
 
 void setup_serial(const char *dir) {
-	Var = ADT("Var");
-	ADT_ctors(Var, 1,
-		Ctor("Var", 0)
-	);
-	AST = ADT("AST");
-	ADT_ctors(AST, 5,
-		Ctor("Num", 1, "int", intT()),
-		Ctor("Bind", 1, "var", weak(adtT(Var))),
-		Ctor("Plus", 1, "elems", arrayT(adtT(AST))),
-		Ctor("Lam", 2, "param", adtT(Var), "expr", adtT(AST)),
-		Ctor("App", 2, "func", adtT(AST), "arg", adtT(AST))
-	);
+	Type = ADT("Type");
+	TypeVar = ADT("TypeVar");
+	ADT_ctors(TypeVar, 1, Ctor("TypeVar", 0));
+	FieldForm = ADT("FieldForm");
+	ADT_ctors(FieldForm, 1, Ctor("FieldForm", 1,
+		"type", adtT(Type)));
+	CtorForm = ADT("CtorForm");
+	ADT_ctors(CtorForm, 1, Ctor("CtorForm", 1,
+		"fields", arrayT(adtT(FieldForm))));
+	DtForm = ADT("DtForm");
+	ADT_ctors(DtForm, 1, Ctor("DtForm", 2,
+		"ctors", arrayT(adtT(CtorForm)),
+		"tvars", arrayT(adtT(TypeVar))));
+	ADT_ctors(Type, 13,
+		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
+		Ctor("TMeta", 0), /* XXX */
+		Ctor("TInt", 0),
+		Ctor("TStr", 0),
+		Ctor("TChar", 0),
+		Ctor("TBool", 0),
+		Ctor("TVoid", 0),
+		Ctor("TTuple", 1, "tupleTypes", arrayT(adtT(Type))),
+		Ctor("TAnyTuple", 0),
+		Ctor("TFunc", 2, "funcArgs", arrayT(adtT(Type)),
+				"funcRet", adtT(Type)),
+		Ctor("TData", 1, "data", weak(adtT(DtForm))),
+		Ctor("TApply", 2, "appType", adtT(Type),
+				"appVars", arrayT(adtT(Type))),
+		Ctor("TWeak", 1, "refType", adtT(Type)));
+	DtList = ADT("DtList");
+	ADT_ctors(DtList, 1, Ctor("DtList", 1, "dts", arrayT(adtT(DtForm))));
 
 	base_dir = strdup(dir);
 	loaded_modules = new_map(&strcmp, &free, &destroy_module);
@@ -159,8 +179,12 @@ void setup_serial(const char *dir) {
 void cleanup_serial(void) {
 	destroy_map(loaded_modules);
 	free(base_dir);
-	destroy_ADT(AST);
-	destroy_ADT(Var);
+	destroy_ADT(Type);
+	destroy_ADT(TypeVar);
+	destroy_ADT(FieldForm);
+	destroy_ADT(CtorForm);
+	destroy_ADT(DtForm);
+	destroy_ADT(DtList);
 }
 
 static int read_char() {
@@ -252,7 +276,8 @@ static void *read_weak(type_t type) {
 	mod_ix = read_int();
 	atom_ix = read_int();
 	if (mod_ix == 0) {
-		if (atom_ix < node_ctr) {
+		/* XXX: Should be able to get a cheaper check for this? */
+		if (map_has(own_map, (void *) atom_ix)) {
 			dest = map_get(own_map, (void *) atom_ix);
 		}
 		else {
@@ -453,8 +478,8 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 int main(void) {
 	setup_serial("");
 
-	char *hash = module_hash_by_name("test");
-	type_t ast_type = adtT(AST);
+	char *hash = module_hash_by_name("forms");
+	type_t ast_type = adtT(DtList);
 	load_module(hash, ast_type);
 
 	CHECK(map_has(loaded_modules, hash), "Not loaded?");

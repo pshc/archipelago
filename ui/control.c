@@ -12,8 +12,8 @@ void control_setup(void) {
     setup_serial(dir);
     free(dir);
 
-    char *hash = module_hash_by_name("test");
-    type_t ast_type = adtT(AST);
+    char *hash = module_hash_by_name("forms");
+    type_t ast_type = adtT(DtList);
     struct module *test_module = load_module(hash, ast_type);
     editor_set_module(test_module);
     destroy_type(ast_type);

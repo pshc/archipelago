@@ -34,7 +34,7 @@ struct adt {
 	struct ctor **ctors;
 };
 
-extern struct adt *AST, *Var;
+extern struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
 
 type_t intT(void);
 type_t adtT(struct adt *);
