@@ -25,9 +25,12 @@ valueNamespace = 'value'
 typeNamespace = 'type'
 symbolNamespace = 'symbol'
 
-def identifier(obj, name, namespace=valueNamespace,
+def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
     scope = context(SCOPE)
+    already_Named = name is None
+    if already_Named:
+        name = extrinsic(Name, obj)
     key = (name, namespace)
     assert name in permissible_nms or key not in scope.syms, (
             "Symbol '%s' already in %s context\n%s" % (
@@ -38,7 +41,8 @@ def identifier(obj, name, namespace=valueNamespace,
     except ValueError:
         assert False, "Can't bind %s %r to %r" % (namespace, obj, name)
     scope.syms[key] = (obj, b)
-    add_extrinsic(Name, obj, name)
+    if not already_Named:
+        add_extrinsic(Name, obj, name)
 
     omni = context(OMNI)
     missing_binds = omni.missingRefs.get(key)
@@ -87,9 +91,7 @@ def bind_kind(v):
         return BindField
     elif isinstance(v, Ctor):
         return BindCtor
-    elif isinstance(v, DTStmt):
-        return BindDT
-    elif isinstance(v, (Ctxt, Extrinsic)):
+    elif isinstance(v, (DataType, Ctxt, Extrinsic)):
         return identity
     else:
         raise ValueError("Can't bind to %r" % (v,))
@@ -203,49 +205,29 @@ def conv_and(e):
     assert len(e.nodes) == 2
     return And(*map(conv_expr, e.nodes))
 
-def make_adt(adt_nm, *args):
-    # XXX
-    ctors = []
-    adt = DTStmt(ctors, [])
-    identifier(adt, adt_nm.val, namespace=typeNamespace, export=True)
-    tvars = {}
-    field_nms = set()
-    args = list(args)
-    while args:
-        ctor_nm = match(args.pop(0), ('StrLit(s)', identity))
-        members = []
-        while args:
-            nm, t = match(args[0], ('StrLit(_)', lambda: (None, None)),
-                                   ('TupleLit([StrLit(nm), t])', tuple2))
-            if nm is None:
-                break
-            field = Field(conv_type(t, tvars, dt=adt))
-            identifier(field, nm, permissible_nms=field_nms)
-            field_nms.add(nm)
-            members.append(field)
-            args.pop(0)
-        ctor = Ctor(members)
-        identifier(ctor, ctor_nm, export=True)
-        ctors.append(ctor)
-    adt.tvars = tvars.values()
-    return [adt]
+def unwrap_ast(node):
+    if isinstance(node, ast.Const):
+        return node.value
+    elif isinstance(node, ast.Tuple):
+        return tuple(map(unwrap_ast, node.nodes))
+    else:
+        assert False
 
-def make_dt(dt_nm, *args):
-    # XXX
-    args = list(args)
-    fs = match(args, ('all(nms, TupleLit([StrLit(nm), t]))', identity))
-    fields = []
-    ctor = Ctor(fields)
-    identifier(ctor, dt_nm.val, export=True)
-    dt = DTStmt([ctor], [])
-    identifier(dt, dt_nm.val, namespace=typeNamespace, export=True)
-    tvars = {}
-    for fnm, t in fs:
-        field = Field(conv_type(t, tvars, dt=dt))
-        identifier(field, fnm)
-        fields.append(field)
-    dt.tvars = tvars.values()
-    return [dt]
+def _make_dt(dt_nm, *args, **opts):
+    dt_nm = unwrap_ast(dt_nm)
+    if dt_nm not in DATATYPES:
+        args = map(unwrap_ast, args)
+        opts['maker'](dt_nm, *args)
+    dt = DATATYPES[dt_nm].__form__
+    identifier(dt, namespace=typeNamespace)
+    for ctor in dt.ctors:
+        identifier(ctor)
+    return [DTStmt(dt)]
+
+def make_adt(*args):
+    return _make_dt(*args, **(dict(maker=ADT)))
+def make_dt(*args):
+    return _make_dt(*args, **(dict(maker=DT)))
 
 def make_context(nm, t):
     tvars = {}
@@ -299,7 +281,7 @@ def replace_refs(mapping, e):
         if e.var in mapping:
             e.var = mapping[e.var]
     elif isinstance(e, Structured):
-        for field in e.__form__.ctors[e._ix].fields:
+        for field in e.__form__.fields:
             if not isinstance(field.type, TWeak):
                 replace_refs(mapping, getattr(e, extrinsic(Name, field)))
     elif isinstance(e, list):
@@ -404,7 +386,7 @@ def conv_callfunc(e):
     if isinstance(e.node, ast.Name):
         kind = e.node.name
         if kind in ('DT', 'ADT'):
-            return SpecialCallForm(kind, map(conv_special, e.args))
+            return SpecialCallForm(kind, e.args)
         elif kind in ('new_context', 'new_extrinsic'):
             if e.args and isinstance(e.args[0], ast.Const):
                 name = e.args[0].value
