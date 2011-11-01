@@ -257,10 +257,11 @@ def load_forms():
     while pending:
         dt = pending.pop()
         done.add(dt)
-        for ctor in dt.ctors:
-            for field in ctor.fields:
-                scan_type_deps(field.type)
-        forms.append(dt)
+        if not has_extrinsic(Location, dt):
+            for ctor in dt.ctors:
+                for field in ctor.fields:
+                    scan_type_deps(field.type)
+            forms.append(dt)
 
     mod = Module('forms', Nothing(), DtList(forms))
     write_mod_repr('views/forms.txt', mod, [Name])
