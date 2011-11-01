@@ -61,6 +61,7 @@ def ADT(*ctors):
         d = _make_ctor(ctor, members, t)
         d.__module__ = tname
         d._ctor_ix = ctor_ix
+        d.__dt__ = t
         ctor_ix += 1
         t.ctors.append(d)
         data.append(d)

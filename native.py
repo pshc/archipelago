@@ -35,8 +35,9 @@ def _encode_str(s):
 
 def _serialize_node(node):
     if isinstance(node, DataType):
-        ix = getattr(node, '_ctor_ix', 0)
-        _write(_encode_int(ix))
+        if len(type(node).__dt__.ctors) > 1:
+            ix = node._ctor_ix
+            _write(_encode_int(ix))
         form = node.__form__
         assert isinstance(form, CtorForm)
         for field in form.fields:
@@ -160,7 +161,10 @@ def _read_node(t, path):
         state = context(Deserialize)
         index = state.index
         state.index += 1
-        ctor = t.data.ctors[_read_int()]
+        if len(t.ctors) > 1:
+            ctor = t.ctors[_read_int()]
+        else:
+            ctor = t.ctors[0]
         form = ctor.__form__
         assert isinstance(form, CtorForm)
 

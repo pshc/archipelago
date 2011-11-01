@@ -250,8 +250,14 @@ static void *read_adt(struct adt *adt) {
 	int ix;
 	struct field **src;
 
-	ix = read_int();
-	CHECK(ix < adt->ctor_count, "ADT %s index overflow (%d>%d)", adt->name, ix, (int) adt->ctor_count);
+	if (adt->ctor_count > 1) {
+		ix = read_int();
+		CHECK(ix < adt->ctor_count, "ADT %s index overflow (%d>%d)", adt->name, ix, (int) adt->ctor_count);
+	}
+	else {
+		CHECK(adt->ctor_count == 1, "Phantom type?!");
+		ix = 0;
+	}
 	ctor = adt->ctors[ix];
 	field_count = ctor->field_count;
 
