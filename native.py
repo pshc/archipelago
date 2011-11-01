@@ -34,12 +34,12 @@ def _encode_str(s):
     return _encode_int(len(b)) + b
 
 def _serialize_node(node):
-    if isinstance(node, DataType):
+    if isinstance(node, Structured):
         if len(type(node).__dt__.ctors) > 1:
             ix = node._ctor_ix
             _write(_encode_int(ix))
         form = node.__form__
-        assert isinstance(form, CtorForm)
+        assert isinstance(form, Ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             if isinstance(field.type, TWeak):
@@ -67,13 +67,13 @@ InspectState = DT('InspectState',
 Inspection = new_context('Inspection', InspectState)
 
 def _inspect_node(node):
-    if isinstance(node, DataType):
+    if isinstance(node, Structured):
         assert not has_extrinsic(Location, node), "Multiply used %r" % (node,)
         state = context(Inspection)
         add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
         form = node.__form__
-        assert isinstance(form, CtorForm)
+        assert isinstance(form, Ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             if isinstance(field.type, TWeak):
@@ -166,7 +166,7 @@ def _read_node(t, path):
         else:
             ctor = t.ctors[0]
         form = ctor.__form__
-        assert isinstance(form, CtorForm)
+        assert isinstance(form, Ctor)
 
         # Bleh.
         val = ctor(*[None for f in form.fields])

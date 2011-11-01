@@ -8,10 +8,6 @@ from types_builtin import *
 
 Builtin = DT('Builtin')
 
-Field = DT('Field', ('type', Type))
-
-Ctor = DT('Ctor', ('fields', [Field]))
-
 Ctxt = DT('Ctxt', ('type', Type))
 
 Extrinsic = DT('Extrinsic', ('type', Type))
@@ -22,7 +18,7 @@ Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
     ADT('Binding',
         'BindBuiltin', ('builtin', '*Builtin'),
         'BindCtor', ('ctor', '*Ctor'),
-        'BindDT', ('form', '*DtForm'), # XXX
+        'BindDT', ('form', '*DataType'), # XXX
         'BindField', ('field', '*Field'),
         'BindFunc', ('func', '*Func'),
         'BindVar', ('var', '*Var'))
@@ -87,7 +83,7 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
         'Continue',
         'CtxtStmt', ('ctxt', Ctxt),
         'Defn', ('var', 'Var'), ('expr', Expr),
-        'DTStmt', ('form', 'DtForm'),
+        'DTStmt', ('form', 'DataType'),
         'ExprStmt', ('expr', Expr),
         'ExtrinsicStmt', ('extrinsic', Extrinsic),
         'FuncStmt', ('func', Func),
@@ -195,7 +191,7 @@ def _resolve_walk(node, path):
         nm = node.name
         assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
         form = DATATYPES[nm].__form__
-        assert isinstance(form, DtForm), "Bad form %s" % (form,)
+        assert isinstance(form, DataType), "Bad form %s" % (form,)
         dest = TData(form)
         # Assign using path
         assert len(path) == 2
@@ -245,7 +241,7 @@ def load_forms():
 
     def found_dt(dt):
         if dt not in done:
-            assert isinstance(dt, DtForm), '%s is not a DT form' % (dt,)
+            assert isinstance(dt, DataType), '%s is not a DT form' % (dt,)
             pending.add(dt)
 
     def scan_type_deps(t):
@@ -271,7 +267,7 @@ def load_forms():
     import native
     native.serialize(mod)
 
-DtList = DT('DtList', ('dts', [DtForm]))
+DtList = DT('DtList', ('dts', [DataType]))
 
 map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
         '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
@@ -331,7 +327,7 @@ def write_mod_repr(filename, m, exts):
 
 def _do_repr(s):
     c = context(MODREPR)
-    if isinstance(s, DataType):
+    if isinstance(s, Structured):
         dt = type(s)
         if s in c.seen:
             if s in c.weakIndices:
@@ -353,12 +349,12 @@ def _do_repr(s):
         c.write(name)
         c.indent += 1
         form = dt.__form__
-        assert not isinstance(form, DtForm)
+        assert not isinstance(form, DataType)
         for field in form.fields:
             f = getattr(s, extrinsic(Name, field))
             p = match(field.type, ("TWeak(p)", Just), ("_", Nothing))
             if isJust(p):
-                if isinstance(f, DataType):
+                if isinstance(f, Structured):
                     if has_extrinsic(Name, f):
                         c.write('->%s' % (extrinsic(Name, f),))
                     else:

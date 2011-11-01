@@ -4,7 +4,7 @@ from types import FunctionType
 DATATYPES = {}
 CTORS = {}
 
-class DataType(object):
+class Structured(object):
     pass
 
 _deferred_type_parses = []
@@ -37,8 +37,8 @@ def _make_ctor(name, members, superclass):
 def DT(*members):
     members = list(members)
     name = members.pop(0)
-    ctor = _make_ctor(name, members, DataType)
-    exec 'class %s(DataType): ctors = []' % (name,)
+    ctor = _make_ctor(name, members, Structured)
+    exec 'class %s(Structured): ctors = []' % (name,)
     t = eval(name)
     t.ctors.append(ctor)
     ctor.__dt__ = t
@@ -49,7 +49,7 @@ def DT(*members):
 def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
-    exec 'class %s(DataType): ctors = []' % (tname,)
+    exec 'class %s(Structured): ctors = []' % (tname,)
     t = eval(tname)
     data = [t]
     ctor_ix = 0
@@ -145,9 +145,9 @@ value_types = (basestring, bool, int, float, tuple, type(None))
 
 # Forms
 
-FieldForm = DT('FieldForm', ('type', 'Type'))
-CtorForm = DT('CtorForm', ('fields', [FieldForm]))
-DtForm = DT('DtForm', ('ctors', [CtorForm]), ('tvars', ['TypeVar']))
+Field = DT('Field', ('type', 'Type'))
+Ctor = DT('Ctor', ('fields', [Field]))
+DataType = DT('DataType', ('ctors', [Ctor]), ('tvars', ['TypeVar']))
 
 del _dt_form
 
@@ -156,10 +156,10 @@ def _ctor_form(ctor):
     for nm, t in zip(ctor.__slots__, ctor.__types__):
         if _deferred_type_parses is None:
             t = parse_type(t)
-        field = FieldForm(t)
+        field = Field(t)
         add_extrinsic(Name, field, nm)
         fields.append(field)
-    form = CtorForm(fields)
+    form = Ctor(fields)
     add_extrinsic(Name, form, ctor.__name__)
     ctor.__form__ = form
     del ctor.__types__
@@ -170,7 +170,7 @@ def _ctor_form(ctor):
 def _dt_form(dt):
     tvs = {}
     ctors = in_context(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
-    form = DtForm(ctors, tvs.values())
+    form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     return form
 
@@ -194,16 +194,16 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-        'TData', ('data', '*DtForm'),
+        'TData', ('data', '*DataType'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
         'TWeak', ('refType', 'Type'))
 
 _parsed_type_cache = {}
 
 def parse_type(t):
-    if type(t) is type and issubclass(t, DataType):
+    if type(t) is type and issubclass(t, Structured):
         form = t.__form__
-        if isinstance(form, CtorForm):
+        if isinstance(form, Ctor):
             form = t.__dt__.__form__
         return TData(form)
     elif isinstance(t, basestring):
@@ -340,7 +340,7 @@ def __repr__(o):
     params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
     return '%s(%s)' % (name, ', '.join(params))
 
-DataType.__repr__ = __repr__
+Structured.__repr__ = __repr__
 
 # Matching
 

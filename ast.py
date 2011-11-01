@@ -298,7 +298,7 @@ def replace_refs(mapping, e):
     if isinstance(e, BindVar):
         if e.var in mapping:
             e.var = mapping[e.var]
-    elif isinstance(e, DataType):
+    elif isinstance(e, Structured):
         for field in e.__form__.ctors[e._ix].fields:
             if not isinstance(field.type, TWeak):
                 replace_refs(mapping, getattr(e, extrinsic(Name, field)))
