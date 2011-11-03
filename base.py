@@ -37,9 +37,9 @@ def _make_ctor(name, members, superclass):
 def DT(*members):
     members = list(members)
     name = members.pop(0)
-    ctor = _make_ctor(name, members, Structured)
     exec 'class %s(Structured): ctors = []' % (name,)
     t = eval(name)
+    ctor = _make_ctor(name, members, t)
     t.ctors.append(ctor)
     ctor.__dt__ = t
     t.__form__ = _dt_form(t)
@@ -65,7 +65,7 @@ def ADT(*ctors):
         ctor_ix += 1
         t.ctors.append(d)
         data.append(d)
-    t.__form__ = _dt_form(t)
+    _dt_form(t)
     DATATYPES[tname] = t
     return tuple(data)
 
@@ -175,12 +175,12 @@ def _dt_form(dt):
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(FormBacking, form, dt)
+    dt.__form__ = form
     return form
 
 def _restore_forms():
     for ctor in CTORS.itervalues():
-        dt = DATATYPES[ctor.__name__]
-        dt.__form__ = form = _dt_form(dt)
+        _dt_form(DATATYPES[ctor.__name__])
 _restore_forms()
 
 # Type representations
