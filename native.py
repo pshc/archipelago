@@ -17,9 +17,11 @@ def _write(b):
     state.file.write(b)
     state.hash.update(b)
 
-def _write_ref(node):
+def _write_ref(node, t):
     assert has_extrinsic(Location, node), \
             'Weak ref to unserialized: %r 0x%x' % (node, id(node))
+    adt = extrinsic(FormBacking, t.data)
+    assert isinstance(node, adt), "->%r is not a %s" % (node, adt)
     state = context(Serialize)
     loc = extrinsic(Location, node)
     a = state.deps[loc.module]
@@ -33,28 +35,37 @@ def _encode_str(s):
     b = s.encode('UTF-8')
     return _encode_int(len(b)) + b
 
-def _serialize_node(node):
+def _serialize_node(node, t):
     if isinstance(node, Structured):
-        if len(type(node).__dt__.ctors) > 1:
+        assert isinstance(t, TData)
+        adt = extrinsic(FormBacking, t.data)
+        assert isinstance(node, adt), "%r is not a %s" % (node, adt)
+        if len(t.data.ctors) > 1:
             ix = node._ctor_ix
             _write(_encode_int(ix))
-        form = node.__form__
-        assert isinstance(form, Ctor)
+            form = t.data.ctors[node._ctor_ix]
+        else:
+            form = t.data.ctors[0]
+        ctor = extrinsic(FormBacking, form)
+        assert isinstance(node, ctor), "%r is not a %s" % (node, ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             if isinstance(field.type, TWeak):
-                _write_ref(sub)
+                _write_ref(sub, field.type.refType)
             else:
-                _serialize_node(sub)
+                _serialize_node(sub, field.type)
     elif isinstance(node, basestring):
+        assert isinstance(t, TStr)
         _write(_encode_str(node))
     elif isinstance(node, int):
+        assert isinstance(t, TInt)
         _write(_encode_int(node))
     elif isinstance(node, list):
+        assert isinstance(t, TArray)
         _write(_encode_int(len(node)))
         # TODO: Check list element type for weak
         for item in node:
-            _serialize_node(item)
+            _serialize_node(item, t.elemType)
     else:
         assert False, "Can't serialize %r" % (node,)
 
@@ -89,7 +100,7 @@ def _inspect_node(node):
             _inspect_node(sub)
 
 def serialize(module):
-    assert isNothing(module.digest)
+    assert not has_extrinsic(ModDigest, module)
     temp = '/tmp/serialize'
     hash = sha256()
     def index():
@@ -100,21 +111,21 @@ def serialize(module):
         depmap = {module: 0}
         for mod in sorted(inspect.deps,
                           lambda x, y: cmp(x.digest.just, y.digest.just)):
-            deps.append(mod.digest.just)
+            deps.append(extrinsic(ModDigest, mod))
             depmap[mod] = len(deps) # one-based
         state = SerialState(f, hash, 0, depmap)
         def go():
             _write(_encode_int(len(deps)))
             map_(_write, deps)
             print 'serializing', module.root
-            _serialize_node(module.root)
+            _serialize_node(module.root, module.rootType)
         in_context(Serialize, state, go)
         f.close()
     index()
     hex = hash.digest().encode('hex')
-    module.digest = Just(hex)
+    add_extrinsic(ModDigest, module, hex)
     system('mv -f -- %s mods/%s' % (temp, hex))
-    system('ln -sf -- %s mods/%s' % (hex, module.name))
+    system('ln -sf -- %s mods/%s' % (hex, extrinsic(Name, module)))
 
 DeserialState = DT('DeserialState',
         ('file', file),

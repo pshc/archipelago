@@ -222,7 +222,8 @@ BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
 
 def load_builtins():
     root = BuiltinList(boot_syms)
-    mod = Module('builtins', Nothing(), root)
+    mod = Module(t_DT(BuiltinList), root)
+    add_extrinsic(Name, mod, 'builtins')
     exports = {}
     for sym in boot_syms:
         exports[extrinsic(Name, sym)] = sym
@@ -266,7 +267,8 @@ def load_forms():
                     scan_type_deps(field.type)
             forms.append(dt)
 
-    mod = Module('forms', Nothing(), DtList(forms))
+    mod = Module(t_DT(DtList), DtList(forms))
+    add_extrinsic(Name, mod, 'forms')
     write_mod_repr('views/forms.txt', mod, [Name])
     import native
     native.serialize(mod)

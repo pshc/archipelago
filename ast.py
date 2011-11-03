@@ -699,7 +699,8 @@ def convert_file(filename, name, deps):
     if not BUILTINS:
         setup_builtin_module()
     stmts = compiler.parseFile(filename).node.nodes
-    mod = Module(name, Nothing(), [])
+    mod = Module(t_DT(Body), None)
+    add_extrinsic(Name, mod, name)
     deps.add(mod)
     omni, scope = ast_contexts()
     omni.loadedModules = deps

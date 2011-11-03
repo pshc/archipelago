@@ -286,6 +286,9 @@ def realize_type(t):
 
 TForward = DT('TForward', ('name', str))
 
+def t_DT(dt):
+    return TData(dt.__dt__.__form__)
+
 def _apply_list_type(t):
     return TApply(parse_type('List'), [t])
 

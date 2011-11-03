@@ -7,7 +7,8 @@ from base import DT, ADT, match, new_extrinsic
 Set = DT('Set', ('contents', ['a']))
 Dict = DT('Dict', ('contents', [('a', 'b')]))
 
-Module = DT('Module', ('name', str), ('digest', str), ('root', 'a'))
+Module = DT('Module', ('rootType', 'Type'), ('root', 'a'))
+ModDigest = new_extrinsic('ModDigest', str)
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
 def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
