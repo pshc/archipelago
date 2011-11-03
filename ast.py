@@ -67,7 +67,7 @@ def ident_exists(nm, namespace=valueNamespace):
 def refs_existing(nm, namespace=valueNamespace):
     ref = ident_exists(nm, namespace)
     if isJust(ref):
-        return fromJust(ref)
+        return Bind(fromJust(ref))
     if namespace == typeNamespace:
         if nm == 'int':
             return TInt()
@@ -309,7 +309,7 @@ def conv_match_case(code, f):
     else:
         e = match(f, ('Lambda(params, e)', lambda params, e:
                          replace_refs(dict(zip(params, bs)), e)),
-                     ('_', lambda: Call(f, [BindVar(b) for b in bs])))
+                     ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
     return MatchCase(c, e)
 
 def conv_match(args):
@@ -620,21 +620,21 @@ def conv_function(s):
         if match(e, ("somekindofreference(nm)", lambda nm: nm == 'local'),
                     ("_", lambda: False)):
             export = False
-    func = Func([], [])
+    func = Func([], Body([]))
     identifier(func, s.name, export=export)
     @inside_scope
     def rest():
         func.params = extract_arglist(s)
-        func.body = conv_stmts_noscope(s.code)
+        func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    return [rest()]
+    return [FuncStmt(rest())]
 
 @stmt(ast.If)
 def conv_if(s):
     conds = []
     for (test, body) in s.tests:
         conds.append(Case(conv_expr(test), conv_stmts(body)))
-    else_ = Just(conv_stmts(s.else_)) if s.else_ else Nothing()
+    else_ = Just(Body(conv_stmts(s.else_))) if s.else_ else Nothing()
     return [Cond(conds, else_)]
 
 def import_names(nms):
@@ -676,7 +676,7 @@ def conv_stmts_noscope(stmts):
 
 @stmt(ast.While)
 def conv_while(s):
-    return [While(conv_expr(s.test), conv_stmts(s.body))]
+    return [While(conv_expr(s.test), Body(conv_stmts(s.body)))]
 
 # Shouldn't this be a context or something?
 BUILTINS = {}
