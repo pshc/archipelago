@@ -496,6 +496,20 @@ def _match_every(atom, ast):
         return []
     return [[r[0] for r in results] if all_singular else results]
 
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
+def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
+def isNothing(m): return match(m, ('Nothing()', lambda: True),
+                                  ('_', lambda: False))
+def maybe(no, yes, val):
+    return match(val, ('Just(j)', yes), ('Nothing()', lambda: no))
+def maybe_(no, val):
+    return match(val, ('Just(j)', lambda j: j), ('Nothing()', lambda: no))
+def fromJust(val):
+    return match(val, ('Just(j)', lambda j: j))
+def mapMaybe(f, val):
+    return match(val, ('Just(j)', lambda j: Just(f(j))),
+                      ('Nothing()', Nothing))
+
 # Will be replaced by bedrock.List equivalents
 
 def cons(car, cdr):
