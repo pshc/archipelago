@@ -153,7 +153,7 @@ void setup_serial(const char *dir) {
 	ADT_ctors(DtForm, 1, Ctor("DtForm", 2,
 		"ctors", arrayT(adtT(CtorForm)),
 		"tvars", arrayT(adtT(TypeVar))));
-	ADT_ctors(Type, 13,
+	ADT_ctors(Type, 14,
 		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
 		Ctor("TMeta", 0), /* XXX */
 		Ctor("TInt", 0),
@@ -168,6 +168,7 @@ void setup_serial(const char *dir) {
 		Ctor("TData", 1, "data", weak(adtT(DtForm))),
 		Ctor("TApply", 2, "appType", adtT(Type),
 				"appVars", arrayT(adtT(Type))),
+		Ctor("TArray", 1, "elemType", adtT(Type)),
 		Ctor("TWeak", 1, "refType", adtT(Type)));
 	DtList = ADT("DtList");
 	ADT_ctors(DtList, 1, Ctor("DtList", 1, "dts", arrayT(adtT(DtForm))));

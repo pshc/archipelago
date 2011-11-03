@@ -169,7 +169,7 @@ def conv_type(t, tvars, dt=None):
         ("TStr() or TInt()", lambda: t),
         ("StrLit(s)", type_str),
         ("ListLit([t])",
-            lambda t: TApply(type_ref('List'), [conv_type(t, tvars, dt)])),
+            lambda t: TArray(conv_type(t, tvars, dt))),
         ("_", unknown))
 
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)

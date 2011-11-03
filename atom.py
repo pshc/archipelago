@@ -213,6 +213,8 @@ def _resolve_walk(node, path):
         _resolve_walk(node.appType, (node, 'appType'))
         for i, v in enumerate(node.appVars):
             _resolve_walk(v, (node.appVars, i))
+    elif isinstance(node, TArray):
+        _resolve_walk(node.elemType, (node, 'elemType'))
     elif isinstance(node, TWeak):
         _resolve_walk(node.refType, (node, 'refType'))
 
@@ -251,6 +253,7 @@ def load_forms():
             ('TFunc(a, r)', lambda a, r: map(scan_type_deps, a + [r])),
             ('TData(dt)', found_dt),
             ('TApply(a, vs)', lambda a, vs: map(scan_type_deps, [a] + vs)),
+            ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
             ('_', lambda: None))
 

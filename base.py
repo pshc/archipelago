@@ -185,7 +185,7 @@ _restore_forms()
 TypeVar = DT('TypeVar')
 
 Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
-    TTuple, TAnyTuple, TFunc, TData, TApply, TWeak \
+    TTuple, TAnyTuple, TFunc, TData, TApply, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TMeta', ('metaType', 'Maybe(Type)'),
@@ -196,6 +196,7 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
         'TData', ('data', '*DataType'),
         'TApply', ('appType', 'Type'), ('appVars', ['Type']),
+        'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
 
 _parsed_type_cache = {}
@@ -225,7 +226,7 @@ def parse_type(t):
         return TTuple(map(parse_type, t))
     elif isinstance(t, list):
         assert len(t) == 1
-        return _apply_list_type(parse_type(t[0]))
+        return TArray(parse_type(t[0]))
     elif isinstance(t, set):
         assert len(t) == 1
         return _apply_set_type(parse_type(list(t)[0]))
@@ -257,7 +258,7 @@ def realize_type(t):
         return reduce(lambda r, ts: TFunc(map(realize_type, ts), r), ops, r)
     elif isinstance(t, ast.List):
         assert len(t.nodes) == 1
-        return _apply_list_type(realize_type(t.nodes[0]))
+        return TArray(realize_type(t.nodes[0]))
     elif isinstance(t, ast.Tuple):
         return TTuple(map(realize_type, t.nodes))
     elif isinstance(t, ast.Name):
