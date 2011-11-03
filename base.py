@@ -104,6 +104,7 @@ ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]))
 
 # Omnipresent for now
 Name = ExtInfo('Name', str, [{}])
+FormBacking = ExtInfo('FormBacking', object, [{}])
 
 def new_extrinsic(label, t):
     return ExtInfo(label, t, [])
@@ -161,6 +162,7 @@ def _ctor_form(ctor):
         fields.append(field)
     form = Ctor(fields)
     add_extrinsic(Name, form, ctor.__name__)
+    add_extrinsic(FormBacking, form, ctor)
     ctor.__form__ = form
     del ctor.__types__
     if _deferred_type_parses is not None:
@@ -172,6 +174,7 @@ def _dt_form(dt):
     ctors = in_context(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
+    add_extrinsic(FormBacking, form, dt)
     return form
 
 def _restore_forms():
