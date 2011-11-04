@@ -1,6 +1,6 @@
 import base as _base
 
-ModIndex = _base.new_extrinsic('ModIndex', list)
+ModIndex = _base.new_extrinsic('ModIndex', [int])
 
 Pos = _base.DT('Pos', ('module', '*Module'), ('index', int))
 

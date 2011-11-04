@@ -79,11 +79,11 @@ ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'Type'),
 
 def new_context(name, t):
     assert isinstance(name, basestring)
-    assert isinstance(t, type)
+    if t is not None:
+        t = parse_type(t)
     return ContextInfo(name, t, [])
 
 def in_context(ctxt, initial, func):
-    assert isinstance(initial, ctxt.ctxtType)
     stack = ctxt.ctxtStack
     stack.append(initial)
     count = len(stack)
@@ -96,7 +96,7 @@ def context(ctxt):
     assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
-TVARS = new_context('TVARS', dict)
+TVARS = new_context('TVARS', None)
 
 # Extrinsics
 
@@ -107,6 +107,8 @@ Name = ExtInfo('Name', str, [{}])
 FormBacking = ExtInfo('FormBacking', object, [{}])
 
 def new_extrinsic(label, t):
+    if t is not None:
+        t = parse_type(t)
     return ExtInfo(label, t, [])
 
 def extrinsic(ext, obj):
@@ -314,7 +316,7 @@ _parse_deferred()
 # Pretty printing
 # (naive quadratic version)
 
-PrettyPrinted = new_extrinsic('PrettyPrinted', type(None))
+PrettyPrinted = new_extrinsic('PrettyPrinted', None)
 
 def pretty_brief(name, o):
     if name == 'BindBuiltin':
