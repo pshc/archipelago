@@ -38,6 +38,8 @@ def type_equal(a, b):
         ("(TFunc(args1, r1), TFunc(args2, r2))", _type_func_equal),
         ("(TData(a), TData(b))", lambda: a is b),
         ("(TApply(t1, vs1), TApply(t2, vs2))", _type_apply_equal),
+        ("(TArray(a), TArray(b))", type_equal),
+        ("(TWeak(a), TWeak(b))", type_equal),
         ("_", lambda: False))
 
 def _get_name(a):
@@ -102,14 +104,14 @@ def map_type_vars(f, t):
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))
 
-Scheme = DT('Scheme', ('schemeVars', [Type]), ('schemeType', Type))
+Scheme = DT('Scheme', ('tvars', [TypeVar]), ('type', Type))
 
 def _scheme_repr(s):
     begin = ':: '
-    vs = s.schemeVars
+    vs = s.tvars
     if vs:
         begin += ', '.join(map(_get_name, vs)) + ' => '
-    return begin + repr(s.schemeType)
+    return begin + repr(s.type)
 Scheme.__repr__ = _scheme_repr
 
 # TODO

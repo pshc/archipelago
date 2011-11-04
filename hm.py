@@ -4,33 +4,28 @@ from base import *
 from types_builtin import *
 import globs
 
-OmniEnv = DT('OmniEnv', ('omniTypeAnnotations', {Atom: Scheme}),
-                        ('omniTypeCasts', {Atom: (Scheme, Scheme)}),
-                        ('omniFieldDTs', {Atom: Atom}),
-                        ('omniContextTypes', {Atom: Atom}),
-                        ('omniASTContext', 'Maybe(Atom)'))
+TypeAnnot = new_extrinsic('TypeAnnot', Scheme)
+TypeCast = new_extrinsic('TypeCast', (Scheme, Scheme))
+FieldDT = new_extrinsic('FieldDT', '*DataType')
 
-Env = DT('Env', ('envTable', {Atom: Scheme}),
-                ('envRetType', Type),
-                ('envReturned', bool),
-                ('envPrev', 'Env'))
+ALGM = new_context('ALGM', '*Type')
 
-GlobalEnv = DT('GlobalEnv', ('omniEnv', OmniEnv),
-                            ('curEnv', Env))
+STMTCTXT = new_context('STMTCTXT', '*Stmt')
 
-ENV = None
-LIST_TYPE = None
+HmEnv = DT('HmEnv', ('envTable', {'*Expr': Scheme}),
+                    ('envRetType', Type),
+                    ('envReturned', 'Maybe(bool)'),
+                    ('envPrev', 'Env'))
 
-loaded_export_atom_types = {}
+HMENV = new_context('HMENV', HmEnv)
 
 def fresh():
     return TMeta(Nothing())
 
 def with_context(msg):
-    global ENV
-    if isJust(ENV.omniEnv.omniASTContext):
-        return "At:\n%s\n%s" % (ENV.omniEnv.omniASTContext.just, msg)
-    return msg
+    return match(context(STMTCTXT),
+            ("Just(s)", lambda s: "At:\n%s\n%s" % (s, msg)),
+            ("_", lambda: msg))
 
 def unification_failure(e1, e2, msg):
     assert False, with_context("Couldn't unify %r with %r: %s" % (e1, e2, msg))
@@ -41,7 +36,7 @@ def unify_tuples(t1, list1, t2, list2, desc):
     for a1, a2 in zip(list1, list2):
         unify(a1, a2)
 
-def unify_funcs(f1, args1, ret1, e1, f2, args2, ret2, e2):
+def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
@@ -82,7 +77,7 @@ def unify(e1, e2):
                                  else fail("mismatched type vars")),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
-        ("(e1==TFunc(a1, r1), e2==TFunc(a2, r2))", unify_funcs),
+        ("(f1==TFunc(a1, r1), f2==TFunc(a2, r2))", unify_funcs),
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
         ("(e1==TApply(t1, ss1), e2==TApply(t2, ss2))", unify_applications),
@@ -100,54 +95,49 @@ def unify(e1, e2):
         ("(_, TAnyTuple())", fail("tuple expected")),
         ("_", fail("type mismatch")))
 
+def unify_m(e):
+    unify(context(ALGM), e)
+
 def set_scheme(e, s, augment_ast):
-    global ENV
-    env = ENV.curEnv
+    env = context(HMENV)
     while env is not None:
         assert e not in env.envTable, "%s already has a type" % (e,)
         env = env.envPrev
-    ENV.curEnv.envTable[e] = (s, augment_ast)
+    context(HMENV).envTable[e] = (s, augment_ast)
 
 def set_monotype(e, t, augment_ast):
     set_scheme(e, Scheme([], t), augment_ast)
 
 def get_scheme(e):
-    global ENV
-    env = ENV.curEnv
+    env = context(HMENV)
     while env is not None:
         if e in env.envTable:
             s, aug = env.envTable[e]
             return s
         env = env.envPrev
-    # XXX: For now, try to import from EVERY LOADED MODULE?!
-    t = loaded_export_atom_types.get(e)
+    # XXX: Try to import
     assert t is not None, with_context('%s not in scope' % (e,))
     return t
 
 def in_new_env(f):
-    global ENV
-    outerEnv = ENV.curEnv
-    ENV.curEnv = Env({}, None, False, outerEnv)
-
-    ret = f()
+    new_env = HmEnv({}, None, False, context(HMENV))
+    ret = in_context(HMENV, new_env, f)
 
     # Save augmentations from that env
-    for e, info in ENV.curEnv.envTable.iteritems():
+    for e, info in new_env.envTable.iteritems():
         s, aug = info
         if aug:
-            ENV.omniEnv.omniTypeAnnotations[e] = s
+            add_extrinsic(TypeAnnot, e, s)
 
-    ENV.curEnv = outerEnv
     return ret
 
 def instantiate_scheme(s, astRef):
     vs, t = match(s, ('Scheme(vs, t)', tuple2))
     if len(vs) > 0:
         repl = dict((v, fresh()) for v in vs)
-        t = map_type_vars(lambda v: repl.get(v.varAtom, v), t)
+        t = map_type_vars(lambda v: repl.get(v.typeVar, v), t)
         # Need to supplement AST with any casts if required
-        global ENV
-        ENV.omniEnv.omniTypeCasts[astRef] = (s, t)
+        add_extrinsic(TypeCast, astRef, (s, t))
     return t
 
 def generalize_type(t, polyEnv):
@@ -158,7 +148,8 @@ def generalize_type(t, polyEnv):
         polyEnv = polyEnv.envPrev
     tvs = []
     for i, meta in enumerate(metas):
-        tv = symref('typevar', [symname(chr(97 + i))])
+        tv = TypeVar()
+        add_extrinsic(Name, tv, chr(97 + i))
         meta.metaType = Just(TVar(tv))
         tvs.append(tv)
     return Scheme(tvs, t)
@@ -189,15 +180,14 @@ def _free_metas(t):
 def free_meta_vars(t):
     return _free_metas(zonk_type(t))
 
-def check_tuple(et, ts):
-    unify(et, TTuple(map(infer_expr, ts)))
+def check_tuple(ts):
+    unify_m(TTuple(map(infer_expr, ts)))
 
-def check_list(t, elems):
+def check_list(elems):
     elemT = fresh()
     for elem in elems:
         check_expr(elemT, elem)
-    global LIST_TYPE
-    unify(t, TApply(LIST_TYPE, [elemT]))
+    unify_m(TArray(elemT))
 
 def decompose_func_type(ft, nargs):
     argTs, retT = match(ft, ("TFunc(argTs, retT)", tuple2),
@@ -209,130 +199,125 @@ def decompose_func_type(ft, nargs):
     assert len(argTs) == nargs
     return (argTs, retT)
 
-def check_call(et, f, args):
+def check_call(f, args):
     argTs, retT = decompose_func_type(infer_expr(f), len(args))
     for argT, arg in zip(argTs, args):
         check_expr(argT, arg)
-    unify(retT, et)
+    unify_m(retT)
 
-def check_logic(t, l, r):
+def check_logic(l, r):
     check_expr(TBool(), l)
     check_expr(TBool(), r)
-    unify(TBool(), t)
+    unify_m(TBool())
 
-def check_lambda(tv, lam, args, b, ref):
+def check_lambda(lam, args, b, ref):
     body = [symref('return', [b])] # stupid hack
     s = infer_func_scheme(None, args, body) # non-recursive, so None
     set_scheme(lam, s, True)
     t = instantiate_scheme(s, ref) # stupider hack
-    unify(tv, t)
+    unify_m(t)
 
-def pat_var(tv, v):
-    set_monotype(v, tv, True)
+def pat_var(v):
+    set_monotype(v, context(ALGM), True)
 
-def pat_capture(tv, v, p):
-    pat_var(tv, v)
-    check_pat(tv, p)
+def pat_capture(v, p):
+    pat_var(v)
+    check_pat(p)
 
 # XXX: Instantiation has to be consistent across all match cases...
-def pat_ctor(tv, ctor, args, ref):
+def pat_ctor(ctor, args, ref):
     ctorT = instantiate_scheme(get_scheme(ctor), ref)
     fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
-    unify(tv, dt)
+    unify_m(dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
     for arg, fieldT in zip(args, fieldTs):
         check_pat(fieldT, arg)
 
-def check_pat(tv, p):
+def check_pat(p):
     match(p,
-        ("Int(_, _)", lambda: unify(tv, TInt())),
-        ("Str(_, _)", lambda: unify(tv, TStr())),
-        ("key('wildcard')", lambda: None),
-        ("key('tuplelit', sized(ps))",
-            lambda ps: unify(tv, TTuple(map(infer_pat, ps)))),
-        ("v==key('var')", lambda v: pat_var(tv, v)),
-        ("key('capture', cons(v, cons(p, _)))",
-            lambda v, p: pat_capture(tv, v, p)),
-        ("key('ctor', cons(Ref(c, _), sized(args)))",
-            lambda c, args: pat_ctor(tv, c, args, p)),
+        ("PatInt(_)", lambda: unify_m(TInt())),
+        ("PatStr(_)", lambda: unify_m(TStr())),
+        ("PatWild()", lambda: None),
+        ("PatTuple(ps)", lambda ps: unify_m(TTuple(map(infer_pat, ps)))),
+        ("PatVar(v)", pat_var),
+        ("PatCapture(v, p)", pat_capture),
+        ("PatCtor(c, args)", lambda c, args: pat_ctor(c, args, p))
         )
 
 def infer_pat(p):
     tv = fresh()
-    check_pat(tv, p)
+    in_context(ALGM, tv, lambda: check_pat(p))
     return tv
 
-def check_match(retT, m, e, cs):
+def check_match(m, e, cs):
+    retT = context(ALGM)
     et = infer_expr(e)
     for c in cs:
-        cp, ce = match(c, ("key('case', cons(p, cons(e, _)))", tuple2))
+        cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         def check_case():
-            check_pat(et, cp)
+            in_context(ALGM, et, lambda: check_pat(cp))
             check_expr(retT, ce)
         in_new_env(check_case)
     # Help out C transmogrification with some extra type annotations
     set_monotype(m, retT, True)
     set_monotype(e, et, True)
 
-def check_attr(tv, struct, a, ref):
-    global ENV
-    check_expr(ENV.omniEnv.omniFieldDTs[a], struct)
-    unify(tv, get_type(a, ref))
+def check_attr(struct, f, ref):
+    # Would be nice if we didn't have to instantiate a TData pointlessly
+    # every time, but then we'd have to start garbage collecting a shared one
+    check_expr(TData(extrinsic(FieldDT, f)), struct)
+    unify_m(get_type(f, ref))
 
-def check_attr_lhs(tv, struct, a, ref):
-    global ENV
-    check_lhs(ENV.omniEnv.omniFieldDTs[a], struct)
-    unify(tv, get_type(a, ref))
+def check_attr_lhs(struct, f, ref):
+    check_lhs(TData(extrinsic(FieldDT, f)), struct)
+    unify_m(get_type(f, ref))
 
-def check_getctxt(tv, ctxt):
+def check_getctxt(ctxt):
     global ENV
     # TODO: Add ctxt to func scope
-    unify(tv, ENV.omniEnv.omniContextTypes[ctxt])
+    unify_m(ENV.omniEnv.omniContextTypes[ctxt])
 
-def check_inctxt(tv, ctxt, init, f):
+def check_inctxt(ctxt, init, f):
     global ENV
     t = ENV.omniEnv.omniContextTypes[ctxt]
     check_expr(t, init)
     # TODO: Add ctxt to func attributes
-    check_expr(TFunc([], tv), f)
+    check_expr(TFunc([], context(ALGM)), f)
 
 def unknown_infer(a):
     assert False, with_context('Unknown infer case:\n%s' % (a,))
 
-def check_binding(tv, target, ref):
-    unify(tv, get_type(target, ref))
+def builtin_scheme(builtin):
+    return WTF
 
-def check_builtin(tv, s, ref):
-    unify(tv, instantiate_scheme(atoms_to_scheme(s), ref))
+def check_binding(binding, ref):
+    unify_m(match(binding,
+        ("BindFunc(f)", lambda f: get_type(f, ref)),
+        ("BindVar(v)", lambda v: get_type(v, ref)),
+        ("BindBuiltin(b)",
+                lambda b: instantiate_scheme(builtin_scheme(b), ref)),
+    ))
+
+def check_builtin(s, ref):
+    unify_m(instantiate_scheme(atoms_to_scheme(s), ref))
 
 def check_expr(tv, e):
     """Algorithm M."""
-    match(e,
-        ("Int(_, _)", lambda: unify(tv, TInt())),
-        ("Str(_, _)", lambda: unify(tv, TStr())),
-        ("key('char')", lambda: unify(tv, TChar())),
-        ("key('tuplelit', sized(ts))", lambda ts: check_tuple(tv, ts)),
-        ("key('listlit', sized(ss))", lambda ss: check_list(tv, ss)),
-        ("key('call', cons(f, sized(s)))", lambda f, s: check_call(tv, f, s)),
-        ("key('and' or 'or', cons(l, cons(r, _)))",
-            lambda l, r: check_logic(tv, l, r)),
-        ("l==key('lambda', sized(args, cons(e, _)))",
-            lambda l, a, b: check_lambda(tv, l, a, b, e)),
-        ("m==key('match', cons(p, all(cs, c==key('case'))))",
-            lambda m, p, cs: check_match(tv, m, p, cs)),
-        ("key('attr', cons(s, cons(Ref(a, _), _)))",
-            lambda s, a: check_attr(tv, s, a, e)),
-        ("key('getctxt', cons(Ref(ctxt, _), _))",
-            lambda ctxt: check_getctxt(tv, ctxt)),
-        ("key('inctxt', cons(Ref(ctxt, _), cons(init, cons(f, _))))",
-            lambda ctxt, init, f: check_inctxt(tv, ctxt, init, f)),
-        ("Ref(v==key('var'), _)",
-            lambda v: check_binding(tv, v, e)),
-        ("Ref(f==key('func' or 'ctor'), _)",
-            lambda f: check_binding(tv, f, e)),
-        ("Ref(key('symbol', contains(s==key('type'))), _)",
-            lambda s: check_builtin(tv, s, e)),
-        ("_", lambda: unknown_infer(e)))
+    in_context(ALGM, tv, lambda: match(e,
+        ("IntLit(_)", lambda: unify(tv, TInt())),
+        ("StrLit(_)", lambda: unify(tv, TStr())),
+        ("TupleLit(ts)", check_tuple),
+        ("ListLit(ss)", check_list),
+        ("Call(f, s)", check_call),
+        ("And(l, r)", check_logic),
+        ("Or(l, r)", check_logic),
+        ("l==Lambda(ps, b)", lambda l, ps, b: check_lambda(l, ps, b, e)),
+        ("m==Match(p, cs)", check_match),
+        ("Attr(s, f)", lambda s, f: check_attr(s, f, e)),
+        ("GetCtxt(ctxt)", check_getctxt),
+        ("InCtxt(ctxt, init, f)", check_inctxt),
+        ("Bind(b)", lambda b: check_binding(b, e)),
+        ("_", lambda: unknown_infer(e))))
 
 def infer_expr(e):
     tv = fresh()
@@ -340,47 +325,41 @@ def infer_expr(e):
     return tv
 
 def check_lhs(tv, lhs):
-    return match(lhs,
-        ("key('attr', cons(e, cons(Ref(a, _), _)))",
-            lambda s, a: check_attr_lhs(tv, s, a, lhs)),
-        ("Ref(v==key('var'), _)", lambda v: check_binding(tv, v, lhs)),
-        ("_", lambda: unknown_infer(lhs)))
+    in_context(ALGM, tv, lambda: match(lhs,
+        ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
+        ("LhsVar(v)", lambda v: check_binding(v, lhs)),
+        ("_", lambda: unknown_infer(lhs))))
 
 def infer_lhs(a):
     tv = fresh()
     check_lhs(tv, a)
     return tv
 
-def infer_DT(dt, cs, vs, nm):
-    dtT = TData(dt)
-    tvs = match(dt, ("key('DT', all(tvs, tv==key('typevar')))", identity))
-    # TODO: TApply this?
-    export_type(dt, TData(dt))
-    for c in cs:
+def infer_DT(form):
+    dtT = TData(form)
+    for c in form.ctors:
         fieldTs = []
-        for f in match(c, ("key('ctor', all(fs, f==key('field')))", identity)):
-            t = match(f, ("key('field', contains(key('type', cons(t, _))))",
-                          lambda t: atoms_to_type(t)))
-            fieldTs.append(t)
-            set_monotype(f, t, False)
+        for f in c.fields:
+            add_extrinsic(FieldDT, f, form)
+            fieldTs.append(f.type)
         funcT = TFunc(fieldTs, dtT)
         # TODO: Should use only the typevars that appear in this ctor
-        cT = Scheme(tvs, funcT)
+        cT = Scheme(form.tvars, funcT)
         set_scheme(c, cT, True)
-        export_type(c, cT)
-    if nm == 'List':
-        global LIST_TYPE
-        LIST_TYPE = dtT
 
-def infer_CTXT(ctxt, t):
-    global ENV
-    ENV.omniEnv.omniContextTypes[ctxt] = atoms_to_scheme(t).schemeType
+def infer_new_context(ctxt):
+    # TODO
+    pass
+
+def infer_new_extrinsic(ext):
+    # XXX: Should have a declarative area for this kind of stuff
+    #      so I can unify all this lookup business
+    pass
 
 def infer_defn(a, e):
     t = fresh()
     check_expr(t, e)
-    global ENV
-    set_scheme(a, generalize_type(t, ENV.curEnv), True)
+    set_scheme(a, generalize_type(t, context(HMENV)), True)
 
 def infer_assign(a, e):
     t = infer_lhs(a)
@@ -390,96 +369,88 @@ def infer_augassign(a, e):
     check_lhs(TInt(), a)
     check_expr(TInt(), e)
 
-def infer_exprstmt(e):
-    t = infer_expr(e)
-
-def infer_cond(subs, cases):
+def infer_cond(cases, else_):
     for t, b in cases:
         check_expr(TBool(), t)
-        infer_stmts(b)
-    else_ = match(subs, ('contains(key("else", sized(body)))', identity),
-                        ('_', lambda: None))
-    if else_ is not None:
-        infer_stmts(else_)
+        infer_body(b)
+    if isJust(else_):
+        infer_body(fromJust(else_))
 
 def infer_while(test, body):
     check_expr(TBool(), test)
-    infer_stmts(body)
+    infer_body(body)
 
 def infer_assert(tst, msg):
     check_expr(TBool(), tst)
     check_expr(TStr(), msg)
 
-def infer_func_scheme(f, args, body):
+def infer_func_scheme(f, params, body):
     def inside_func_env():
-        global ENV
-        env = ENV.curEnv
 
         retT = fresh()
-        env.envRetType = retT
+        context(HMENV).envRetType = retT
         funcT = fresh()
         if f is not None:
             set_monotype(f, funcT, False)
-        argTs = []
-        for a in args:
+        paramTs = []
+        for p in params:
             t = fresh()
-            set_monotype(a, t, False)
-            argTs.append(t)
+            set_monotype(p, t, False)
+            paramTs.append(t)
 
-        infer_stmts(body)
+        infer_body(body)
 
-        if not env.envReturned:
+        env = context(HMENV)
+        if not matches(env.envReturned, "Just(True)"):
             unify(retT, TVoid())
-        unify(funcT, TFunc(argTs, retT))
+        unify(funcT, TFunc(paramTs, retT))
         return generalize_type(funcT, env)
     return in_new_env(inside_func_env)
 
-def infer_func(f, args, body):
-    set_scheme(f, infer_func_scheme(f, args, body), True)
+def infer_func(f):
+    set_scheme(f, infer_func_scheme(f, f.params, f.body), True)
 
 def infer_return(e):
-    global ENV
-    if e is not None:
-        check_expr(ENV.curEnv.envRetType, e)
-        ENV.curEnv.envReturned = True
+    env = context(HMENV)
+    assert not matches(env.envReturned, 'Just(False)'), "Returned nothing"
+    check_expr(context(HMENV).envRetType, e)
+    env.envReturned = Just(True)
+
+def infer_returnnothing():
+    env = context(HMENV)
+    assert not matches(env.envReturned, 'Just(True)'), "Returned something"
+    env.envReturned = Just(False)
 
 def infer_stmt(a):
-    global ENV
-    ENV.omniEnv.omniASTContext = Just(a)
-    match(a,
-        ("dt==key('DT', all(cs, c==key('ctor'))\
-                    and all(vs, v==key('typevar'))) and named(nm)", infer_DT),
-        ("ctxt==key('CTXT', contains(t==key('type')))", infer_CTXT),
-        ("key('defn', cons(a, cons(e, _)))", infer_defn),
-        ("key('=', cons(a, cons(e, _)))", infer_assign),
-        ("key('+=' or '-=', cons(a, cons(e, _)))", infer_augassign),
-        ("key('exprstmt', cons(e, _))", infer_exprstmt),
-        ("key('cond', subs and all(cases, key('case', cons(t, sized(b)))))",
-            infer_cond),
-        ("key('while', cons(t, contains(key('body', sized(b)))))",infer_while),
-        ("key('assert', cons(t, cons(m, _)))", infer_assert),
-        ("f==key('func', contains(key('args', sized(args))) and \
-                         contains(key('body', sized(body))))", infer_func),
-        ("key('return', cons(e, _))", infer_return),
-        ("key('returnnothing')", lambda: infer_return(None)),
-        ("otherwise", unknown_infer))
+    in_context(STMTCTXT, a, lambda: match(a,
+        ("DTStmt(form)", infer_DT),
+        ("CtxtStmt(ctxt)", infer_new_context),
+        ("Defn(var, e)", infer_defn),
+        ("ExtrinsicStmt(extr)", infer_new_extrinsic),
+        ("Assign(lhs, e)", infer_assign),
+        ("AugAssign(op, lhs, e)", infer_augassign),
+        ("ExprStmt(e)", infer_expr),
+        ("Cond(cases, elseCase)", infer_cond),
+        ("While(t, b)",infer_while),
+        ("Assert(t, m)", infer_assert),
+        ("FuncStmt(f)", infer_func),
+        ("Return(e)", infer_return),
+        ("ReturnNothing()", infer_returnnothing),
+        ("otherwise", unknown_infer)))
 
-def infer_stmts(ss):
-    for s in ss:
+def infer_body(body):
+    for s in body.stmts:
         infer_stmt(s)
 
-def setup_infer_env(roots):
-    fields = {}
-    for dt in roots:
-        cs = match(dt, ("key('DT', all(cs, c==key('ctor')))", identity),
-                       ("_", lambda: []))
-        dtT = TData(dt)
-        for c in cs:
-            fs = match(c, ("key('ctor', all(fs, f==key('field')))", identity))
-            for f in fs:
-                fields[f] = dtT
-    omni = OmniEnv({}, {}, fields, {}, Nothing())
-    return GlobalEnv(omni, None)
+def with_fields(func):
+    def go():
+        # Ought to just do this globally.
+        """
+        for dt in DATATYPES.itervalues():
+            infer_DT(dt.__form__)
+        """
+        return func()
+    return scope_extrinsic(FieldDT, go)
 
 # Collapse strings of metavars
 def _zonk_meta(meta):
@@ -515,31 +486,36 @@ def normalize_type(t):
                     ("_", lambda: t))
 
 def normalize_scheme(s):
-    s.schemeType = normalize_type(s.schemeType)
+    s.type = normalize_type(s.type)
     return s
 
-def export_type(atom, t):
-    loaded_export_atom_types[atom] = t
-
-def infer_types(roots):
-    global ENV
-    ENV = setup_infer_env(roots)
-    in_new_env(lambda: infer_stmts(roots))
+def infer_types(root):
+    in_context(HMENV, None,
+        lambda: scope_extrinsic(TypeAnnot,
+        lambda: scope_extrinsic(TypeCast,
+        lambda: in_new_env(
+        lambda: with_fields(
+        lambda: infer_body(root)
+    )))))
+    """
     casts = {}
     for a, (s, t) in ENV.omniEnv.omniTypeCasts.iteritems():
-        if not type_equal(s.schemeType, t):
+        if not type_equal(s.type, t):
             casts[a] = t
+    """
+    # Should normalize all type annots here...
+    # But how do we get at 'em? They're extrinsics!
+    """
     annots = dict((e, normalize_scheme(s))
-                  for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
+                      for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
+    """
     for root in roots:
-        dt = match(root, ("key('DT', _)", lambda: True),
-                         ("_", lambda: False))
+        dt = matches(root, "key('DT', _)")
         if not dt:
             root = match(root, ("key('=', cons(v, _))", identity),
                                ("key('func', _)", lambda: root),
                                ("_", lambda: None))
             if root is not None:
                 export_type(root, annots[root])
-    return {globs.TypeAnnot: annots, globs.CastAnnot: casts}
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
