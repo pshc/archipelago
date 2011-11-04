@@ -97,8 +97,7 @@ def c_type(t, nm):
         ("Ref(sym('csyms', 'typedef', cons(_, cons(nm, _))), _)", out_Str),
         ("s==sym('csyms', k==('struct' or 'union' or 'enum'), "
             "all(fs, f==sym('csyms', 'field' or 'enumerator')))", c_struct))
-    if isJust(nm) and match(t, ("sym('csyms', 'funcptr')", lambda: False),
-                               ("_", lambda: True)):
+    if isJust(nm) and not matches(t, "sym('csyms', 'funcptr')"):
         out(' ')
         out_Str(fromJust(nm))
 
@@ -287,8 +286,7 @@ def c_func_args(args):
             out(', ')
 
 def c_func(ss, retT, nm, args, body):
-    is_static = match(ss, ("contains(sym('csyms', 'static'))", lambda: True),
-                          ("_", lambda: False))
+    is_static = matches(ss, "contains(sym('csyms', 'static'))")
     if not is_static and is_global_scope():
         begin_header()
         typed_name(retT, nm)

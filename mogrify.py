@@ -210,7 +210,7 @@ def c_call(f, args):
     fe = match(c_expr(f), ('sym("csyms", "addrof", cons(f, _))', identity),
                           ('e', lambda e: csym('deref', [e])))
     # big hack comin' up
-    if match(f, ('key("printf")', lambda: True), ('_', lambda: False)):
+    if matches(f, 'key("printf")'):
         add_sys_include('stdio.h')
         fstr = c_expr(args[0])
         args = match(args[1], ('key("tuplelit", sized(args))', identity))
@@ -404,8 +404,7 @@ def c_match_cases(cs, argnm, result_f):
     return (str_(fnm), decls, body)
 
 def _is_void_atom_type(s): # DUMB
-    return match(s, ("key('type', cons(key('void'), _))", lambda: True),
-                    ("_", lambda: False))
+    return matches(s, "key('type', cons(key('void'), _))")
 
 def c_match_bits(m):
     e, cs = match(m, ("key('match', cons(e, all(cs,c==key('case'))))", tuple2))
@@ -510,8 +509,7 @@ def insert_vardecls(decls, scope):
     scope.csStmts[i:i] = decls
 
 def is_decl_or_defn(s):
-    return match(s, ("key('vardecl' or 'vardefn')", lambda: True),
-                    ("_", lambda: False))
+    return matches(s, "key('vardecl' or 'vardefn')")
 
 add_csym('vardecl', '=')
 def c_assign_new_vardecl(var, csch, nm, e, func_scope):

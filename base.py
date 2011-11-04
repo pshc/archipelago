@@ -422,15 +422,21 @@ match_asts = {}
 def match(atom, *cases):
     # Try all the cases, find the first that doesn't fail
     for (case, f) in cases:
-        ast = match_asts.get(case)
-        if ast is None:
-            ast = compiler.parse(case, mode='eval').node
-            match_asts[case] = ast
-        call_args = match_try(atom, ast)
+        call_args = match_try(atom, _get_match_case(case))
         if call_args is not None:
             return f(*call_args)
     case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
     assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom, case_list)
+
+def matches(atom, case):
+    return match_try(atom, _get_match_case(case)) is not None
+
+def _get_match_case(case):
+    ast = match_asts.get(case)
+    if ast is None:
+        ast = compiler.parse(case, mode='eval').node
+        match_asts[case] = ast
+    return ast
 
 # decorator
 def matcher(name):
@@ -499,9 +505,8 @@ def _match_every(atom, ast):
     return [[r[0] for r in results] if all_singular else results]
 
 Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
-def isJust(m): return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
-def isNothing(m): return match(m, ('Nothing()', lambda: True),
-                                  ('_', lambda: False))
+def isJust(m): return matches(m, 'Just(_)')
+def isNothing(m): return matches(m, 'Nothing()')
 def maybe(no, yes, val):
     return match(val, ('Just(j)', yes), ('Nothing()', lambda: no))
 def maybe_(no, val):
