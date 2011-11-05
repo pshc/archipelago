@@ -61,7 +61,7 @@ def _serialize_node(node, t):
         assert isinstance(t, TInt)
         _write(_encode_int(node))
     elif isinstance(node, list):
-        assert isinstance(t, TArray)
+        assert isinstance(t, TArray), "%s is not TArray" % (t,)
         _write(_encode_int(len(node)))
         # TODO: Check list element type for weak
         for item in node:
