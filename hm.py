@@ -98,15 +98,15 @@ def unify(e1, e2):
 def unify_m(e):
     unify(context(ALGM), e)
 
-def set_scheme(e, s, augment_ast):
+def set_scheme(e, s, save):
     env = context(HMENV)
     while env is not None:
         assert e not in env.envTable, "%s already has a type" % (e,)
         env = env.envPrev
-    context(HMENV).envTable[e] = (s, augment_ast)
+    context(HMENV).envTable[e] = (s, save)
 
-def set_monotype(e, t, augment_ast):
-    set_scheme(e, Scheme([], t), augment_ast)
+def set_monotype(e, t, save):
+    set_scheme(e, Scheme([], t), save)
 
 def get_scheme(e):
     env = context(HMENV)
@@ -125,8 +125,8 @@ def in_new_env(f):
 
     # Save augmentations from that env
     for e, info in new_env.envTable.iteritems():
-        s, aug = info
-        if aug:
+        s, save = info
+        if save:
             add_extrinsic(TypeAnnot, e, s)
 
     return ret
@@ -490,32 +490,23 @@ def normalize_scheme(s):
     return s
 
 def infer_types(root):
+    possible_casts = {}
+    annots = {}
     in_context(HMENV, None,
         lambda: scope_extrinsic(TypeAnnot,
+        lambda: capture_extrinsic(TypeAnnot, annots,
         lambda: scope_extrinsic(TypeCast,
+        lambda: capture_extrinsic(TypeCast, possible_casts,
         lambda: in_new_env(
         lambda: with_fields(
         lambda: infer_body(root)
-    )))))
-    """
+    )))))))
+
     casts = {}
-    for a, (s, t) in ENV.omniEnv.omniTypeCasts.iteritems():
+    for e, (s, t) in possible_casts.iteritems():
         if not type_equal(s.type, t):
-            casts[a] = t
-    """
-    # Should normalize all type annots here...
-    # But how do we get at 'em? They're extrinsics!
-    """
-    annots = dict((e, normalize_scheme(s))
-                      for e, s in ENV.omniEnv.omniTypeAnnotations.iteritems())
-    """
-    for root in roots:
-        dt = matches(root, "key('DT', _)")
-        if not dt:
-            root = match(root, ("key('=', cons(v, _))", identity),
-                               ("key('func', _)", lambda: root),
-                               ("_", lambda: None))
-            if root is not None:
-                export_type(root, annots[root])
+            casts[e] = normalize_type(t)
+    for e in annots.keys():
+        annots[e] = normalize_scheme(annots[e])
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
