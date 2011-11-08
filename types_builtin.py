@@ -1,5 +1,6 @@
 from base import *
 from bedrock import List
+from globs import Scheme
 
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):
@@ -103,8 +104,6 @@ def map_type_vars(f, t):
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))
-
-Scheme = DT('Scheme', ('tvars', [TypeVar]), ('type', Type))
 
 def _scheme_repr(s):
     begin = ':: '

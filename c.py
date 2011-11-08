@@ -421,6 +421,8 @@ if __name__ == '__main__':
     scope_extrinsic(Location,
         lambda: scope_extrinsic(ModIndex,
         lambda: scope_extrinsic(ModDigest,
-        main)))
+        lambda: scope_extrinsic(TypeOf,
+        main
+    ))))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

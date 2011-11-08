@@ -2,7 +2,7 @@
 from atom import *
 from base import *
 from types_builtin import *
-import globs
+from globs import TypeOf
 
 TypeAnnot = new_extrinsic('TypeAnnot', Scheme)
 TypeCast = new_extrinsic('TypeCast', (Scheme, Scheme))
@@ -115,9 +115,8 @@ def get_scheme(e):
             s, aug = env.envTable[e]
             return s
         env = env.envPrev
-    # XXX: Try to import
-    assert t is not None, with_context('%s not in scope' % (e,))
-    return t
+    assert has_extrinsic(TypeOf, e), with_context('%s not in scope' % (e,))
+    return extrinsic(TypeOf, e)
 
 def in_new_env(f):
     new_env = HmEnv({}, None, False, context(HMENV))
@@ -128,6 +127,7 @@ def in_new_env(f):
         s, save = info
         if save:
             add_extrinsic(TypeAnnot, e, s)
+            add_extrinsic(TypeOf, e, s)
 
     return ret
 
