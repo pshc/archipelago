@@ -481,16 +481,159 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	}
 }
 
+void *match(intptr_t *obj, struct adt *adt, ...) {
+	va_list case_list;
+	struct ctor *ctor;
+	const char *ctor_name;
+	void *func, *result;
+	size_t i, n, nctors;
+	nctors = adt->ctor_count;
+	CHECK(nctors > 0, "Phantom type?");
+	va_start(case_list, adt);
+	while ((ctor_name = va_arg(case_list, const char *))) {
+		for (i = 0; i < nctors; i++) {
+			ctor = adt->ctors[i];
+			if (strcmp(ctor->name, ctor_name) == 0) {
+				ctor = adt->ctors[i];
+				break;
+			}
+		}
+		CHECK(i < adt->ctor_count, "No %s.%s", adt->name, ctor_name);
+		func = va_arg(case_list, void *);
+		if (i != obj[0])
+			continue;
+		n = ctor->field_count;
+		switch (n) {
+		case 0:
+			result = ( (void *(*)(void)) func )();
+			break;
+		case 1:
+			result = ( (void *(*)(intptr_t)) func )(obj[1]);
+			break;
+		case 2:
+			result = ( (void *(*)(intptr_t, intptr_t)) func )(obj[1], obj[2]);
+			break;
+		case 3:
+			result = ( (void *(*)(intptr_t, intptr_t, intptr_t)) func )(obj[1], obj[2], obj[3]);
+			break;
+		default:
+			fail("%d fields not supported", (int) n);
+		}
+		break;
+	}
+	if (ctor_name == NULL)
+		fail("Match failed.");
+	va_end(case_list);
+	return result;
+}
+
 #ifdef STANDALONE
+
+static int indent;
+#define INDENT(...) do { int _x = 0; for (; _x < indent; _x++) putchar(' '); printf(__VA_ARGS__); putchar('\n'); } while (0)
+
+static void got_type(intptr_t *);
+
+static void got_tvar(void *tvar) {
+	INDENT("->tvar");
+}
+
+static void got_prim() {
+	INDENT("prim");
+}
+
+static void got_ttuple(struct array *types) {
+	size_t i, len;
+	len = types->len;
+	INDENT("tuple %d", (int) len);
+	for (i = 0; i < len; i++)
+		got_type(types->elems[i]);
+}
+
+static void got_tfunc(struct array *args, void *ret) {
+	size_t i, len;
+	len = args->len;
+	INDENT("func %d +1", (int) len);
+	for (i = 0; i < len; i++)
+		got_type(args->elems[i]);
+	got_type(ret);
+}
+
+static void got_tdata(void *tdata) {
+	INDENT("->data");
+}
+
+static void got_tapply(void *type, struct array *args) {
+	INDENT("<tapply>");
+}
+
+static void got_tarray(void *type) {
+	INDENT("array");
+	got_type(type);
+}
+
+static void got_tweak(void *type) {
+	INDENT("weak");
+	got_type(type);
+}
+
+static void got_type(intptr_t *type) {
+	indent++;
+	match(type, Type,
+		"TVar", got_tvar,
+		"TInt", got_prim,
+		"TStr", got_prim,
+		"TBool", got_prim,
+		"TVoid", got_prim,
+		"TTuple", got_ttuple,
+		"TAnyTuple", got_prim,
+		"TFunc", got_tfunc,
+		"TData", got_tdata,
+		"TApply", got_tapply,
+		"TArray", got_tarray,
+		"TWeak", got_tweak,
+		NULL);
+	indent--;
+}
+
+static void gogogo(struct array *fields) {
+	size_t i, len;
+	void *field;
+	printf("  %d fields.\n", (int) fields->len);
+	for (i = 0, len = fields->len; i < len; i++) {
+		field = fields->elems[i];
+		indent = 2;
+		match(field, FieldForm, "FieldForm", got_type, NULL);
+	}
+}
+
+static void gogo(struct array *ctors, struct array *tvars) {
+	size_t i, len;
+	printf(" %d ctors.\n", (int) ctors->len);
+	for (i = 0, len = ctors->len; i < len; i++) {
+		match(ctors->elems[i], CtorForm, "CtorForm", gogogo, NULL);
+	}
+}
+
+static void go(struct array *forms) {
+	size_t i, len;
+	printf("%d forms.\n", (int) forms->len);
+	for (i = 0, len = forms->len; i < len; i++) {
+		match(forms->elems[i], DtForm, "DtForm", gogo, NULL);
+	}
+}
+
 int main(void) {
 	setup_serial("");
 
 	char *hash = module_hash_by_name("forms");
 	type_t ast_type = adtT(DtList);
-	load_module(hash, ast_type);
+	struct module *forms_mod = load_module(hash, ast_type);
 
 	CHECK(map_has(loaded_modules, hash), "Not loaded?");
 	CHECK(!map_has(loaded_modules, "fgsfds"), "Bogus hash");
+
+	match(forms_mod->root, DtList, "DtList", go, NULL);
 
 	destroy_type(ast_type);
 	free(hash);
