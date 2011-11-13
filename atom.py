@@ -160,7 +160,7 @@ def load_module_dep(filename, deps):
     native.serialize(mod)
 
     from hm import infer_types
-    infer_types(mod.root)
+    annots, casts = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
     from expand import expand_ast
     overlays.update(expand_ast(mod.roots))

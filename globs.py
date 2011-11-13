@@ -6,15 +6,11 @@ Pos = _base.DT('Pos', ('module', '*Module'), ('index', int))
 
 Location = _base.new_extrinsic('Location', Pos)
 
-Overlay = _base.DT('Overlay', ('annotate', 'a -> str'))
+Overlay = _base.DT('Overlay', ('mapping', {'a': 'b'}))
 
 Scheme = _base.DT('Scheme', ('tvars', [_base.TypeVar]), ('type', _base.Type))
 
 TypeOf = _base.new_extrinsic('TypeOf', Scheme)
-
-FuncAnnot = Overlay(lambda fs: 'w/ helpers: ' + repr(fs))
-ExTypeAnnot = Overlay(lambda t: '(expanded lambda)')
-ExLambdaAnnot = Overlay(lambda x: '(named)')
 
 loaded_modules = {}
 loaded_module_atoms = {}

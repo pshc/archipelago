@@ -508,5 +508,6 @@ def infer_types(root):
             casts[e] = normalize_type(t)
     for e in annots.keys():
         annots[e] = normalize_scheme(annots[e])
+    return (annots, casts)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
