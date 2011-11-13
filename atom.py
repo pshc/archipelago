@@ -133,12 +133,6 @@ def builtin_type_to_atoms(name):
 def add_sym(name):
     node = boot_sym_names.get(name)
     if not node:
-        """
-        subs = [Ref(_b_name, [Str(name, [])])]
-        t = builtin_type_to_atoms(name)
-        if t is not None:
-            subs.append(t)
-        """
         node = Builtin()
         add_extrinsic(Name, node, name)
         boot_syms.append(node)
