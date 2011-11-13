@@ -69,26 +69,44 @@ void destroy_type(type_t t) {
 	free(t);
 }
 
-struct ctor *Ctor(const char *name, size_t field_count, ...) {
-	struct ctor *ctor;
-	va_list field_list;
-	struct field *field, **fields;
-	size_t i;
-	fields = malloc(field_count * sizeof fields);
-	va_start(field_list, field_count);
-	for (i = 0; i < field_count; i++) {
-		field = malloc(sizeof(struct field));
-		field->name = strdup(va_arg(field_list, char *));
-		/* Take ownership of the types */
-		field->type = va_arg(field_list, type_t);
-		fields[i] = field;
-	}
-	va_end(field_list);
-	ctor = malloc(sizeof *ctor);
+static struct field *make_field(const char *name, type_t type) {
+	struct field *field = malloc(sizeof *field);
+	field->name = strdup(name);
+	field->type = type;
+	return field;
+}
+
+static struct ctor *make_ctor(const char *name, size_t field_count,
+			struct field **fields) {
+	struct ctor *ctor = malloc(sizeof *ctor);
 	ctor->name = strdup(name);
 	ctor->field_count = field_count;
 	ctor->fields = fields;
 	return ctor;
+}
+
+static void set_adt_ctors(struct adt *adt, size_t ctor_count,
+			struct ctor **ctors) {
+	CHECK(adt->ctors == NULL, "ADT %s already has ctors", adt->name);
+	CHECK(ctor_count > 0, "No phantom types");
+	adt->ctor_count = ctor_count;
+	adt->ctors = ctors;
+}
+
+struct ctor *Ctor(const char *name, size_t field_count, ...) {
+	va_list field_list;
+	struct field **fields;
+	const char *field_name;
+	size_t i;
+	fields = malloc(field_count * sizeof fields);
+	va_start(field_list, field_count);
+	for (i = 0; i < field_count; i++) {
+		field_name = va_arg(field_list, const char *);
+		/* Take ownership of the types */
+		fields[i] = make_field(name, va_arg(field_list, type_t));
+	}
+	va_end(field_list);
+	return make_ctor(name, field_count, fields);
 }
 
 static void destroy_ctor(struct ctor *ctor) {
@@ -117,17 +135,14 @@ void ADT_ctors(struct adt *adt, size_t ctor_count, ...) {
 	va_list ctor_list;
 	struct ctor **ctors;
 	size_t i;
-	CHECK(adt->ctors == NULL, "ADT %s already has ctors", adt->name);
-	CHECK(ctor_count > 0, "No phantom types");
-	va_start(ctor_list, ctor_count);
 	if (ctor_count) {
-		ctors = malloc(ctor_count * sizeof ctors);
+		va_start(ctor_list, ctor_count);
+		ctors = malloc(ctor_count * sizeof *ctors);
 		for (i = 0; i < ctor_count; i++)
 			ctors[i] = va_arg(ctor_list, struct ctor *);
-		adt->ctors = ctors;
+		va_end(ctor_list);
 	}
-	va_end(ctor_list);
-	adt->ctor_count = ctor_count;
+	set_adt_ctors(adt, ctor_count, ctors);
 }
 
 static void destroy_ADT(struct adt *adt) {
@@ -596,31 +611,44 @@ static void got_type(intptr_t *type) {
 	indent--;
 }
 
-static void gogogo(struct array *fields) {
+static struct ctor *go_ctor(struct array *field_forms) {
 	size_t i, len;
-	void *field;
-	printf("  %d fields.\n", (int) fields->len);
-	for (i = 0, len = fields->len; i < len; i++) {
-		field = fields->elems[i];
-		indent = 2;
-		match(field, FieldForm, "FieldForm", got_type, NULL);
+	struct field **fields = NULL;
+	len = field_forms->len;
+	printf("  %d field(s).\n", (int) len);
+	if (len) {
+		fields = malloc(len * sizeof *fields);
+		for (i = 0; i < len; i++) {
+			indent = 2;
+			fields[i] = match(field_forms->elems[i], FieldForm,
+					"FieldForm", got_type, NULL);
+		}
 	}
+	return make_ctor("<no name>", len, fields);
 }
 
-static void gogo(struct array *ctors, struct array *tvars) {
+static void go_dt(struct array *ctor_forms, struct array *tvars) {
 	size_t i, len;
-	printf(" %d ctors.\n", (int) ctors->len);
-	for (i = 0, len = ctors->len; i < len; i++) {
-		match(ctors->elems[i], CtorForm, "CtorForm", gogogo, NULL);
+	struct adt *adt;
+	struct ctor **ctors;
+	adt = ADT("<no name>");
+	len = ctor_forms->len;
+	printf(" %d ctor(s).\n", (int) len);
+	if (len) {
+		ctors = malloc(len * sizeof *ctors);
+		for (i = 0; i < len; i++)
+			ctors[i] = match(ctor_forms->elems[i], CtorForm,
+					"CtorForm", go_ctor, NULL);
 	}
+	set_adt_ctors(adt, len, ctors);
 }
 
-static void go(struct array *forms) {
+static void go_forms(struct array *forms) {
 	size_t i, len;
-	printf("%d forms.\n", (int) forms->len);
-	for (i = 0, len = forms->len; i < len; i++) {
-		match(forms->elems[i], DtForm, "DtForm", gogo, NULL);
-	}
+	len = forms->len;
+	printf("%d form(s).\n", (int) len);
+	for (i = 0; i < len; i++)
+		match(forms->elems[i], DtForm, "DtForm", go_dt, NULL);
 }
 
 int main(void) {
@@ -633,7 +661,7 @@ int main(void) {
 	CHECK(map_has(loaded_modules, hash), "Not loaded?");
 	CHECK(!map_has(loaded_modules, "fgsfds"), "Bogus hash");
 
-	match(forms_mod->root, DtList, "DtList", go, NULL);
+	match(forms_mod->root, DtList, "DtList", go_forms, NULL);
 
 	destroy_type(ast_type);
 	free(hash);
