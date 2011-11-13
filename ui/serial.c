@@ -262,16 +262,16 @@ static struct array *read_array(type_t elem_type) {
 static void *read_adt(struct adt *adt) {
 	struct ctor *ctor;
 	intptr_t *dest, *inst;
-	size_t field_count, i;
-	int ix;
+	size_t ctor_count, field_count, i, ix;
 	struct field **src;
 
-	if (adt->ctor_count > 1) {
-		ix = read_int();
-		CHECK(ix < adt->ctor_count, "ADT %s index overflow (%d>%d)", adt->name, ix, (int) adt->ctor_count);
+	ctor_count = adt->ctor_count;
+	if (ctor_count > 1) {
+		ix = (size_t) read_int();
+		CHECK(ix < ctor_count, "ADT %s index overflow (%d>%d)", adt->name, (int) ix, (int) ctor_count);
 	}
 	else {
-		CHECK(adt->ctor_count == 1, "Phantom type?!");
+		CHECK(ctor_count == 1, "Phantom type?!");
 		ix = 0;
 	}
 	ctor = adt->ctors[ix];
@@ -316,6 +316,8 @@ static void *read_weak(type_t type) {
 	else {
 		/* TODO */
 	}
+	/* TODO: typecheck the referenced atom */
+	(void) type;
 	return dest;
 }
 
@@ -445,10 +447,9 @@ static void destroy_module(struct module *module) {
 
 void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	struct adt *adt;
-	intptr_t ix;
 	struct ctor *ctor;
 	struct array *array;
-	size_t i, len;
+	size_t i, len, ix;
 	switch (type->kind) {
 	case KIND_INT:
 		if (walker->walk_int)
@@ -515,7 +516,7 @@ void *match(intptr_t *obj, struct adt *adt, ...) {
 		}
 		CHECK(i < adt->ctor_count, "No %s.%s", adt->name, ctor_name);
 		func = va_arg(case_list, void *);
-		if (i != obj[0])
+		if (i != (size_t) obj[0])
 			continue;
 		n = ctor->field_count;
 		switch (n) {
