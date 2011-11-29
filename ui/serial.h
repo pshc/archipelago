@@ -37,6 +37,7 @@ struct adt {
 extern struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
 
 type_t intT(void);
+type_t strT(void);
 type_t adtT(struct adt *);
 type_t arrayT(type_t);
 type_t weak(type_t);

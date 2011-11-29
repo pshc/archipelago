@@ -7,15 +7,20 @@
 #include "util.h"
 
 struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
+struct adt *Overlay, *Entry;
 struct map *loaded_modules;
+/* Map of array listings, keyed by module pointer */
+struct map *loaded_atoms;
 
 static char *base_dir = NULL;
 static char *mod_dir = "../mods/";
+static char *opt_dir = "../opt/";
 
 /* Deserialization context */
 static FILE *f = NULL;
 static intptr_t node_ctr;
 static struct map *own_map, *forward_refs;
+static void ***dep_listing;
 static intptr_t *cur_field;
 
 static void *read_node(type_t type);
@@ -24,6 +29,13 @@ static void destroy_module(struct module *);
 type_t intT(void) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_INT;
+	type->adt = NULL;
+	return type;
+}
+
+type_t strT(void) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_STR;
 	type->adt = NULL;
 	return type;
 }
@@ -188,11 +200,21 @@ void setup_serial(const char *dir) {
 	DtList = ADT("DtList");
 	ADT_ctors(DtList, 1, Ctor("DtList", 1, "dts", arrayT(adtT(DtForm))));
 
+	Entry = ADT("Entry");
+	ADT_ctors(Entry, 1, Ctor("Entry", 2,
+		"key", weak(NULL), /* TEMP */
+		"value", strT()));
+	Overlay = ADT("Overlay");
+	ADT_ctors(Overlay, 1, Ctor("Overlay", 1,
+		"entries", arrayT(adtT(Entry))));
+
 	base_dir = strdup(dir);
 	loaded_modules = new_map(&strcmp, &free, &destroy_module);
+	loaded_atoms = new_map(NULL, NULL, &free);
 }
 
 void cleanup_serial(void) {
+	destroy_map(loaded_atoms);
 	destroy_map(loaded_modules);
 	free(base_dir);
 	destroy_ADT(Type);
@@ -314,7 +336,7 @@ static void *read_weak(type_t type) {
 		}
 	}
 	else {
-		/* TODO */
+		dest = dep_listing[mod_ix - 1][atom_ix];
 	}
 	/* TODO: typecheck the referenced atom */
 	(void) type;
@@ -373,15 +395,31 @@ static void resolve_forward_refs(void *ix, struct list *refs) {
 
 struct module *load_module(const char *hash, type_t root_type) {
 	char *full;
-	int dep_count, i;
+	int atom_count, dep_count, i;
 	char dep[64];
 	size_t count;
 	void *root;
-	struct module *module;
+	struct module *module, *dep_mod;
 	FILE *saved;
+	void **own_listing, ***saved_dep_listing = NULL;
 
 	if (map_has(loaded_modules, hash))
 		return map_get(loaded_modules, hash);
+
+	/* Get the node count for ease of loading */
+	full = alloca(strlen(base_dir) + strlen(opt_dir) + strlen(hash) + 6);
+	strcpy(full, base_dir);
+	strcat(full, opt_dir);
+	strcat(full, hash);
+	strcat(full, "_count");
+	f = fopen(full, "rb");
+	if (!f)
+		error_out(full);
+	atom_count = read_int();
+	CHECK(atom_count > 0, "Empty mod or bad metadata");
+	CHECK(fgetc(f) == EOF && feof(f), "Trailing metadata");
+	fclose(f);
+	printf("%s has %d atom(s).\n", hash, atom_count);
 
 	full = alloca(strlen(base_dir) + strlen(mod_dir) + strlen(hash));
 	strcpy(full, base_dir);
@@ -393,27 +431,35 @@ struct module *load_module(const char *hash, type_t root_type) {
 
 	dep_count = read_int();
 	printf("%s has %d dep(s).\n", hash, dep_count);
+	if (dep_count > 0)
+		saved_dep_listing = malloc(sizeof *dep_listing * dep_count);
 
-	/* Loading deps will change f. Preserve it. */
+	/* Loading deps will overwrite context. Preserve it. */
 	saved = f;
 	for (i = 0; i < dep_count; i++) {
 		count = fread(dep, sizeof dep, 1, saved);
 		if (!count)
 			error_out(full);
 		/* TODO: Where do we get the dep root type? */
-		load_module(dep, root_type);
+		dep_mod = load_module(dep, root_type);
+		saved_dep_listing[i] = map_get(loaded_atoms, dep_mod);
 	}
 
 	f = saved;
+	dep_listing = saved_dep_listing;
 	node_ctr = 0;
 	cur_field = NULL;
 	own_map = new_map(NULL, NULL, NULL);
 	forward_refs = new_map(NULL, NULL, &free_list);
 	root = read_node(root_type);
 
+	CHECK(node_ctr == atom_count, "Inconsistent atom count");
+
+	if (dep_count > 0)
+		free(saved_dep_listing);
+
 	map_foreach(forward_refs, (map_foreach_f) &resolve_forward_refs);
 	destroy_map(forward_refs);
-	destroy_map(own_map);
 
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing data");
 	fclose(f);
@@ -423,6 +469,12 @@ struct module *load_module(const char *hash, type_t root_type) {
 	module->root_type = copy_type(root_type);
 	module->root = root;
 	map_set(loaded_modules, strdup(hash), module);
+
+	own_listing = malloc(sizeof *own_listing * atom_count);
+	/* TODO: For atom in own_map, store in listing */
+	/* Also, possibly just use a listing to start with */
+	map_set(loaded_atoms, module, own_listing);
+	destroy_map(own_map);
 
 	return module;
 }
@@ -658,19 +710,30 @@ static void go_forms(struct array *forms) {
 }
 
 int main(void) {
+	char *hash;
+	type_t ast_type, overlay_type;
+	struct module *forms_mod, *forms_names_mod;
+
 	setup_serial("");
 
-	char *hash = module_hash_by_name("forms");
-	type_t ast_type = adtT(DtList);
-	struct module *forms_mod = load_module(hash, ast_type);
+	ast_type = adtT(DtList);
+	overlay_type = adtT(Overlay);
+
+	hash = module_hash_by_name("forms");
+	forms_mod = load_module(hash, ast_type);
 
 	CHECK(map_has(loaded_modules, hash), "Not loaded?");
 	CHECK(!map_has(loaded_modules, "fgsfds"), "Bogus hash");
+	free(hash);
+
+	hash = module_hash_by_name("forms_Name");
+	forms_names_mod = load_module(hash, overlay_type);
+	free(hash);
 
 	match(forms_mod->root, DtList, "DtList", go_forms, NULL);
 
+	destroy_type(overlay_type);
 	destroy_type(ast_type);
-	free(hash);
 
 	cleanup_serial();
 	return 0;
