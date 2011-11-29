@@ -278,6 +278,7 @@ def load_forms():
             ('TWeak(t)', scan_type_deps),
             ('_', lambda: None))
 
+    names = {}
     while pending:
         dt = pending.pop()
         done.add(dt)
@@ -286,12 +287,16 @@ def load_forms():
                 for field in ctor.fields:
                     scan_type_deps(field.type)
             forms.append(dt)
+            names[dt] = extrinsic(Name, dt)
 
     mod = Module(t_DT(DtList), DtList(forms))
     add_extrinsic(Name, mod, 'forms')
     write_mod_repr('views/forms.txt', mod, [Name])
     import native
     native.serialize(mod)
+
+    names_mod = extrinsic_mod(Name, names, mod)
+    native.serialize(names_mod)
 
 DtList = DT('DtList', ('dts', [DataType]))
 
