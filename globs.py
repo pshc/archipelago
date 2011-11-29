@@ -6,7 +6,9 @@ Pos = _base.DT('Pos', ('module', '*Module'), ('index', int))
 
 Location = _base.new_extrinsic('Location', Pos)
 
-Overlay = _base.DT('Overlay', ('mapping', {'a': 'b'}))
+# TEMP
+Entry = _base.DT('Entry', ('key', '*a'), ('value', str))
+Overlay = _base.DT('Overlay', ('mapping', [Entry]))
 
 Scheme = _base.DT('Scheme', ('tvars', [_base.TypeVar]), ('type', _base.Type))
 

@@ -20,11 +20,15 @@ def _write(b):
 def _write_ref(node, t):
     assert has_extrinsic(Location, node), \
             'Weak ref to unserialized: %r 0x%x' % (node, id(node))
-    adt = extrinsic(FormBacking, t.data)
-    assert isinstance(node, adt), "->%r is not a %s" % (node, adt)
-    state = context(Serialize)
+    if isinstance(t, TVar):
+        pass # Does it even make sense to check instantiations here?
+    elif isinstance(t, TData):
+        adt = extrinsic(FormBacking, t.data)
+        assert isinstance(node, adt), "->%r is not a %s" % (node, adt)
+    else:
+        assert False, "%r is not a ref type" % (t,)
     loc = extrinsic(Location, node)
-    a = state.deps[loc.module]
+    a = context(Serialize).deps[loc.module]
     b = loc.index
     _write(_encode_int(a) + _encode_int(b))
 
@@ -117,7 +121,6 @@ def serialize(module):
         def go():
             _write(_encode_int(len(deps)))
             map_(_write, deps)
-            print 'serializing', module.root
             _serialize_node(module.root, module.rootType)
         in_context(Serialize, state, go)
         f.close()

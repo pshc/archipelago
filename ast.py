@@ -696,8 +696,6 @@ def setup_builtin_module():
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
-    if not BUILTINS:
-        setup_builtin_module()
     stmts = compiler.parseFile(filename).node.nodes
     mod = Module(t_DT(Body), None)
     add_extrinsic(Name, mod, name)

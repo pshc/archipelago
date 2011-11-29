@@ -139,6 +139,19 @@ def add_sym(name):
         boot_sym_names[name] = node
     return node
 
+def extrinsic_mod(extr, mapping, src_mod):
+    items = {}
+    for k, v in mapping.iteritems():
+        if has_extrinsic(Location, k):
+            loc = extrinsic(Location, k)
+            if loc.module is src_mod:
+                assert has_extrinsic(extr, k), "Un-extrinsiced value in map?!"
+                assert loc.index not in items, "%r appears twice" % (v,)
+                items[loc.index] = Entry(k, v)
+    mod = Module(t_DT(Overlay), Overlay([items[k] for k in sorted(items)]))
+    add_extrinsic(Name, mod, extrinsic(Name, src_mod) + '_' + extr.label)
+    return mod
+
 def load_module_dep(filename, deps):
     assert filename.endswith('.py')
     name = filename.replace('/', '_')[:-3]
@@ -147,15 +160,20 @@ def load_module_dep(filename, deps):
         deps.add(mod)
         return mod
     from ast import convert_file
-    mod = convert_file(filename, name, deps)
+    names = {}
+    mod = capture_extrinsic(Name, names,
+            lambda: convert_file(filename, name, deps))
     write_mod_repr('views/' + name + '.txt', mod, [Name])
 
     import native
     native.serialize(mod)
+    names_mod = extrinsic_mod(Name, names, mod)
+    native.serialize(names_mod)
 
     from hm import infer_types
     annots, casts = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
+
     from expand import expand_ast
     overlays.update(expand_ast(mod.roots))
     write_mod_repr('views/' + name + '.txt', mod, overlays)
@@ -167,7 +185,15 @@ def load_module_dep(filename, deps):
     native.serialize(c)
     return mod
 
+_ast_setup = False
+
 def load_module(filename):
+    global _ast_setup
+    if not _ast_setup:
+        print 'Setting up builtins'
+        import ast
+        ast.setup_builtin_module()
+        _ast_setup = True
     deps = set()
     print 'Loading %s' % (filename,)
     mod = load_module_dep(filename, deps)
