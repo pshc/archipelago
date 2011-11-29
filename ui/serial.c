@@ -551,6 +551,7 @@ static int indent;
 static void got_type(intptr_t *);
 
 static void got_tvar(void *tvar) {
+	(void) tvar;
 	INDENT("->tvar");
 }
 
@@ -576,10 +577,13 @@ static void got_tfunc(struct array *args, void *ret) {
 }
 
 static void got_tdata(void *tdata) {
+	(void) tdata;
 	INDENT("->data");
 }
 
 static void got_tapply(void *type, struct array *args) {
+	(void) type;
+	(void) args;
 	INDENT("<tapply>");
 }
 
@@ -632,6 +636,7 @@ static void go_dt(struct array *ctor_forms, struct array *tvars) {
 	size_t i, len;
 	struct adt *adt;
 	struct ctor **ctors;
+	(void) tvars;
 	adt = ADT("<no name>");
 	len = ctor_forms->len;
 	printf(" %d ctor(s).\n", (int) len);
