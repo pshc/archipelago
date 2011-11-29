@@ -124,11 +124,23 @@ def serialize(module):
             _serialize_node(module.root, module.rootType)
         in_context(Serialize, state, go)
         f.close()
-    index()
+        return inspect.count
+    count = index()
     hex = hash.digest().encode('hex')
+    name = extrinsic(Name, module)
     add_extrinsic(ModDigest, module, hex)
     system('mv -f -- %s mods/%s' % (temp, hex))
-    system('ln -sf -- %s mods/%s' % (hex, extrinsic(Name, module)))
+    system('ln -sf -- %s mods/%s' % (hex, name))
+
+    # XXX tiny amount of (optional, optimizing) metadata.
+    # How should this be stored?
+    f = file('opt/%s_count' % (hex,), 'wb')
+    state = SerialState(f, sha256(), 0, None)
+    def write_opt_count():
+        _write(_encode_int(count))
+    in_context(Serialize, state, write_opt_count)
+    f.close()
+    system('ln -sf -- %s_count opt/%s_count' % (hex, name))
 
 DeserialState = DT('DeserialState',
         ('file', file),

@@ -6,13 +6,15 @@ all: llvm
 llvm:
 	@./llvm.py
 
-tada: mods views
+tada: opt mods views
 	./c.py short.py
 
 demo:
 	./demo.py
 
 mods:
+	mkdir $@
+opt:
 	mkdir $@
 views:
 	mkdir $@
@@ -33,4 +35,4 @@ test: remake_tests
 .PHONY: all clean llvm remake_tests tada test
 
 clean:
-	rm -f -- mods/* views/* *.pyc a.out
+	rm -f -- mods/* opt/* views/* *.pyc a.out
