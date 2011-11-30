@@ -200,7 +200,8 @@ static void render_layout_node(struct layout_node *node) {
         case LAYOUT_OBJ:
         {
             struct ctor *ctor = node->context;
-            render_cached_text(ctor->name);
+            const char *name = map_has(atom_names, node->obj) ? map_get(atom_names, node->obj) : ctor->name;
+            render_cached_text(name);
             break;
         }
         default:

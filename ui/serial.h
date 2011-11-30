@@ -63,6 +63,7 @@ extern struct map *atom_names;
 
 char *module_hash_by_name(const char *name);
 struct module *load_module(const char *hash, type_t root_type);
+struct module *load_named_module(const char *name, struct adt *root_adt);
 
 struct walker {
 	void (*walk_int)(int);
@@ -74,5 +75,7 @@ struct walker {
 };
 
 void walk_object(intptr_t *, type_t, struct walker *);
+
+void *match(intptr_t *obj, struct adt *adt, ...);
 
 #endif /* SERIAL_H */

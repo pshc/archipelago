@@ -490,6 +490,43 @@ struct module *load_module(const char *hash, type_t root_type) {
 	return module;
 }
 
+static void map_name(void *node, char *name) {
+	map_set(atom_names, node, strdup(name));
+}
+
+static void map_names(struct array *entries) {
+	size_t i;
+	for (i = 0; i < entries->len; i++)
+		match(entries->elems[i], Entry, "Entry", &map_name, NULL);
+}
+
+struct module *load_named_module(const char *name, struct adt *root_adt) {
+	char *hash, *names_name;
+	type_t root_type, overlay_type;
+	struct module *mod, *names_mod;
+
+	root_type = adtT(root_adt);
+	overlay_type = adtT(Overlay);
+
+	hash = module_hash_by_name(name);
+	mod = load_module(hash, root_type);
+	free(hash);
+
+	names_name = alloca(strlen(name) + 6);
+	strcpy(names_name, name);
+	strcat(names_name, "_Name");
+	hash = module_hash_by_name(names_name);
+	names_mod = load_module(hash, overlay_type);
+	free(hash);
+
+	match(names_mod->root, Overlay, "Overlay", map_names, NULL);
+
+	destroy_type(overlay_type);
+	destroy_type(root_type);
+
+	return mod;
+}
+
 static void free_str(char *str) {
 	free(str);
 }
@@ -745,43 +782,13 @@ static void go_forms(struct array *forms) {
 		match(forms->elems[i], DtForm, "@DtForm", &go_dt, NULL);
 }
 
-static void map_name(void *node, char *name) {
-	map_set(atom_names, node, strdup(name));
-}
-
-static void map_names(struct array *entries) {
-	size_t i;
-	for (i = 0; i < entries->len; i++)
-		match(entries->elems[i], Entry, "Entry", &map_name, NULL);
-}
-
 int main(void) {
-	char *hash;
-	type_t ast_type, overlay_type;
-	struct module *forms_mod, *forms_names_mod;
+	struct module *forms_mod;
 
 	setup_serial("");
 
-	ast_type = adtT(DtList);
-	overlay_type = adtT(Overlay);
-
-	hash = module_hash_by_name("forms");
-	forms_mod = load_module(hash, ast_type);
-
-	CHECK(map_has(loaded_modules, hash), "Not loaded?");
-	CHECK(!map_has(loaded_modules, "fgsfds"), "Bogus hash");
-	free(hash);
-
-	hash = module_hash_by_name("forms_Name");
-	forms_names_mod = load_module(hash, overlay_type);
-	free(hash);
-
-	match(forms_names_mod->root, Overlay, "Overlay", map_names, NULL);
-
+	forms_mod = load_named_module("forms", DtList);
 	match(forms_mod->root, DtList, "DtList", go_forms, NULL);
-
-	destroy_type(overlay_type);
-	destroy_type(ast_type);
 
 	cleanup_serial();
 	return 0;

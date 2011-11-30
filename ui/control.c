@@ -12,14 +12,10 @@ void control_setup(void) {
     setup_serial(dir);
     free(dir);
 
-    char *hash = module_hash_by_name("forms");
-    type_t ast_type = adtT(DtList);
-    struct module *test_module = load_module(hash, ast_type);
-    editor_set_module(test_module);
-    destroy_type(ast_type);
-    free(hash);
+    struct module *forms_mod = load_named_module("forms", DtList);
+    editor_set_module(forms_mod);
 }
 
 void control_shutdown(void) {
-    printf("Shutting down.\n");
+    cleanup_serial();
 }
