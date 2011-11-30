@@ -398,14 +398,14 @@ static void resolve_forward_refs(void *ix, struct list *refs) {
 
 static void **own_listing;
 
-void populate_own_listing(void *key, void *value) {
+static void populate_own_listing(void *key, void *value) {
 	own_listing[(int)(intptr_t) key] = value;
 }
 
 struct module *load_module(const char *hash, type_t root_type) {
 	char *full;
 	int atom_count, dep_count, i;
-	char dep[64];
+	char dep[65];
 	size_t count;
 	void *root;
 	struct module *module, *dep_mod;
@@ -416,7 +416,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 		return map_get(loaded_modules, hash);
 
 	/* Get the node count for ease of loading */
-	full = alloca(strlen(base_dir) + strlen(opt_dir) + strlen(hash) + 6);
+	full = alloca(strlen(base_dir) + strlen(opt_dir) + strlen(hash) + 7);
 	strcpy(full, base_dir);
 	strcat(full, opt_dir);
 	strcat(full, hash);
@@ -446,9 +446,10 @@ struct module *load_module(const char *hash, type_t root_type) {
 	/* Loading deps will overwrite context. Preserve it. */
 	saved = f;
 	for (i = 0; i < dep_count; i++) {
-		count = fread(dep, sizeof dep, 1, saved);
+		count = fread(dep, sizeof dep - 1, 1, saved);
 		if (!count)
 			error_out(full);
+		dep[sizeof dep - 1] = '\0';
 		/* TODO: Where do we get the dep root type? */
 		dep_mod = load_module(dep, root_type);
 		saved_dep_listing[i] = map_get(loaded_atoms, dep_mod);
