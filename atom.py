@@ -261,6 +261,7 @@ def load_forms():
     pending = set([Body.__dt__.__form__])
     done = set()
     forms = []
+    names = {}
 
     def found_dt(dt):
         if dt not in done:
@@ -278,7 +279,6 @@ def load_forms():
             ('TWeak(t)', scan_type_deps),
             ('_', lambda: None))
 
-    names = {}
     while pending:
         dt = pending.pop()
         done.add(dt)
@@ -286,6 +286,8 @@ def load_forms():
             for ctor in dt.ctors:
                 for field in ctor.fields:
                     scan_type_deps(field.type)
+                    names[field] = extrinsic(Name, field)
+                names[ctor] = extrinsic(Name, ctor)
             forms.append(dt)
             names[dt] = extrinsic(Name, dt)
 
