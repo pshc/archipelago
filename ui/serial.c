@@ -11,6 +11,7 @@ struct adt *Overlay, *Entry;
 struct map *loaded_modules;
 /* Map of array listings, keyed by module pointer */
 struct map *loaded_atoms;
+struct map *atom_names;
 
 static char *base_dir = NULL;
 static char *mod_dir = "../mods/";
@@ -211,9 +212,11 @@ void setup_serial(const char *dir) {
 	base_dir = strdup(dir);
 	loaded_modules = new_map(&strcmp, &free, &destroy_module);
 	loaded_atoms = new_map(NULL, NULL, &free);
+	atom_names = new_map(NULL, NULL, &free);
 }
 
 void cleanup_serial(void) {
+	destroy_map(atom_names);
 	destroy_map(loaded_atoms);
 	destroy_map(loaded_modules);
 	free(base_dir);
@@ -393,6 +396,12 @@ static void resolve_forward_refs(void *ix, struct list *refs) {
 	}
 }
 
+static void **own_listing;
+
+void populate_own_listing(void *key, void *value) {
+	own_listing[(int)(intptr_t) key] = value;
+}
+
 struct module *load_module(const char *hash, type_t root_type) {
 	char *full;
 	int atom_count, dep_count, i;
@@ -401,7 +410,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 	void *root;
 	struct module *module, *dep_mod;
 	FILE *saved;
-	void **own_listing, ***saved_dep_listing = NULL;
+	void ***saved_dep_listing = NULL;
 
 	if (map_has(loaded_modules, hash))
 		return map_get(loaded_modules, hash);
@@ -471,9 +480,10 @@ struct module *load_module(const char *hash, type_t root_type) {
 	map_set(loaded_modules, strdup(hash), module);
 
 	own_listing = malloc(sizeof *own_listing * atom_count);
-	/* TODO: For atom in own_map, store in listing */
-	/* Also, possibly just use a listing to start with */
+	/* TODO: Don't even bother with the map */
+	map_foreach(own_map, &populate_own_listing);
 	map_set(loaded_atoms, module, own_listing);
+	own_listing = NULL;
 	destroy_map(own_map);
 
 	return module;
@@ -549,16 +559,50 @@ void walk_object(intptr_t *obj, type_t type, struct walker *walker) {
 	}
 }
 
+static void *dispatch_match_self(void *func, intptr_t *obj, size_t n) {
+	switch (n) {
+	case 0:
+		return ( (void *(*)(intptr_t *)) func )(obj);
+	case 1:
+		return ( (void *(*)(intptr_t *, intptr_t)) func )(obj, obj[1]);
+	case 2:
+		return ( (void *(*)(intptr_t *, intptr_t, intptr_t)) func )(obj, obj[1], obj[2]);
+	case 3:
+		return ( (void *(*)(intptr_t *, intptr_t, intptr_t, intptr_t)) func )(obj, obj[1], obj[2], obj[3]);
+	default:
+		fail("%d fields not supported", (int) n);
+	}
+}
+
+static void *dispatch_match(void *func, intptr_t *obj, size_t n) {
+	switch (n) {
+	case 0:
+		return ( (void *(*)()) func )();
+	case 1:
+		return ( (void *(*)(intptr_t)) func )(obj[1]);
+	case 2:
+		return ( (void *(*)(intptr_t, intptr_t)) func )(obj[1], obj[2]);
+	case 3:
+		return ( (void *(*)(intptr_t, intptr_t, intptr_t)) func )(obj[1], obj[2], obj[3]);
+	default:
+		fail("%d fields not supported", (int) n);
+	}
+}
+
 void *match(intptr_t *obj, struct adt *adt, ...) {
 	va_list case_list;
 	struct ctor *ctor;
 	const char *ctor_name;
 	void *func, *result;
 	size_t i, n, nctors;
+	int include_self;
 	nctors = adt->ctor_count;
 	CHECK(nctors > 0, "Phantom type?");
 	va_start(case_list, adt);
 	while ((ctor_name = va_arg(case_list, const char *))) {
+		include_self = ctor_name[0] == '@';
+		if (include_self)
+			ctor_name++;
 		for (i = 0; i < nctors; i++) {
 			ctor = adt->ctors[i];
 			if (strcmp(ctor->name, ctor_name) == 0) {
@@ -568,26 +612,14 @@ void *match(intptr_t *obj, struct adt *adt, ...) {
 		}
 		CHECK(i < adt->ctor_count, "No %s.%s", adt->name, ctor_name);
 		func = va_arg(case_list, void *);
-		if (i != (size_t) obj[0])
-			continue;
-		n = ctor->field_count;
-		switch (n) {
-		case 0:
-			result = ( (void *(*)(void)) func )();
+		if (i == (size_t) obj[0]) {
+			n = ctor->field_count;
+			if (include_self)
+				result = dispatch_match_self(func, obj, n);
+			else
+				result = dispatch_match(func, obj, n);
 			break;
-		case 1:
-			result = ( (void *(*)(intptr_t)) func )(obj[1]);
-			break;
-		case 2:
-			result = ( (void *(*)(intptr_t, intptr_t)) func )(obj[1], obj[2]);
-			break;
-		case 3:
-			result = ( (void *(*)(intptr_t, intptr_t, intptr_t)) func )(obj[1], obj[2], obj[3]);
-			break;
-		default:
-			fail("%d fields not supported", (int) n);
 		}
-		break;
 	}
 	if (ctor_name == NULL)
 		fail("Match failed.");
@@ -684,14 +716,17 @@ static struct ctor *go_ctor(struct array *field_forms) {
 	return make_ctor("<no name>", len, fields);
 }
 
-static void go_dt(struct array *ctor_forms, struct array *tvars) {
+static void go_dt(struct adt *dt, struct array *ctor_forms, struct array *tvars) {
 	size_t i, len;
 	struct adt *adt;
 	struct ctor **ctors;
+	char *name;
 	(void) tvars;
-	adt = ADT("<no name>");
+	name = map_get(atom_names, dt);
+	name = name ? name : "<no name>";
+	adt = ADT(name);
 	len = ctor_forms->len;
-	printf(" %d ctor(s).\n", (int) len);
+	printf(" %s has %d ctor(s).\n", name, (int) len);
 	if (len) {
 		ctors = malloc(len * sizeof *ctors);
 		for (i = 0; i < len; i++)
@@ -706,7 +741,17 @@ static void go_forms(struct array *forms) {
 	len = forms->len;
 	printf("%d form(s).\n", (int) len);
 	for (i = 0; i < len; i++)
-		match(forms->elems[i], DtForm, "DtForm", go_dt, NULL);
+		match(forms->elems[i], DtForm, "@DtForm", &go_dt, NULL);
+}
+
+static void map_name(void *node, char *name) {
+	map_set(atom_names, node, strdup(name));
+}
+
+static void map_names(struct array *entries) {
+	size_t i;
+	for (i = 0; i < entries->len; i++)
+		match(entries->elems[i], Entry, "Entry", &map_name, NULL);
 }
 
 int main(void) {
@@ -729,6 +774,8 @@ int main(void) {
 	hash = module_hash_by_name("forms_Name");
 	forms_names_mod = load_module(hash, overlay_type);
 	free(hash);
+
+	match(forms_names_mod->root, Overlay, "Overlay", map_names, NULL);
 
 	match(forms_mod->root, DtList, "DtList", go_forms, NULL);
 

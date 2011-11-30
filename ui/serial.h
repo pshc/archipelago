@@ -58,7 +58,8 @@ struct module {
 
 struct map;
 
-extern struct map *loaded_modules;
+extern struct map *loaded_modules, *loaded_atoms;
+extern struct map *atom_names;
 
 char *module_hash_by_name(const char *name);
 struct module *load_module(const char *hash, type_t root_type);
