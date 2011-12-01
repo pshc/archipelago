@@ -59,7 +59,10 @@ struct module {
 struct map;
 
 extern struct map *loaded_modules, *loaded_atoms;
-extern struct map *atom_names;
+
+extern struct map *atom_names, *named_dts;
+extern struct module *forms_module;
+const char *get_name(void *);
 
 char *module_hash_by_name(const char *name);
 struct module *load_module(const char *hash, type_t root_type);

@@ -11,7 +11,8 @@ struct adt *Overlay, *Entry;
 struct map *loaded_modules;
 /* Map of array listings, keyed by module pointer */
 struct map *loaded_atoms;
-struct map *atom_names;
+struct map *atom_names, *named_dts;
+struct module *forms_module;
 
 static char *base_dir = NULL;
 static char *mod_dir = "../mods/";
@@ -26,6 +27,7 @@ static intptr_t *cur_field;
 
 static void *read_node(type_t type);
 static void destroy_module(struct module *);
+static void read_forms_module(void);
 
 type_t intT(void) {
 	type_t type = malloc(sizeof *type);
@@ -127,6 +129,9 @@ static void destroy_ctor(struct ctor *ctor) {
 	struct field *field;
 	for (i = 0, count = ctor->field_count; i < count; i++) {
 		field = ctor->fields[i];
+		/* TEMP */
+		if (!field)
+			continue;
 		free(field->name);
 		destroy_type(field->type);
 		free(field);
@@ -213,9 +218,14 @@ void setup_serial(const char *dir) {
 	loaded_modules = new_map(&strcmp, &free, &destroy_module);
 	loaded_atoms = new_map(NULL, NULL, &free);
 	atom_names = new_map(NULL, NULL, &free);
+	named_dts = new_map(&strcmp, &free, &destroy_ADT);
+
+	read_forms_module();
 }
 
 void cleanup_serial(void) {
+	/* Would leak unnamed DTs if any */
+	destroy_map(named_dts);
 	destroy_map(atom_names);
 	destroy_map(loaded_atoms);
 	destroy_map(loaded_modules);
@@ -665,16 +675,23 @@ void *match(intptr_t *obj, struct adt *adt, ...) {
 	return result;
 }
 
-#ifdef STANDALONE
-
-static const char *get_name(void *atom) {
+const char *get_name(void *atom) {
 	return map_has(atom_names, atom) ? map_get(atom_names, atom) : "<no name>";
 }
 
-static int indent;
+static int indent = 0;
+
+#ifdef STANDALONE
+
+#define SLOG(...) printf(__VA_ARGS__);
 #define INDENT(...) do { int _x = 0; for (; _x < indent; _x++) putchar(' '); printf(__VA_ARGS__); putchar('\n'); } while (0)
 
-static void got_type(intptr_t *);
+#else
+#define SLOG(...)
+#define INDENT(...)
+#endif
+
+static void *got_type(intptr_t *);
 
 static void got_tvar(void *tvar) {
 	INDENT("->%s (tvar)", get_name(tvar));
@@ -721,7 +738,7 @@ static void got_tweak(void *type) {
 	got_type(type);
 }
 
-static void got_type(intptr_t *type) {
+static void *got_type(intptr_t *type) {
 	indent++;
 	match(type, Type,
 		"TVar", got_tvar,
@@ -738,21 +755,22 @@ static void got_type(intptr_t *type) {
 		"TWeak", got_tweak,
 		NULL);
 	indent--;
+	return NULL; /* TEMP */
 }
 
-static struct ctor *go_ctor(struct ctor *ctor, struct array *field_forms) {
+static struct ctor *read_ctor(struct ctor *ctor, struct array *field_forms) {
 	size_t i, len;
 	struct field **fields = NULL;
 	void *field_form;
 	const char *name;
 	name = get_name(ctor);
 	len = field_forms->len;
-	printf("  %s has %d field(s).\n", name, (int) len);
+	SLOG("  %s has %d field(s).\n", name, (int) len);
 	if (len) {
 		fields = malloc(len * sizeof *fields);
 		for (i = 0; i < len; i++) {
 			field_form = field_forms->elems[i];
-			printf("   %s\n", get_name(field_form));
+			SLOG("   %s\n", get_name(field_form));
 			indent = 3;
 			fields[i] = match(field_form, FieldForm,
 					"FieldForm", got_type, NULL);
@@ -761,7 +779,8 @@ static struct ctor *go_ctor(struct ctor *ctor, struct array *field_forms) {
 	return make_ctor(name, len, fields);
 }
 
-static void go_dt(struct adt *dt, struct array *ctor_forms, struct array *tvars) {
+static void read_dt(struct adt *dt, struct array *ctor_forms,
+			struct array *tvars) {
 	size_t i, len;
 	struct adt *adt;
 	struct ctor **ctors;
@@ -770,32 +789,33 @@ static void go_dt(struct adt *dt, struct array *ctor_forms, struct array *tvars)
 	name = get_name(dt);
 	adt = ADT(name);
 	len = ctor_forms->len;
-	printf(" %s has %d ctor(s).\n", name, (int) len);
+	SLOG(" %s has %d ctor(s).\n", name, (int) len);
 	if (len) {
 		ctors = malloc(len * sizeof *ctors);
 		for (i = 0; i < len; i++)
 			ctors[i] = match(ctor_forms->elems[i], CtorForm,
-					"@CtorForm", go_ctor, NULL);
+					"@CtorForm", &read_ctor, NULL);
 	}
 	set_adt_ctors(adt, len, ctors);
+	map_set(named_dts, strdup(name), adt);
 }
 
-static void go_forms(struct array *forms) {
+static void read_forms(struct array *forms) {
 	size_t i, len;
 	len = forms->len;
-	printf("%d form(s).\n", (int) len);
+	SLOG("%d form(s).\n", (int) len);
 	for (i = 0; i < len; i++)
-		match(forms->elems[i], DtForm, "@DtForm", &go_dt, NULL);
+		match(forms->elems[i], DtForm, "@DtForm", &read_dt, NULL);
 }
 
+static void read_forms_module(void) {
+	forms_module = load_named_module("forms", DtList);
+	match(forms_module->root, DtList, "DtList", &read_forms, NULL);
+}
+
+#ifdef STANDALONE
 int main(void) {
-	struct module *forms_mod;
-
 	setup_serial("");
-
-	forms_mod = load_named_module("forms", DtList);
-	match(forms_mod->root, DtList, "DtList", go_forms, NULL);
-
 	cleanup_serial();
 	return 0;
 }
