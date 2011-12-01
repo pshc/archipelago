@@ -667,14 +667,17 @@ void *match(intptr_t *obj, struct adt *adt, ...) {
 
 #ifdef STANDALONE
 
+static const char *get_name(void *atom) {
+	return map_has(atom_names, atom) ? map_get(atom_names, atom) : "<no name>";
+}
+
 static int indent;
 #define INDENT(...) do { int _x = 0; for (; _x < indent; _x++) putchar(' '); printf(__VA_ARGS__); putchar('\n'); } while (0)
 
 static void got_type(intptr_t *);
 
 static void got_tvar(void *tvar) {
-	(void) tvar;
-	INDENT("->tvar");
+	INDENT("->%s (tvar)", get_name(tvar));
 }
 
 static void got_prim() {
@@ -699,8 +702,7 @@ static void got_tfunc(struct array *args, void *ret) {
 }
 
 static void got_tdata(void *tdata) {
-	(void) tdata;
-	INDENT("->data");
+	INDENT("->%s (data)", get_name(tdata));
 }
 
 static void got_tapply(void *type, struct array *args) {
@@ -738,30 +740,34 @@ static void got_type(intptr_t *type) {
 	indent--;
 }
 
-static struct ctor *go_ctor(struct array *field_forms) {
+static struct ctor *go_ctor(struct ctor *ctor, struct array *field_forms) {
 	size_t i, len;
 	struct field **fields = NULL;
+	void *field_form;
+	const char *name;
+	name = get_name(ctor);
 	len = field_forms->len;
-	printf("  %d field(s).\n", (int) len);
+	printf("  %s has %d field(s).\n", name, (int) len);
 	if (len) {
 		fields = malloc(len * sizeof *fields);
 		for (i = 0; i < len; i++) {
-			indent = 2;
-			fields[i] = match(field_forms->elems[i], FieldForm,
+			field_form = field_forms->elems[i];
+			printf("   %s\n", get_name(field_form));
+			indent = 3;
+			fields[i] = match(field_form, FieldForm,
 					"FieldForm", got_type, NULL);
 		}
 	}
-	return make_ctor("<no name>", len, fields);
+	return make_ctor(name, len, fields);
 }
 
 static void go_dt(struct adt *dt, struct array *ctor_forms, struct array *tvars) {
 	size_t i, len;
 	struct adt *adt;
 	struct ctor **ctors;
-	char *name;
+	const char *name;
 	(void) tvars;
-	name = map_get(atom_names, dt);
-	name = name ? name : "<no name>";
+	name = get_name(dt);
 	adt = ADT(name);
 	len = ctor_forms->len;
 	printf(" %s has %d ctor(s).\n", name, (int) len);
@@ -769,7 +775,7 @@ static void go_dt(struct adt *dt, struct array *ctor_forms, struct array *tvars)
 		ctors = malloc(len * sizeof *ctors);
 		for (i = 0; i < len; i++)
 			ctors[i] = match(ctor_forms->elems[i], CtorForm,
-					"CtorForm", go_ctor, NULL);
+					"@CtorForm", go_ctor, NULL);
 	}
 	set_adt_ctors(adt, len, ctors);
 }

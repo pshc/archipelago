@@ -268,6 +268,9 @@ def load_forms():
             assert isinstance(dt, DataType), '%s is not a DT form' % (dt,)
             pending.add(dt)
 
+    def found_tvar(tvar):
+        names[tvar] = extrinsic(Name, tvar)
+
     def scan_type_deps(t):
         assert isinstance(t, Type), "%r is not a type" % (t,)
         match(t,
@@ -277,6 +280,7 @@ def load_forms():
             ('TApply(a, vs)', lambda a, vs: map(scan_type_deps, [a] + vs)),
             ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
+            ('TVar(tvar)', found_tvar),
             ('_', lambda: None))
 
     while pending:

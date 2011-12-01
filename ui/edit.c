@@ -179,11 +179,28 @@ static void render_arrow(vec2 a, vec2 b) {
     glEnd();
 }
 
+static const char *get_layout_obj_desc(struct layout_node *node) {
+    const char *name;
+    if (map_has(atom_names, node->obj))
+        name = map_get(atom_names, node->obj);
+    else
+        name = ((struct ctor *) node->context)->name;
+    return name;
+}
+
 static void render_layout_node(struct layout_node *node) {
 
     if (node->kind == LAYOUT_REF) {
         struct layout_node *dest = map_get(editor->layout_map, node->obj);
         render_arrow(node->pos, dest->pos);
+        glPushMatrix();
+        glTranslatef(node->pos.x, node->pos.y, 0);
+        const char *desc = get_layout_obj_desc(dest);
+        char *ref_desc = alloca(strlen(desc) + 4);
+        strcpy(ref_desc, " ->");
+        strcat(ref_desc, desc);
+        render_cached_text(ref_desc);
+        glPopMatrix();
         return;
     }
 
@@ -199,9 +216,7 @@ static void render_layout_node(struct layout_node *node) {
         }
         case LAYOUT_OBJ:
         {
-            struct ctor *ctor = node->context;
-            const char *name = map_has(atom_names, node->obj) ? map_get(atom_names, node->obj) : ctor->name;
-            render_cached_text(name);
+            render_cached_text(get_layout_obj_desc(node));
             break;
         }
         default:
