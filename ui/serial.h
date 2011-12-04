@@ -2,13 +2,19 @@
 #define SERIAL_H
 
 struct adt;
+struct tvar;
 
 struct type {
-	enum { KIND_INT, KIND_STR, KIND_ARRAY, KIND_ADT, KIND_WEAK } kind;
+	enum { KIND_INT, KIND_STR, KIND_BOOL, KIND_VOID,
+		KIND_TVAR, KIND_FUNC,
+		KIND_TUPLE, KIND_ARRAY, KIND_ADT, KIND_WEAK } kind;
 	union {
 		struct adt *adt;
 		struct type *ref;
+		struct type **types;
+		struct tvar *tvar;
 	};
+	size_t n;
 };
 typedef struct type *type_t;
 
@@ -38,6 +44,9 @@ extern struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
 
 type_t intT(void);
 type_t strT(void);
+type_t boolT(void);
+type_t voidT(void);
+type_t tvarT(struct tvar *);
 type_t adtT(struct adt *);
 type_t arrayT(type_t);
 type_t weak(type_t);

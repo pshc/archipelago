@@ -33,6 +33,7 @@ type_t intT(void) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_INT;
 	type->adt = NULL;
+	type->n = 0;
 	return type;
 }
 
@@ -40,6 +41,31 @@ type_t strT(void) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_STR;
 	type->adt = NULL;
+	type->n = 0;
+	return type;
+}
+
+type_t boolT(void) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_BOOL;
+	type->adt = NULL;
+	type->n = 0;
+	return type;
+}
+
+type_t voidT(void) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_VOID;
+	type->adt = NULL;
+	type->n = 0;
+	return type;
+}
+
+type_t tvarT(struct tvar *tvar) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_VOID;
+	type->tvar = tvar;
+	type->n = 0;
 	return type;
 }
 
@@ -47,6 +73,7 @@ type_t adtT(struct adt *adt) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_ADT;
 	type->adt = adt;
+	type->n = 0;
 	return type;
 }
 
@@ -54,6 +81,7 @@ type_t arrayT(type_t elem) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_ARRAY;
 	type->ref = elem;
+	type->n = 0;
 	return type;
 }
 
@@ -61,6 +89,7 @@ type_t weak(type_t t) {
 	type_t wrapper = malloc(sizeof *wrapper);
 	wrapper->kind = KIND_WEAK;
 	wrapper->ref = t;
+	wrapper->n = 0;
 	return wrapper;
 }
 
@@ -71,10 +100,20 @@ type_t copy_type(type_t t) {
 }
 
 void destroy_type(type_t t) {
+	size_t i, n;
 	switch (t->kind) {
 		case KIND_INT:
 		case KIND_STR:
+		case KIND_BOOL:
+		case KIND_VOID:
+		case KIND_TVAR:
 		case KIND_ADT:
+			break;
+		case KIND_FUNC:
+		case KIND_TUPLE:
+			for (i = 0, n = t->n; i < n; i++)
+				destroy_type(t->types[i]);
+			free(t->types);
 			break;
 		case KIND_ARRAY:
 		case KIND_WEAK:
@@ -283,6 +322,15 @@ static char *read_str() {
 	return str;
 }
 
+static void *read_tuple(size_t n, type_t *types) {
+	size_t i;
+	intptr_t *entries;
+	entries = malloc(sizeof *types * n);
+	for (i = 0; i < n; i++)
+		entries[i] = (intptr_t) read_node(types[i]);
+	return entries;
+}
+
 static struct array *read_array(type_t elem_type) {
 	int i, len;
 	len = read_int();
@@ -361,10 +409,23 @@ static void *read_node(type_t type) {
 	void *node;
 	switch (type->kind) {
 		case KIND_INT:
+		case KIND_BOOL:
 			return (void *)(intptr_t)read_int();
 
 		case KIND_STR:
 			return read_str();
+
+		case KIND_VOID:
+			fail("No void literals");
+
+		case KIND_TVAR:
+			fail("No tvar literals");
+
+		case KIND_FUNC:
+			fail("No func literals");
+
+		case KIND_TUPLE:
+			return read_tuple(type->n, type->types);
 
 		case KIND_ARRAY:
 			return read_array(type->ref);
@@ -679,90 +740,88 @@ const char *get_name(void *atom) {
 	return map_has(atom_names, atom) ? map_get(atom_names, atom) : "<no name>";
 }
 
-static int indent = 0;
-
 #ifdef STANDALONE
-
 #define SLOG(...) printf(__VA_ARGS__);
-#define INDENT(...) do { int _x = 0; for (; _x < indent; _x++) putchar(' '); printf(__VA_ARGS__); putchar('\n'); } while (0)
-
 #else
 #define SLOG(...)
-#define INDENT(...)
 #endif
 
-static void *got_type(intptr_t *);
+static type_t read_type(intptr_t *);
 
-static void got_tvar(void *tvar) {
-	INDENT("->%s (tvar)", get_name(tvar));
+static void *read_tvar(void *tvar) {
+	return tvarT(tvar);
 }
 
-static void got_prim() {
-	INDENT("prim");
-}
-
-static void got_ttuple(struct array *types) {
+static void *read_ttuple(struct array *subs) {
 	size_t i, len;
-	len = types->len;
-	INDENT("tuple %d", (int) len);
+	struct type *type, **types;
+	len = subs->len;
+	CHECK(len > 0, "Zero-length tuple?");
+	type = malloc(sizeof *type);
+	type->kind = KIND_TUPLE;
+	type->n = len;
+	types = malloc(len * sizeof *types);
+	type->types = types;
 	for (i = 0; i < len; i++)
-		got_type(types->elems[i]);
+		types[i] = read_type(subs->elems[i]);
+	return type;
 }
 
-static void got_tfunc(struct array *args, void *ret) {
+static void *read_tfunc(struct array *args, void *ret) {
 	size_t i, len;
+	struct type *type, **types;
 	len = args->len;
-	INDENT("func %d +1", (int) len);
+	type = malloc(sizeof *type);
+	type->kind = KIND_FUNC;
+	type->n = len + 1;
+	types = malloc(type->n * sizeof *types);
+	type->types = types;
 	for (i = 0; i < len; i++)
-		got_type(args->elems[i]);
-	got_type(ret);
+		types[i] = read_type(args->elems[i]);
+	types[len] = read_type(ret);
+	return type;
 }
 
-static void got_tdata(void *tdata) {
-	INDENT("->%s (data)", get_name(tdata));
+static void *read_tdata(void *tdata) {
+	return adtT(tdata);
 }
 
-static void got_tapply(void *type, struct array *args) {
-	(void) type;
+static void *read_tapply(void *type, struct array *args) {
 	(void) args;
-	INDENT("<tapply>");
+	return read_type(type); /* TODO */
 }
 
-static void got_tarray(void *type) {
-	INDENT("array");
-	got_type(type);
+static void *read_tarray(void *type) {
+	return arrayT(read_type(type));
 }
 
-static void got_tweak(void *type) {
-	INDENT("weak");
-	got_type(type);
+static void *read_tweak(void *type) {
+	return weak(read_type(type));
 }
 
-static void *got_type(intptr_t *type) {
-	indent++;
-	match(type, Type,
-		"TVar", got_tvar,
-		"TInt", got_prim,
-		"TStr", got_prim,
-		"TBool", got_prim,
-		"TVoid", got_prim,
-		"TTuple", got_ttuple,
-		"TAnyTuple", got_prim,
-		"TFunc", got_tfunc,
-		"TData", got_tdata,
-		"TApply", got_tapply,
-		"TArray", got_tarray,
-		"TWeak", got_tweak,
+static type_t read_type(intptr_t *type) {
+	return match(type, Type,
+		"TVar", read_tvar,
+		"TInt", intT,
+		"TStr", strT,
+		"TBool", boolT,
+		"TVoid", voidT,
+		"TTuple", read_ttuple,
+		"TAnyTuple", voidT,
+		"TFunc", read_tfunc,
+		"TData", read_tdata,
+		"TApply", read_tapply,
+		"TArray", read_tarray,
+		"TWeak", read_tweak,
 		NULL);
-	indent--;
-	return NULL; /* TEMP */
 }
 
 static struct ctor *read_ctor(struct ctor *ctor, struct array *field_forms) {
 	size_t i, len;
-	struct field **fields = NULL;
+	struct field *field, **fields = NULL;
 	void *field_form;
 	const char *name;
+
 	name = get_name(ctor);
 	len = field_forms->len;
 	SLOG("  %s has %d field(s).\n", name, (int) len);
@@ -770,10 +829,12 @@ static struct ctor *read_ctor(struct ctor *ctor, struct array *field_forms) {
 		fields = malloc(len * sizeof *fields);
 		for (i = 0; i < len; i++) {
 			field_form = field_forms->elems[i];
-			SLOG("   %s\n", get_name(field_form));
-			indent = 3;
-			fields[i] = match(field_form, FieldForm,
-					"FieldForm", got_type, NULL);
+			field = malloc(sizeof *field);
+			field->name = strdup(get_name(field_form));
+			SLOG("   %s\n", field->name);
+			field->type = match(field_form, FieldForm,
+					"FieldForm", &read_type, NULL);
+			fields[i] = field;
 		}
 	}
 	return make_ctor(name, len, fields);
