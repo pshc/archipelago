@@ -254,21 +254,21 @@ void setup_serial(const char *dir) {
 		"entries", arrayT(adtT(Entry))));
 
 	base_dir = strdup(dir);
-	loaded_modules = new_map(&strcmp, &free, &destroy_module);
+	form_dts = new_map(NULL, NULL, &destroy_ADT);
+	named_dts = new_map(&strcmp, &free, NULL);
 	loaded_atoms = new_map(NULL, NULL, &free);
 	atom_names = new_map(NULL, NULL, &free);
-	named_dts = new_map(&strcmp, &free, NULL);
-	form_dts = new_map(NULL, NULL, &destroy_ADT);
+	loaded_modules = new_map(&strcmp, &free, &destroy_module);
 
 	read_forms_module();
 }
 
 void cleanup_serial(void) {
-	destroy_map(form_dts);
-	destroy_map(named_dts);
+	destroy_map(loaded_modules);
 	destroy_map(atom_names);
 	destroy_map(loaded_atoms);
-	destroy_map(loaded_modules);
+	destroy_map(named_dts);
+	destroy_map(form_dts);
 	free(base_dir);
 	destroy_ADT(Type);
 	destroy_ADT(TypeVar);
