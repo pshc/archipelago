@@ -191,8 +191,11 @@ static const char *get_layout_obj_desc(struct layout_node *node) {
 static void render_layout_node(struct layout_node *node) {
 
     if (node->kind == LAYOUT_REF) {
-        struct layout_node *dest = map_get(editor->layout_map, node->obj);
-        render_arrow(node->pos, dest->pos);
+        struct layout_node *dest;
+        if (map_has(editor->layout_map, node->obj)) {
+            dest = map_get(editor->layout_map, node->obj);
+            render_arrow(node->pos, dest->pos);
+        }
         glPushMatrix();
         glTranslatef(node->pos.x, node->pos.y, 0);
         const char *desc = get_layout_obj_desc(dest);
