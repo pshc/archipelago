@@ -11,7 +11,7 @@ struct adt *Overlay, *Entry;
 struct map *loaded_modules;
 /* Map of array listings, keyed by module pointer */
 struct map *loaded_atoms;
-struct map *atom_names, *named_dts;
+struct map *atom_names, *named_dts, *form_dts;
 struct module *forms_module;
 
 static char *base_dir = NULL;
@@ -257,13 +257,14 @@ void setup_serial(const char *dir) {
 	loaded_modules = new_map(&strcmp, &free, &destroy_module);
 	loaded_atoms = new_map(NULL, NULL, &free);
 	atom_names = new_map(NULL, NULL, &free);
-	named_dts = new_map(&strcmp, &free, &destroy_ADT);
+	named_dts = new_map(&strcmp, &free, NULL);
+	form_dts = new_map(NULL, NULL, &destroy_ADT);
 
 	read_forms_module();
 }
 
 void cleanup_serial(void) {
-	/* Would leak unnamed DTs if any */
+	destroy_map(form_dts);
 	destroy_map(named_dts);
 	destroy_map(atom_names);
 	destroy_map(loaded_atoms);
@@ -783,7 +784,7 @@ static void *read_tfunc(struct array *args, void *ret) {
 }
 
 static void *read_tdata(void *tdata) {
-	return adtT(tdata);
+	return adtT(map_get(form_dts, tdata));
 }
 
 static void *read_tapply(void *type, struct array *args) {
@@ -840,37 +841,51 @@ static struct ctor *read_ctor(struct ctor *ctor, struct array *field_forms) {
 	return make_ctor(name, len, fields);
 }
 
-static void read_dt(struct adt *dt, struct array *ctor_forms,
+static void read_dt(intptr_t *dt, struct array *ctor_forms,
 			struct array *tvars) {
 	size_t i, len;
-	struct adt *adt;
 	struct ctor **ctors;
-	const char *name;
 	(void) tvars;
-	name = get_name(dt);
-	adt = ADT(name);
 	len = ctor_forms->len;
-	SLOG(" %s has %d ctor(s).\n", name, (int) len);
+	SLOG(" %s has %d ctor(s).\n", get_name(dt), (int) len);
 	if (len) {
 		ctors = malloc(len * sizeof *ctors);
 		for (i = 0; i < len; i++)
 			ctors[i] = match(ctor_forms->elems[i], CtorForm,
 					"@CtorForm", &read_ctor, NULL);
 	}
-	set_adt_ctors(adt, len, ctors);
-	map_set(named_dts, strdup(name), adt);
+	set_adt_ctors(map_get(form_dts, dt), len, ctors);
 }
 
 static void read_forms(struct array *forms) {
 	size_t i, len;
+	for (i = 0, len = forms->len; i < len; i++)
+		match(forms->elems[i], DtForm, "@DtForm", &read_dt, NULL);
+}
+
+static void scan_dt(intptr_t *dt, struct array *ctor_forms,
+			struct array *tvars) {
+	struct adt *adt;
+	const char *name;
+	(void) ctor_forms;
+	(void) tvars;
+	name = get_name(dt);
+	adt = ADT(name);
+	map_set(form_dts, dt, adt);
+	map_set(named_dts, strdup(name), adt);
+}
+
+static void scan_forms(struct array *forms) {
+	size_t i, len;
 	len = forms->len;
 	SLOG("%d form(s).\n", (int) len);
 	for (i = 0; i < len; i++)
-		match(forms->elems[i], DtForm, "@DtForm", &read_dt, NULL);
+		match(forms->elems[i], DtForm, "@DtForm", &scan_dt, NULL);
 }
 
 static void read_forms_module(void) {
 	forms_module = load_named_module("forms", DtList);
+	match(forms_module->root, DtList, "DtList", &scan_forms, NULL);
 	match(forms_module->root, DtList, "DtList", &read_forms, NULL);
 }
 
