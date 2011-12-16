@@ -1,0 +1,14 @@
+LLVM
+- break up expressions
+- statements
+HM
+- pure/side-effectful divide
+- figure out extrinsic types
+- poly unification
+- redo TApply
+Expand
+- closure to context conversion
+Base
+- match() with case bodies
+AST
+- fix match special case identity, tuple2, etc
