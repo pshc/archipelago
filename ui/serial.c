@@ -238,8 +238,9 @@ void setup_serial(const char *dir) {
 		Ctor("TFunc", 2, "funcArgs", arrayT(adtT(Type)),
 				"funcRet", adtT(Type)),
 		Ctor("TData", 1, "data", weak(adtT(DtForm))),
-		Ctor("TApply", 2, "appType", adtT(Type),
-				"appVars", arrayT(adtT(Type))),
+		Ctor("TApply", 3, "appTarget", adtT(Type),
+				"appVar", weak(adtT(TypeVar)),
+				"appArg", adtT(Type)),
 		Ctor("TArray", 1, "elemType", adtT(Type)),
 		Ctor("TWeak", 1, "refType", adtT(Type)));
 	DtList = ADT("DtList");
@@ -787,9 +788,10 @@ static void *read_tdata(void *tdata) {
 	return adtT(map_get(form_dts, tdata));
 }
 
-static void *read_tapply(void *type, struct array *args) {
-	(void) args;
-	return read_type(type); /* TODO */
+static void *read_tapply(void *target, void *tvar, void *arg) {
+	(void) tvar;
+	(void) arg;
+	return read_type(target); /* TODO */
 }
 
 static void *read_tarray(void *type) {
