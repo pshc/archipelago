@@ -216,7 +216,8 @@ Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
         'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
         'TData', ('data', '*DataType'),
-        'TApply', ('appType', 'Type'), ('appVars', ['Type']),
+        'TApply', ('appTarget', 'Type'), ('appVar', '*TypeVar'),
+                                         ('appArg', 'Type'),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
 
@@ -265,7 +266,12 @@ _types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
 def realize_type(t):
     ast = compiler.ast
     if isinstance(t, ast.CallFunc):
-        return TApply(realize_type(t.node), map(realize_type, t.args))
+        assert len(t.args) == 1
+        dt = realize_type(t.node)
+        tvar = 'a'
+        if not isinstance(dt, TForward):
+            tvar = dt.data.tvars[0]
+        return TApply(dt, tvar, realize_type(t.args[0]))
     elif isinstance(t, ast.Compare):
         tuplify = lambda x: x.nodes if isinstance(x, ast.Tuple) else [x]
         ops = [tuplify(t.expr)]
@@ -308,13 +314,20 @@ def t_DT(dt):
     return TData(dt.__dt__.__form__)
 
 def _apply_list_type(t):
-    return TApply(parse_type('List'), [t])
+    listT = parse_type('List')
+    return TApply(listT, 'a', t)
 
 def _apply_set_type(t):
-    return TApply(parse_type('Set'), [t])
+    setT = parse_type('Set')
+    return TApply(setT, 'a', t)
 
 def _apply_dict_type(k, v):
-    return TApply(parse_type('Dict'), [k, v])
+    dictT = parse_type('Dict')
+    keyVar, valVar = 'k', 'v'
+    if not isinstance(dictT, TForward):
+        keyVar = dictT.data.tvars[0]
+        valVar = dictT.data.tvars[1]
+    return TApply(TApply(dictT, valVar, v), keyVar, k)
 
 # Parse the types in TypeVar, Type fields
 def _parse_deferred():

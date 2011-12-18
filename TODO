@@ -5,7 +5,7 @@ HM
 - pure/side-effectful divide
 - figure out extrinsic types
 - poly unification
-- redo TApply
+- schemey TApply
 Expand
 - closure to context conversion
 Base

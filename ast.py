@@ -161,7 +161,9 @@ def conv_type(t, tvars, dt=None):
             return TVar(tvar)
         if '(' in s and s[-1] == ')':
             ctor, p, args = s[:-1].partition('(')
-            return TApply(type_str(ctor), map(type_str, args.split(',')))
+            args = args.split(',')
+            assert len(args) == 1, "TODO multiple applications"
+            return TApply(type_str(ctor), args[0], type_str(args[0]))
         return type_ref(s)
     return match(t,
         ("BindBuiltin(_)", lambda: t),

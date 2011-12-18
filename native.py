@@ -208,7 +208,8 @@ def _read_node(t, path):
     elif isinstance(t, TStr):
         return _read_str()
     elif isinstance(t, TApply):
-        assert t.appType == list, 'TEMP'
+        assert t.appTarget == list, 'TEMP'
+        # TODO
         count = _read_int()
         array = []
         for i in xrange(count):

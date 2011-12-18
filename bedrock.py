@@ -5,7 +5,7 @@ from base import DT, ADT, match, new_extrinsic
 
 # TEMP
 Set = DT('Set', ('contents', ['a']))
-Dict = DT('Dict', ('contents', [('a', 'b')]))
+Dict = DT('Dict', ('contents', [('k', 'v')]))
 
 Module = DT('Module', ('rootType', 'Type'), ('root', 'a'))
 ModDigest = new_extrinsic('ModDigest', str)

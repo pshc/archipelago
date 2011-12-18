@@ -89,7 +89,7 @@ def c_type(t):
         ("TData(a)", lambda a: cptr(struct_ref(a))),
         ("TFunc(args, r)", lambda args, r:
             csym('funcptr', [c_type(r), int_len(args)] + map(c_type, args))),
-        ("TApply(t, _)", c_type),
+        ("TApply(t, _, _)", c_type),
         ("_", lambda: cptr(csym_('void')))) # XXX: NOPE
 
 def c_type_(ta):

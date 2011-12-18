@@ -40,13 +40,16 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
-def unify_applications(e1, t1, ss1, e2, t2, ss2):
+def unify_applications(e1, t1, v1, a1, e2, t2, v2, a2):
     unify(t1, t2)
-    unify_tuples(e1, ss1, e2, ss2, "type arguments")
+    if v1 == v2:
+        unify(a1, a2)
+    else:
+        assert False("TODO: Save this info in schemes")
 
-def unify_data_and_apply(data, appType, appArgs):
-    unify(data, appType)
-    # TODO: OH GOD
+def unify_data_and_apply(data, appTarget, appVar, appArg):
+    unify(data, appTarget)
+    assert appVar in data.tvars, "Not a relevant tvar."
 
 def unify_metas(t1, t2):
     if isNothing(t1.metaType):
@@ -80,10 +83,10 @@ def unify(e1, e2):
         ("(f1==TFunc(a1, r1), f2==TFunc(a2, r2))", unify_funcs),
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
-        ("(e1==TApply(t1, ss1), e2==TApply(t2, ss2))", unify_applications),
-        ("(a==TData(_), TApply(b, bs))", unify_data_and_apply),
-        ("(TApply(b, bs), a==TData(_))",
-            lambda b, bs, a: unify_data_and_apply(a, b, bs)),
+        ("(e1==TApply(t1,v1,a1), e2==TApply(t2,v2,a2))", unify_applications),
+        ("(TData(d), TApply(t, v, a))", unify_data_and_apply),
+        ("(TApply(t, v, a), TData(d))",
+            lambda t, v, a, d: unify_data_and_apply(d, t, v, a)),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -481,8 +484,8 @@ def normalize_type(t):
                         TFunc(map(normalize_type, args),
                               normalize_type(ret))),
                     ("TTuple(ts)", lambda ts: TTuple(map(normalize_type, ts))),
-                    ("TApply(t, ss)", lambda t, ss:
-                        TApply(normalize_type(t), map(normalize_type, ss))),
+                    ("TApply(t, v, a)", lambda t, v, a:
+                        TApply(normalize_type(t), v, normalize_type(a))),
                     ("_", lambda: t))
 
 def normalize_scheme(s):

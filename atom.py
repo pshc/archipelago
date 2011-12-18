@@ -230,13 +230,23 @@ def _resolve_walk(node, path):
             _resolve_walk(arg, (node.funcArgs, i))
         _resolve_walk(node.funcRet, (node, 'funcRet'))
     elif isinstance(node, TApply):
-        _resolve_walk(node.appType, (node, 'appType'))
-        for i, v in enumerate(node.appVars):
-            _resolve_walk(v, (node.appVars, i))
+        _resolve_walk(node.appTarget, (node, 'appTarget'))
+        if isinstance(node.appVar, basestring):
+            node.appVar = _resolve_tvar(node.appTarget, node.appVar)
+        _resolve_walk(node.appArg, (node, 'appArg'))
     elif isinstance(node, TArray):
         _resolve_walk(node.elemType, (node, 'elemType'))
     elif isinstance(node, TWeak):
         _resolve_walk(node.refType, (node, 'refType'))
+
+def _resolve_tvar(node, name):
+    if isinstance(node, TData):
+        for tvar in node.data.tvars:
+            if extrinsic(Name, tvar) == name:
+                return tvar
+    elif isinstance(node, TApply):
+        return _resolve_tvar(node.appTarget, name)
+    assert False, "Couldn't find TVar named '%s'" % (name,)
 
 BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
 
@@ -271,13 +281,17 @@ def load_forms():
     def found_tvar(tvar):
         names[tvar] = extrinsic(Name, tvar)
 
+    def found_apply(d, a):
+        scan_type_deps(d)
+        scan_type_deps(a)
+
     def scan_type_deps(t):
         assert isinstance(t, Type), "%r is not a type" % (t,)
         match(t,
             ('TTuple(ts)', lambda ts: map(scan_type_deps, ts)),
             ('TFunc(a, r)', lambda a, r: map(scan_type_deps, a + [r])),
             ('TData(dt)', found_dt),
-            ('TApply(a, vs)', lambda a, vs: map(scan_type_deps, [a] + vs)),
+            ('TApply(d, _, a)', found_apply),
             ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
             ('TVar(tvar)', found_tvar),
