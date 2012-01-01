@@ -90,24 +90,31 @@ def convert_func_type(t):
     return fval.types[0]
 
 def itypes_equal(src, dest):
-    same = lambda: True
-    return match((src, dest),
-        ('(IInt(), IInt())', same),
-        ('(IVoidPtr(), IVoidPtr())', same),
-        ('(IPtr(a), IPtr(b))', itypes_equal),
-        ('(IInt64(), IInt64())', same),
-        ('(IFloat(), IFloat())', same),
-        ('(IBool(), IBool())', same),
-        ('(IVoid(), IVoid())', same),
-        ('(IArray(n1, t1), IArray(n2, t2))', lambda n1, t1, n2, t2:
-            n1 == n2 and itypes_equal(t1, t2)),
-        ('(ITuple(ts1), ITuple(ts2))', lambda ts1, ts2:
-            all(itypes_equal(a, b) for a, b in ezip(ts1, ts2))),
-        ('(IFunc(ps1, r1, _), IFunc(ps2, r2, _))', lambda ps1, r1, ps2, r2:
-            len(ps1) == len(ps2) and
-            all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
-            itypes_equal(r1, r2)),
-        ('_', lambda: False))
+    m = match((src, dest))
+    if m('(IInt(), IInt())'):
+        return True
+    elif m('(IVoidPtr(), IVoidPtr())'):
+        return True
+    elif m('(IPtr(a), IPtr(b))'):
+        return itypes_equal(m.a, m.b)
+    elif m('(IInt64(), IInt64())'):
+        return True
+    elif m('(IFloat(), IFloat())'):
+        return True
+    elif m('(IBool(), IBool())'):
+        return True
+    elif m('(IVoid(), IVoid())'):
+        return True
+    elif m('(IArray(n1, t1), IArray(n2, t2))'):
+        return m.n1 == m.n2 and itypes_equal(m.t1, m.t2)
+    elif m('(ITuple(ts1), ITuple(ts2))'):
+        return all(itypes_equal(a, b) for a, b in ezip(m.ts1, m.ts2))
+    elif m('(IFunc(ps1, r1, _), IFunc(ps2, r2, _))'):
+        return len(m.ps1) == len(m.ps2) and \
+               all(itypes_equal(a, b) for a, b in ezip(m.ps1, m.ps2)) and \
+               itypes_equal(m.r1, m.r2)
+    else:
+        return False
 
 def i_ADT(dt):
     return IPtr(IData(extrinsic(FormSpec, dt)))
