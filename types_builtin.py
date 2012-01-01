@@ -82,6 +82,7 @@ def _type_repr(t):
                     ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
                     ("TFunc(ps, res, m)", _func_repr),
                     ("TData(d, ps)", _tdata_repr),
+                    ("TWeak(t)", lambda t: '*%s' % (_type_repr(t),)),
                     ("CMeta(cell)", repr),
                     ("_", lambda: mark('<bad type %s>' % type(t))))
     seen.remove(t)
@@ -211,7 +212,7 @@ def checked_subst(mapping, t):
     assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
     return s
 
-def is_strong(t):
+def is_strong_type(t):
     return matches(t, "TData(_,_) or TArray(_) or TTuple(_) or TFunc(_,_,_)")
 
 def ctor_type(ctor, dtT):
@@ -219,7 +220,7 @@ def ctor_type(ctor, dtT):
     paramMetas = []
     for f in ctor.fields:
         paramTypes.append(f.type)
-        paramMetas.append(ParamMeta(is_strong(f.type)))
+        paramMetas.append(ParamMeta(is_strong_type(f.type)))
     return TFunc(paramTypes, Ret(dtT), basic_meta(paramMetas))
 
 builtins_types = {

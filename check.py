@@ -43,6 +43,12 @@ def try_unite(src, dest):
     elif m("(TPrim(sp), TPrim(dp))"):
         if not prim_equal(m.sp, m.dp):
             unification_failure(src, dest, "primitive types")
+    elif m("(TWeak(a), TWeak(b))"):
+        try_unite(m.a, m.b)
+    elif m("(TWeak(a), _)"):
+        try_unite(m.a, dest)
+    elif m("(_, TWeak(b))"):
+        try_unite(src, m.b)
     else:
         fail("type mismatch")
 
@@ -309,7 +315,7 @@ def _check_expr(e):
 
 def check_contains_field(t, f):
     # XXX will want to check instantiation
-    form = match(t, "TData(form, _)")
+    form = match(t, "TData(form, _) or TWeak(TData(form, _))")
     for ctor in form.ctors:
         if f in ctor.fields:
             return

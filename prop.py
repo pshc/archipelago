@@ -228,6 +228,13 @@ def try_unite(src, dest):
         # XXX ought to narrow properly
         try_unite(dest, src)
 
+    elif m("(TWeak(a), TWeak(b))"):
+        try_unite(m.a, m.b)
+    elif m("(TWeak(a), _)"):
+        try_unite(m.a, dest)
+    elif m("(_, TWeak(b))"):
+        try_unite(src, m.b)
+
     elif m("(TVar(stv), TVar(dtv))"):
         if m.stv is not m.dtv:
             unification_failure(src, dest, "typevars")
@@ -468,7 +475,11 @@ def consume_value_as(ct, e):
     in_env(EXPRCTXT, e, lambda: unify(_prop_expr(e), ct))
 
 def extract_cdata(t):
-    return match(t, ('TData(dt, ts) or CMeta(Subst(TData(dt, ts)))', tuple2))
+    if matches(t, 'CMeta(Subst(TData(_, _)))'):
+        t = t.cell.type
+    if matches(t, 'TWeak(_)'):
+        t = t.refType
+    return match(t, ('TData(dt, ts)', tuple2))
 
 def resolve_field_by_name(t, f):
     dt, ts = extract_cdata(t)

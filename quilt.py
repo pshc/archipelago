@@ -16,7 +16,7 @@ ExpandedUnit = DT('ExpandedUnit', ('funcs', ['TopFunc(LExpr)']))
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 
 IType, IInt, IInt64, IFloat, IBool, IVoid, \
-    IArray, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
+    IArray, ITuple, IData, IFunc, IPtr, IWeak, IVoidPtr = ADT('IType',
         'IInt',
         'IInt64',
         'IFloat',
@@ -27,6 +27,7 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IData', ('datatype', '*DataType'),
         'IFunc', ('params', ['IType']), ('ret', 'IType'), ('meta', IFuncMeta),
         'IPtr', ('type', 'IType'),
+        'IWeak', ('type', 'IType'),
         'IVoidPtr')
 
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
@@ -68,7 +69,8 @@ def convert_type(t):
         ("TFunc(tps, result, meta)", _convert_func),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
-        ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
+        ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))),
+        ("TWeak(t)", lambda t: IWeak(convert_type(t))))
 
 def _convert_func(tps, result, meta):
     ips = map(convert_type, tps)

@@ -430,6 +430,7 @@ def t_str(t):
         ("IFunc(ps, r, _)", lambda ps, r: "%s (%s)*" % (
             t_str(r), ', '.join(map(t_str, ps)))),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
+        ("IWeak(t)", t_str),
         ("IVoidPtr()", lambda: "i8*"))
 
 def out_t(t):
