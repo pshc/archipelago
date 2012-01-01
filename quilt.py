@@ -93,11 +93,12 @@ def itypes_equal(src, dest):
     same = lambda: True
     return match((src, dest),
         ('(IInt(), IInt())', same),
+        ('(IVoidPtr(), IVoidPtr())', same),
+        ('(IPtr(a), IPtr(b))', itypes_equal),
         ('(IInt64(), IInt64())', same),
         ('(IFloat(), IFloat())', same),
         ('(IBool(), IBool())', same),
         ('(IVoid(), IVoid())', same),
-        ('(IVoidPtr(), IVoidPtr())', same),
         ('(IArray(n1, t1), IArray(n2, t2))', lambda n1, t1, n2, t2:
             n1 == n2 and itypes_equal(t1, t2)),
         ('(ITuple(ts1), ITuple(ts2))', lambda ts1, ts2:
@@ -106,8 +107,6 @@ def itypes_equal(src, dest):
             len(ps1) == len(ps2) and
             all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
             itypes_equal(r1, r2)),
-        ('(IPtr(a), IPtr(b))', itypes_equal),
-        ('(IVoidPtr(), IVoidPtr())', same),
         ('_', lambda: False))
 
 def i_ADT(dt):
