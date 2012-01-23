@@ -114,12 +114,18 @@ def expr_call(f, args):
     return match(f, ('Bind(BindBuiltin(b))', is_builtin),
                     ('_', otherwise))
 
+def expr_tuple_lit(ts):
+    xs = map(express, ts)
+    args = ', '.join('i32 %s' % (xpr_str(x),) for x in xs)
+    return Const('{ %s }' % (args,))
+
 def express(expr):
     return match(expr,
         ('Bind(BindVar(v))', expr_bind_var),
         ('Bind(BindFunc(v))', expr_bind_func),
         ('Call(f, args)', expr_call),
-        ('IntLit(i)', lambda i: Const('%d' % (i,))))
+        ('IntLit(i)', lambda i: Const('%d' % (i,))),
+        ('TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
 
@@ -134,9 +140,26 @@ def write_defn(v, e):
     out('i32* ')
     out_name_reg(v)
 
+def write_dtstmt(form):
+    clear_indent()
+    if len(form.ctors) > 1:
+        out('; skipping %')
+        out_name_reg(form)
+    else:
+        out_name_reg(form)
+        out(' = type { ')
+        ctor = form.ctors[0]
+        out(', '.join('i32 %s' % (extrinsic(Name, f),) for f in ctor.fields))
+        out(' }')
+
 def write_expr_stmt(e):
     out_xpr(express(e))
     newline()
+
+def write_extrinsic_stmt(extr):
+    clear_indent()
+    out('; extrninsic ')
+    out(extrinsic(Name, extr))
 
 def write_func_stmt(f, ps, body):
     clear_indent()
@@ -183,7 +206,9 @@ def write_return(expr):
 def write_stmt(stmt):
     match(stmt,
         ("Defn(v, e)", write_defn),
+        ("DTStmt(form)", write_dtstmt),
         ("ExprStmt(e)", write_expr_stmt),
+        ("ExtrinsicStmt(extr)", write_extrinsic_stmt),
         ("FuncStmt(f==Func(ps, body))", write_func_stmt),
         ("Return(e)", write_return))
     newline()

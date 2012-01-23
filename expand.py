@@ -6,27 +6,27 @@ import globs
 FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
                           ('returns', bool))
 
-ExScope = DT('ExScope', ('curFlow', 'FlowNode'),
-                        ('formalParams', [Atom]),
-                        ('localVars', {Atom: Atom}),
-                        ('closedVars', {Atom: Atom}),
+VarLifetime = DT('VarLifetime', ('staticCtr', int))
+
+VarUse = DT('VarUse', ('useIndex', int))
+
+ExScope = DT('ExScope', ('curFlow', FlowNode),
+                        ('formalParams', ['*Var']),
+                        ('localVars', {'*Var': '*Var'}),
+                        ('closedVars', {'*Var': '*Var'}),
                         ('funcScope', 'Maybe(ExScope)'),
                         ('prevScope', 'Maybe(ExScope)'))
 
 EXSCOPE = Nothing()
 
-ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Atom),
-                          ('egFuncAugs', {Atom: Atom}),
-                          ('egTypeAugs', {Atom: Atom}),
-                          ('egLambdaRefs', {Atom: Atom}),
-                          ('egVarLifetime', {Atom: Atom}),
-                          ('egVarUses', {Atom: Atom}))
+ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Stmt),
+                          ('egFuncAugs', {'*Stmt': ['*Stmt']}),
+                          ('egTypeAugs', {'*Stmt': '*Expr'}),
+                          ('egLambdaRefs', {'*Expr': '*Stmt'}),
+                          ('egVarLifetime', {'*Var': VarLifetime}),
+                          ('egVarUses', {'*Var': VarUse}))
 
 EXGLOBAL = Nothing()
-
-VarLifetime = DT('VarLifetime', ('staticCtr', int))
-
-VarUse = DT('VarUse', ('useIndex', int))
 
 def setup_ex_env(roots):
     global EXSCOPE

@@ -1,7 +1,7 @@
 TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
 
-all: llvm
+all: test
 
 llvm:
 	@./llvm.py | tee hello.ll

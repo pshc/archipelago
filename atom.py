@@ -174,8 +174,12 @@ def load_module_dep(filename, deps):
     annots, casts = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
+    from llvm import write_ir
+    write_ir(mod.root)
+
+    """
     from expand import expand_ast
-    overlays.update(expand_ast(mod.roots))
+    overlays = expand_ast(mod.roots)
     write_mod_repr('views/' + name + '.txt', mod, overlays)
     from mogrify import mogrify
     c = mogrify(mod, overlays)
@@ -183,6 +187,7 @@ def load_module_dep(filename, deps):
     from c import write_c
     write_c(c, 'views')
     native.serialize(c)
+    """
     return mod
 
 _ast_setup = False
