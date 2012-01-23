@@ -101,16 +101,16 @@ TVARS = new_context('TVARS', None)
 # Extrinsics
 
 ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]),
-                        ('capture', {'a': 't'}))
+                        ('captures', [{'a': 't'}]))
 
 # Omnipresent for now
-Name = ExtInfo('Name', str, [{}], None)
-FormBacking = ExtInfo('FormBacking', object, [{}], None)
+Name = ExtInfo('Name', str, [{}], [])
+FormBacking = ExtInfo('FormBacking', object, [{}], [])
 
 def new_extrinsic(label, t):
     if t is not None:
         t = parse_type(t)
-    return ExtInfo(label, t, [], None)
+    return ExtInfo(label, t, [], [])
 
 def extrinsic(ext, obj):
     record = ext.stack[-1]
@@ -126,12 +126,11 @@ def scope_extrinsic(ext, func):
     return ret
 
 def capture_extrinsic(ext, cap, func):
-    assert ext.capture is None, "Already capturing %s" % (ext.label,)
     assert isinstance(cap, dict)
-    ext.capture = cap
+    ext.captures.append(cap)
     ret = func()
-    assert ext.capture is cap, "Imbalanced capture"
-    ext.capture = None
+    off = ext.captures.pop()
+    assert off is cap, "Imbalanced capture"
     return ret
 
 def in_extrinsic_scope(ext):
@@ -143,18 +142,20 @@ def add_extrinsic(ext, obj, val):
     map = ext.stack[-1]
     assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
     map[obj] = val
-    if ext.capture is not None:
-        assert val not in ext.capture
-        ext.capture[obj] = val
+    if len(ext.captures) > 0:
+        cap = ext.captures[-1]
+        assert obj not in cap
+        cap[obj] = val
 
 def update_extrinsic(ext, obj, val):
     assert not isinstance(obj, value_types), "No extrinsics on values"
     map = ext.stack[-1]
     assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
     map[obj] = val
-    if ext.capture is not None:
-        assert val in ext.capture
-        ext.capture[obj] = val
+    if len(ext.captures) > 0:
+        cap = ext.captures[-1]
+        assert obj in cap
+        cap[obj] = val
 
 def has_extrinsic(ext, obj):
     assert not isinstance(obj, value_types), "No extrinsics on values"
