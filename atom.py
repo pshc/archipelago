@@ -202,7 +202,8 @@ def load_module(filename):
     deps = set()
     print 'Loading %s' % (filename,)
     mod = load_module_dep(filename, deps)
-    print 'Loaded [%s] for %s' % (', '.join(d.name for d in deps), filename)
+    dep_names = ', '.join(extrinsic(Name, d) for d in deps)
+    print 'Loaded [%s] for %s' % (dep_names, filename)
     return (mod, deps)
 
 def resolve_forward_type_refs():

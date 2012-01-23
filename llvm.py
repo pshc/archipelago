@@ -114,6 +114,11 @@ def expr_call(f, args):
     return match(f, ('Bind(BindBuiltin(b))', is_builtin),
                     ('_', otherwise))
 
+def expr_match(m, e, cs):
+    return Const('undefined ;match')
+    #for c in cs:
+    #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
+
 def expr_tuple_lit(ts):
     xs = map(express, ts)
     args = ', '.join('i32 %s' % (xpr_str(x),) for x in xs)
@@ -124,6 +129,7 @@ def express(expr):
         ('Bind(BindVar(v))', expr_bind_var),
         ('Bind(BindFunc(v))', expr_bind_func),
         ('Call(f, args)', expr_call),
+        ('m==Match(p, cs)', expr_match),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('TupleLit(es)', expr_tuple_lit))
 
