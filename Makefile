@@ -4,7 +4,11 @@ TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
 all: llvm
 
 llvm:
-	@./llvm.py
+	@./llvm.py | tee hello.ll
+	@llvmc -o hello hello.ll
+
+as:
+	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
 
 tada: opt mods views
 	./c.py short.py
@@ -35,4 +39,4 @@ test: remake_tests
 .PHONY: all clean llvm remake_tests tada test
 
 clean:
-	rm -f -- mods/* opt/* views/* *.pyc a.out
+	rm -f -- mods/* opt/* views/* *.pyc *.bc *.ll hello a.out

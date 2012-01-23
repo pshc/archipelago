@@ -8,6 +8,19 @@ IR = new_context('IR', IRInfo)
 def setup_ir():
     return IRInfo(False, 0)
 
+Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
+        'Reg', ('label', 'str'), ('index', 'int'),
+        'Tmp', ('index', 'int'),
+        'Const', ('frag', 'str'),
+        'ConstOp', ('op', 'str'), ('args', ['Xpr']))
+
+def is_const(x):
+    return match(x,
+        ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
+        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
+
+# OUTPUT
+
 def out(s):
     if context(IR).needIndent:
         sys.stdout.write('  ')
@@ -18,38 +31,54 @@ def out_name(a):
     out(extrinsic(Name, a))
 
 def out_name_reg(a):
-    out('%')
-    out_name(a)
+    out('%%%s' % (extrinsic(Name, a),))
+
+def out_xpr(x):
+    out(xpr_str(x))
+
+def xpr_str(x):
+    return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
+                    ('Tmp(i)', lambda i: '%%.%d' % (i,)),
+                    ('Const(s)', identity),
+                    ('ConstOp(f, args)', constop_str))
+
+def constop_str(f, args):
+    return '%s (%s)' % (f, ', '.join('i32 %s' % (xpr_str(r),) for r in args))
 
 def clear_indent():
     context(IR).needIndent = False
 
 def newline():
-    ir = context(IR)
-    ir.needIndent = False
-    out('\n')
-    ir.needIndent = True
+    sys.stdout.write('\n')
+    context(IR).needIndent = True
 
 def comma():
     out(', ')
 
-def temp_reg_named(base):
+def temp_reg():
     ir = context(IR)
-    tmp = ir.tempCtr
+    reg = Tmp(ir.tempCtr)
     ir.tempCtr += 1
-    return '%%%s.%d' % (extrinsic(Name, base), tmp)
+    return reg
 
-def write_bind_var(v):
-    tmp = temp_reg_named(v)
-    out(tmp)
-    out(' = load i32* ')
-    out_name_reg(v)
+def temp_reg_named(nm):
+    ir = context(IR)
+    reg = Reg(nm, ir.tempCtr)
+    ir.tempCtr += 1
+    return reg
+
+# EXPRESSIONS
+
+def expr_bind_var(v):
+    tmp = temp_reg_named(extrinsic(Name, v))
+    out_xpr(tmp)
+    out(' = load i32* %')
+    out_name(v)
     newline()
-    out(tmp)
+    return tmp
 
-def write_bind_func(f):
-    out('@')
-    out_name(f)
+def expr_bind_func(f):
+    return Const('@%s' % (extrinsic(Name, f),))
 
 def bin_op(b):
     # grr boilerplate
@@ -58,40 +87,56 @@ def bin_op(b):
         ('key("-")', lambda: 'sub'),
         ('_', lambda: ''))
 
-def write_call(f, args):
+def expr_call(f, args):
     def is_builtin(b):
         op = bin_op(b)
-        if op != '':
-            assert len(args) == 2, '%s requires two args' % (op,)
-            out('%s i32 ' % (op,))
-            write_expr(args[0])
-            comma()
-            write_expr(args[1])
-            return
-        assert False, 'Unknown builtin %s' % (b,)
+        assert op != '', 'Unknown builtin %s' % (b,)
+        assert len(args) == 2, '%s requires two args' % (op,)
+        left = express(args[0])
+        right = express(args[1])
+        if is_const(left) and is_const(right):
+            return ConstOp(op, [left, right])
+        else:
+            tmp = temp_reg_named(op)
+            out_xpr(tmp)
+            out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
+            newline()
+            return tmp
     def otherwise():
-        out('call i32 ')
-        write_expr(f)
-        write_params(args)
-    builtin = match(f, ('Bind(BindBuiltin(b))', is_builtin),
-                       ('_', otherwise))
+        tmp = temp_reg()
+        fx = express(f)
+        out_xpr(tmp)
+        out(' = call i32 ')
+        out_xpr(fx)
+        write_args(args)
+        newline()
+        return tmp
+    return match(f, ('Bind(BindBuiltin(b))', is_builtin),
+                    ('_', otherwise))
 
-def write_expr(expr):
-    match(expr,
-        ('Bind(BindVar(v))', write_bind_var),
-        ('Bind(BindFunc(v))', write_bind_func),
-        ('Call(f, args)', write_call),
-        ('IntLit(i)', lambda i: out('i32 %d' % (i,))))
+def express(expr):
+    return match(expr,
+        ('Bind(BindVar(v))', expr_bind_var),
+        ('Bind(BindFunc(v))', expr_bind_func),
+        ('Call(f, args)', expr_call),
+        ('IntLit(i)', lambda i: Const('%d' % (i,))))
+
+# STATEMENTS
 
 def write_defn(v, e):
+    ex = express(e)
     out_name_reg(v)
     out(' = alloca i32')
     newline()
-    out('store ')
-    write_expr(e)
+    out('store i32 ')
+    out_xpr(ex)
     comma()
     out('i32* ')
     out_name_reg(v)
+
+def write_expr_stmt(e):
+    out_xpr(express(e))
+    newline()
 
 def write_func_stmt(f, ps, body):
     clear_indent()
@@ -118,14 +163,27 @@ def write_params(ps):
             write_param(p)
     out(')')
 
+def write_args(args):
+    out('(')
+    bits = [express(arg) for arg in args]
+    first = True
+    for bit in bits:
+        if first:
+            first = False
+        else:
+            comma()
+        out_xpr(bit)
+    out(')')
+
 def write_return(expr):
-    out('ret ')
-    write_expr(expr)
+    ex = express(expr)
+    out('ret i32 ')
+    out_xpr(ex)
 
 def write_stmt(stmt):
     match(stmt,
         ("Defn(v, e)", write_defn),
-        ("ExprStmt(e)", write_expr),
+        ("ExprStmt(e)", write_expr_stmt),
         ("FuncStmt(f==Func(ps, body))", write_func_stmt),
         ("Return(e)", write_return))
     newline()
@@ -137,14 +195,16 @@ def write_ir(prog):
     in_context(IR, setup_ir(), lambda: write_body(prog))
 
 def main():
+    plus = symref('+')
+    add = lambda a, b: Call(Bind(BindBuiltin(plus)), [a, b])
+
     body = []
     func = Func([], Body(body))
     add_extrinsic(Name, func, 'main')
     foo = Var()
     add_extrinsic(Name, foo, 'foo')
-    plus = symref('+')
-    sum = Call(Bind(BindBuiltin(plus)), [Bind(BindVar(foo)), IntLit(1)])
-    body += [Defn(foo, IntLit(42)),
+    sum = add(Bind(BindVar(foo)), IntLit(1))
+    body += [Defn(foo, add(IntLit(40), IntLit(2))),
              Return(sum)]
     write_ir(Body([FuncStmt(func)]))
 

@@ -1,3 +1,5 @@
+*.bc
+*.ll
 *.pyc
 *.pyd
 *.pyo
@@ -8,3 +10,4 @@ mods
 opt
 views
 a.out
+hello
