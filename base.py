@@ -450,6 +450,16 @@ def match_try(atom, ast):
 match_asts = {}
 
 def match(atom, *cases):
+    # Block form
+    if len(cases) == 0:
+        return match_blocks(atom)
+    elif len(cases) == 1 and isinstance(cases[0], basestring):
+        # shortcut for single-case
+        m = match_blocks(atom)
+        if m(cases[0]):
+            m.ret(m.arg if hasattr(m, 'arg') else m.args)
+        return m.result()
+
     # Try all the cases, find the first that doesn't fail
     for (case, f) in cases:
         call_args = match_try(atom, _get_match_case(case))
@@ -457,6 +467,31 @@ def match(atom, *cases):
             return f(*call_args)
     case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
     assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom, case_list)
+
+def match_blocks(atom):
+    cases = []
+    def case(pat):
+        cases.append(pat)
+        args = match_try(atom, _get_match_case(pat))
+        if args is None:
+            return False
+        if len(args) == 1:
+            case.arg = args[0]
+        else:
+            case.args = args
+        return True
+    def ret(result):
+        case.success = result
+    case.ret = ret
+    def result():
+        if hasattr(case, 'success'):
+            return case.success
+        else:
+            case_list = ''.join('* %s\n' % p for p in cases)
+            assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom,
+                    case_list)
+    case.result = result
+    return case
 
 def matches(atom, case):
     return match_try(atom, _get_match_case(case)) is not None

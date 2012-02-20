@@ -8,7 +8,5 @@ HM
 - schemey TApply
 Expand
 - closure to context conversion
-Base
-- match() with case bodies
 AST
 - fix match special case identity, tuple2, etc
