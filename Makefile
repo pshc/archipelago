@@ -5,7 +5,7 @@ all: test
 
 llvm:
 	@./llvm.py | tee hello.ll
-	@llvmc -o hello hello.ll
+	@llvm-as < hello.ll | opt -mem2reg | lli || echo Exited with code $$?
 
 as:
 	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
