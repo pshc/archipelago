@@ -157,8 +157,10 @@ def load_module_dep(filename, deps):
     name = filename.replace('/', '_')[:-3]
     if name in loaded_modules:
         mod = loaded_modules[name]
+        assert mod is not None, "%s is not ready yet!" % (name,)
         deps.add(mod)
         return mod
+    loaded_modules[name] = None
     from ast import convert_file
     names = {}
     mod = capture_extrinsic(Name, names,
@@ -188,6 +190,8 @@ def load_module_dep(filename, deps):
     write_c(c, 'views')
     native.serialize(c)
     """
+    assert loaded_modules[name] is None
+    loaded_modules[name] = mod
     return mod
 
 _ast_setup = False
