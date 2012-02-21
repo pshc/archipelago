@@ -88,21 +88,23 @@ def bin_op(b):
         ('_', lambda: ''))
 
 def expr_call(f, args):
-    def is_builtin(b):
+    m = match(f)
+    if m('Bind(BindBuiltin(b))'):
+        b = m.arg
         op = bin_op(b)
         assert op != '', 'Unknown builtin %s' % (b,)
         assert len(args) == 2, '%s requires two args' % (op,)
         left = express(args[0])
         right = express(args[1])
         if is_const(left) and is_const(right):
-            return ConstOp(op, [left, right])
+            m.ret(ConstOp(op, [left, right]))
         else:
             tmp = temp_reg_named(op)
             out_xpr(tmp)
             out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
             newline()
-            return tmp
-    def otherwise():
+            m.ret(tmp)
+    else:
         tmp = temp_reg()
         fx = express(f)
         out_xpr(tmp)
@@ -110,9 +112,8 @@ def expr_call(f, args):
         out_xpr(fx)
         write_args(args)
         newline()
-        return tmp
-    return match(f, ('Bind(BindBuiltin(b))', is_builtin),
-                    ('_', otherwise))
+        m.ret(tmp)
+    return m.result()
 
 def expr_match(m, e, cs):
     return Const('undefined ;match')
