@@ -692,17 +692,14 @@ def conv_while(s):
 BUILTINS = {}
 
 def setup_builtin_module():
-    omni, scope = ast_contexts()
-    def go():
-        namespace = valueNamespace
-        for name in builtins_types:
-            # TODO: Deal with this conflict
-            builtin = boot_sym_names.get(name)
-            if builtin is None:
-                builtin = Builtin()
-                add_extrinsic(Name, builtin, name)
-            BUILTINS[(name, namespace)] = (builtin, BindBuiltin)
-    in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
+    namespace = valueNamespace
+    for name in builtins_types:
+        # TODO: Deal with this conflict
+        builtin = boot_sym_names.get(name)
+        if builtin is None:
+            builtin = Builtin()
+            add_extrinsic(Name, builtin, name)
+        BUILTINS[(name, namespace)] = (builtin, BindBuiltin)
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
