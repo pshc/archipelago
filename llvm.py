@@ -227,8 +227,7 @@ def write_ir(prog):
     in_context(IR, setup_ir(), lambda: write_body(prog))
 
 def main():
-    plus = symref('+')
-    add = lambda a, b: Call(Bind(BindBuiltin(plus)), [a, b])
+    add = lambda a, b: symcall('+', [a, b])
 
     body = []
     func = Func([], Body(body))

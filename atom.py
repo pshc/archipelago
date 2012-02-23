@@ -97,12 +97,12 @@ boot_sym_names = {}
 
 csym_roots = []
 
-def symref(name):
+def builtin_binding(name):
     assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return boot_sym_names[name]
+    return Bind(BindBuiltin(boot_sym_names[name]))
 
-def getident(ref):
-    return match(ref, ('Ref(named(nm), _)', identity))
+def symcall(name, params):
+    return Call(builtin_binding(name), params)
 
 def getname(sym):
     return match(sym, ('named(nm)', identity))

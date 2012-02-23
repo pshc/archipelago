@@ -44,9 +44,6 @@ def add_sys_include(filename):
 def add_local_include(filename):
     context(CGLOBAL).cgLocalIncludes.add(filename)
 
-# ensure we don't accidentally use symref() since it will be accepted silently
-_atom_symref = symref
-del symref
 del add_sym
 def csym(name, subs):
     assert isinstance(subs, list), 'Expected list; got %s' % (subs,)
@@ -755,10 +752,12 @@ def mogrify(mod, type_overlays):
     cstmts = incls + cstmts
     return Module("c_" + mod.name, None, cstmts)
 
-# ALL CSYMS CREATED
-for nm in CSYM_NAMES.keys():
-    CSYM_NAMES[nm] = sym = _atom_symref('symbol', [symname(nm)])
-    csym_roots.append(sym)
-serialize_module(Module('csyms', None, csym_roots))
+def _all_csyms_created():
+    for nm in CSYM_NAMES.keys():
+        CSYM_NAMES[nm] = sym = Builtin()
+        add_extrinsic(Name, sym, nm)
+        csym_roots.append(sym)
+    # should serialize or something
+_all_csyms_created()
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

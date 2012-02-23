@@ -113,10 +113,6 @@ def destroy_forward_ref(ref):
             return
     assert False, "Couldn't find forward ref for destruction"
 
-def symcall(name, subs):
-    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return Call(Bind(BindBuiltin(symref(name))), subs)
-
 def inside_scope(f):
     def new_scope(*args, **kwargs):
         prev = context(SCOPE)
@@ -336,11 +332,13 @@ def conv_match_try(node, bs):
             assert len(node.args) == 2 and isinstance(node.args[0], ast.Name)
             i = conv_match_try(node.args[0], bs)
             dummy = []
+            assert False, "yagni"
             return symref(nm + '2', [i, conv_match_try(node.args[1], dummy)])
         args = [conv_match_try(n, bs) for n in node.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
+            assert False, "yagni"
             return symref("%s%d" % (nm, len(args)), args)
         else:
             return PatCtor(refs_existing(nm).ctor, [args])
@@ -357,11 +355,11 @@ def conv_match_try(node, bs):
     elif isinstance(node, ast.Tuple):
         return PatTuple([conv_match_try(n,bs) for n in node.nodes])
     elif isinstance(node, ast.Or):
-        return symref('or', [int_len(node.nodes)]
-                            + [conv_match_try(n, bs) for n in node.nodes])
+        assert False, "yagni?"
+        return PatOr([conv_match_try(n, bs) for n in node.nodes])
     elif isinstance(node, ast.And):
-        return symref('and', [int_len(node.nodes)]
-                             + [conv_match_try(n, bs) for n in node.nodes])
+        assert False, "yagni?"
+        return PatAnd([conv_match_try(n, bs) for n in node.nodes])
     elif isinstance(node, ast.Compare) and node.ops[0][0] == '==':
         assert isinstance(node.expr, ast.Name) and node.expr.name != '_'
         i = Var()
