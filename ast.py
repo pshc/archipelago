@@ -327,6 +327,7 @@ assert set(named_match_cases) == set(named_match_dispatch)
 for nm, ns in named_match_cases.iteritems():
     for n in ns:
         add_sym('%s%d' % (nm, n))
+del nm, ns
 def conv_match_try(node, bs):
     if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
         nm = node.node.name
@@ -442,7 +443,7 @@ def conv_genexprinner(e):
     ea = conv_expr(e.expr)
     comp = e.quals[0]
     # TODO: Ought to be a pattern. Unify?
-    assa = conv_ass(comp.assign)
+    assa = fromJust(conv_ass(comp.assign))
     lista = conv_expr(comp.iter if hasattr(comp, 'iter') else comp.list)
     preds = [conv_expr(if_.test) for if_ in comp.ifs]
     return GenExpr(ea, assa, lista, preds)
@@ -527,18 +528,23 @@ def conv_assert(s):
 @stmt(ast.Assign)
 def conv_assign(s):
     assert len(s.nodes) == 1
+    left = s.nodes[0]
     expra = conv_expr(s.expr)
     if isinstance(expra, SpecialCallForm):
         # s.nodes[0] is usually the same as args[0], skipped for now
         return special_call_forms[expra.name](*expra.args)
-    lefta = conv_ass(s.nodes[0])
     # XXX Distinguish between defn and binding earlier
-    if isJust(lefta):
-        ass = Assign(fromJust(lefta), expra)
+    m = match(conv_ass(left))
+    if m('Just(lefta)'):
+        lefta = m.arg
+        m.ret(Assign(lefta, expra))
     else:
         global_scope = context(SCOPE).indent == 0
-        var = identifier(Var(), nm, export=global_scope)
-        ass = Defn(var, expra)
+        assert isinstance(left, ast.AssName), "Simple assignment only"
+        var = Var()
+        identifier(var, left.name, export=global_scope)
+        m.ret(Defn(var, expra))
+    ass = m.result()
     return [ass]
 
 @stmt(ast.AssList)
@@ -562,7 +568,8 @@ def op_to_aug(op):
 
 @stmt(ast.AugAssign)
 def conv_augassign(s):
-    return [AugAssign(op_to_aug(s.op), conv_lhs(s.node), conv_expr(s.expr))]
+    lhs = fromJust(conv_ass(s.node))
+    return [AugAssign(op_to_aug(s.op), lhs, conv_expr(s.expr))]
 
 @stmt(ast.Break)
 def conv_break(s):
@@ -578,10 +585,14 @@ def conv_discard(s):
         return []
     return [ExprStmt(conv_expr(s.expr))]
 
+# ast lhs -> Maybe Lhs
 def conv_ass(s):
-    if isinstance(s, ast.AssName):
-        # LhsVar
-        return ident_exists(s.name)
+    if isinstance(s, (ast.AssName, ast.Name)):
+        ref = ident_exists(s.name)
+        if isJust(ref):
+            assert isinstance(ref.just, BindVar)
+            ref = Just(LhsVar(ref.just.var))
+        return ref
     elif isinstance(s, ast.AssTuple):
         return Just(LhsTuple([conv_ass(n) for n in s.nodes]))
     elif isinstance(s, ast.AssAttr):
@@ -589,8 +600,7 @@ def conv_ass(s):
         attra = ident_ref(s.attrname, True, export=False)
         return Just(LhsAttr([expra, attra]))
     else:
-        # ???
-        return Just(conv_expr(s))
+        assert False, "Can't convert %s" % (s,)
 
 @stmt(ast.For)
 @inside_scope
