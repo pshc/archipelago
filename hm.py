@@ -291,7 +291,7 @@ def unknown_infer(a):
     assert False, with_context('Unknown infer case:\n%s' % (a,))
 
 def builtin_scheme(builtin):
-    return WTF
+    return builtin_type(extrinsic(Name, builtin))
 
 def check_binding(binding, ref):
     unify_m(match(binding,

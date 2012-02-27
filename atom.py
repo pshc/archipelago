@@ -110,7 +110,7 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, type) else t
 
-def builtin_type_to_atoms(name):
+def builtin_type(name):
     t = builtins_types.get(name)
     if t is None:
         return None
@@ -123,12 +123,14 @@ def builtin_type_to_atoms(name):
         t = _fix_type(t)
     tvars = {}
     def builtin_typevar(v):
-        index = match(v, ('TVar(Int(n, _))', identity))
+        index = match(v, ('TVar(n)', identity))
         if index not in tvars:
-            tvars[index] = symref('typevar', [symname(chr(96 + index))])
+            tvar = TypeVar()
+            add_extrinsic(Name, tvar, chr(96 + index))
+            tvars[index] = tvar
         return TVar(tvars[index])
     t = map_type_vars(builtin_typevar, t)
-    return scheme_to_atoms(Scheme(tvars.values(), t))
+    return Scheme(tvars.values(), t)
 
 def add_sym(name):
     node = boot_sym_names.get(name)
