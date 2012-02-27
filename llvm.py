@@ -85,6 +85,8 @@ def bin_op(b):
     return match(b,
         ('key("+")', lambda: 'add'),
         ('key("-")', lambda: 'sub'),
+        ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
+        ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'),
         ('_', lambda: ''))
 
 def expr_call(f, args):
@@ -99,7 +101,7 @@ def expr_call(f, args):
         if is_const(left) and is_const(right):
             m.ret(ConstOp(op, [left, right]))
         else:
-            tmp = temp_reg_named(op)
+            tmp = temp_reg_named(op.split(' ')[-1])
             out_xpr(tmp)
             out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
             newline()
@@ -136,6 +138,26 @@ def express(expr):
 
 # STATEMENTS
 
+def write_assert(e, msg):
+    ex = express(e)
+    out('br i1 %s, label %%pass, label %%fail\nfail:' %
+            (xpr_str(ex),))
+    newline()
+    #m = express(msg)
+    out('; failure: %r' % (msg,))
+    newline()
+    out('; call i32 (i8*, ...)* @printf()')
+    newline()
+    out('call void @die() noreturn\npass:')
+
+def write_assign(lhs, e):
+    ex = express(e)
+    out('; TODO %s' % (xpr_str(ex),))
+
+def write_augassign(op, lhs, e):
+    ex = express(e)
+    out('; TODO %s' % (xpr_str(ex),))
+
 def write_defn(v, e):
     ex = express(e)
     out_name_reg(v)
@@ -160,8 +182,8 @@ def write_dtstmt(form):
         out(' }')
 
 def write_expr_stmt(e):
-    out_xpr(express(e))
-    newline()
+    ex = express(e)
+    # Don't need to output ex since it is discarded and has no side-effects
 
 def write_extrinsic_stmt(extr):
     clear_indent()
@@ -210,14 +232,30 @@ def write_return(expr):
     out('ret i32 ')
     out_xpr(ex)
 
+def write_while(cond, body):
+    clear_indent()
+    out('loop:')
+    newline()
+    ex = express(cond)
+    out('br i1 %s, label %%loop_body, label %%loop_exit\nloop_body:'
+            % (xpr_str(ex),))
+    newline()
+    write_body(body)
+    out('br label %loop\nloop_exit:')
+    newline()
+
 def write_stmt(stmt):
     match(stmt,
+        ("Assert(e, m)", write_assert),
+        ("Assign(lhs, e)", write_assign),
+        ("AugAssign(op, lhs, e)", write_augassign),
         ("Defn(v, e)", write_defn),
         ("DTStmt(form)", write_dtstmt),
         ("ExprStmt(e)", write_expr_stmt),
         ("ExtrinsicStmt(extr)", write_extrinsic_stmt),
         ("FuncStmt(f==Func(ps, body))", write_func_stmt),
-        ("Return(e)", write_return))
+        ("Return(e)", write_return),
+        ("While(c, b)", write_while))
     newline()
 
 def write_body(body):

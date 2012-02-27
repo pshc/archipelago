@@ -12,7 +12,7 @@ ALGM = new_context('ALGM', '*Type')
 
 STMTCTXT = new_context('STMTCTXT', '*Stmt')
 
-HmEnv = DT('HmEnv', ('envTable', {'*Expr': Scheme}),
+HmEnv = DT('HmEnv', ('envTable', {'*Expr': (Scheme, bool)}),
                     ('envRetType', Type),
                     ('envReturned', 'Maybe(bool)'),
                     ('envPrev', 'Env'))
@@ -330,7 +330,7 @@ def infer_expr(e):
 def check_lhs(tv, lhs):
     in_context(ALGM, tv, lambda: match(lhs,
         ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
-        ("LhsVar(v)", lambda v: check_binding(v, lhs)),
+        ("LhsVar(v)", lambda v: unify_m(get_type(v, tv))),
         ("_", lambda: unknown_infer(lhs))))
 
 def infer_lhs(a):
@@ -431,7 +431,7 @@ def infer_stmt(a):
         ("Defn(var, e)", infer_defn),
         ("ExtrinsicStmt(extr)", infer_new_extrinsic),
         ("Assign(lhs, e)", infer_assign),
-        ("AugAssign(op, lhs, e)", infer_augassign),
+        ("AugAssign(_, lhs, e)", infer_augassign),
         ("ExprStmt(e)", infer_expr),
         ("Cond(cases, elseCase)", infer_cond),
         ("While(t, b)",infer_while),
