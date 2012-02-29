@@ -188,8 +188,6 @@ def load_module_dep(filename, deps):
     from mogrify import mogrify
     c = mogrify(mod, overlays)
     write_mod_repr('views/' + name + '.c.txt', c, {})
-    from c import write_c
-    write_c(c, 'views')
     native.serialize(c)
     """
     assert loaded_modules[name] is None

@@ -214,7 +214,7 @@ def check_logic(l, r):
     unify_m(TBool())
 
 def check_lambda(lam, args, b, ref):
-    body = [Return(b)] # stupid hack
+    body = Body([Return(b)]) # stupid hack
     s = infer_func_scheme(None, args, body) # non-recursive, so None
     set_scheme(lam, s, True)
     t = instantiate_scheme(s, ref) # stupider hack

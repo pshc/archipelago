@@ -264,7 +264,7 @@ def write_body(body):
 def write_ir(prog):
     in_context(IR, setup_ir(), lambda: write_body(prog))
 
-def main():
+def simple_test():
     add = lambda a, b: symcall('+', [a, b])
 
     body = []
@@ -277,7 +277,21 @@ def main():
              Return(sum)]
     write_ir(Body([FuncStmt(func)]))
 
+def main():
+    import sys
+    load_builtins()
+    load_forms()
+    load_module('bedrock.py')
+    for filename in sys.argv[1:]:
+        load_module(filename)
+
 if __name__ == '__main__':
-    main()
+    scope_extrinsic(Location,
+        lambda: scope_extrinsic(ModIndex,
+        lambda: scope_extrinsic(ModDigest,
+        lambda: scope_extrinsic(TypeOf,
+        main
+    ))))
+
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

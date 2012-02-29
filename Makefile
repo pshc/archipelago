@@ -11,7 +11,7 @@ as:
 	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
 
 tada: opt mods views
-	./c.py short.py
+	./llvm.py short.py
 
 demo:
 	./demo.py
@@ -24,10 +24,10 @@ views:
 	mkdir $@
 
 views/tests_%: tests/%.py
-	./c.py $<
+	./llvm.py $<
 
 remake_tests:
-	./c.py $(TESTS)
+	./llvm.py $(TESTS)
 
 #test: $(TEST_BINS)
 test: remake_tests
