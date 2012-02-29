@@ -250,9 +250,7 @@ def write_stmt(stmt):
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Defn(v, e)", write_defn),
-        ("DTStmt(form)", write_dtstmt),
         ("ExprStmt(e)", write_expr_stmt),
-        ("ExtrinsicStmt(extr)", write_extrinsic_stmt),
         ("FuncStmt(f==Func(ps, body))", write_func_stmt),
         ("Return(e)", write_return),
         ("While(c, b)", write_while))
@@ -261,8 +259,19 @@ def write_stmt(stmt):
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
 
+def write_top(top):
+    match(top,
+        ("TopDefn(v, e)", write_defn),
+        ("TopDT(form)", write_dtstmt),
+        ("TopExtrinsic(extr)", write_extrinsic_stmt),
+        ("TopFunc(f==Func(ps, body))", write_func_stmt))
+    newline()
+
+def write_unit(unit):
+    map_(write_top, unit.tops)
+
 def write_ir(prog):
-    in_context(IR, setup_ir(), lambda: write_body(prog))
+    in_context(IR, setup_ir(), lambda: write_unit(prog))
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])

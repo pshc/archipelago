@@ -16,8 +16,11 @@ OMNI = new_context('OMNI', OmniContext)
 
 def ast_contexts():
     omni = OmniContext({}, {}, {}, set())
-    scope = ScopeContext(-1, {}, None)
+    scope = ScopeContext(0, {}, None)
     return omni, scope
+
+def is_top_level():
+    return context(SCOPE).indent == 0
 
 loaded_module_export_names = {}
 
@@ -124,6 +127,7 @@ def inside_scope(f):
 def unknown_stmt(node):
     print '??%s %s??' % (node.__class__,
           ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
+    exit(-1)
 
 def unknown_expr(node):
     print '%s?(%s)' % (str(node.__class__),
@@ -170,6 +174,7 @@ def conv_type(t, tvars, dt=None):
             lambda t: TArray(conv_type(t, tvars, dt))),
         ("_", unknown))
 
+(top_level, conv_top_level) = make_grammar_decorator(unknown_stmt)
 (stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
 (expr, conv_expr) = make_grammar_decorator(unknown_expr)
 
@@ -220,7 +225,7 @@ def _make_dt(dt_nm, *args, **opts):
     identifier(dt, namespace=typeNamespace)
     for ctor in dt.ctors:
         identifier(ctor)
-    return [DTStmt(dt)]
+    return [TopDT(dt)]
 
 def make_adt(*args):
     return _make_dt(*args, **(dict(maker=ADT)))
@@ -231,13 +236,13 @@ def make_context(nm, t):
     tvars = {}
     ctxt = Ctxt(conv_type(t, tvars))
     identifier(ctxt, nm, namespace=symbolNamespace, export=True)
-    return [CtxtStmt(ctxt)]
+    return [TopCtxt(ctxt)]
 
 def make_extrinsic(nm, t):
     tvars = {}
     extr = Extrinsic(conv_type(t, tvars))
     identifier(extr, nm, namespace=symbolNamespace, export=True)
-    return [ExtrinsicStmt(extr)]
+    return [TopExtrinsic(extr)]
 
 def conv_get_context(args):
     assert len(args) == 1
@@ -524,6 +529,7 @@ def conv_assert(s):
     return [Assert(conv_expr(s.test), fail)]
 
 @stmt(ast.Assign)
+@top_level(ast.Assign)
 def conv_assign(s):
     assert len(s.nodes) == 1
     left = s.nodes[0]
@@ -533,15 +539,16 @@ def conv_assign(s):
         return special_call_forms[expra.name](*expra.args)
     # XXX Distinguish between defn and binding earlier
     m = match(conv_ass(left))
+    global_scope = is_top_level()
     if m('Just(lefta)'):
+        assert not global_scope
         lefta = m.arg
         m.ret(Assign(lefta, expra))
     else:
-        global_scope = context(SCOPE).indent == 0
         assert isinstance(left, ast.AssName), "Simple assignment only"
         var = Var()
         identifier(var, left.name, export=global_scope)
-        m.ret(Defn(var, expra))
+        m.ret(TopDefn(var, expra) if global_scope else Defn(var, expra))
     ass = m.result()
     return [ass]
 
@@ -608,7 +615,7 @@ def conv_for(s):
     return [For(conv_ass(s.assign), conv_expr(s.list),
             conv_stmts_noscope(s.body))]
 
-@stmt(ast.From)
+@top_level(ast.From)
 def conv_from(s):
     names = ', '.join(import_names(s.names))
     if s.modname != 'base':
@@ -623,6 +630,7 @@ def conv_from(s):
     return []
 
 @stmt(ast.Function)
+@top_level(ast.Function)
 def conv_function(s):
     export = True
     for dec in s.decorators or []:
@@ -637,7 +645,7 @@ def conv_function(s):
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    return [FuncStmt(rest())]
+    return [TopFunc(rest()) if is_top_level() else FuncStmt(rest())]
 
 @stmt(ast.If)
 def conv_if(s):
@@ -703,15 +711,18 @@ def setup_builtin_module():
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
-    stmts = compiler.parseFile(filename).node.nodes
-    mod = Module(t_DT(Body), None)
+    tops = compiler.parseFile(filename).node.nodes
+    mod = Module(t_DT(CompilationUnit), None)
     add_extrinsic(Name, mod, name)
     deps.add(mod)
     omni, scope = ast_contexts()
     omni.loadedModules = deps
     def go():
         scope.syms.update(BUILTINS)
-        return Body(conv_stmts(stmts))
+        root = []
+        for top in tops:
+            root += conv_top_level(top)
+        return CompilationUnit(root)
     mod.root = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
     # Resolve imports for missing symbols
     missing = omni.missingRefs

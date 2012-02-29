@@ -426,10 +426,7 @@ def infer_returnnothing():
 
 def infer_stmt(a):
     in_context(STMTCTXT, a, lambda: match(a,
-        ("DTStmt(form)", infer_DT),
-        ("CtxtStmt(ctxt)", infer_new_context),
         ("Defn(var, e)", infer_defn),
-        ("ExtrinsicStmt(extr)", infer_new_extrinsic),
         ("Assign(lhs, e)", infer_assign),
         ("AugAssign(_, lhs, e)", infer_augassign),
         ("ExprStmt(e)", infer_expr),
@@ -444,6 +441,19 @@ def infer_stmt(a):
 def infer_body(body):
     for s in body.stmts:
         infer_stmt(s)
+
+def infer_top_level(a):
+    in_context(STMTCTXT, a, lambda: match(a,
+        ("TopDT(form)", infer_DT),
+        ("TopCtxt(ctxt)", infer_new_context),
+        ("TopDefn(var, e)", infer_defn),
+        ("TopExtrinsic(extr)", infer_new_extrinsic),
+        ("TopFunc(f)", infer_func),
+        ("otherwise", unknown_infer)))
+
+def infer_compilation_unit(unit):
+    for s in unit.tops:
+        infer_top_level(s)
 
 def with_fields(func):
     def go():
@@ -502,7 +512,7 @@ def infer_types(root):
         lambda: capture_extrinsic(TypeCast, possible_casts,
         lambda: in_new_env(
         lambda: with_fields(
-        lambda: infer_body(root)
+        lambda: infer_compilation_unit(root)
     )))))))
 
     casts = {}

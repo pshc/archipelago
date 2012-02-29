@@ -72,8 +72,8 @@ Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsAttr', ('sub', 'Lhs'), ('attr', '*Field'),
         'LhsTuple', ('vals', '[Lhs]'))
 
-Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
-    DTStmt, ExprStmt, ExtrinsicStmt, FuncStmt, Return, ReturnNothing, While = \
+Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
+    ExprStmt, FuncStmt, Return, ReturnNothing, While = \
     ADT('Stmt',
         'Assert', ('test', Expr), ('message', Expr),
         'Assign', ('lhs', Lhs), ('expr', Expr),
@@ -81,15 +81,22 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, CtxtStmt, Defn, \
         'Break',
         'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
         'Continue',
-        'CtxtStmt', ('ctxt', Ctxt),
         'Defn', ('var', 'Var'), ('expr', Expr),
-        'DTStmt', ('form', 'DataType'),
         'ExprStmt', ('expr', Expr),
-        'ExtrinsicStmt', ('extrinsic', Extrinsic),
         'FuncStmt', ('func', Func),
         'Return', ('expr', Expr),
         'ReturnNothing',
         'While', ('test', Expr), ('body', Body))
+
+TopLevel, TopDefn, TopFunc, TopDT, TopExtrinsic, TopCtxt = \
+    ADT('TopLevel',
+        'TopDefn', ('var', Var), ('expr', Expr),
+        'TopFunc', ('func', Func),
+        'TopDT', ('form', 'DataType'),
+        'TopExtrinsic', ('extrinsic', Extrinsic),
+        'TopCtxt', ('ctxt', Ctxt))
+
+CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
 
 # Bootstrap module
 boot_syms = []
@@ -278,7 +285,7 @@ def load_builtins():
 def load_forms():
     resolve_forward_type_refs()
 
-    pending = set([Body.__dt__.__form__])
+    pending = set([CompilationUnit.__dt__.__form__])
     done = set()
     forms = []
     names = {}
