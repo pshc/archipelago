@@ -96,6 +96,9 @@ def context(ctxt):
     assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
+def have_context(ctxt):
+    return bool(ctxt.ctxtStack)
+
 TVARS = new_context('TVARS', None)
 
 # Extrinsics
