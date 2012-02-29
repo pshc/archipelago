@@ -17,7 +17,7 @@ ExScope = DT('ExScope', ('curFlow', FlowNode),
                         ('funcScope', 'Maybe(ExScope)'),
                         ('prevScope', 'Maybe(ExScope)'))
 
-EXSCOPE = Nothing()
+EXSCOPE = new_context('EXSCOPE', ExScope)
 
 ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Stmt),
                           ('egFuncAugs', {'*Stmt': ['*Stmt']}),
@@ -26,36 +26,32 @@ ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Stmt),
                           ('egVarLifetime', {'*Var': VarLifetime}),
                           ('egVarUses', {'*Var': VarUse}))
 
-EXGLOBAL = Nothing()
+EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 
-def setup_ex_env(roots):
-    global EXSCOPE
-    EXSCOPE = Nothing()
-    global EXGLOBAL
-    EXGLOBAL = Just(ExGlobal(roots[0], {}, {}, {}, {}, {}))
+def in_ex_env(f):
+    eg = ExGlobal(None, {}, {}, {}, {}, {})
+    s = ExScope(inflow, [], {}, {}, Nothing(), Nothing())
+    in_context(EXGLOBAL, eg, lambda: in_context(EXSCOPE, s, f))
 
 def in_new_scope(f, inflow, outflows):
-    global EXSCOPE
-    surroundingFunc = mapMaybe(lambda s: s.funcScope, EXSCOPE)
-    s = ExScope(inflow, [], {}, {}, surroundingFunc, EXSCOPE)
-    EXSCOPE = Just(s)
-    ret = f(s)
-    assert s is EXSCOPE.just, "Scope inconsistency"
-    # the last flow in this scope exits to the outer scope
-    add_outflows(s.curFlow, outflows)
-    EXSCOPE = s.prevScope
-    return ret
+    def go():
+        ret = f(context(EXSCOPE))
+        # the last flow in this scope exits to the outer scope
+        add_outflows(s.curFlow, outflows)
+        return ret
+
+    oldScope = context(EXSCOPE)
+    s = ExScope(inflow, [], {}, {}, oldScope.funcScope, Just(oldScope))
+    return in_context(EXSCOPE, s, go)
 
 def new_flow():
     return FlowNode(set(), False)
 
 def cur_flow():
-    global EXSCOPE
-    return fromJust(EXSCOPE).curFlow
+    return context(EXSCOPE).curFlow
 
 def activate_flow(flow):
-    global EXSCOPE
-    fromJust(EXSCOPE).curFlow = flow
+    context(EXSCOPE).curFlow = flow
 
 def add_outflows(flow, outflows):
     flow.outflows.update(outflows)
@@ -69,8 +65,7 @@ def ex_lambda(lam, args, e):
     nm = symname('lambda_func')
     fargs = [int_len(args)] + args
 
-    global EXGLOBAL
-    eg = fromJust(EXGLOBAL)
+    eg = context(EXGLOBAL)
 
     for a in args:
         eg.egVarLifetime[a] = VarLifetime(0)
@@ -108,8 +103,7 @@ def ex_inctxt(ctxt, init, f):
     ex_expr(f)
 
 def ex_var(r, v):
-    global EXGLOBAL
-    eg = fromJust(EXGLOBAL)
+    eg = context(EXGLOBAL)
     life = eg.egVarLifetime[v]
     eg.egVarUses[r] = VarUse(life.staticCtr)
 
@@ -134,9 +128,8 @@ def ex_expr(e):
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
-    global EXGLOBAL, EXSCOPE
-    EXGLOBAL.just.egVarLifetime[v] = VarLifetime(0)
-    EXSCOPE.just.localVars[v] = None # What to store?
+    context(EXGLOBAL).egVarLifetime[v] = VarLifetime(0)
+    context(EXSCOPE).localVars[v] = None # What to store?
     ex_expr(e)
 
 def ex_assign(a, e):
@@ -149,10 +142,9 @@ def ex_lhs(a):
         ("Ref(v==key('var'), _)", ex_lhs_var))
 
 def ex_lhs_var(v):
-    global EXGLOBAL, EXSCOPE
-    EXGLOBAL.just.egVarLifetime[v].staticCtr += 1
-    destScope = fromJust(EXSCOPE)
-    scope = EXSCOPE
+    context(EXGLOBAL).egVarLifetime[v].staticCtr += 1
+    destScope = context(EXSCOPE)
+    scope = Just(destScope)
     while True:
         assert isJust(scope), "Never-defined local var " + repr(v)
         s = fromJust(scope)
@@ -195,8 +187,7 @@ def ex_assert(t, m):
     ex_expr(m)
 
 def ex_func(f, args, b):
-    global EXGLOBAL
-    eg = fromJust(EXGLOBAL)
+    eg = context(EXGLOBAL)
     for a in args:
         eg.egVarLifetime[a] = VarLifetime(0)
 
@@ -207,28 +198,30 @@ def ex_func(f, args, b):
     in_new_scope(f_body, new_flow(), set())
 
 def ex_return(e):
-    if isJust(e):
-        ex_expr(fromJust(e))
+    ex_expr(e)
     cur_flow().returns = True
     # New flow is guaranteed dead. Blah. But OK for now.
     # (Avoiding dead code removal for now for debugability)
     activate_flow(new_flow())
 
+def ex_returnnothing():
+    cur_flow().returns = True
+    activate_flow(new_flow())
+
 def ex_stmt(s):
     match(s,
-        ("key('exprstmt', cons(e, _))", ex_expr),
-        ("key('defn', cons(v, cons(e, _)))", ex_defn),
-        ("key('=' or '+=' or '-=', cons(a, cons(e, _)))", ex_assign),
-        ("c==key('cond', ss and all(cs, key('case', cons(t, sized(b)))))",
-            ex_cond),
-        ("key('while', cons(t, contains(key('body', sized(b)))))", ex_while),
-        ("key('assert', cons(t, cons(m, _)))", ex_assert),
-        ("key('DT')", nop),
-        ("key('CTXT')", nop),
-        ("f==key('func', contains(key('args', sized(a))) "
-                 "and contains(key('body', sized(b))))", ex_func),
-        ("key('return', cons(e, _))", lambda e: ex_return(Just(e))),
-        ("key('returnnothing')", lambda: ex_return(Nothing())))
+        ("ExprStmt(e)", ex_expr),
+        ("Defn(var, e)", ex_defn),
+        ("Assign(lhs, e)", ex_assign),
+        ("AugAssign(op, lhs, e)", ex_augassign),
+        ("Cond(cases, elseCase)", ex_cond),
+        ("While(t, b)", ex_while),
+        ("Assert(t, m)", ex_assert),
+        ("DTStmt(_)", nop),
+        ("CtxtStmt(_)", nop),
+        ("FuncStmt(f)", ex_func),
+        ("Return(e)", ex_return),
+        ("ReturnNothing()", ex_returnnothing))
 
 def nop():
     pass
@@ -236,17 +229,15 @@ def nop():
 def ex_body(ss):
     map_(ex_stmt, ss)
 
-def expand_ast(roots):
-    if len(roots) == 0:
-        return {}
-    setup_ex_env(roots)
-    global EXGLOBAL
-    eg = EXGLOBAL.just
-    for root in roots:
-        eg.egCurTopLevelDecl = root
-        ex_body(roots)
-    return {globs.FuncAnnot: eg.egFuncAugs,
-            globs.ExTypeAnnot: eg.egTypeAugs,
-            globs.ExLambdaAnnot: eg.egLambdaRefs}
+def expand_module(mod):
+    def go():
+        eg = context(EXGLOBAL)
+        for root in mod.root.stmts:
+            eg.egCurTopLevelDecl = root
+            ex_stmt(root)
+        return {globs.FuncAnnot: eg.egFuncAugs,
+                globs.ExTypeAnnot: eg.egTypeAugs,
+                globs.ExLambdaAnnot: eg.egLambdaRefs}
+    return in_ex_env(go)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
