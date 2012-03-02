@@ -62,12 +62,7 @@ def ex_call(f, args):
     map_(ex_expr, args)
 
 def ex_funcexpr(fe, f, params, body):
-    def go(scope):
-        scope.funcScope = Just(scope)
-        for p in params:
-            scope.localVars[p] = FormalParam()
-        ex_body(body)
-    in_new_scope(go, new_flow())
+    ex_func(params, body)
 
     key = context(EXGLOBAL).egCurTopLevel
 
@@ -171,6 +166,9 @@ def ex_func(params, b):
         for p in params:
             scope.localVars[p] = FormalParam()
         ex_body(b)
+        for endingScope in scope.pendingFlows:
+            endingScope.returns = True
+        scope.pendingFlows = []
     in_new_scope(go, new_flow())
 
 def ex_return(e):
@@ -179,7 +177,6 @@ def ex_return(e):
 
 def ex_returnnothing():
     cur_flow().returns = True
-    activate_flow(new_flow())
 
 def ex_stmt(s):
     match(s,
