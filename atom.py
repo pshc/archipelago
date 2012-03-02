@@ -73,7 +73,7 @@ Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsTuple', ('vals', '[Lhs]'))
 
 Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
-    ExprStmt, FuncStmt, Return, ReturnNothing, While = \
+    ExprStmt, Return, ReturnNothing, While = \
     ADT('Stmt',
         'Assert', ('test', Expr), ('message', Expr),
         'Assign', ('lhs', Lhs), ('expr', Expr),
@@ -83,7 +83,6 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'Continue',
         'Defn', ('var', 'Var'), ('expr', Expr),
         'ExprStmt', ('expr', Expr),
-        'FuncStmt', ('func', Func),
         'Return', ('expr', Expr),
         'ReturnNothing',
         'While', ('test', Expr), ('body', Body))

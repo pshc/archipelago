@@ -190,7 +190,6 @@ def ex_stmt(s):
         ("Cond(cases, elseCase)", ex_cond),
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
-        ("FuncStmt(Func(params, b))", ex_func),
         ("Return(e)", ex_return),
         ("ReturnNothing()", ex_returnnothing))
 

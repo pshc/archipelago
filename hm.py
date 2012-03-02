@@ -432,7 +432,6 @@ def infer_stmt(a):
         ("Cond(cases, elseCase)", infer_cond),
         ("While(t, b)",infer_while),
         ("Assert(t, m)", infer_assert),
-        ("FuncStmt(f)", infer_func),
         ("Return(e)", infer_return),
         ("ReturnNothing()", infer_returnnothing),
         ("otherwise", unknown_infer)))

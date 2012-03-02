@@ -634,20 +634,19 @@ def conv_from(s):
 @stmt(ast.Function)
 @top_level(ast.Function)
 def conv_function(s):
-    export = True
-    for dec in s.decorators or []:
-        e = conv_expr(dec)
-        if match(e, ("somekindofreference(nm)", lambda nm: nm == 'local'),
-                    ("_", lambda: False)):
-            export = False
     func = Func([], Body([]))
-    identifier(func, s.name, export=export)
     @inside_scope
     def rest():
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    return [TopFunc(rest()) if is_top_level() else FuncStmt(rest())]
+    if is_top_level():
+        identifier(func, s.name, export=True)
+        return [TopFunc(rest())]
+    else:
+        var = Var()
+        identifier(var, s.name)
+        return [Defn(var, FuncExpr(rest()))]
 
 @stmt(ast.If)
 def conv_if(s):

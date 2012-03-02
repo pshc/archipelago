@@ -190,7 +190,7 @@ def write_extrinsic_stmt(extr):
     out('; extrninsic ')
     out(extrinsic(Name, extr))
 
-def write_func_stmt(f, ps, body):
+def write_top_func(f, ps, body):
     clear_indent()
     out('define i32 @')
     out_name(f)
@@ -251,7 +251,6 @@ def write_stmt(stmt):
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
-        ("FuncStmt(f==Func(ps, body))", write_func_stmt),
         ("Return(e)", write_return),
         ("While(c, b)", write_while))
     newline()
@@ -264,7 +263,7 @@ def write_top(top):
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
         ("TopExtrinsic(extr)", write_extrinsic_stmt),
-        ("TopFunc(f==Func(ps, body))", write_func_stmt))
+        ("TopFunc(f==Func(ps, body))", write_top_func))
     newline()
 
 def write_unit(unit):
