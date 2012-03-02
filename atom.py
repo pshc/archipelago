@@ -188,10 +188,10 @@ def load_module_dep(filename, deps):
     from llvm import write_ir
     write_ir(mod.root)
 
+    from expand import expand_module
+    overlays = expand_module(mod)
+    #write_mod_repr('views/' + name + '.txt', mod, overlays)
     """
-    from expand import expand_ast
-    overlays = expand_ast(mod.roots)
-    write_mod_repr('views/' + name + '.txt', mod, overlays)
     from mogrify import mogrify
     c = mogrify(mod, overlays)
     write_mod_repr('views/' + name + '.c.txt', c, {})
