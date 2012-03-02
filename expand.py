@@ -11,6 +11,7 @@ VarLifetime = DT('VarLifetime', ('staticCtr', int))
 VarUse = DT('VarUse', ('useIndex', int))
 
 ExScope = DT('ExScope', ('curFlow', FlowNode),
+                        ('pendingFlows', ['*FlowNode']),
                         ('formalParams', ['*Var']),
                         ('localVars', {'*Var': '*Var'}),
                         ('closedVars', {'*Var': '*Var'}),
@@ -19,7 +20,7 @@ ExScope = DT('ExScope', ('curFlow', FlowNode),
 
 EXSCOPE = new_context('EXSCOPE', ExScope)
 
-ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Stmt),
+ExGlobal = DT('ExGlobal', ('egCurTopLevel', TopLevel),
                           ('egFuncAugs', {'*Stmt': ['*Stmt']}),
                           ('egTypeAugs', {'*Stmt': '*Expr'}),
                           ('egLambdaRefs', {'*Expr': '*Stmt'}),
@@ -28,20 +29,19 @@ ExGlobal = DT('ExGlobal', ('egCurTopLevelDecl', Stmt),
 
 EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 
-def in_ex_env(f):
-    eg = ExGlobal(None, {}, {}, {}, {}, {})
-    s = ExScope(inflow, [], {}, {}, Nothing(), Nothing())
-    in_context(EXGLOBAL, eg, lambda: in_context(EXSCOPE, s, f))
+def init_global():
+    return ExGlobal(None, {}, {}, {}, {}, {})
 
-def in_new_scope(f, inflow, outflows):
+def top_scope():
+    return ExScope(new_flow(), [], [], {}, {}, Nothing(), Nothing())
+
+def in_new_scope(f, innerFlow):
     def go():
         ret = f(context(EXSCOPE))
-        # the last flow in this scope exits to the outer scope
-        add_outflows(s.curFlow, outflows)
         return ret
 
     oldScope = context(EXSCOPE)
-    s = ExScope(inflow, [], {}, {}, oldScope.funcScope, Just(oldScope))
+    s = ExScope(innerFlow, [], [], {}, {}, oldScope.funcScope, Just(oldScope))
     return in_context(EXSCOPE, s, go)
 
 def new_flow():
@@ -74,12 +74,12 @@ def ex_lambda(lam, args, e):
         scope.formalParams = args
         ex_expr(e)
     flow = new_flow()
-    in_new_scope(lam_body, flow, set())
+    in_new_scope(lam_body, flow)
 
     fbody = [int_(1), symref('return', [symref('xref', [ref_(e)])])]
     f = symref('func', [nm, symref('args', fargs), symref('body', fbody)])
 
-    key = eg.egCurTopLevelDecl
+    key = eg.egCurTopLevel
 
     if key not in eg.egFuncAugs:
         eg.egFuncAugs[key] = []
@@ -112,19 +112,18 @@ def ex_unknown_expr(e):
 
 def ex_expr(e):
     match(e,
-        ("Int(_, _)", nop),
-        ("Str(_, _)", nop),
-        ("key('call', cons(f, sized(args)))", ex_call),
-        ("lam==key('lambda', sized(args, cons(e, _)))", ex_lambda),
-        ("key('tuplelit', sized(ts))", lambda ts: map_(ex_expr, ts)),
-        ("key('listlit', sized(ls))", lambda ls: map_(ex_expr, ls)),
-        ("m==key('match', cons(e, all(cs, c==key('case'))))", ex_match),
-        ("key('attr', cons(s, cons(Ref(_, _), _)))", ex_expr),
-        ("key('getctxt', cons(Ref(ctxt, _), _))", ex_getctxt),
-        ("key('inctxt', cons(Ref(ctxt, _), cons(i, cons(f, _))))", ex_inctxt),
-        ("r==Ref(v==key('var'), _)", ex_var),
-        ("Ref(key('func' or 'ctor'), _)", nop),
-        ("Ref(key('symbol', contains(key('type'))), _)", nop),
+        ("IntLit(_)", nop),
+        ("StrLit(_)", nop),
+        ("Call(f, args)", ex_call),
+        ("lam==Lambda(params, e)", ex_lambda),
+        ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
+        ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
+        ("m==Match(e, cases)", ex_match),
+        ("Attr(e, _)", ex_expr),
+        ("GetCtxt(ctxt)", ex_getctxt),
+        ("InCtxt(ctxt, i, e)", ex_inctxt),
+        ("r==Bind(BindVar(v))", ex_var),
+        ("Bind(BindFunc(_) or BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
@@ -138,8 +137,8 @@ def ex_assign(a, e):
 
 def ex_lhs(a):
     match(a,
-        ("key('attr', cons(s, cons(Ref(_, _), _)))", ex_lhs),
-        ("Ref(v==key('var'), _)", ex_lhs_var))
+        ("LhsAttr(s, _)", ex_lhs),
+        ("LhsVar(v)", ex_lhs_var))
 
 def ex_lhs_var(v):
     context(EXGLOBAL).egVarLifetime[v].staticCtr += 1
@@ -160,27 +159,24 @@ def ex_flow(s, b, top):
 
 def ex_cond(cond, ss, cs):
     incomingFlow = cur_flow()
-    outgoingFlow = new_flow()
     for t, b in cs:
         ex_expr(t)
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda s: ex_body(b), flow, set([outgoingFlow]))
+        in_new_scope(lambda s: ex_body(b), flow)
     eb = match(ss, ("contains(key('else', sized(body)))", Just),
                    ("_", Nothing))
     if isJust(eb):
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda s: ex_body(fromJust(eb)), flow, set([outgoingFlow]))
+        in_new_scope(lambda s: ex_body(fromJust(eb)), flow)
     activate_flow(outgoingFlow)
 
 def ex_while(t, b):
     incomingFlow = cur_flow()
-    outgoingFlow = new_flow()
     ex_expr(t)
     flow = new_flow()
-    in_new_scope(lambda s: ex_body(b), flow, set([flow, outgoingFlow]))
-    activate_flow(outgoingFlow)
+    in_new_scope(lambda s: ex_body(b), flow)
 
 def ex_assert(t, m):
     ex_expr(t)
@@ -195,7 +191,7 @@ def ex_func(f, args, b):
         scope.formalParams = args
         scope.funcScope = Just(scope)
         ex_body(b)
-    in_new_scope(f_body, new_flow(), set())
+    in_new_scope(f_body, new_flow())
 
 def ex_return(e):
     ex_expr(e)
@@ -213,31 +209,37 @@ def ex_stmt(s):
         ("ExprStmt(e)", ex_expr),
         ("Defn(var, e)", ex_defn),
         ("Assign(lhs, e)", ex_assign),
-        ("AugAssign(op, lhs, e)", ex_augassign),
+        ("AugAssign(_, lhs, e)", ex_assign),
         ("Cond(cases, elseCase)", ex_cond),
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
-        ("DTStmt(_)", nop),
-        ("CtxtStmt(_)", nop),
-        ("FuncStmt(f)", ex_func),
+        ("FuncStmt(f==Func(args, b))", ex_func),
         ("Return(e)", ex_return),
         ("ReturnNothing()", ex_returnnothing))
 
 def nop():
     pass
 
-def ex_body(ss):
-    map_(ex_stmt, ss)
+def ex_body(body):
+    map_(ex_stmt, body.stmts)
+
+def ex_top_level(s):
+    match(s,
+        ("TopDefn(var, e)", ex_defn),
+        ("TopFunc(f==Func(args, b))", ex_func),
+        ("TopDT(_)", nop),
+        ("TopCtxt(_)", nop),
+        ("TopExtrinsic(_)", nop))
 
 def expand_module(mod):
     def go():
         eg = context(EXGLOBAL)
-        for root in mod.root.stmts:
-            eg.egCurTopLevelDecl = root
-            ex_stmt(root)
-        return {globs.FuncAnnot: eg.egFuncAugs,
-                globs.ExTypeAnnot: eg.egTypeAugs,
-                globs.ExLambdaAnnot: eg.egLambdaRefs}
-    return in_ex_env(go)
+        for top in mod.root.tops:
+            eg.egCurTopLevel = top
+            in_context(EXSCOPE, top_scope(), lambda: ex_top_level(top))
+        return {'func': eg.egFuncAugs,
+                'type': eg.egTypeAugs,
+                'lambda': eg.egLambdaRefs}
+    return in_context(EXGLOBAL, init_global(), go)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
