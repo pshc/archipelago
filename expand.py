@@ -6,42 +6,39 @@ import globs
 FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
                           ('returns', bool))
 
-VarLifetime = DT('VarLifetime', ('staticCtr', int))
-
-VarUse = DT('VarUse', ('useIndex', int))
+VarKind, LocalVar, FormalParam = ADT('VarKind', 'LocalVar', 'FormalParam')
 
 ExScope = DT('ExScope', ('curFlow', FlowNode),
                         ('pendingFlows', ['*FlowNode']),
-                        ('formalParams', ['*Var']),
-                        ('localVars', {'*Var': '*Var'}),
+                        ('localVars', {'*Var': VarKind}),
                         ('closedVars', {'*Var': '*Var'}),
                         ('funcScope', 'Maybe(ExScope)'),
                         ('prevScope', 'Maybe(ExScope)'))
 
 EXSCOPE = new_context('EXSCOPE', ExScope)
 
-ExGlobal = DT('ExGlobal', ('egCurTopLevel', TopLevel),
-                          ('egFuncAugs', {'*Stmt': ['*Stmt']}),
-                          ('egTypeAugs', {'*Stmt': '*Expr'}),
-                          ('egVarLifetime', {'*Var': VarLifetime}),
-                          ('egVarUses', {'*Var': VarUse}))
+ExGlobal = DT('ExGlobal', ('egCurTopLevel', TopLevel))
 
 EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 
-def init_global():
-    return ExGlobal(None, {}, {}, {}, {})
+ExCode = DT('ExCode', ('tops', [TopLevel]))
+Expansion = new_extrinsic('Expansion', ExCode)
+
+ClosureInfo = DT('ClosureInfo', ('func', Func))
+Closure = new_extrinsic('Closure', ClosureInfo)
+
+VarInfo = DT('VarInfo', ('scope', ExScope))
+LocalVar = new_extrinsic('LocalVar', VarInfo)
 
 def top_scope():
-    return ExScope(new_flow(), [], [], {}, {}, Nothing(), Nothing())
+    return ExScope(new_flow(), [], {}, {}, Nothing(), Nothing())
 
 def in_new_scope(f, innerFlow):
-    def go():
-        ret = f(context(EXSCOPE))
-        return ret
-
     oldScope = context(EXSCOPE)
-    s = ExScope(innerFlow, [], [], {}, {}, oldScope.funcScope, Just(oldScope))
-    return in_context(EXSCOPE, s, go)
+    s = ExScope(innerFlow, [], {}, {}, oldScope.funcScope, Just(oldScope))
+    ret = in_context(EXSCOPE, s, lambda: f(context(EXSCOPE)))
+    oldScope.pendingFlows += s.pendingFlows
+    return ret
 
 def new_flow():
     return FlowNode(set(), False)
@@ -49,8 +46,13 @@ def new_flow():
 def cur_flow():
     return context(EXSCOPE).curFlow
 
-def activate_flow(flow):
-    context(EXSCOPE).curFlow = flow
+def activate_flow(newFlow):
+    scope = context(EXSCOPE)
+    scope.curFlow = newFlow
+    if len(scope.pendingFlows) > 0:
+        for flow in scope.pendingFlows:
+            flow.outflows.add(newFlow)
+        scope.pendingFlows = []
 
 def add_outflows(flow, outflows):
     flow.outflows.update(outflows)
@@ -59,30 +61,20 @@ def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
-def ex_funcexpr(f, params, e):
-    # Closure time
-    fargs = [int_len(args)] + args
+def ex_funcexpr(fe, f, params, body):
+    def go(scope):
+        scope.funcScope = Just(scope)
+        for p in params:
+            scope.localVars[p] = FormalParam()
+        ex_body(body)
+    in_new_scope(go, new_flow())
 
-    eg = context(EXGLOBAL)
+    key = context(EXGLOBAL).egCurTopLevel
 
-    for a in args:
-        eg.egVarLifetime[a] = VarLifetime(0)
-
-    def lam_body(scope):
-        scope.formalParams = args
-        ex_expr(e)
-    flow = new_flow()
-    in_new_scope(lam_body, flow)
-
-    fbody = [int_(1), symref('return', [symref('xref', [ref_(e)])])]
-    f = symref('func', [nm, symref('args', fargs), symref('body', fbody)])
-
-    key = eg.egCurTopLevel
-
-    if key not in eg.egFuncAugs:
-        eg.egFuncAugs[key] = []
-    eg.egFuncAugs[key].append(f)
-    eg.egTypeAugs[f] = lam
+    if not has_extrinsic(Expansion, key):
+        add_extrinsic(Expansion, key, [])
+    extrinsic(Expansion, key).append(f)
+    add_extrinsic(Closure, fe, ClosureInfo(f))
 
 def ex_match_case(c):
     pass
@@ -99,10 +91,9 @@ def ex_inctxt(ctxt, init, f):
     ex_expr(init)
     ex_expr(f)
 
-def ex_var(r, v):
-    eg = context(EXGLOBAL)
-    life = eg.egVarLifetime[v]
-    eg.egVarUses[r] = VarUse(life.staticCtr)
+def ex_bind_var(b, v):
+    # TODO: Close over this var in all active closures
+    v
 
 def ex_unknown_expr(e):
     assert False, 'Unknown expr for expansion:\n' + repr(e)
@@ -112,20 +103,23 @@ def ex_expr(e):
         ("IntLit(_)", nop),
         ("StrLit(_)", nop),
         ("Call(f, args)", ex_call),
-        ("f==FuncExpr(params, e)", ex_funcexpr),
+        ("fe==FuncExpr(f==Func(params, body))", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
         ("m==Match(e, cases)", ex_match),
         ("Attr(e, _)", ex_expr),
         ("GetCtxt(ctxt)", ex_getctxt),
         ("InCtxt(ctxt, i, e)", ex_inctxt),
-        ("r==Bind(BindVar(v))", ex_var),
+        ("b==Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindFunc(_) or BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
-    context(EXGLOBAL).egVarLifetime[v] = VarLifetime(0)
-    context(EXSCOPE).localVars[v] = None # What to store?
+    add_extrinsic(LocalVar, v, VarInfo(context(EXSCOPE)))
+    ex_expr(e)
+
+def ex_top_defn(v, e):
+    # v is considered static, don't close over
     ex_expr(e)
 
 def ex_assign(a, e):
@@ -138,17 +132,9 @@ def ex_lhs(a):
         ("LhsVar(v)", ex_lhs_var))
 
 def ex_lhs_var(v):
-    context(EXGLOBAL).egVarLifetime[v].staticCtr += 1
-    destScope = context(EXSCOPE)
-    scope = Just(destScope)
-    while True:
-        assert isJust(scope), "Never-defined local var " + repr(v)
-        s = fromJust(scope)
-        if v in s.localVars:
-            # TODO
-            #destScope.assignments[v] = s
-            return
-        scope = s.prevScope
+    if has_extrinsic(LocalVar, v):
+        # TODO: close over v in this scope too
+        info = extrinsic(LocalVar, v)
 
 def ex_flow(s, b, top):
     s.flowFrom = [top]
@@ -179,23 +165,17 @@ def ex_assert(t, m):
     ex_expr(t)
     ex_expr(m)
 
-def ex_func(f, args, b):
-    eg = context(EXGLOBAL)
-    for a in args:
-        eg.egVarLifetime[a] = VarLifetime(0)
-
-    def f_body(scope):
-        scope.formalParams = args
+def ex_func(params, b):
+    def go(scope):
         scope.funcScope = Just(scope)
+        for p in params:
+            scope.localVars[p] = FormalParam()
         ex_body(b)
-    in_new_scope(f_body, new_flow())
+    in_new_scope(go, new_flow())
 
 def ex_return(e):
     ex_expr(e)
     cur_flow().returns = True
-    # New flow is guaranteed dead. Blah. But OK for now.
-    # (Avoiding dead code removal for now for debugability)
-    activate_flow(new_flow())
 
 def ex_returnnothing():
     cur_flow().returns = True
@@ -210,7 +190,7 @@ def ex_stmt(s):
         ("Cond(cases, elseCase)", ex_cond),
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
-        ("FuncStmt(f==Func(args, b))", ex_func),
+        ("FuncStmt(Func(params, b))", ex_func),
         ("Return(e)", ex_return),
         ("ReturnNothing()", ex_returnnothing))
 
@@ -222,8 +202,8 @@ def ex_body(body):
 
 def ex_top_level(s):
     match(s,
-        ("TopDefn(var, e)", ex_defn),
-        ("TopFunc(f==Func(args, b))", ex_func),
+        ("TopDefn(var, e)", ex_top_defn),
+        ("TopFunc(Func(params, b))", ex_func),
         ("TopDT(_)", nop),
         ("TopCtxt(_)", nop),
         ("TopExtrinsic(_)", nop))
@@ -234,8 +214,10 @@ def expand_module(mod):
         for top in mod.root.tops:
             eg.egCurTopLevel = top
             in_context(EXSCOPE, top_scope(), lambda: ex_top_level(top))
-        return {'func': eg.egFuncAugs,
-                'type': eg.egTypeAugs}
-    return in_context(EXGLOBAL, init_global(), go)
+    captures = {}
+    in_context(EXGLOBAL, ExGlobal(None),
+            lambda: scope_extrinsic(LocalVar,
+            lambda: capture_scoped([Expansion, Closure], captures, go)))
+    return captures
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
