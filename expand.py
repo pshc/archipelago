@@ -6,18 +6,19 @@ import globs
 FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
                           ('returns', bool))
 
-VarKind, LocalVar, FormalParam = ADT('VarKind', 'LocalVar', 'FormalParam')
+VarKind, FuncLocal, FormalParam = ADT('VarKind', 'FuncLocal', 'FormalParam')
 
 ExScope = DT('ExScope', ('curFlow', FlowNode),
                         ('pendingFlows', ['*FlowNode']),
                         ('localVars', {'*Var': VarKind}),
-                        ('closedVars', {'*Var': '*Var'}),
-                        ('funcScope', 'Maybe(ExScope)'),
-                        ('prevScope', 'Maybe(ExScope)'))
+                        ('closedVars', 'set([*Var])'),
+                        ('activeClosure', 'Maybe(*ExScope)'),
+                        ('funcScope', 'Maybe(*ExScope)'),
+                        ('prevScope', 'Maybe(*ExScope)'))
 
 EXSCOPE = new_context('EXSCOPE', ExScope)
 
-ExGlobal = DT('ExGlobal', ('egCurTopLevel', TopLevel))
+ExGlobal = DT('ExGlobal', ('curTopLevel', TopLevel))
 
 EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 
@@ -27,15 +28,16 @@ Expansion = new_extrinsic('Expansion', ExCode)
 ClosureInfo = DT('ClosureInfo', ('func', Func))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
-VarInfo = DT('VarInfo', ('scope', ExScope))
+VarInfo = DT('VarInfo', ('funcScope', ExScope))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
 def top_scope():
-    return ExScope(new_flow(), [], {}, {}, Nothing(), Nothing())
+    return ExScope(new_flow(), [], {}, set(), Nothing(), Nothing(), Nothing())
 
 def in_new_scope(f, innerFlow):
     oldScope = context(EXSCOPE)
-    s = ExScope(innerFlow, [], {}, {}, oldScope.funcScope, Just(oldScope))
+    s = ExScope(innerFlow, [], {}, set(),
+            oldScope.activeClosure, oldScope.funcScope, Just(oldScope))
     ret = in_context(EXSCOPE, s, lambda: f(context(EXSCOPE)))
     oldScope.pendingFlows += s.pendingFlows
     return ret
@@ -62,10 +64,9 @@ def ex_call(f, args):
     map_(ex_expr, args)
 
 def ex_funcexpr(fe, f, params, body):
-    ex_func(params, body)
+    ex_func(params, body, True)
 
-    key = context(EXGLOBAL).egCurTopLevel
-
+    key = context(EXGLOBAL).curTopLevel
     if not has_extrinsic(Expansion, key):
         add_extrinsic(Expansion, key, [])
     extrinsic(Expansion, key).append(f)
@@ -87,8 +88,13 @@ def ex_inctxt(ctxt, init, f):
     ex_expr(f)
 
 def ex_bind_var(b, v):
-    # TODO: Close over this var in all active closures
-    v
+    m = match(context(EXSCOPE).activeClosure)
+    if m('Just(curClos)'):
+        curClos = m.arg
+        if has_extrinsic(VarInfo, v):
+            info = extrinsic(VarInfo)
+            if info.funcScope != fromJust(curClos):
+                curClos.closedVars.add(v)
 
 def ex_unknown_expr(e):
     assert False, 'Unknown expr for expansion:\n' + repr(e)
@@ -110,7 +116,10 @@ def ex_expr(e):
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
-    add_extrinsic(LocalVar, v, VarInfo(context(EXSCOPE)))
+    scope = context(EXSCOPE)
+    # a little redundant...
+    add_extrinsic(LocalVar, v, VarInfo(scope.funcScope))
+    scope.localVars[v] = FuncLocal()
     ex_expr(e)
 
 def ex_top_defn(v, e):
@@ -160,9 +169,11 @@ def ex_assert(t, m):
     ex_expr(t)
     ex_expr(m)
 
-def ex_func(params, b):
+def ex_func(params, b, close):
     def go(scope):
         scope.funcScope = Just(scope)
+        if close:
+            scope.activeClosure = Just(scope)
         for p in params:
             scope.localVars[p] = FormalParam()
         ex_body(b)
@@ -170,6 +181,9 @@ def ex_func(params, b):
             endingScope.returns = True
         scope.pendingFlows = []
     in_new_scope(go, new_flow())
+
+def ex_top_func(params, b):
+    ex_func(params, b, False)
 
 def ex_return(e):
     ex_expr(e)
@@ -199,7 +213,7 @@ def ex_body(body):
 def ex_top_level(s):
     match(s,
         ("TopDefn(var, e)", ex_top_defn),
-        ("TopFunc(Func(params, b))", ex_func),
+        ("TopFunc(Func(params, b))", ex_top_func),
         ("TopDT(_)", nop),
         ("TopCtxt(_)", nop),
         ("TopExtrinsic(_)", nop))
@@ -208,7 +222,7 @@ def expand_module(mod):
     def go():
         eg = context(EXGLOBAL)
         for top in mod.root.tops:
-            eg.egCurTopLevel = top
+            eg.curTopLevel = top
             in_context(EXSCOPE, top_scope(), lambda: ex_top_level(top))
     captures = {}
     in_context(EXGLOBAL, ExGlobal(None),
