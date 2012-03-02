@@ -182,7 +182,7 @@ def load_module_dep(filename, deps):
     native.serialize(names_mod)
 
     from hm import infer_types
-    annots, casts = infer_types(mod.root)
+    inferences = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
     from llvm import write_ir

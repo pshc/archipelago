@@ -136,6 +136,13 @@ def capture_extrinsic(ext, cap, func):
     assert off is cap, "Imbalanced capture"
     return ret
 
+def capture_scoped(exts, captures, func):
+    def step(f, ext):
+        captures[ext] = {}
+        return lambda: scope_extrinsic(ext,
+                lambda: capture_extrinsic(ext, captures[ext], f))
+    return reduce(step, exts, func)()
+
 def in_extrinsic_scope(ext):
     return bool(ext.stack)
 

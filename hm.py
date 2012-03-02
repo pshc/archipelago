@@ -502,24 +502,21 @@ def normalize_scheme(s):
     return s
 
 def infer_types(root):
-    possible_casts = {}
-    annots = {}
+    captures = {}
     in_context(HMENV, None,
-        lambda: scope_extrinsic(TypeAnnot,
-        lambda: capture_extrinsic(TypeAnnot, annots,
-        lambda: scope_extrinsic(TypeCast,
-        lambda: capture_extrinsic(TypeCast, possible_casts,
+        lambda: capture_scoped([TypeAnnot, TypeCast], captures,
         lambda: in_new_env(
         lambda: with_fields(
         lambda: infer_compilation_unit(root)
-    )))))))
+    ))))
 
     casts = {}
-    for e, (s, t) in possible_casts.iteritems():
+    for e, (s, t) in captures[TypeCast].iteritems():
         if not type_equal(s.type, t):
             casts[e] = normalize_type(t)
+    annots = captures[TypeAnnot]
     for e in annots.keys():
         annots[e] = normalize_scheme(annots[e])
-    return (annots, casts)
+    return captures
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
