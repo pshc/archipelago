@@ -23,14 +23,13 @@ EXSCOPE = new_context('EXSCOPE', ExScope)
 ExGlobal = DT('ExGlobal', ('egCurTopLevel', TopLevel),
                           ('egFuncAugs', {'*Stmt': ['*Stmt']}),
                           ('egTypeAugs', {'*Stmt': '*Expr'}),
-                          ('egLambdaRefs', {'*Expr': '*Stmt'}),
                           ('egVarLifetime', {'*Var': VarLifetime}),
                           ('egVarUses', {'*Var': VarUse}))
 
 EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 
 def init_global():
-    return ExGlobal(None, {}, {}, {}, {}, {})
+    return ExGlobal(None, {}, {}, {}, {})
 
 def top_scope():
     return ExScope(new_flow(), [], [], {}, {}, Nothing(), Nothing())
@@ -60,9 +59,8 @@ def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
-def ex_lambda(lam, args, e):
+def ex_funcexpr(f, params, e):
     # Closure time
-    nm = symname('lambda_func')
     fargs = [int_len(args)] + args
 
     eg = context(EXGLOBAL)
@@ -85,7 +83,6 @@ def ex_lambda(lam, args, e):
         eg.egFuncAugs[key] = []
     eg.egFuncAugs[key].append(f)
     eg.egTypeAugs[f] = lam
-    eg.egLambdaRefs[lam] = f
 
 def ex_match_case(c):
     pass
@@ -115,7 +112,7 @@ def ex_expr(e):
         ("IntLit(_)", nop),
         ("StrLit(_)", nop),
         ("Call(f, args)", ex_call),
-        ("lam==Lambda(params, e)", ex_lambda),
+        ("f==FuncExpr(params, e)", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
         ("m==Match(e, cases)", ex_match),
@@ -238,8 +235,7 @@ def expand_module(mod):
             eg.egCurTopLevel = top
             in_context(EXSCOPE, top_scope(), lambda: ex_top_level(top))
         return {'func': eg.egFuncAugs,
-                'type': eg.egTypeAugs,
-                'lambda': eg.egLambdaRefs}
+                'type': eg.egTypeAugs}
     return in_context(EXGLOBAL, init_global(), go)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

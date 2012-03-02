@@ -35,22 +35,22 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
-Expr, And, Attr, Bind, Call, DictLit, GenExpr, GetCtxt, GetExtrinsic, \
-        InCtxt, IntLit, \
-        Lambda, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
+Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
+        GetCtxt, GetExtrinsic, InCtxt, \
+        IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'Attr', ('expr', 'Expr'), ('field', '*Field'),
         'Bind', ('binding', 'Binding'),
         'Call', ('func', 'Expr'), ('args', '[Expr]'),
         'DictLit', ('vals', '[(Expr, Expr)]'),
+        'FuncExpr', ('func', 'Func'),
         'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
                    ('listExpr', 'Expr'), ('preds', '[Expr]'),
         'GetCtxt', ('ctxt', '*Ctxt'),
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'InCtxt', ('ctxt', '*Ctxt'), ('init', 'Expr'), ('expr', 'Expr'),
         'IntLit', ('val', int),
-        'Lambda', ('params', [Var]), ('expr', 'Expr'),
         'ListLit', ('vals', '[Expr]'),
         'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
         'Or', ('left', 'Expr'), ('right', 'Expr'),

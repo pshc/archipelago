@@ -310,7 +310,7 @@ def conv_match_case(code, f):
     if special:
         e = special(lambda i: bs[i])
     else:
-        e = match(f, ('Lambda(params, e)', lambda params, e:
+        e = match(f, ('FuncExpr(Func(params, e))', lambda params, e:
                          replace_refs(dict(zip(params, bs)), e)),
                      ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
     return MatchCase(c, e)
@@ -472,7 +472,9 @@ def extract_arglist(s):
 @expr(ast.Lambda)
 @inside_scope
 def conv_lambda(e):
-    return Lambda(extract_arglist(e), conv_expr(e.code))
+    params = extract_arglist(e)
+    body = Body([Return(conv_expr(e.code))])
+    return FuncExpr(Func(params, body))
 
 @expr(ast.List)
 def conv_list(e):

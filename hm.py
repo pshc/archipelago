@@ -213,11 +213,10 @@ def check_logic(l, r):
     check_expr(TBool(), r)
     unify_m(TBool())
 
-def check_lambda(lam, args, b, ref):
-    body = Body([Return(b)]) # stupid hack
-    s = infer_func_scheme(None, args, body) # non-recursive, so None
-    set_scheme(lam, s, True)
-    t = instantiate_scheme(s, ref) # stupider hack
+def check_funcexpr(funcExpr, f, params, b):
+    s = infer_func_scheme(f, params, b)
+    set_scheme(f, s, True)
+    t = instantiate_scheme(s, funcExpr) # stupidest hack
     unify_m(t)
 
 def pat_var(v):
@@ -314,7 +313,7 @@ def check_expr(tv, e):
         ("Call(f, s)", check_call),
         ("And(l, r)", check_logic),
         ("Or(l, r)", check_logic),
-        ("l==Lambda(ps, b)", lambda l, ps, b: check_lambda(l, ps, b, e)),
+        ("e==FuncExpr(f==Func(ps, b))", check_funcexpr),
         ("m==Match(p, cs)", check_match),
         ("Attr(s, f)", lambda s, f: check_attr(s, f, e)),
         ("GetCtxt(ctxt)", check_getctxt),
