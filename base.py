@@ -411,6 +411,7 @@ def match_try(atom, ast):
         named_matcher = named_match_dispatch.get(ast.node.name)
         if named_matcher is not None:
             return named_matcher(atom, ast)
+        assert False, "Unknown match: %s (%s)" % (ast.node.name, ast.args)
     elif isinstance(ast, compiler.ast.Name):
         # Just a simple variable name match; always succeeds
         return [] if ast.name == '_' else [atom]
