@@ -134,6 +134,14 @@ def expr_match(m, e, cs):
     #for c in cs:
     #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
 
+def expr_strlit(s):
+    b = s.encode('utf-8')
+    lit = '[%d x i8] "' % (len(b) + 1)
+    for c in iter(b):
+        i = ord(c)
+        lit += c if 31 < i < 127 else '\\%02x' % (i,)
+    return Const(lit + '\\00"')
+
 def expr_tuple_lit(ts):
     xs = map(express, ts)
     args = ', '.join('i32 %s' % (xpr_str(x),) for x in xs)
@@ -147,6 +155,7 @@ def express(expr):
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
+        ('StrLit(s)', expr_strlit),
         ('TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
@@ -156,8 +165,8 @@ def write_assert(e, msg):
     out('br i1 %s, label %%pass, label %%fail\nfail:' %
             (xpr_str(ex),))
     newline()
-    #m = express(msg)
-    out('; failure: %r' % (msg,))
+    m = express(msg)
+    out('; failure: %s' % (xpr_str(m),))
     newline()
     out('; call i32 (i8*, ...)* @printf()')
     newline()
