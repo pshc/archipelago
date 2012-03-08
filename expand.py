@@ -11,12 +11,16 @@ VarKind, FuncLocal, FormalParam = ADT('VarKind', 'FuncLocal', 'FormalParam')
 ExScope = DT('ExScope', ('curFlow', FlowNode),
                         ('pendingFlows', ['*FlowNode']),
                         ('localVars', {'*Var': VarKind}),
-                        ('closedVars', 'set([*Var])'),
-                        ('activeClosure', 'Maybe(*ExScope)'),
-                        ('funcScope', 'Maybe(*ExScope)'),
                         ('prevScope', 'Maybe(*ExScope)'))
 
 EXSCOPE = new_context('EXSCOPE', ExScope)
+
+ExFunc, ExTopFunc, ExInnerFunc = ADT('ExFunc',
+        'ExTopFunc',
+        'ExInnerFunc', ('closedVars', 'set([*Var])'),
+                       ('outerFunc', '*ExFunc'))
+
+EXFUNC = new_context('EXFUNC', ExFunc)
 
 ExGlobal = DT('ExGlobal', ('curTopLevel', TopLevel))
 
@@ -28,17 +32,16 @@ Expansion = new_extrinsic('Expansion', ExCode)
 ClosureInfo = DT('ClosureInfo', ('func', Func))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
-VarInfo = DT('VarInfo', ('funcScope', ExScope))
+VarInfo = DT('VarInfo', ('function', ExFunc))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
 def top_scope():
-    return ExScope(new_flow(), [], {}, set(), Nothing(), Nothing(), Nothing())
+    return ExScope(new_flow(), [], {}, Nothing())
 
 def in_new_scope(f, innerFlow):
     oldScope = context(EXSCOPE)
-    s = ExScope(innerFlow, [], {}, set(),
-            oldScope.activeClosure, oldScope.funcScope, Just(oldScope))
-    ret = in_context(EXSCOPE, s, lambda: f(context(EXSCOPE)))
+    s = ExScope(innerFlow, [], {}, Just(oldScope))
+    ret = in_context(EXSCOPE, s, f)
     oldScope.pendingFlows += s.pendingFlows
     return ret
 
@@ -64,12 +67,14 @@ def ex_call(f, args):
     map_(ex_expr, args)
 
 def ex_funcexpr(fe, f, params, body):
-    ex_func(params, body, True)
+    ex_func(params, body)
 
-    key = context(EXGLOBAL).curTopLevel
-    if not has_extrinsic(Expansion, key):
-        add_extrinsic(Expansion, key, [])
-    extrinsic(Expansion, key).append(f)
+    # Slot closure in top level near current top level
+    top = context(EXGLOBAL).curTopLevel
+    if not has_extrinsic(Expansion, top):
+        add_extrinsic(Expansion, top, [])
+    extrinsic(Expansion, top).append(f)
+
     add_extrinsic(Closure, fe, ClosureInfo(f))
 
 def ex_match_case(c):
@@ -88,13 +93,13 @@ def ex_inctxt(ctxt, init, f):
     ex_expr(f)
 
 def ex_bind_var(b, v):
-    m = match(context(EXSCOPE).activeClosure)
-    if m('Just(curClos)'):
-        curClos = m.arg
-        if has_extrinsic(VarInfo, v):
-            info = extrinsic(VarInfo)
-            if info.funcScope != fromJust(curClos):
-                curClos.closedVars.add(v)
+    m = match(context(EXFUNC))
+    if m('f==ExInnerFunc(closVars, _)'):
+        f, closVars = m.args
+        if has_extrinsic(LocalVar, v):
+            info = extrinsic(LocalVar, v)
+            if info.function != f:
+                closVars.add(v)
 
 def ex_unknown_expr(e):
     assert False, 'Unknown expr for expansion:\n' + repr(e)
@@ -116,10 +121,9 @@ def ex_expr(e):
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):
-    scope = context(EXSCOPE)
     # a little redundant...
-    add_extrinsic(LocalVar, v, VarInfo(scope.funcScope))
-    scope.localVars[v] = FuncLocal()
+    add_extrinsic(LocalVar, v, VarInfo(context(EXFUNC)))
+    context(EXSCOPE).localVars[v] = FuncLocal()
     ex_expr(e)
 
 def ex_top_defn(v, e):
@@ -150,40 +154,40 @@ def ex_cond(cond, ss, cs):
         ex_expr(t)
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda s: ex_body(b), flow)
+        in_new_scope(lambda: ex_body(b), flow)
     eb = match(ss, ("contains(key('else', sized(body)))", Just),
                    ("_", Nothing))
     if isJust(eb):
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda s: ex_body(fromJust(eb)), flow)
+        in_new_scope(lambda: ex_body(fromJust(eb)), flow)
     activate_flow(outgoingFlow)
 
 def ex_while(t, b):
     incomingFlow = cur_flow()
     ex_expr(t)
     flow = new_flow()
-    in_new_scope(lambda s: ex_body(b), flow)
+    in_new_scope(lambda: ex_body(b), flow)
 
 def ex_assert(t, m):
     ex_expr(t)
     ex_expr(m)
 
-def ex_func(params, b, close):
-    def go(scope):
-        scope.funcScope = Just(scope)
-        if close:
-            scope.activeClosure = Just(scope)
+def ex_func(params, b):
+    def go():
+        scope = context(EXSCOPE)
         for p in params:
             scope.localVars[p] = FormalParam()
         ex_body(b)
         for endingScope in scope.pendingFlows:
             endingScope.returns = True
         scope.pendingFlows = []
-    in_new_scope(go, new_flow())
+    fc = ExInnerFunc(set(), context(EXFUNC))
+    in_new_scope(lambda: in_context(EXFUNC, fc, go), new_flow())
+    return fc
 
 def ex_top_func(params, b):
-    ex_func(params, b, False)
+    in_context(EXFUNC, ExTopFunc(), lambda: ex_func(params, b))
 
 def ex_return(e):
     ex_expr(e)
