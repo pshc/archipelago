@@ -184,11 +184,16 @@ def load_module_dep(filename, deps):
     inferences = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
+    from expand import in_expansion_context
+    return in_expansion_context(lambda: _do_mod(mod, name))
+
+def _do_mod(mod, name):
+    from expand import expand_module
+    expand_module(mod)
+
     from llvm import write_ir
     write_ir(mod.root)
 
-    from expand import expand_module
-    overlays = expand_module(mod)
     #write_mod_repr('views/' + name + '.txt', mod, overlays)
     """
     from mogrify import mogrify

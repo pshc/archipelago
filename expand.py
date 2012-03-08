@@ -222,6 +222,10 @@ def ex_top_level(s):
         ("TopCtxt(_)", nop),
         ("TopExtrinsic(_)", nop))
 
+def in_expansion_context(func):
+    captures = {}
+    return capture_scoped([Expansion, Closure], captures, func)
+
 def expand_module(mod):
     def go():
         eg = context(EXGLOBAL)
@@ -230,8 +234,7 @@ def expand_module(mod):
             in_context(EXSCOPE, top_scope(), lambda: ex_top_level(top))
     captures = {}
     in_context(EXGLOBAL, ExGlobal(None),
-            lambda: scope_extrinsic(LocalVar,
-            lambda: capture_scoped([Expansion, Closure], captures, go)))
+            lambda: scope_extrinsic(LocalVar, go))
     return captures
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
