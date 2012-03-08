@@ -66,16 +66,16 @@ def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
-def ex_funcexpr(fe, f, params, body):
+def ex_funcexpr(f, params, body):
     ex_func(params, body)
 
     # Slot closure in top level near current top level
     top = context(EXGLOBAL).curTopLevel
     if not has_extrinsic(Expansion, top):
         add_extrinsic(Expansion, top, [])
-    extrinsic(Expansion, top).append(f)
+    extrinsic(Expansion, top).append(TopFunc(f))
 
-    add_extrinsic(Closure, fe, ClosureInfo(f))
+    add_extrinsic(Closure, f, ClosureInfo(f))
 
 def ex_match_case(c):
     pass
@@ -109,7 +109,7 @@ def ex_expr(e):
         ("IntLit(_)", nop),
         ("StrLit(_)", nop),
         ("Call(f, args)", ex_call),
-        ("fe==FuncExpr(f==Func(params, body))", ex_funcexpr),
+        ("FuncExpr(f==Func(params, body))", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
         ("m==Match(e, cases)", ex_match),

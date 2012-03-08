@@ -78,13 +78,20 @@ def expr_bind_var(v):
     return tmp
 
 def expr_bind_func(f):
+    if not has_extrinsic(Name, f):
+        add_extrinsic(Name, f, "unnamed_func")
+
     return Const('@%s' % (extrinsic(Name, f),))
+
+def out_func_ref(f):
+    out(xpr_str(expr_bind_func(f)))
 
 def bin_op(b):
     # grr boilerplate
     return match(b,
         ('key("+")', lambda: 'add'),
         ('key("-")', lambda: 'sub'),
+        ('key("*")', lambda: 'mul'),
         ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
         ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'),
         ('_', lambda: ''))
@@ -117,6 +124,11 @@ def expr_call(f, args):
         m.ret(tmp)
     return m.result()
 
+def expr_func(f, ps, body):
+    from expand import Closure
+    clos = extrinsic(Closure, f)
+    return expr_bind_func(clos.func)
+
 def expr_match(m, e, cs):
     return Const('undefined ;match')
     #for c in cs:
@@ -132,6 +144,7 @@ def express(expr):
         ('Bind(BindVar(v))', expr_bind_var),
         ('Bind(BindFunc(v))', expr_bind_func),
         ('Call(f, args)', expr_call),
+        ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('TupleLit(es)', expr_tuple_lit))
@@ -192,8 +205,8 @@ def write_extrinsic_stmt(extr):
 
 def write_top_func(f, ps, body):
     clear_indent()
-    out('define i32 @')
-    out_name(f)
+    out('define i32 ')
+    out_func_ref(f)
     write_params(ps)
     out(' {\nentry:')
     newline()
@@ -267,7 +280,12 @@ def write_top(top):
     newline()
 
 def write_unit(unit):
-    map_(write_top, unit.tops)
+    from expand import Expansion
+    for top in unit.tops:
+        if has_extrinsic(Expansion, top):
+            for ex in extrinsic(Expansion, top):
+                write_top(ex)
+        write_top(top)
 
 def write_ir(prog):
     in_context(IR, setup_ir(), lambda: write_unit(prog))
