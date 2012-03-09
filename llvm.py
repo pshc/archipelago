@@ -165,11 +165,7 @@ def write_assert(e, msg):
             (xpr_str(ex),))
     newline()
     m = express(msg)
-    out('; failure: %s' % (xpr_str(m),))
-    newline()
-    out('; call i32 (i8*, ...)* @printf()')
-    newline()
-    out('call void @die() noreturn\npass:')
+    out('call void @fail(i8* %s) noreturn\npass:' % (xpr_str(m),))
 
 def write_assign(lhs, e):
     ex = express(e)
