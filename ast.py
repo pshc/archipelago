@@ -11,11 +11,12 @@ SCOPE = new_context('SCOPE', ScopeContext)
 OmniContext = DT('OmniContext', ('imports', [object]),
                                 ('exports', [object]),
                                 ('missingRefs', {(str, bool): [object]}),
-                                ('loadedDeps', set([Module])))
+                                ('loadedDeps', set([Module])),
+                                ('directlyImportedModuleNames', set([str])))
 OMNI = new_context('OMNI', OmniContext)
 
 def ast_contexts():
-    omni = OmniContext({}, {}, {}, set())
+    omni = OmniContext({}, {}, {}, set(), set())
     scope = ScopeContext(0, {}, None)
     return omni, scope
 
@@ -622,15 +623,20 @@ def conv_for(s):
 @top_level(ast.From)
 def conv_from(s):
     names = ', '.join(import_names(s.names))
-    if s.modname != 'base':
+    modname = s.modname
+    if modname != 'base':
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
         global loaded_module_export_names
         omni = context(OMNI)
-        mod = load_module_dep(s.modname.replace('.', '/') + '.py',
-                omni.loadedDeps)
-        symbols = loaded_module_export_names[mod]
-        omni.imports.update(symbols)
+        if modname not in omni.directlyImportedModuleNames:
+            omni.directlyImportedModuleNames.add(modname)
+            mod = load_module_dep(modname.replace('.', '/') + '.py',
+                    omni.loadedDeps)
+            symbols = loaded_module_export_names[mod]
+            for k in symbols:
+                assert k not in omni.imports, "Import clash: %s" % (k,)
+                omni.imports[k] = symbols[k]
     return []
 
 @stmt(ast.Function)
