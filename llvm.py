@@ -165,7 +165,9 @@ def write_assert(e, msg):
             (xpr_str(ex),))
     newline()
     m = express(msg)
-    out('call void @fail(i8* %s) noreturn\npass:' % (xpr_str(m),))
+    out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
+    newline()
+    out('unreachable\npass:')
 
 def write_assign(lhs, e):
     ex = express(e)
@@ -257,6 +259,7 @@ def write_args(args):
             first = False
         else:
             comma()
+        out('i32 ')
         out_xpr(bit)
     out(')')
 
