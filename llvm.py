@@ -83,6 +83,11 @@ def temp_reg_named(nm):
 
 # EXPRESSIONS
 
+def expr_bind_builtin(b):
+    return match(b,
+        ('key("True")', lambda: Const('1')),
+        ('key("False")', lambda: Const('0')))
+
 def expr_bind_var(v):
     if has_extrinsic(Replacement, v):
         return extrinsic(Replacement, v)
@@ -159,6 +164,7 @@ def expr_tuple_lit(ts):
 
 def express(expr):
     return match(expr,
+        ('Bind(BindBuiltin(b))', expr_bind_builtin),
         ('Bind(BindVar(v))', expr_bind_var),
         ('Bind(BindFunc(f))', lambda f: Const(func_ref(f))),
         ('Call(f, args)', expr_call),
@@ -187,6 +193,9 @@ def write_assign(lhs, e):
 def write_augassign(op, lhs, e):
     ex = express(e)
     out('; TODO %s' % (xpr_str(ex),))
+
+def write_break():
+    out('br label %loop_exit')
 
 def write_defn(v, e):
     m = match(e)
@@ -306,6 +315,7 @@ def write_stmt(stmt):
         ("Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
+        ("Break()", write_break),
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),

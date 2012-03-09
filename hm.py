@@ -428,6 +428,7 @@ def infer_stmt(a):
         ("Defn(var, e)", infer_defn),
         ("Assign(lhs, e)", infer_assign),
         ("AugAssign(_, lhs, e)", infer_augassign),
+        ("Break()", nop),
         ("ExprStmt(e)", infer_expr),
         ("Cond(cases, elseCase)", infer_cond),
         ("While(t, b)",infer_while),
@@ -462,6 +463,9 @@ def with_fields(func):
         """
         return func()
     return scope_extrinsic(FieldDT, go)
+
+def nop():
+    pass
 
 # Collapse strings of metavars
 def _zonk_meta(meta):

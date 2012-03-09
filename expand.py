@@ -215,6 +215,7 @@ def ex_stmt(s):
         ("Defn(var, e)", ex_defn),
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
+        ("Break()", nop),
         ("Cond(cases, elseCase)", ex_cond),
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
