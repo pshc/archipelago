@@ -38,6 +38,9 @@ def func_ref(f):
         add_extrinsic(Name, f, "unnamed_func")
     return '@%s' % (extrinsic(Name, f),)
 
+def global_ref(v):
+    return '@%s' % (extrinsic(Name, v),)
+
 def out_func_ref(f):
     out(func_ref(f))
 
@@ -133,13 +136,15 @@ def expr_match(m, e, cs):
     #for c in cs:
     #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
 
-def expr_strlit(s):
-    b = s.encode('utf-8')
-    lit = '[%d x i8] "' % (len(b) + 1)
-    for c in iter(b):
-        i = ord(c)
-        lit += c if 31 < i < 127 else '\\%02x' % (i,)
-    return Const(lit + '\\00"')
+def expr_strlit(lit):
+    from expand import ExpandedDecl
+    info = extrinsic(ExpandedDecl, lit)
+    tmp = temp_reg()
+    out_xpr(tmp)
+    out(' = getelementptr [0 x i8]* %s, i32 0, i32 0' %
+            (global_ref(info.var),))
+    newline()
+    return tmp
 
 def expr_tuple_lit(ts):
     xs = map(express, ts)
@@ -154,7 +159,7 @@ def express(expr):
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
-        ('StrLit(s)', expr_strlit),
+        ('lit==StrLit(_)', expr_strlit),
         ('TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
@@ -294,6 +299,22 @@ def write_stmt(stmt):
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
 
+def write_top_strlit(var, s):
+    ir = context(IR)
+    add_extrinsic(Name, var, '.LC%d' % (ir.tempCtr,))
+    ir.tempCtr += 1
+
+    clear_indent()
+    out('%s = internal constant %s' % (global_ref(var), escape_strlit(s)))
+
+def escape_strlit(s):
+    b = s.encode('utf-8')
+    lit = '[%d x i8] c"' % (len(b) + 1)
+    for c in iter(b):
+        i = ord(c)
+        lit += c if 31 < i < 127 else '\\%02x' % (i,)
+    return lit + '\\00"'
+
 def write_top(top):
     match(top,
         ("TopDefn(v, e)", write_defn),
@@ -307,7 +328,10 @@ def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(Expansion, top):
             for ex in extrinsic(Expansion, top):
-                write_top(ex)
+                match(ex,
+                    ("TopDefn(v, StrLit(s))", write_top_strlit),
+                    ("TopFunc(f==Func(ps, body))", write_top_func))
+                newline()
         write_top(top)
 
 def write_ir(prog):

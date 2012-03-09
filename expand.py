@@ -32,6 +32,9 @@ Expansion = new_extrinsic('Expansion', ExCode)
 ClosureInfo = DT('ClosureInfo', ('func', Func))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
+ExpandedDeclInfo = DT('ExpandedDeclInfo', ('var', '*Var'))
+ExpandedDecl = new_extrinsic('ExpandedDecl', ExpandedDeclInfo)
+
 VarInfo = DT('VarInfo', ('function', ExFunc))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
@@ -62,19 +65,24 @@ def activate_flow(newFlow):
 def add_outflows(flow, outflows):
     flow.outflows.update(outflows)
 
+def push_expansion(ex):
+    top = context(EXGLOBAL).curTopLevel
+    if not has_extrinsic(Expansion, top):
+        add_extrinsic(Expansion, top, [])
+    extrinsic(Expansion, top).append(ex)
+
+def ex_strlit(lit):
+    v = Var()
+    push_expansion(TopDefn(v, lit))
+    add_extrinsic(ExpandedDecl, lit, ExpandedDeclInfo(v))
+
 def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
 def ex_funcexpr(f, params, body):
     ex_func(params, body)
-
-    # Slot closure in top level near current top level
-    top = context(EXGLOBAL).curTopLevel
-    if not has_extrinsic(Expansion, top):
-        add_extrinsic(Expansion, top, [])
-    extrinsic(Expansion, top).append(TopFunc(f))
-
+    push_expansion(TopFunc(f))
     add_extrinsic(Closure, f, ClosureInfo(f))
 
 def ex_match_case(c):
@@ -107,7 +115,7 @@ def ex_unknown_expr(e):
 def ex_expr(e):
     match(e,
         ("IntLit(_)", nop),
-        ("StrLit(_)", nop),
+        ("lit==StrLit(_)", ex_strlit),
         ("Call(f, args)", ex_call),
         ("FuncExpr(f==Func(params, body))", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
@@ -224,7 +232,7 @@ def ex_top_level(s):
 
 def in_expansion_context(func):
     captures = {}
-    return capture_scoped([Expansion, Closure], captures, func)
+    return capture_scoped([Expansion, Closure, ExpandedDecl], captures, func)
 
 def expand_module(mod):
     def go():
