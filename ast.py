@@ -231,7 +231,7 @@ def _make_dt(dt_nm, *args, **opts):
     dt = DATATYPES[dt_nm].__form__
     identifier(dt, namespace=typeNamespace)
     for ctor in dt.ctors:
-        identifier(ctor)
+        identifier(ctor, export=True)
     return [TopDT(dt)]
 
 def make_adt(*args):
