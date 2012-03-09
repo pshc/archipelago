@@ -55,7 +55,7 @@ def identifier(obj, name=None, namespace=valueNamespace,
             bind.binding = b(obj)
         del omni.missingRefs[key]
     if export:
-        omni.exports[key] = obj
+        omni.exports[key] = (obj, b)
 
 def ident_exists(nm, namespace=valueNamespace):
     scope = context(SCOPE)
@@ -66,6 +66,12 @@ def ident_exists(nm, namespace=valueNamespace):
             var, b = o
             return Just(b(var))
         scope = scope.prevContext
+
+    ext = context(OMNI).imports.get(key)
+    if ext is not None:
+        var, b = ext
+        return Just(b(var))
+
     return Nothing()
 
 def refs_existing(nm, namespace=valueNamespace):
@@ -737,8 +743,7 @@ def convert_file(filename, name, deps):
     missing = omni.missingRefs
     for key, binds in missing.items():
         if key in omni.imports:
-            obj = omni.imports[key]
-            b = bind_kind(obj)
+            obj, b = omni.imports[key]
             for bind in binds:
                 bind.binding = b(obj)
             del missing[key]
