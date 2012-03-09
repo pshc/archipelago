@@ -211,26 +211,42 @@ def write_top_func(f, ps, body):
     clear_indent()
     out('define i32 ')
     out_func_ref(f)
-    write_params(ps)
+
+    # param temporaries
+    out('(')
+    first = True
+    tmps = []
+    for p in ps:
+        if first:
+            first = False
+        else:
+            comma()
+        out('i32 ')
+        tmp = temp_reg_named(extrinsic(Name, p))
+        out_xpr(tmp)
+        tmps.append(tmp)
+    out(')')
+
     out(' {\nentry:')
     newline()
+
+    # write params to mem
+    for p, tmp in zip(ps, tmps):
+        out_name_reg(p)
+        out(' = alloca i32')
+        newline()
+        out('store i32 ')
+        out_xpr(tmp)
+        comma()
+        out('i32* ')
+        out_name_reg(p)
+        newline()
+    if len(ps) > 0:
+        newline()
+
     write_body(body)
     clear_indent()
     out('}\n')
-
-def write_param(p):
-    # Need type info
-    out('i32 ')
-    out_name(p)
-
-def write_params(ps):
-    out('(')
-    if len(ps) > 0:
-        write_param(ps[0])
-        for p in ps[1:]:
-            comma()
-            write_param(p)
-    out(')')
 
 def write_args(args):
     out('(')
