@@ -35,6 +35,9 @@ Closure = new_extrinsic('Closure', ClosureInfo)
 ExpandedDeclInfo = DT('ExpandedDeclInfo', ('var', '*Var'))
 ExpandedDecl = new_extrinsic('ExpandedDecl', ExpandedDeclInfo)
 
+VarUsageInfo = DT('VarUsageInfo', ('isReassigned', bool))
+VarUsage = new_extrinsic('VarUsage', VarUsageInfo)
+
 VarInfo = DT('VarInfo', ('function', ExFunc))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
@@ -101,7 +104,7 @@ def ex_inctxt(ctxt, init, f):
     ex_expr(init)
     ex_expr(f)
 
-def ex_bind_var(b, v):
+def ex_bind_var(v):
     m = match(context(EXFUNC))
     if m('f==ExInnerFunc(closVars, _)'):
         f, closVars = m.args
@@ -125,7 +128,7 @@ def ex_expr(e):
         ("Attr(e, _)", ex_expr),
         ("GetCtxt(ctxt)", ex_getctxt),
         ("InCtxt(ctxt, i, e)", ex_inctxt),
-        ("b==Bind(BindVar(v))", ex_bind_var),
+        ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindFunc(_) or BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
 
@@ -149,9 +152,10 @@ def ex_lhs(a):
         ("LhsVar(v)", ex_lhs_var))
 
 def ex_lhs_var(v):
-    if has_extrinsic(LocalVar, v):
-        # TODO: close over v in this scope too
-        info = extrinsic(LocalVar, v)
+    # close over in this scope
+    ex_bind_var(v)
+    if not has_extrinsic(VarUsage, v):
+        add_extrinsic(VarUsage, v, VarUsageInfo(True))
 
 def ex_flow(s, b, top):
     s.flowFrom = [top]
@@ -233,7 +237,8 @@ def ex_top_level(s):
 
 def in_expansion_context(func):
     captures = {}
-    return capture_scoped([Expansion, Closure, ExpandedDecl], captures, func)
+    extrs = [Expansion, Closure, ExpandedDecl, VarUsage]
+    return capture_scoped(extrs, captures, func)
 
 def expand_module(mod):
     def go():

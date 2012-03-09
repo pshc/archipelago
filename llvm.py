@@ -19,6 +19,9 @@ def is_const(x):
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
+BindingReplacement = DT('BindingReplacement', ('replacement', Xpr))
+Replacement = new_extrinsic('Replacement', BindingReplacement)
+
 # OUTPUT
 
 def out(s):
@@ -81,6 +84,8 @@ def temp_reg_named(nm):
 # EXPRESSIONS
 
 def expr_bind_var(v):
+    if has_extrinsic(Replacement, v):
+        return extrinsic(Replacement, v)
     tmp = temp_reg_named(extrinsic(Name, v))
     out_xpr(tmp)
     out(' = load i32* %')
@@ -184,6 +189,17 @@ def write_augassign(op, lhs, e):
     out('; TODO %s' % (xpr_str(ex),))
 
 def write_defn(v, e):
+    m = match(e)
+    if m('FuncExpr(f)'):
+        f = m.arg
+        static = True
+        from expand import VarUsage
+        if has_extrinsic(VarUsage, v):
+            if extrinsic(VarUsage, v).isReassigned:
+                static = False
+        if static:
+            add_extrinsic(Replacement, v, Const(func_ref(f)))
+            return
     ex = express(e)
     out_name_reg(v)
     out(' = alloca i32')
@@ -336,7 +352,9 @@ def write_unit(unit):
         write_top(top)
 
 def write_ir(prog):
-    in_context(IR, setup_ir(), lambda: write_unit(prog))
+    in_context(IR, setup_ir(),
+        lambda: scope_extrinsic(Replacement,
+        lambda: write_unit(prog)))
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])
