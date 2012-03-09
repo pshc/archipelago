@@ -346,7 +346,9 @@ def conv_match_try(node, bs):
             assert False, "yagni"
             return symref("%s%d" % (nm, len(args)), args)
         else:
-            return PatCtor(refs_existing(nm).ctor, [args])
+            b = refs_existing(nm)
+            assert isinstance(b.binding, BindCtor), "Can't bind to %s" % (b,)
+            return PatCtor(b.binding.ctor, [args])
     elif isinstance(node, ast.Name):
         if node.name == '_':
             return PatWild()
