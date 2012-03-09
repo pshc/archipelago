@@ -29,7 +29,7 @@ EXGLOBAL = new_context('EXGLOBAL', ExGlobal)
 ExCode = DT('ExCode', ('tops', [TopLevel]))
 Expansion = new_extrinsic('Expansion', ExCode)
 
-ClosureInfo = DT('ClosureInfo', ('func', Func))
+ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
 ExpandedDeclInfo = DT('ExpandedDeclInfo', ('var', '*Var'))
@@ -81,9 +81,10 @@ def ex_call(f, args):
     map_(ex_expr, args)
 
 def ex_funcexpr(f, params, body):
-    ex_func(params, body)
+    info = ex_func(params, body)
+    isClosure = len(info.closedVars) > 0
     push_expansion(TopFunc(f))
-    add_extrinsic(Closure, f, ClosureInfo(f))
+    add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
 def ex_match_case(c):
     pass

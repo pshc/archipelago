@@ -129,6 +129,7 @@ def expr_call(f, args):
 def expr_func(f, ps, body):
     from expand import Closure
     clos = extrinsic(Closure, f)
+    assert not clos.isClosure, "TODO"
     return Const(func_ref(clos.func))
 
 def expr_match(m, e, cs):
