@@ -33,6 +33,14 @@ def out_name(a):
 def out_name_reg(a):
     out('%%%s' % (extrinsic(Name, a),))
 
+def func_ref(f):
+    if not has_extrinsic(Name, f):
+        add_extrinsic(Name, f, "unnamed_func")
+    return '@%s' % (extrinsic(Name, f),)
+
+def out_func_ref(f):
+    out(func_ref(f))
+
 def out_xpr(x):
     out(xpr_str(x))
 
@@ -77,15 +85,6 @@ def expr_bind_var(v):
     newline()
     return tmp
 
-def expr_bind_func(f):
-    if not has_extrinsic(Name, f):
-        add_extrinsic(Name, f, "unnamed_func")
-
-    return Const('@%s' % (extrinsic(Name, f),))
-
-def out_func_ref(f):
-    out(xpr_str(expr_bind_func(f)))
-
 def bin_op(b):
     # grr boilerplate
     return match(b,
@@ -127,7 +126,7 @@ def expr_call(f, args):
 def expr_func(f, ps, body):
     from expand import Closure
     clos = extrinsic(Closure, f)
-    return expr_bind_func(clos.func)
+    return Const(func_ref(clos.func))
 
 def expr_match(m, e, cs):
     return Const('undefined ;match')
@@ -150,7 +149,7 @@ def expr_tuple_lit(ts):
 def express(expr):
     return match(expr,
         ('Bind(BindVar(v))', expr_bind_var),
-        ('Bind(BindFunc(v))', expr_bind_func),
+        ('Bind(BindFunc(f))', lambda f: Const(func_ref(f))),
         ('Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
