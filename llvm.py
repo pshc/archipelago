@@ -252,21 +252,21 @@ def write_top_func(f, ps, body):
     out(')')
 
     out(' {\nentry:')
-    newline()
 
-    # write params to mem
-    for p, tmp in zip(ps, tmps):
-        out_name_reg(p)
-        out(' = alloca i32')
-        newline()
-        out('store i32 ')
-        out_xpr(tmp)
-        comma()
-        out('i32* ')
-        out_name_reg(p)
-        newline()
     if len(ps) > 0:
         newline()
+        # write params to mem
+        for p, tmp in zip(ps, tmps):
+            out_name_reg(p)
+            out(' = alloca i32')
+            newline()
+            out('store i32 ')
+            out_xpr(tmp)
+            comma()
+            out('i32* ')
+            out_name_reg(p)
+            newline()
+    newline()
 
     write_body(body)
     clear_indent()
@@ -299,8 +299,7 @@ def write_while(cond, body):
             % (xpr_str(ex),))
     newline()
     write_body(body)
-    out('br label %loop\nloop_exit:')
-    newline()
+    out('br label %loop\n\nloop_exit:')
 
 def write_stmt(stmt):
     match(stmt,
