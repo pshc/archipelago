@@ -113,9 +113,9 @@ def serialize(module):
         f = file(temp, 'wb')
         deps = []
         depmap = {module: 0}
-        for mod in sorted(inspect.deps,
-                          lambda x, y: cmp(x.digest.just, y.digest.just)):
-            deps.append(extrinsic(ModDigest, mod))
+        byDigest = [(extrinsic(ModDigest, mod), mod) for mod in inspect.deps]
+        for digest, mod in sorted(byDigest):
+            deps.append(digest)
             depmap[mod] = len(deps) # one-based
         state = SerialState(f, hash, 0, depmap)
         def go():
