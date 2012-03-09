@@ -116,6 +116,7 @@ def new_extrinsic(label, t):
     return ExtInfo(label, t, [], [])
 
 def extrinsic(ext, obj):
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     record = ext.stack[-1]
     assert obj in record, '%r has no %s' % (obj, ext.label)
     return record[obj]
@@ -159,6 +160,7 @@ def add_extrinsic(ext, obj, val):
 
 def update_extrinsic(ext, obj, val):
     assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     map = ext.stack[-1]
     assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
     map[obj] = val
@@ -169,6 +171,7 @@ def update_extrinsic(ext, obj, val):
 
 def has_extrinsic(ext, obj):
     assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     return obj in ext.stack[-1]
 
 value_types = (basestring, bool, int, float, tuple, type(None))
