@@ -300,6 +300,10 @@ def replace_refs(mapping, e):
             replace_refs(mapping, i)
     return e
 
+def extract_ret(b):
+    # dumb
+    return match(b, ("Body([Return(e)])", identity))
+
 SPECIAL_CASES = {
     'identity': lambda r: r(0),
     'tuple2': lambda r: TupleLit([r(0), r(1)]),
@@ -317,8 +321,8 @@ def conv_match_case(code, f):
     if special:
         e = special(lambda i: bs[i])
     else:
-        e = match(f, ('FuncExpr(Func(params, e))', lambda params, e:
-                         replace_refs(dict(zip(params, bs)), e)),
+        e = match(f, ('FuncExpr(Func(params, b))', lambda params, b:
+                         replace_refs(dict(zip(params, bs)), extract_ret(b))),
                      ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
     return MatchCase(c, e)
 
@@ -355,7 +359,7 @@ def conv_match_try(node, bs):
         else:
             b = refs_existing(nm)
             assert isinstance(b.binding, BindCtor), "Can't bind to %s" % (b,)
-            return PatCtor(b.binding.ctor, [args])
+            return PatCtor(b.binding.ctor, args)
     elif isinstance(node, ast.Name):
         if node.name == '_':
             return PatWild()
