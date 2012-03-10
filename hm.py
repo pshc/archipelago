@@ -80,6 +80,7 @@ def unify(e1, e2):
                                  else fail("mismatched type vars")),
         ("(TTuple(t1), TTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
+        ("(TArray(t1), TArray(t2))", unify),
         ("(f1==TFunc(a1, r1), f2==TFunc(a2, r2))", unify_funcs),
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
