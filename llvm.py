@@ -81,6 +81,35 @@ def temp_reg_named(nm):
     ir.tempCtr += 1
     return reg
 
+# TYPES
+
+IType, IInt, IPtr = ADT('IType',
+        'IInt',
+        'IPtr', ('type', 'IType'))
+
+def typeof(e):
+    if has_extrinsic(TypeOf, e):
+        return match(extrinsic(TypeOf, e).type,
+            ("TInt()", lambda: IInt()))
+    def no_type():
+        print 'HAS NO TYPEOF: %s' % (e,)
+        return IInt()
+    return match(e,
+        ("IntLit(_)", lambda: IInt()),
+        ("_", no_type))
+
+def t_str(t):
+    return match(t,
+        ("IInt()", lambda: "i32"),
+        ("IPtr(p)", lambda p: t_str(p) + "*"))
+
+def out_t(t):
+    out('%s ' % (t_str(t),))
+def out_t_ptr(t):
+    out('%s* ' % (t_str(t),))
+def out_t_nospace(t):
+    out(t_str(t))
+
 # EXPRESSIONS
 
 def expr_bind_builtin(b):
@@ -93,8 +122,9 @@ def expr_bind_var(v):
         return extrinsic(Replacement, v)
     tmp = temp_reg_named(extrinsic(Name, v))
     out_xpr(tmp)
-    out(' = load i32* %')
-    out_name(v)
+    out(' = load ')
+    out_t_ptr(typeof(v))
+    out_name_reg(v)
     newline()
     return tmp
 
@@ -211,12 +241,15 @@ def write_defn(v, e):
             return
     ex = express(e)
     out_name_reg(v)
-    out(' = alloca i32')
+    out(' = alloca ')
+    t = typeof(e)
+    out_t_nospace(t)
     newline()
-    out('store i32 ')
+    out('store ')
+    out_t(t)
     out_xpr(ex)
     comma()
-    out('i32* ')
+    out_t_ptr(t)
     out_name_reg(v)
 
 def write_dtstmt(form):
