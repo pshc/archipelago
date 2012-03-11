@@ -1,6 +1,8 @@
 LLVM
-- break up expressions
-- statements
+- codegen control flow
+- codegen envs
+- symbol clash resolution
+- apply types
 HM
 - pure/side-effectful divide
 - figure out extrinsic types
@@ -10,3 +12,4 @@ Expand
 - closure to env conversion
 AST
 - fix match special case identity, tuple2, etc
+- block match format
