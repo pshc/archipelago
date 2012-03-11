@@ -4,7 +4,6 @@ from base import *
 from types_builtin import *
 from globs import TypeOf
 
-TypeAnnot = new_extrinsic('TypeAnnot', Scheme)
 TypeCast = new_extrinsic('TypeCast', (Scheme, Scheme))
 FieldDT = new_extrinsic('FieldDT', '*DataType')
 
@@ -130,7 +129,6 @@ def in_new_env(f):
     for e, info in new_env.envTable.iteritems():
         s, save = info
         if save:
-            add_extrinsic(TypeAnnot, e, s)
             add_extrinsic(TypeOf, e, s)
 
     return ret
@@ -507,20 +505,24 @@ def normalize_scheme(s):
 
 def infer_types(root):
     captures = {}
+    annots = {}
     in_context(HMENV, None,
-        lambda: capture_scoped([TypeAnnot, TypeCast], captures,
+        lambda: capture_scoped([TypeCast], captures,
+        lambda: capture_extrinsic(TypeOf, annots,
         lambda: in_new_env(
         lambda: with_fields(
         lambda: infer_compilation_unit(root)
-    ))))
+    )))))
 
     casts = {}
     for e, (s, t) in captures[TypeCast].iteritems():
         if not type_equal(s.type, t):
             casts[e] = normalize_type(t)
-    annots = captures[TypeAnnot]
     for e in annots.keys():
-        annots[e] = normalize_scheme(annots[e])
+        norm = normalize_scheme(annots[e])
+        annots[e] = norm
+        update_extrinsic(TypeOf, e, norm)
+    captures[TypeOf] = annots
     return captures
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
