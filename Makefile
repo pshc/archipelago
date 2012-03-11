@@ -3,19 +3,14 @@ TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
 
 all: test
 
-llvm:
+llvm: dirs
 	@./llvm.py | tee hello.ll
 	@llvm-as < hello.ll | opt -mem2reg | lli || echo Exited with code $$?
 
-as:
+as: dirs
 	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
 
-tada: opt mods views
-	./llvm.py short.py
-
-demo:
-	./demo.py
-
+dirs: mods opt views
 mods:
 	mkdir $@
 opt:
@@ -23,20 +18,19 @@ opt:
 views:
 	mkdir $@
 
-views/tests_%: tests/%.py
+views/tests_%: tests/%.py dirs
 	./llvm.py $<
 
-remake_tests:
+remake_tests: dirs
 	./llvm.py $(TESTS)
 
-#test: $(TEST_BINS)
 test: remake_tests
 	@echo -n Running tests
 	@for bin in $(TEST_BINS); do $$bin; done
 	@echo
 	@echo Done.
 
-.PHONY: all clean llvm remake_tests tada test
+.PHONY: all clean dirs llvm remake_tests test
 
 clean:
 	rm -f -- mods/* opt/* views/* *.pyc *.bc *.ll hello a.out
