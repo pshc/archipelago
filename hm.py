@@ -11,12 +11,12 @@ ALGM = new_context('ALGM', '*Type')
 
 STMTCTXT = new_context('STMTCTXT', '*Stmt')
 
-HmEnv = DT('HmEnv', ('table', {'*Expr': (Scheme, bool)}),
-                    ('retType', Type),
-                    ('returned', 'Maybe(bool)'),
-                    ('prev', 'HmEnv'))
+HmScope = DT('HmScope', ('table', {'*Expr': (Scheme, bool)}),
+                        ('retType', Type),
+                        ('returned', 'Maybe(bool)'),
+                        ('prev', 'HmScope'))
 
-HMENV = new_context('HMENV', HmEnv)
+HMSCOPE = new_context('HMSCOPE', HmScope)
 
 def fresh():
     return TMeta(Nothing())
@@ -102,31 +102,31 @@ def unify_m(e):
     unify(context(ALGM), e)
 
 def set_scheme(e, s, save):
-    env = context(HMENV)
-    while env is not None:
-        assert e not in env.table, "%s already has a type" % (e,)
-        env = env.prev
-    context(HMENV).table[e] = (s, save)
+    scope = context(HMSCOPE)
+    while scope is not None:
+        assert e not in scope.table, "%s already has a type" % (e,)
+        scope = scope.prev
+    context(HMSCOPE).table[e] = (s, save)
 
 def set_monotype(e, t, save):
     set_scheme(e, Scheme([], t), save)
 
 def get_scheme(e):
-    env = context(HMENV)
-    while env is not None:
-        if e in env.table:
-            s, aug = env.table[e]
+    scope = context(HMSCOPE)
+    while scope is not None:
+        if e in scope.table:
+            s, aug = scope.table[e]
             return s
-        env = env.prev
+        scope = scope.prev
     assert has_extrinsic(TypeOf, e), with_context('%s not in scope' % (e,))
     return extrinsic(TypeOf, e)
 
-def in_new_env(f):
-    new_env = HmEnv({}, None, False, context(HMENV))
-    ret = in_context(HMENV, new_env, f)
+def in_new_scope(f):
+    new_scope = HmScope({}, None, False, context(HMSCOPE))
+    ret = in_context(HMSCOPE, new_scope, f)
 
-    # Save augmentations from that env
-    for e, info in new_env.table.iteritems():
+    # Save augmentations from that scope
+    for e, info in new_scope.table.iteritems():
         s, save = info
         if save:
             add_extrinsic(TypeOf, e, s)
@@ -145,8 +145,8 @@ def instantiate_scheme(s, astRef):
 def generalize_type(t, polyEnv):
     metas = free_meta_vars(t)
     while polyEnv is not None:
-        for envT in polyEnv.table:
-            metas = metas.difference(free_meta_vars(envT))
+        for scope in polyEnv.table:
+            metas = metas.difference(free_meta_vars(scope))
         polyEnv = polyEnv.prev
     tvs = []
     for i, meta in enumerate(metas):
@@ -258,7 +258,7 @@ def check_match(m, e, cs):
         def check_case():
             in_context(ALGM, et, lambda: check_pat(cp))
             check_expr(retT, ce)
-        in_new_env(check_case)
+        in_new_scope(check_case)
     # Help out C transmogrification with some extra type annotations
     set_monotype(m, retT, True)
     set_monotype(e, et, True)
@@ -360,7 +360,7 @@ def infer_new_extrinsic(ext):
 def infer_defn(a, e):
     t = fresh()
     check_expr(t, e)
-    set_scheme(a, generalize_type(t, context(HMENV)), True)
+    set_scheme(a, generalize_type(t, context(HMSCOPE)), True)
 
 def infer_assign(a, e):
     t = infer_lhs(a)
@@ -386,10 +386,10 @@ def infer_assert(tst, msg):
     check_expr(TStr(), msg)
 
 def infer_func_scheme(f, params, body):
-    def inside_func_env():
+    def inside_func_scope():
 
         retT = fresh()
-        context(HMENV).retType = retT
+        context(HMSCOPE).retType = retT
         funcT = fresh()
         if f is not None:
             set_monotype(f, funcT, False)
@@ -401,26 +401,26 @@ def infer_func_scheme(f, params, body):
 
         infer_body(body)
 
-        env = context(HMENV)
-        if not matches(env.returned, "Just(True)"):
+        scope = context(HMSCOPE)
+        if not matches(scope.returned, "Just(True)"):
             unify(retT, TVoid())
         unify(funcT, TFunc(paramTs, retT))
-        return generalize_type(funcT, env)
-    return in_new_env(inside_func_env)
+        return generalize_type(funcT, scope)
+    return in_new_scope(inside_func_scope)
 
 def infer_func(f):
     set_scheme(f, infer_func_scheme(f, f.params, f.body), True)
 
 def infer_return(e):
-    env = context(HMENV)
-    assert not matches(env.returned, 'Just(False)'), "Returned nothing"
-    check_expr(context(HMENV).retType, e)
-    env.returned = Just(True)
+    scope = context(HMSCOPE)
+    assert not matches(scope.returned, 'Just(False)'), "Returned nothing"
+    check_expr(context(HMSCOPE).retType, e)
+    scope.returned = Just(True)
 
 def infer_returnnothing():
-    env = context(HMENV)
-    assert not matches(env.returned, 'Just(True)'), "Returned something"
-    env.returned = Just(False)
+    scope = context(HMSCOPE)
+    assert not matches(scope.returned, 'Just(True)'), "Returned something"
+    scope.returned = Just(False)
 
 def infer_stmt(a):
     in_context(STMTCTXT, a, lambda: match(a,
@@ -506,10 +506,10 @@ def normalize_scheme(s):
 def infer_types(root):
     captures = {}
     annots = {}
-    in_context(HMENV, None,
+    in_context(HMSCOPE, None,
         lambda: capture_scoped([TypeCast], captures,
         lambda: capture_extrinsic(TypeOf, annots,
-        lambda: in_new_env(
+        lambda: in_new_scope(
         lambda: with_fields(
         lambda: infer_compilation_unit(root)
     )))))
