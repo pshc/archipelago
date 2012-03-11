@@ -226,18 +226,23 @@ def write_augassign(op, lhs, e):
 def write_break():
     out('br label %loop_exit')
 
-def write_defn(v, e):
+def has_static_replacement(v, e):
+    if has_extrinsic(Replacement, v):
+        return True
     m = match(e)
     if m('FuncExpr(f)'):
         f = m.arg
-        static = True
         from expand import VarUsage
         if has_extrinsic(VarUsage, v):
             if extrinsic(VarUsage, v).isReassigned:
-                static = False
-        if static:
-            add_extrinsic(Replacement, v, Const(func_ref(f)))
-            return
+                return False
+        add_extrinsic(Replacement, v, Const(func_ref(f)))
+        return True
+    return False
+
+def write_defn(v, e):
+    if has_static_replacement(v, e):
+        return
     ex = express(e)
     out_name_reg(v)
     out(' = alloca ')
