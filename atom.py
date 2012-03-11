@@ -194,13 +194,6 @@ def _do_mod(mod, name):
     from llvm import write_ir
     write_ir(mod.root)
 
-    #write_mod_repr('views/' + name + '.txt', mod, overlays)
-    """
-    from mogrify import mogrify
-    c = mogrify(mod, overlays)
-    write_mod_repr('views/' + name + '.c.txt', c, {})
-    native.serialize(c)
-    """
     assert loaded_modules[name] is None
     loaded_modules[name] = mod
     return mod
