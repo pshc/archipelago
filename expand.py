@@ -15,8 +15,8 @@ ExScope = DT('ExScope', ('curFlow', FlowNode),
 
 EXSCOPE = new_env('EXSCOPE', ExScope)
 
-ExFunc, ExTopFunc, ExInnerFunc = ADT('ExFunc',
-        'ExTopFunc',
+ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
+        'ExStaticDefn',
         'ExInnerFunc', ('closedVars', 'set([*Var])'),
                        ('outerFunc', '*ExFunc'))
 
@@ -198,9 +198,6 @@ def ex_func(params, b):
     in_new_scope(lambda: in_env(EXFUNC, fc, go), new_flow())
     return fc
 
-def ex_top_func(params, b):
-    in_env(EXFUNC, ExTopFunc(), lambda: ex_func(params, b))
-
 def ex_return(e):
     ex_expr(e)
     cur_flow().returns = True
@@ -227,10 +224,12 @@ def nop():
 def ex_body(body):
     map_(ex_stmt, body.stmts)
 
+def ex_top_defn(e):
+    in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
+
 def ex_top_level(s):
     match(s,
-        ("TopDefn(_, FuncExpr(Func(params, b)))", ex_top_func),
-        ("TopDefn(_, e)", ex_expr),
+        ("TopDefn(_, e)", ex_top_defn),
         ("TopDT(_)", nop),
         ("TopCtxt(_)", nop),
         ("TopExtrinsic(_)", nop))
