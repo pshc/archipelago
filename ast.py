@@ -95,10 +95,6 @@ def bind_kind(v):
         return BindVar
     elif isinstance(v, Builtin):
         return BindBuiltin
-    elif isinstance(v, Func):
-        return BindFunc
-    elif isinstance(v, Field):
-        return BindField
     elif isinstance(v, Ctor):
         return BindCtor
     elif isinstance(v, (DataType, Ctxt, Extrinsic)):
@@ -174,7 +170,6 @@ def conv_type(t, tvars, dt=None):
         return type_ref(s)
     return match(t,
         ("BindBuiltin(_)", lambda: t),
-        ("BindDT(_)", lambda: t),
         ("TStr() or TInt()", lambda: t),
         ("StrLit(s)", type_str),
         ("ListLit([t])",

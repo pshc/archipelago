@@ -196,7 +196,6 @@ def express(expr):
     return match(expr,
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
         ('Bind(BindVar(v))', expr_bind_var),
-        ('Bind(BindFunc(f))', lambda f: Const(func_ref(f))),
         ('Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),

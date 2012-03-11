@@ -14,13 +14,10 @@ Extrinsic = DT('Extrinsic', ('type', Type))
 
 Var = DT('Var')
 
-Binding, BindBuiltin, BindCtor, BindDT, BindField, BindFunc, BindVar = \
+Binding, BindBuiltin, BindCtor, BindVar = \
     ADT('Binding',
         'BindBuiltin', ('builtin', '*Builtin'),
         'BindCtor', ('ctor', '*Ctor'),
-        'BindDT', ('form', '*DataType'), # XXX
-        'BindField', ('field', '*Field'),
-        'BindFunc', ('func', '*Func'),
         'BindVar', ('var', '*Var'))
 
 Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \

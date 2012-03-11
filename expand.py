@@ -132,7 +132,7 @@ def ex_expr(e):
         ("GetCtxt(environ)", ex_getenv),
         ("InCtxt(environ, i, e)", ex_inenv),
         ("Bind(BindVar(v))", ex_bind_var),
-        ("Bind(BindFunc(_) or BindCtor(_) or BindBuiltin(_))", nop),
+        ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
 
 def ex_defn(v, e):

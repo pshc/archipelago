@@ -293,7 +293,6 @@ def builtin_scheme(builtin):
 
 def check_binding(binding, ref):
     unify_m(match(binding,
-        ("BindFunc(f)", lambda f: get_type(f, ref)),
         ("BindVar(v)", lambda v: get_type(v, ref)),
         ("BindBuiltin(b)",
                 lambda b: instantiate_scheme(builtin_scheme(b), ref)),
