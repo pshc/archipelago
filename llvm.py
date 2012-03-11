@@ -376,10 +376,10 @@ def escape_strlit(s):
 
 def write_top(top):
     match(top,
+        ("TopDefn(_, FuncExpr(f==Func(ps, body)))", write_top_func),
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
-        ("TopExtrinsic(extr)", write_extrinsic_stmt),
-        ("TopFunc(f==Func(ps, body))", write_top_func))
+        ("TopExtrinsic(extr)", write_extrinsic_stmt))
     newline()
 
 def write_unit(unit):
@@ -388,8 +388,8 @@ def write_unit(unit):
         if has_extrinsic(Expansion, top):
             for ex in extrinsic(Expansion, top):
                 match(ex,
-                    ("TopDefn(v, StrLit(s))", write_top_strlit),
-                    ("TopFunc(f==Func(ps, body))", write_top_func))
+                    ("ExStrLit(var, s)", write_top_strlit),
+                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))
                 newline()
         write_top(top)
 

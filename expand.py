@@ -26,8 +26,11 @@ ExGlobal = DT('ExGlobal', ('curTopLevel', TopLevel))
 
 EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
 
-ExCode = DT('ExCode', ('tops', [TopLevel]))
-Expansion = new_extrinsic('Expansion', ExCode)
+ExCode, ExSurfacedFunc, ExStrLit = ADT('ExCode',
+        'ExSurfacedFunc', ('func', Func),
+        'ExStrLit', ('var', Var), ('str', str))
+
+Expansion = new_extrinsic('Expansion', [ExCode])
 
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
@@ -74,9 +77,9 @@ def push_expansion(ex):
         add_extrinsic(Expansion, top, [])
     extrinsic(Expansion, top).append(ex)
 
-def ex_strlit(lit):
+def ex_strlit(lit, s):
     v = Var()
-    push_expansion(TopDefn(v, lit))
+    push_expansion(ExStrLit(v, s))
     add_extrinsic(ExpandedDecl, lit, ExpandedDeclInfo(v))
 
 def ex_call(f, args):
@@ -86,7 +89,7 @@ def ex_call(f, args):
 def ex_funcexpr(f, params, body):
     info = ex_func(params, body)
     isClosure = len(info.closedVars) > 0
-    push_expansion(TopFunc(f))
+    push_expansion(ExSurfacedFunc(f))
     add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
 def ex_match_case(c):
@@ -119,7 +122,7 @@ def ex_unknown_expr(e):
 def ex_expr(e):
     match(e,
         ("IntLit(_)", nop),
-        ("lit==StrLit(_)", ex_strlit),
+        ("lit==StrLit(s)", ex_strlit),
         ("Call(f, args)", ex_call),
         ("FuncExpr(f==Func(params, body))", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
@@ -136,10 +139,6 @@ def ex_defn(v, e):
     # a little redundant...
     add_extrinsic(LocalVar, v, VarInfo(env(EXFUNC)))
     env(EXSCOPE).localVars[v] = FuncLocal()
-    ex_expr(e)
-
-def ex_top_defn(v, e):
-    # v is considered static, don't close over
     ex_expr(e)
 
 def ex_assign(a, e):
@@ -230,8 +229,8 @@ def ex_body(body):
 
 def ex_top_level(s):
     match(s,
-        ("TopDefn(var, e)", ex_top_defn),
-        ("TopFunc(Func(params, b))", ex_top_func),
+        ("TopDefn(_, FuncExpr(Func(params, b)))", ex_top_func),
+        ("TopDefn(_, e)", ex_expr),
         ("TopDT(_)", nop),
         ("TopCtxt(_)", nop),
         ("TopExtrinsic(_)", nop))

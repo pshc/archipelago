@@ -87,10 +87,9 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'ReturnNothing',
         'While', ('test', Expr), ('body', Body))
 
-TopLevel, TopDefn, TopFunc, TopDT, TopExtrinsic, TopCtxt = \
+TopLevel, TopDefn, TopDT, TopExtrinsic, TopCtxt = \
     ADT('TopLevel',
         'TopDefn', ('var', Var), ('expr', Expr),
-        'TopFunc', ('func', Func),
         'TopDT', ('form', 'DataType'),
         'TopExtrinsic', ('extrinsic', Extrinsic),
         'TopCtxt', ('ctxt', Ctxt))

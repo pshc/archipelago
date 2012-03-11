@@ -408,9 +408,6 @@ def infer_func_scheme(f, params, body):
         return generalize_type(funcT, scope)
     return in_new_scope(inside_func_scope)
 
-def infer_func(f):
-    set_scheme(f, infer_func_scheme(f, f.params, f.body), True)
-
 def infer_return(e):
     scope = env(HMSCOPE)
     assert not matches(scope.returned, 'Just(False)'), "Returned nothing"
@@ -446,7 +443,6 @@ def infer_top_level(a):
         ("TopCtxt(environ)", infer_new_env),
         ("TopDefn(var, e)", infer_defn),
         ("TopExtrinsic(extr)", infer_new_extrinsic),
-        ("TopFunc(f)", infer_func),
         ("otherwise", unknown_infer)))
 
 def infer_compilation_unit(unit):

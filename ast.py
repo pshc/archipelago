@@ -658,13 +658,10 @@ def conv_function(s):
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    if is_top_level():
-        identifier(func, s.name, export=True)
-        return [TopFunc(rest())]
-    else:
-        var = Var()
-        identifier(var, s.name)
-        return [Defn(var, FuncExpr(rest()))]
+    var = Var()
+    glob = is_top_level()
+    identifier(var, s.name, export=glob)
+    return [(TopDefn if glob else Defn)(var, FuncExpr(rest()))]
 
 @stmt(ast.If)
 def conv_if(s):
