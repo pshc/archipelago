@@ -11,10 +11,10 @@ ALGM = new_context('ALGM', '*Type')
 
 STMTCTXT = new_context('STMTCTXT', '*Stmt')
 
-HmEnv = DT('HmEnv', ('envTable', {'*Expr': (Scheme, bool)}),
-                    ('envRetType', Type),
-                    ('envReturned', 'Maybe(bool)'),
-                    ('envPrev', 'Env'))
+HmEnv = DT('HmEnv', ('table', {'*Expr': (Scheme, bool)}),
+                    ('retType', Type),
+                    ('returned', 'Maybe(bool)'),
+                    ('prev', 'HmEnv'))
 
 HMENV = new_context('HMENV', HmEnv)
 
@@ -104,9 +104,9 @@ def unify_m(e):
 def set_scheme(e, s, save):
     env = context(HMENV)
     while env is not None:
-        assert e not in env.envTable, "%s already has a type" % (e,)
-        env = env.envPrev
-    context(HMENV).envTable[e] = (s, save)
+        assert e not in env.table, "%s already has a type" % (e,)
+        env = env.prev
+    context(HMENV).table[e] = (s, save)
 
 def set_monotype(e, t, save):
     set_scheme(e, Scheme([], t), save)
@@ -114,10 +114,10 @@ def set_monotype(e, t, save):
 def get_scheme(e):
     env = context(HMENV)
     while env is not None:
-        if e in env.envTable:
-            s, aug = env.envTable[e]
+        if e in env.table:
+            s, aug = env.table[e]
             return s
-        env = env.envPrev
+        env = env.prev
     assert has_extrinsic(TypeOf, e), with_context('%s not in scope' % (e,))
     return extrinsic(TypeOf, e)
 
@@ -126,7 +126,7 @@ def in_new_env(f):
     ret = in_context(HMENV, new_env, f)
 
     # Save augmentations from that env
-    for e, info in new_env.envTable.iteritems():
+    for e, info in new_env.table.iteritems():
         s, save = info
         if save:
             add_extrinsic(TypeOf, e, s)
@@ -145,9 +145,9 @@ def instantiate_scheme(s, astRef):
 def generalize_type(t, polyEnv):
     metas = free_meta_vars(t)
     while polyEnv is not None:
-        for envT in polyEnv.envTable:
+        for envT in polyEnv.table:
             metas = metas.difference(free_meta_vars(envT))
-        polyEnv = polyEnv.envPrev
+        polyEnv = polyEnv.prev
     tvs = []
     for i, meta in enumerate(metas):
         tv = TypeVar()
@@ -389,7 +389,7 @@ def infer_func_scheme(f, params, body):
     def inside_func_env():
 
         retT = fresh()
-        context(HMENV).envRetType = retT
+        context(HMENV).retType = retT
         funcT = fresh()
         if f is not None:
             set_monotype(f, funcT, False)
@@ -402,7 +402,7 @@ def infer_func_scheme(f, params, body):
         infer_body(body)
 
         env = context(HMENV)
-        if not matches(env.envReturned, "Just(True)"):
+        if not matches(env.returned, "Just(True)"):
             unify(retT, TVoid())
         unify(funcT, TFunc(paramTs, retT))
         return generalize_type(funcT, env)
@@ -413,14 +413,14 @@ def infer_func(f):
 
 def infer_return(e):
     env = context(HMENV)
-    assert not matches(env.envReturned, 'Just(False)'), "Returned nothing"
-    check_expr(context(HMENV).envRetType, e)
-    env.envReturned = Just(True)
+    assert not matches(env.returned, 'Just(False)'), "Returned nothing"
+    check_expr(context(HMENV).retType, e)
+    env.returned = Just(True)
 
 def infer_returnnothing():
     env = context(HMENV)
-    assert not matches(env.envReturned, 'Just(True)'), "Returned something"
-    env.envReturned = Just(False)
+    assert not matches(env.returned, 'Just(True)'), "Returned something"
+    env.returned = Just(False)
 
 def infer_stmt(a):
     in_context(STMTCTXT, a, lambda: match(a,
