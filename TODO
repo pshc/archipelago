@@ -7,6 +7,6 @@ HM
 - poly unification
 - schemey TApply
 Expand
-- closure to context conversion
+- closure to env conversion
 AST
 - fix match special case identity, tuple2, etc

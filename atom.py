@@ -184,8 +184,8 @@ def load_module_dep(filename, deps):
     inferences = infer_types(mod.root)
     write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
-    from expand import in_expansion_context
-    return in_expansion_context(lambda: _do_mod(mod, name))
+    from expand import in_expansion_env
+    return in_expansion_env(lambda: _do_mod(mod, name))
 
 def _do_mod(mod, name):
     from expand import expand_module
@@ -381,17 +381,17 @@ ModRepr = DT('ModRepr', ('write', 'str -> void'),
                         ('seen', set([object])),
                         ('weakIndices', {object: int}),
                         ('weakCtr', int))
-MODREPR = new_context('MODREPR', ModRepr)
+MODREPR = new_env('MODREPR', ModRepr)
 
 def write_mod_repr(filename, m, exts):
     with file(filename, 'w') as f:
         def write(x):
-            f.write('%s%s\n' % ('  ' * context(MODREPR).indent, x))
+            f.write('%s%s\n' % ('  ' * env(MODREPR).indent, x))
         init = ModRepr(write, 0, exts, set(), {}, 0)
-        in_context(MODREPR, init, lambda: _do_repr(m.root))
+        in_env(MODREPR, init, lambda: _do_repr(m.root))
 
 def _do_repr(s):
-    c = context(MODREPR)
+    c = env(MODREPR)
     if isinstance(s, Structured):
         dt = type(s)
         if s in c.seen:

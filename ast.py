@@ -6,22 +6,22 @@ from compiler import ast
 ScopeContext = DT('ScopeContext', ('indent', int),
                                   ('syms', {(str, bool): object}),
                                   ('prevContext', None))
-SCOPE = new_context('SCOPE', ScopeContext)
+SCOPE = new_env('SCOPE', ScopeContext)
 
 OmniContext = DT('OmniContext', ('imports', [object]),
                                 ('exports', [object]),
                                 ('missingRefs', {(str, bool): [object]}),
                                 ('loadedDeps', set([Module])),
                                 ('directlyImportedModuleNames', set([str])))
-OMNI = new_context('OMNI', OmniContext)
+OMNI = new_env('OMNI', OmniContext)
 
-def ast_contexts():
+def ast_envs():
     omni = OmniContext({}, {}, {}, set(), set())
     scope = ScopeContext(0, {}, None)
     return omni, scope
 
 def is_top_level():
-    return context(SCOPE).indent == 0
+    return env(SCOPE).indent == 0
 
 loaded_module_export_names = {}
 
@@ -31,13 +31,13 @@ symbolNamespace = 'symbol'
 
 def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
-    scope = context(SCOPE)
+    scope = env(SCOPE)
     already_Named = name is None
     if already_Named:
         name = extrinsic(Name, obj)
     key = (name, namespace)
     assert name in permissible_nms or key not in scope.syms, (
-            "Symbol '%s' already in %s context\n%s" % (
+            "Symbol '%s' already in %s env\n%s" % (
             name, namespace,
             '\n'.join('\t'+str(s) for s, ns in scope.syms if ns == namespace)))
     try:
@@ -48,7 +48,7 @@ def identifier(obj, name=None, namespace=valueNamespace,
     if not already_Named:
         add_extrinsic(Name, obj, name)
 
-    omni = context(OMNI)
+    omni = env(OMNI)
     missing_binds = omni.missingRefs.get(key)
     if missing_binds is not None:
         for bind in missing_binds:
@@ -58,7 +58,7 @@ def identifier(obj, name=None, namespace=valueNamespace,
         omni.exports[key] = (obj, b)
 
 def ident_exists(nm, namespace=valueNamespace):
-    scope = context(SCOPE)
+    scope = env(SCOPE)
     key = (nm, namespace)
     while scope is not None:
         o = scope.syms.get(key)
@@ -67,7 +67,7 @@ def ident_exists(nm, namespace=valueNamespace):
             return Just(b(var))
         scope = scope.prevContext
 
-    ext = context(OMNI).imports.get(key)
+    ext = env(OMNI).imports.get(key)
     if ext is not None:
         var, b = ext
         return Just(b(var))
@@ -86,7 +86,7 @@ def refs_existing(nm, namespace=valueNamespace):
         # Bind() is wrong for types... or is it?
     key = (nm, namespace)
     fwd_ref = Bind(key)
-    omni = context(OMNI)
+    omni = env(OMNI)
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
     return fwd_ref
 
@@ -112,7 +112,7 @@ def type_ref(nm):
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):
         return
-    omni = context(OMNI)
+    omni = env(OMNI)
     for t in (True, False):
         key = (ref.refAtom, t)
         refs = omni.missingRefs.get(key, [])
@@ -125,9 +125,9 @@ def destroy_forward_ref(ref):
 
 def inside_scope(f):
     def new_scope(*args, **kwargs):
-        prev = context(SCOPE)
+        prev = env(SCOPE)
         new = ScopeContext(prev.indent + 1, {}, prev)
-        return in_context(SCOPE, new, lambda: f(*args, **kwargs))
+        return in_env(SCOPE, new, lambda: f(*args, **kwargs))
     new_scope.__name__ = f.__name__
     return new_scope
 
@@ -239,7 +239,7 @@ def make_adt(*args):
 def make_dt(*args):
     return _make_dt(*args, **(dict(maker=DT)))
 
-def make_context(nm, t):
+def make_env(nm, t):
     tvars = {}
     ctxt = Ctxt(conv_type(t, tvars))
     identifier(ctxt, nm, namespace=symbolNamespace, export=True)
@@ -251,12 +251,12 @@ def make_extrinsic(nm, t):
     identifier(extr, nm, namespace=symbolNamespace, export=True)
     return [TopExtrinsic(extr)]
 
-def conv_get_context(args):
+def conv_get_env(args):
     assert len(args) == 1
     # XXX Need to deref
     return GetCtxt(args[0])
 
-def conv_in_context(args):
+def conv_in_env(args):
     assert len(args) == 3
     # XXX Need to deref the first arg...
     return InCtxt(*args)
@@ -268,7 +268,7 @@ def conv_get_extrinsic(args):
 
 def conv_special(e):
     """
-    For DT and context argument conversion into types
+    For DT and env argument conversion into types
     """
     c = e.__class__
     if c is ast.Name:
@@ -390,12 +390,12 @@ def conv_match_try(node, bs):
 SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [object]))
 special_call_forms = {
         'ADT': make_adt, 'DT': make_dt,
-        'new_context': make_context,
+        'new_env': make_env,
         'new_extrinsic': make_extrinsic,
 }
 extra_call_forms = {
         'match': conv_match,
-        'context': conv_get_context, 'in_context': conv_in_context,
+        'env': conv_get_env, 'in_env': conv_in_env,
         'extrinsic': conv_get_extrinsic,
 }
 
@@ -406,7 +406,7 @@ def conv_callfunc(e):
         kind = e.node.name
         if kind in ('DT', 'ADT'):
             return SpecialCallForm(kind, e.args)
-        elif kind in ('new_context', 'new_extrinsic'):
+        elif kind in ('new_env', 'new_extrinsic'):
             if e.args and isinstance(e.args[0], ast.Const):
                 name = e.args[0].value
                 if isinstance(name, basestring):
@@ -638,7 +638,7 @@ def conv_from(s):
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
         global loaded_module_export_names
-        omni = context(OMNI)
+        omni = env(OMNI)
         if modname not in omni.directlyImportedModuleNames:
             omni.directlyImportedModuleNames.add(modname)
             mod = load_module_dep(modname.replace('.', '/') + '.py',
@@ -715,7 +715,7 @@ def conv_stmts_noscope(stmts):
 def conv_while(s):
     return [While(conv_expr(s.test), Body(conv_stmts(s.body)))]
 
-# Shouldn't this be a context or something?
+# Shouldn't this be an env or something?
 BUILTINS = {}
 
 def setup_builtin_module():
@@ -734,7 +734,7 @@ def convert_file(filename, name, deps):
     mod = Module(t_DT(CompilationUnit), None)
     add_extrinsic(Name, mod, name)
     deps.add(mod)
-    omni, scope = ast_contexts()
+    omni, scope = ast_envs()
     omni.loadedModules = deps
     def go():
         scope.syms.update(BUILTINS)
@@ -742,7 +742,7 @@ def convert_file(filename, name, deps):
         for top in tops:
             root += conv_top_level(top)
         return CompilationUnit(root)
-    mod.root = in_context(OMNI, omni, lambda: in_context(SCOPE, scope, go))
+    mod.root = in_env(OMNI, omni, lambda: in_env(SCOPE, scope, go))
     # Resolve imports for missing symbols
     missing = omni.missingRefs
     for key, binds in missing.items():

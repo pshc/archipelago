@@ -10,10 +10,10 @@ SerialState = DT('SerialState',
         ('index', int),
         ('deps', {Module: int}))
 
-Serialize = new_context('Serialize', SerialState)
+Serialize = new_env('Serialize', SerialState)
 
 def _write(b):
-    state = context(Serialize)
+    state = env(Serialize)
     state.file.write(b)
     state.hash.update(b)
 
@@ -28,7 +28,7 @@ def _write_ref(node, t):
     else:
         assert False, "%r is not a ref type" % (t,)
     loc = extrinsic(Location, node)
-    a = context(Serialize).deps[loc.module]
+    a = env(Serialize).deps[loc.module]
     b = loc.index
     _write(_encode_int(a) + _encode_int(b))
 
@@ -80,12 +80,12 @@ InspectState = DT('InspectState',
         ('deps', set([str])),
         )
 
-Inspection = new_context('Inspection', InspectState)
+Inspection = new_env('Inspection', InspectState)
 
 def _inspect_node(node):
     if isinstance(node, Structured):
         assert not has_extrinsic(Location, node), "Multiply used %r" % (node,)
-        state = context(Inspection)
+        state = env(Inspection)
         add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
         form = node.__form__
@@ -110,7 +110,7 @@ def serialize(module):
     hash = sha256()
     def index():
         inspect = InspectState(module, 0, set())
-        in_context(Inspection, inspect, lambda: _inspect_node(module.root))
+        in_env(Inspection, inspect, lambda: _inspect_node(module.root))
         f = file(temp, 'wb')
         deps = []
         depmap = {module: 0}
@@ -123,7 +123,7 @@ def serialize(module):
             _write(_encode_int(len(deps)))
             map_(_write, deps)
             _serialize_node(module.root, module.rootType)
-        in_context(Serialize, state, go)
+        in_env(Serialize, state, go)
         f.close()
         return inspect.count
     count = index()
@@ -139,7 +139,7 @@ def serialize(module):
     state = SerialState(f, sha256(), 0, None)
     def write_opt_count():
         _write(_encode_int(count))
-    in_context(Serialize, state, write_opt_count)
+    in_env(Serialize, state, write_opt_count)
     f.close()
     system('ln -sf -- %s_count opt/%s_count' % (hex, name))
 
@@ -151,11 +151,11 @@ DeserialState = DT('DeserialState',
         ('ownMap', {int: object}),
         ('forwardRefs', {int: [object]}))
 
-Deserialize = new_context('Deserialize', DeserialState)
+Deserialize = new_env('Deserialize', DeserialState)
 
 def _read_int():
     # TODO: Check extension chars for prefix
-    f = context(Deserialize).file
+    f = env(Deserialize).file
     a = ord(f.read(1))
     if a <= 0b01111111:
         return a
@@ -181,11 +181,11 @@ def _read_int():
 
 def _read_str():
     n = _read_int()
-    return context(Deserialize).read(n).decode('UTF-8')
+    return env(Deserialize).read(n).decode('UTF-8')
 
 def _read_node(t, path):
     if isinstance(t, TData):
-        state = context(Deserialize)
+        state = env(Deserialize)
         index = state.index
         state.index += 1
         if len(t.ctors) > 1:
@@ -217,7 +217,7 @@ def _read_node(t, path):
             array.append(_read_node(t.appVars[0], path + (i,)))
         return array
     elif isinstance(t, TWeak):
-        state = context(Deserialize)
+        state = env(Deserialize)
         depindex = _read_int()
         index = _read_int()
         if depindex == 0:
@@ -276,7 +276,7 @@ def deserialize(digest, root_type):
                     assert False, 'Bad path end'
         return module
     state = DeserialState(f, module, deps, 0, ownMap, forwardRefs)
-    in_context(Deserialize, state, go)
+    in_env(Deserialize, state, go)
     f.close()
     ownMap = [v for k, v in sorted(ownMap.items())]
     add_extrinsic(ModIndex, module, ownMap)

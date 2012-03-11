@@ -77,29 +77,29 @@ def _dt_form(dt):
 ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'Type'),
                                 ('ctxtStack', '[a]'))
 
-def new_context(name, t):
+def new_env(name, t):
     assert isinstance(name, basestring)
     if t is not None:
         t = parse_type(t)
     return ContextInfo(name, t, [])
 
-def in_context(ctxt, initial, func):
+def in_env(ctxt, initial, func):
     stack = ctxt.ctxtStack
     stack.append(initial)
     count = len(stack)
     ret = func()
-    assert len(stack) == count, 'Imbalanced context %s stack' % ctxt.ctxtName
+    assert len(stack) == count, 'Imbalanced env %s stack' % ctxt.ctxtName
     stack.pop()
     return ret
 
-def context(ctxt):
-    assert len(ctxt.ctxtStack), 'Not in context %s at present' % ctxt.ctxtName
+def env(ctxt):
+    assert len(ctxt.ctxtStack), 'Not in env %s at present' % ctxt.ctxtName
     return ctxt.ctxtStack[-1]
 
-def have_context(ctxt):
+def have_env(ctxt):
     return bool(ctxt.ctxtStack)
 
-TVARS = new_context('TVARS', None)
+TVARS = new_env('TVARS', None)
 
 # Extrinsics
 
@@ -203,7 +203,7 @@ def _ctor_form(ctor):
 
 def _dt_form(dt):
     tvs = {}
-    ctors = in_context(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
+    ctors = in_env(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(FormBacking, form, dt)
@@ -305,7 +305,7 @@ def realize_type(t):
     elif isinstance(t, ast.Name):
         t = t.name
         if len(t) == 1:
-            tvars = context(TVARS)
+            tvars = env(TVARS)
             tvar = tvars.get(t)
             if tvar is None:
                 tvar = TypeVar()
@@ -351,7 +351,7 @@ def _parse_deferred():
             for field in ctor.fields:
                 field.type = parse_type(field.type)
         tvars = {}
-        in_context(TVARS, tvars, parse)
+        in_env(TVARS, tvars, parse)
         ctor.__dt__.tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()

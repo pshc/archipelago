@@ -3,7 +3,7 @@ from atom import *
 import sys
 
 IRInfo = DT('IRInfo', ('needIndent', bool), ('tempCtr', int))
-IR = new_context('IR', IRInfo)
+IR = new_env('IR', IRInfo)
 
 def setup_ir():
     return IRInfo(False, 0)
@@ -25,7 +25,7 @@ Replacement = new_extrinsic('Replacement', BindingReplacement)
 # OUTPUT
 
 def out(s):
-    if context(IR).needIndent:
+    if env(IR).needIndent:
         sys.stdout.write('  ')
         clear_indent()
     sys.stdout.write(s)
@@ -60,23 +60,23 @@ def constop_str(f, args):
     return '%s (%s)' % (f, ', '.join('i32 %s' % (xpr_str(r),) for r in args))
 
 def clear_indent():
-    context(IR).needIndent = False
+    env(IR).needIndent = False
 
 def newline():
     sys.stdout.write('\n')
-    context(IR).needIndent = True
+    env(IR).needIndent = True
 
 def comma():
     out(', ')
 
 def temp_reg():
-    ir = context(IR)
+    ir = env(IR)
     reg = Tmp(ir.tempCtr)
     ir.tempCtr += 1
     return reg
 
 def temp_reg_named(nm):
-    ir = context(IR)
+    ir = env(IR)
     reg = Reg(nm, ir.tempCtr)
     ir.tempCtr += 1
     return reg
@@ -359,7 +359,7 @@ def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
 
 def write_top_strlit(var, s):
-    ir = context(IR)
+    ir = env(IR)
     add_extrinsic(Name, var, '.LC%d' % (ir.tempCtr,))
     ir.tempCtr += 1
 
@@ -394,7 +394,7 @@ def write_unit(unit):
         write_top(top)
 
 def write_ir(prog):
-    in_context(IR, setup_ir(),
+    in_env(IR, setup_ir(),
         lambda: scope_extrinsic(Replacement,
         lambda: write_unit(prog)))
 
