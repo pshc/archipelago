@@ -1,8 +1,8 @@
 from bedrock import *
 
 def main():
-    a = [0, 1]
-    a = [1, 2, 3]
+    a = Cons(0, Cons(1, Nil()))
+    a = Cons(1, Cons(2, Cons(3, Nil)))
     b = match(a, ("Cons(_, Cons(two, Cons(_, Nil())))", identity),
                  ("_", lambda: 4))
     assert b == 2, "List pattern match"

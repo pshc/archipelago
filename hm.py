@@ -27,7 +27,8 @@ def with_context(msg):
             ("_", lambda: msg))
 
 def unification_failure(e1, e2, msg):
-    assert False, with_context("Couldn't unify %r with %r: %s" % (e1, e2, msg))
+    assert False, with_context("Couldn't unify %r\nwith %r:\n%s" % (
+            e1, e2, msg))
 
 def unify_tuples(t1, list1, t2, list2, desc):
     if len(list1) != len(list2):
@@ -46,9 +47,9 @@ def unify_applications(e1, t1, v1, a1, e2, t2, v2, a2):
     else:
         assert False("TODO: Save this info in schemes")
 
-def unify_data_and_apply(data, appTarget, appVar, appArg):
+def unify_data_and_apply(data, tvars, appTarget, appVar, appArg):
     unify(data, appTarget)
-    assert appVar in data.tvars, "Not a relevant tvar."
+    assert appVar in tvars, "Not a relevant tvar."
 
 def unify_metas(t1, t2):
     if isNothing(t1.metaType):
@@ -84,9 +85,9 @@ def unify(e1, e2):
         ("(TData(a), TData(b))", lambda a, b: same() if a is b
                                  else fail("mismatched datatypes")()),
         ("(e1==TApply(t1,v1,a1), e2==TApply(t2,v2,a2))", unify_applications),
-        ("(TData(d), TApply(t, v, a))", unify_data_and_apply),
-        ("(TApply(t, v, a), TData(d))",
-            lambda t, v, a, d: unify_data_and_apply(d, t, v, a)),
+        ("(d==TData(DataType(_, tvs)), TApply(t,v,a))", unify_data_and_apply),
+        ("(TApply(t, v, a), d==TData(DataType(_, tvs)))",
+            lambda t, v, a, d, tvs: unify_data_and_apply(d, tvs, t, v, a)),
         ("(TInt(), TInt())", same),
         ("(TStr(), TStr())", same),
         ("(TChar(), TChar())", same),
@@ -293,7 +294,7 @@ def builtin_scheme(builtin):
 
 def check_binding(binding, ref):
     unify_m(match(binding,
-        ("BindVar(v)", lambda v: get_type(v, ref)),
+        ("BindVar(v) or BindCtor(v)", lambda v: get_type(v, ref)),
         ("BindBuiltin(b)",
                 lambda b: instantiate_scheme(builtin_scheme(b), ref)),
     ))
