@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		503901E3150DCC3C00F4D172 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E2150DCC3C00F4D172 /* UIKit.framework */; };
+		503901E5150DCC3C00F4D172 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E4150DCC3C00F4D172 /* Foundation.framework */; };
+		503901E7150DCC3C00F4D172 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E6150DCC3C00F4D172 /* CoreGraphics.framework */; };
+		503901E9150DCC3C00F4D172 /* GLKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E8150DCC3C00F4D172 /* GLKit.framework */; };
+		503901EB150DCC3C00F4D172 /* OpenGLES.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901EA150DCC3C00F4D172 /* OpenGLES.framework */; };
+		503901F1150DCC3C00F4D172 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 503901EF150DCC3C00F4D172 /* InfoPlist.strings */; };
+		503901F3150DCC3C00F4D172 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901F2150DCC3C00F4D172 /* main.m */; };
+		503901F7150DCC3C00F4D172 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901F6150DCC3C00F4D172 /* AppDelegate.m */; };
+		503901F9150DCC3C00F4D172 /* Shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 503901F8150DCC3C00F4D172 /* Shader.fsh */; };
+		503901FB150DCC3C00F4D172 /* Shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 503901FA150DCC3C00F4D172 /* Shader.vsh */; };
+		503901FE150DCC3C00F4D172 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901FD150DCC3C00F4D172 /* ViewController.m */; };
 		505439DC144A96DF000D162E /* control.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D4144A96DF000D162E /* control.c */; };
 		505439DD144A96DF000D162E /* edit.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D6144A96DF000D162E /* edit.c */; };
 		505439DE144A96DF000D162E /* serial.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D8144A96DF000D162E /* serial.c */; };
@@ -22,6 +33,22 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		503901E0150DCC3C00F4D172 /* Editor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Editor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		503901E2150DCC3C00F4D172 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		503901E4150DCC3C00F4D172 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		503901E6150DCC3C00F4D172 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = Library/Frameworks/CoreGraphics.framework; sourceTree = DEVELOPER_DIR; };
+		503901E8150DCC3C00F4D172 /* GLKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLKit.framework; path = Library/Frameworks/GLKit.framework; sourceTree = DEVELOPER_DIR; };
+		503901EA150DCC3C00F4D172 /* OpenGLES.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGLES.framework; path = Library/Frameworks/OpenGLES.framework; sourceTree = DEVELOPER_DIR; };
+		503901EE150DCC3C00F4D172 /* Editor-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Editor-Info.plist"; sourceTree = "<group>"; };
+		503901F0150DCC3C00F4D172 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		503901F2150DCC3C00F4D172 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		503901F4150DCC3C00F4D172 /* Editor-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Editor-Prefix.pch"; sourceTree = "<group>"; };
+		503901F5150DCC3C00F4D172 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		503901F6150DCC3C00F4D172 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		503901F8150DCC3C00F4D172 /* Shader.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.fsh; path = Shaders/Shader.fsh; sourceTree = "<group>"; };
+		503901FA150DCC3C00F4D172 /* Shader.vsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.vsh; path = Shaders/Shader.vsh; sourceTree = "<group>"; };
+		503901FC150DCC3C00F4D172 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		503901FD150DCC3C00F4D172 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
 		505439D4144A96DF000D162E /* control.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = control.c; sourceTree = SOURCE_ROOT; };
 		505439D5144A96DF000D162E /* control.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = control.h; sourceTree = SOURCE_ROOT; };
 		505439D6144A96DF000D162E /* edit.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = edit.c; sourceTree = SOURCE_ROOT; };
@@ -47,6 +74,18 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		503901DD150DCC3C00F4D172 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				503901E3150DCC3C00F4D172 /* UIKit.framework in Frameworks */,
+				503901E5150DCC3C00F4D172 /* Foundation.framework in Frameworks */,
+				503901E7150DCC3C00F4D172 /* CoreGraphics.framework in Frameworks */,
+				503901E9150DCC3C00F4D172 /* GLKit.framework in Frameworks */,
+				503901EB150DCC3C00F4D172 /* OpenGLES.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50D7F0F71442D11A00B8C83F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -59,7 +98,32 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		506FE8DC144A968400690D99 /* ui */ = {
+		503901EC150DCC3C00F4D172 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				503901F5150DCC3C00F4D172 /* AppDelegate.h */,
+				503901F6150DCC3C00F4D172 /* AppDelegate.m */,
+				503901F8150DCC3C00F4D172 /* Shader.fsh */,
+				503901FA150DCC3C00F4D172 /* Shader.vsh */,
+				503901FC150DCC3C00F4D172 /* ViewController.h */,
+				503901FD150DCC3C00F4D172 /* ViewController.m */,
+				503901ED150DCC3C00F4D172 /* Supporting Files */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		503901ED150DCC3C00F4D172 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				503901EE150DCC3C00F4D172 /* Editor-Info.plist */,
+				503901EF150DCC3C00F4D172 /* InfoPlist.strings */,
+				503901F2150DCC3C00F4D172 /* main.m */,
+				503901F4150DCC3C00F4D172 /* Editor-Prefix.pch */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		506FE8DC144A968400690D99 /* OS X */ = {
 			isa = PBXGroup;
 			children = (
 				50D7F1101442D11A00B8C83F /* AppDelegate.h */,
@@ -68,14 +132,18 @@
 				507D64DD1443C377009AC187 /* SunkenWindow.m */,
 				50D7F1211442E83600B8C83F /* Viewport.h */,
 				50D7F1221442E83600B8C83F /* Viewport.m */,
+				50D7F1051442D11A00B8C83F /* Supporting Files */,
 			);
-			name = ui;
+			name = "OS X";
+			path = ui;
 			sourceTree = "<group>";
 		};
 		50D7F0EF1442D11A00B8C83F = {
 			isa = PBXGroup;
 			children = (
 				50D7F1041442D11A00B8C83F /* Editor */,
+				503901EC150DCC3C00F4D172 /* iOS */,
+				506FE8DC144A968400690D99 /* OS X */,
 				50D7F0FD1442D11A00B8C83F /* Frameworks */,
 				50D7F0FB1442D11A00B8C83F /* Products */,
 			);
@@ -85,6 +153,7 @@
 			isa = PBXGroup;
 			children = (
 				50D7F0FA1442D11A00B8C83F /* edit.app */,
+				503901E0150DCC3C00F4D172 /* Editor.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -94,6 +163,11 @@
 			children = (
 				50D7F0FE1442D11A00B8C83F /* Cocoa.framework */,
 				50D7F11B1442D65D00B8C83F /* OpenGL.framework */,
+				503901E2150DCC3C00F4D172 /* UIKit.framework */,
+				503901E4150DCC3C00F4D172 /* Foundation.framework */,
+				503901E6150DCC3C00F4D172 /* CoreGraphics.framework */,
+				503901E8150DCC3C00F4D172 /* GLKit.framework */,
+				503901EA150DCC3C00F4D172 /* OpenGLES.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -109,8 +183,6 @@
 				505439D9144A96DF000D162E /* serial.h */,
 				505439DA144A96DF000D162E /* util.c */,
 				505439DB144A96DF000D162E /* util.h */,
-				506FE8DC144A968400690D99 /* ui */,
-				50D7F1051442D11A00B8C83F /* Supporting Files */,
 			);
 			name = Editor;
 			path = ui;
@@ -131,6 +203,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		503901DF150DCC3C00F4D172 /* Editor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 50390207150DCC3D00F4D172 /* Build configuration list for PBXNativeTarget "Editor" */;
+			buildPhases = (
+				503901DC150DCC3C00F4D172 /* Sources */,
+				503901DD150DCC3C00F4D172 /* Frameworks */,
+				503901DE150DCC3C00F4D172 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Editor;
+			productName = Editor;
+			productReference = 503901E0150DCC3C00F4D172 /* Editor.app */;
+			productType = "com.apple.product-type.application";
+		};
 		50D7F0F91442D11A00B8C83F /* edit */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 50D7F1181442D11B00B8C83F /* Build configuration list for PBXNativeTarget "edit" */;
@@ -169,11 +258,22 @@
 			projectRoot = "";
 			targets = (
 				50D7F0F91442D11A00B8C83F /* edit */,
+				503901DF150DCC3C00F4D172 /* Editor */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		503901DE150DCC3C00F4D172 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				503901F1150DCC3C00F4D172 /* InfoPlist.strings in Resources */,
+				503901F9150DCC3C00F4D172 /* Shader.fsh in Resources */,
+				503901FB150DCC3C00F4D172 /* Shader.vsh in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50D7F0F81442D11A00B8C83F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -186,6 +286,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		503901DC150DCC3C00F4D172 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				503901F3150DCC3C00F4D172 /* main.m in Sources */,
+				503901F7150DCC3C00F4D172 /* AppDelegate.m in Sources */,
+				503901FE150DCC3C00F4D172 /* ViewController.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50D7F0F61442D11A00B8C83F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -204,6 +314,14 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
+		503901EF150DCC3C00F4D172 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				503901F0150DCC3C00F4D172 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 		50D7F1071442D11A00B8C83F /* InfoPlist.strings */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -223,6 +341,54 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		50390205150DCC3C00F4D172 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_APPS_DIR)/Xcode.app/Contents/Developer/Library/Frameworks\"",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "iOS/Editor-Prefix.pch";
+				"GCC_THUMB_SUPPORT[arch=armv6]" = "";
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				INFOPLIST_FILE = "iOS/Editor-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 4.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		50390206150DCC3C00F4D172 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_APPS_DIR)/Xcode.app/Contents/Developer/Library/Frameworks\"",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "iOS/Editor-Prefix.pch";
+				"GCC_THUMB_SUPPORT[arch=armv6]" = "";
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				INFOPLIST_FILE = "iOS/Editor-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 4.0;
+				OTHER_CFLAGS = "-DNS_BLOCK_ASSERTIONS=1";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
 		50D7F1161442D11B00B8C83F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -293,6 +459,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		50390207150DCC3D00F4D172 /* Build configuration list for PBXNativeTarget "Editor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				50390205150DCC3C00F4D172 /* Debug */,
+				50390206150DCC3C00F4D172 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		50D7F0F41442D11A00B8C83F /* Build configuration list for PBXProject "edit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
