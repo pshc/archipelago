@@ -29,7 +29,7 @@ struct rasterized_text {
 
 struct text_texture {
     struct text_metrics metrics;
-    unsigned int texture;
+    unsigned short x, y;
 };
 
 struct editor {
@@ -40,6 +40,8 @@ struct editor {
     struct list *layout;
     struct map *layout_map;
     unsigned int background_texture;
+    unsigned int atlas_texture;
+    struct list *atlas_rows;
 };
 
 extern struct editor *editor;

@@ -7,7 +7,11 @@
 
 struct editor *editor = NULL;
 
+static const struct size atlas_size = {512, 512};
+
 static void render_cached_text(const char *);
+static void render_texture_atlas(void);
+static void destroy_texture_atlas(void);
 
 void create_editor(void) {
     editor = calloc(1, sizeof *editor);
@@ -29,6 +33,13 @@ void create_editor(void) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, 16, 16, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pattern);
     free(pattern);
     editor->background_texture = background;
+
+    glGenTextures(1, &editor->atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, editor->atlas_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, 4, (GLsizei) atlas_size.width, (GLsizei) atlas_size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    editor->atlas_rows = nope();
 
     editor->text_cache = new_map(&strcmp, &free, &destroy_rasterized_text);
 }
@@ -258,6 +269,11 @@ void render_editor(void) {
     glVertex2i(0, 1000);
     glEnd();
 
+    glPushMatrix();
+    glTranslated(0, -atlas_size.height, 0);
+    render_texture_atlas();
+    glPopMatrix();
+
     if (editor->module) {
         struct list *pos;
         for (pos = editor->layout; IS_CONS(pos); pos = pos->next)
@@ -274,6 +290,8 @@ void destroy_editor(void) {
         free_list(editor->layout);
     destroy_map(editor->text_cache);
     glDeleteTextures(1, &editor->background_texture);
+    glDeleteTextures(1, &editor->atlas_texture);
+    destroy_texture_atlas();
     free(editor);
     editor = NULL;
 }
@@ -288,7 +306,94 @@ static void render_cached_text(const char *text) {
         texture = create_text_texture(text);
         map_set(cache, strdup(text), texture);
     }
-    render_text_texture(texture);
+    if (texture)
+        render_text_texture(texture);
+}
+
+/* TEXTURE ATLAS */
+
+struct atlas_cell {
+    struct size size;
+};
+
+struct atlas_row {
+    unsigned short height, width_available;
+    struct list *cells;
+};
+
+struct pack_pos {
+    unsigned short x, y;
+};
+
+static void pack_cell(struct size size, unsigned short y, struct atlas_row *row, struct pack_pos *dest) {
+    dest->x = atlas_size.width - row->width_available;
+    dest->y = y;
+    row->width_available -= size.width;
+    struct atlas_cell *new_cell = malloc(sizeof *new_cell);
+    new_cell->size = size;
+    row->cells = cons(new_cell, row->cells);
+}
+
+static int pack_add_rect(struct size size, struct pack_pos *dest) {
+    struct atlas_row *row, *large_row = NULL;
+    struct list *cur_row = editor->atlas_rows;
+    unsigned short w = size.width, h = size.height, rh, y = 0;
+    unsigned short large_y, large_height = 0;
+
+    for (; IS_CONS(cur_row); y += row->height, cur_row = cur_row->next) {
+        row = cur_row->val;
+        rh = row->height;
+        if (h > rh || w > row->width_available)
+            continue;
+        if (h < rh/2) {
+            // too short for this row, but keep as an option
+            if (!large_height || large_height > h) {
+                large_row = cur_row->val;
+                large_y = y;
+                large_height = h;
+            }
+            continue;
+        }
+        pack_cell(size, y, row, dest);
+        return 1;
+    }
+    if (y + h > atlas_size.height) {
+        if (large_row) {
+            pack_cell(size, large_y, large_row, dest);
+            return 1;
+        }
+        return 0;
+    }
+    /* make new row */
+    cur_row->next = nope();
+    row = malloc(sizeof *row);
+    cur_row->val = row;
+    row->width_available = atlas_size.width;
+    row->height = h;
+    row->cells = nope();
+    pack_cell(size, y, row, dest);
+    return 1;
+}
+
+static void render_texture_atlas(void) {
+    glBindTexture(GL_TEXTURE_2D, editor->atlas_texture);
+    int w = atlas_size.width, h = atlas_size.height;
+    glColor4f(1, 1, 1, 1);
+    glEnable(GL_TEXTURE_2D);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2i(0, 0);
+    glTexCoord2f(1, 0); glVertex2i(w, 0);
+    glTexCoord2f(1, 1); glVertex2i(w, h);
+    glTexCoord2f(0, 1); glVertex2i(0, h);
+    glEnd();
+}
+
+static void free_pack_row(struct atlas_row *row) {
+    free_list(row->cells);
+}
+
+static void destroy_texture_atlas(void) {
+    free_list_by(editor->atlas_rows, &free_pack_row);
 }
 
 /* TEXT TEXTURES */
@@ -374,23 +479,26 @@ struct text_texture *create_text_texture(const char *text) {
 
     struct text_metrics metrics = rasterized->metrics;
 
-    GLuint index;
-    glGenTextures(1, &index);
-    glBindTexture(GL_TEXTURE_2D, index);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, 4, (GLsizei) metrics.size.width, (GLsizei) metrics.size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rasterized->buf);
+    struct pack_pos atlas_pos;
+    if (!pack_add_rect(metrics.size, &atlas_pos)) {
+        destroy_rasterized_text(rasterized);
+        return NULL;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, editor->atlas_texture);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, atlas_pos.x, atlas_pos.y, (GLsizei) metrics.size.width, (GLsizei) metrics.size.height, GL_RGBA, GL_UNSIGNED_BYTE, rasterized->buf);
     destroy_rasterized_text(rasterized);
 
     struct text_texture *texture = malloc(sizeof *texture);
     if (!texture)
     {
-        glDeleteTextures(1, &index);
+        /* XXX: pack_del_rect() */
         return NULL;
     }
 
     texture->metrics = metrics;
-    texture->texture = index;
+    texture->x = atlas_pos.x;
+    texture->y = atlas_pos.y;
 
     return texture;
 }
@@ -407,18 +515,21 @@ void render_text_texture(struct text_texture *text) {
     glVertex2i(w, 0);
     glEnd();
     
-    glBindTexture(GL_TEXTURE_2D, text->texture);
+    glBindTexture(GL_TEXTURE_2D, editor->atlas_texture);
+    float tw = atlas_size.width, th = atlas_size.height;
+    float u = text->x / tw, v = text->y / th;
+    float uw = (text->x + w) / tw, vh = (text->y + h) / th;
     glColor4f(1, 1, 1, 1);
     glEnable(GL_TEXTURE_2D);
     glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex2i(0, -a);
-    glTexCoord2f(1, 0); glVertex2i(w, -a);
-    glTexCoord2f(1, 1); glVertex2i(w, h-a);
-    glTexCoord2f(0, 1); glVertex2i(0, h-a);
+    glTexCoord2f(u, v); glVertex2i(0, -a);
+    glTexCoord2f(uw, v); glVertex2i(w, -a);
+    glTexCoord2f(uw, vh); glVertex2i(w, h-a);
+    glTexCoord2f(u, vh); glVertex2i(0, h-a);
     glEnd();
 }
 
 void destroy_text_texture(struct text_texture *text) {
-    glDeleteTextures(1, &text->texture);
+    /* XXX: pack_del_rect() */
     free(text);
 }
