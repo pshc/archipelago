@@ -63,8 +63,8 @@
         dy = theEvent.deltaY;
     }
 
-    editor->view_pos.x -= dx;
-    editor->view_pos.y -= dy;
+    vec2 d = {-dx, -dy};
+    editor_move_view_pos(d);
     self.needsDisplay = YES;
 }
 

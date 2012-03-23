@@ -5,6 +5,34 @@
 #include "serial.h"
 #include "util.h"
 
+struct text_metrics {
+    struct size size;
+    short ascent, descent;
+};
+
+struct rasterized_text {
+    struct text_metrics metrics;
+    size_t stride;
+    uint8_t *buf;
+};
+
+struct text_texture {
+    struct text_metrics metrics;
+    unsigned short x, y;
+};
+
+struct editor {
+    struct module *module;
+    vec2 view_pos;
+    struct size view_size;
+    struct map *text_cache;
+    struct list *layout;
+    struct map *layout_map;
+    unsigned int background_texture;
+    unsigned int atlas_texture;
+    struct list *atlas_rows;
+};
+
 struct editor *editor = NULL;
 
 static const struct size atlas_size = {512, 512};
@@ -52,6 +80,11 @@ void resize_editor(struct size size) {
     glOrtho(0, size.width, size.height, 0, -1, 1);
     glViewport(0, 0, size.width, size.height);
     glMatrixMode(GL_MODELVIEW);
+}
+
+void editor_move_view_pos(vec2 dir) {
+    editor->view_pos.x += dir.x;
+    editor->view_pos.y += dir.y;
 }
 
 static vec2 layout_pos;
