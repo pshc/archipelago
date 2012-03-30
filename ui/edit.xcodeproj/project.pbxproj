@@ -23,6 +23,10 @@
 		505439DE144A96DF000D162E /* serial.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D8144A96DF000D162E /* serial.c */; };
 		505439DF144A96DF000D162E /* util.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439DA144A96DF000D162E /* util.c */; };
 		507D64DE1443C377009AC187 /* SunkenWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 507D64DD1443C377009AC187 /* SunkenWindow.m */; };
+		50C29F051522941D00425C56 /* shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29EFF15228B9A00425C56 /* shader.fsh */; };
+		50C29F061522941D00425C56 /* shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29F0015228B9A00425C56 /* shader.vsh */; };
+		50C29F081522957000425C56 /* texture.c in Sources */ = {isa = PBXBuildFile; fileRef = 50C29F071522957000425C56 /* texture.c */; };
+		50C29F0C15229BF600425C56 /* visual.c in Sources */ = {isa = PBXBuildFile; fileRef = 50C29F0B15229BF500425C56 /* visual.c */; };
 		50D7F0FF1442D11A00B8C83F /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50D7F0FE1442D11A00B8C83F /* Cocoa.framework */; };
 		50D7F1091442D11A00B8C83F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 50D7F1071442D11A00B8C83F /* InfoPlist.strings */; };
 		50D7F10B1442D11A00B8C83F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 50D7F10A1442D11A00B8C83F /* main.m */; };
@@ -59,6 +63,14 @@
 		505439DB144A96DF000D162E /* util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = util.h; sourceTree = SOURCE_ROOT; };
 		507D64DC1443C377009AC187 /* SunkenWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SunkenWindow.h; sourceTree = "<group>"; };
 		507D64DD1443C377009AC187 /* SunkenWindow.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SunkenWindow.m; sourceTree = "<group>"; };
+		50C29EFF15228B9A00425C56 /* shader.fsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = shader.fsh; sourceTree = SOURCE_ROOT; };
+		50C29F0015228B9A00425C56 /* shader.vsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = shader.vsh; sourceTree = SOURCE_ROOT; };
+		50C29F0415228C0D00425C56 /* platform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = platform.h; sourceTree = "<group>"; };
+		50C29F071522957000425C56 /* texture.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = texture.c; sourceTree = "<group>"; };
+		50C29F091522958600425C56 /* texture.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = texture.h; sourceTree = "<group>"; };
+		50C29F0A152296D100425C56 /* visual.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = visual.h; sourceTree = "<group>"; };
+		50C29F0B15229BF500425C56 /* visual.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = visual.c; sourceTree = "<group>"; };
+		50D5071E1522FFCC00A68CD3 /* uniforms.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = uniforms.h; sourceTree = "<group>"; };
 		50D7F0FA1442D11A00B8C83F /* edit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = edit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		50D7F0FE1442D11A00B8C83F /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		50D7F1061442D11A00B8C83F /* edit-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "edit-Info.plist"; sourceTree = "<group>"; };
@@ -179,10 +191,18 @@
 				505439D5144A96DF000D162E /* control.h */,
 				505439D6144A96DF000D162E /* edit.c */,
 				505439D7144A96DF000D162E /* edit.h */,
+				50C29F0415228C0D00425C56 /* platform.h */,
 				505439D8144A96DF000D162E /* serial.c */,
 				505439D9144A96DF000D162E /* serial.h */,
+				50C29F071522957000425C56 /* texture.c */,
+				50C29F091522958600425C56 /* texture.h */,
+				50D5071E1522FFCC00A68CD3 /* uniforms.h */,
 				505439DA144A96DF000D162E /* util.c */,
 				505439DB144A96DF000D162E /* util.h */,
+				50C29F0B15229BF500425C56 /* visual.c */,
+				50C29F0A152296D100425C56 /* visual.h */,
+				50C29EFF15228B9A00425C56 /* shader.fsh */,
+				50C29F0015228B9A00425C56 /* shader.vsh */,
 			);
 			name = Editor;
 			path = ui;
@@ -278,6 +298,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				50C29F051522941D00425C56 /* shader.fsh in Resources */,
+				50C29F061522941D00425C56 /* shader.vsh in Resources */,
 				50D7F1091442D11A00B8C83F /* InfoPlist.strings in Resources */,
 				50D7F1151442D11B00B8C83F /* MainMenu.xib in Resources */,
 			);
@@ -308,6 +330,8 @@
 				505439DD144A96DF000D162E /* edit.c in Sources */,
 				505439DE144A96DF000D162E /* serial.c in Sources */,
 				505439DF144A96DF000D162E /* util.c in Sources */,
+				50C29F081522957000425C56 /* texture.c in Sources */,
+				50C29F0C15229BF600425C56 /* visual.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

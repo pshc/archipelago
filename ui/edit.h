@@ -3,27 +3,12 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include "visual.h"
 
-struct list;
-struct map;
+struct editor;
 struct module;
 
-typedef struct {
-    float x, y;
-} vec2;
-
-struct size {
-    unsigned short width, height;
-};
-
 extern struct editor *editor;
-
-struct rasterized_text *create_rasterized_text(const char *);
-void destroy_rasterized_text(struct rasterized_text *);
-
-struct text_texture *create_text_texture(const char *);
-void render_text_texture(struct text_texture *text);
-void destroy_text_texture(struct text_texture *);
 
 void create_editor(void);
 void resize_editor(struct size);
