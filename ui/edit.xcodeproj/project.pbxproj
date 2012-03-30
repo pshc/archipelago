@@ -147,7 +147,7 @@
 				50D7F1051442D11A00B8C83F /* Supporting Files */,
 			);
 			name = "OS X";
-			path = ui;
+			path = OSX;
 			sourceTree = "<group>";
 		};
 		50D7F0EF1442D11A00B8C83F = {
@@ -205,7 +205,6 @@
 				50C29F0015228B9A00425C56 /* shader.vsh */,
 			);
 			name = Editor;
-			path = ui;
 			sourceTree = "<group>";
 		};
 		50D7F1051442D11A00B8C83F /* Supporting Files */ = {
@@ -462,8 +461,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "ui/edit-Prefix.pch";
-				INFOPLIST_FILE = "ui/edit-Info.plist";
+				GCC_PREFIX_HEADER = "OSX/edit-Prefix.pch";
+				INFOPLIST_FILE = "OSX/edit-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = app;
 			};
@@ -473,8 +472,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "ui/edit-Prefix.pch";
-				INFOPLIST_FILE = "ui/edit-Info.plist";
+				GCC_PREFIX_HEADER = "OSX/edit-Prefix.pch";
+				INFOPLIST_FILE = "OSX/edit-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = app;
 			};
