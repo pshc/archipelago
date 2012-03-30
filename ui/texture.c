@@ -1,9 +1,16 @@
-#include <ApplicationServices/ApplicationServices.h>
-#include <OpenGL/gl.h>
+#include <math.h>
 #include <stdlib.h>
+#include "platform.h"
 #include "texture.h"
 #include "uniforms.h"
 #include "util.h"
+
+#ifdef __IPHONE_OS_VERSION_MIN_REQUIRED
+# include <CoreText/CoreText.h>
+# include <CoreGraphics/CoreGraphics.h>
+#else
+# include <ApplicationServices/ApplicationServices.h>
+#endif
 
 /* TEXTURE ATLAS */
 
@@ -19,6 +26,8 @@ struct atlas_row {
 static GLuint atlas_texture = 0;
 static const struct size atlas_size = {512, 512};
 static struct list *atlas_rows = NULL;
+
+static CGColorSpaceRef color_space_rgb = NULL;
 
 void setup_texture(void) {
     glGenTextures(1, &atlas_texture);
@@ -93,6 +102,7 @@ static int pack_add_rect(struct size size, struct pack_pos *dest) {
 }
 
 void render_texture_atlas(void) {
+    /*
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
     int w = atlas_size.width, h = atlas_size.height;
     glColor4f(1, 1, 1, 1);
@@ -103,6 +113,7 @@ void render_texture_atlas(void) {
     glTexCoord2f(1, 1); glVertex2i(w, h);
     glTexCoord2f(0, 1); glVertex2i(0, h);
     glEnd();
+     */
 }
 
 static void free_pack_row(struct atlas_row *row) {
@@ -118,12 +129,17 @@ static void destroy_texture_atlas(void) {
 struct rasterized_text *create_rasterized_text(const char *input_text) {
     CTFontRef font = CTFontCreateWithName(CFSTR("Helvetica"), 40, NULL);
     /* for italics etc, use CTFontCreateCopyWithSymbolicTraits */
-    CGColorRef color = CGColorCreateGenericRGB(1, 1, 1, 1);
-    
+
+    if (!color_space_rgb) {
+        color_space_rgb = CGColorSpaceCreateDeviceRGB();
+    }
+    CGFloat white_rgba[] = {1, 1, 1, 1};
+    CGColorRef white_color = CGColorCreate(color_space_rgb, white_rgba);
+
     const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-    const void *values[] = {font, color};
+    const void *values[] = {font, white_color};
     CFDictionaryRef attrs = CFDictionaryCreate(kCFAllocatorDefault, keys, values, sizeof values / sizeof *values, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CGColorRelease(color);
+    CGColorRelease(white_color);
     CFRelease(font);
     
     CFStringRef unattributed = CFStringCreateWithCString(kCFAllocatorDefault, input_text, kCFStringEncodingUTF8);
@@ -149,11 +165,10 @@ struct rasterized_text *create_rasterized_text(const char *input_text) {
         CFRelease(line);
         return NULL;
     }
-    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
-    CGContextRef bitmap = CGBitmapContextCreate(buf, width, height, 8, row, rgb, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(rgb);
-    
-    CGColorRef backColor = CGColorCreateGenericRGB(1, 1, 1, 0);
+    CGContextRef bitmap = CGBitmapContextCreate(buf, width, height, 8, row, color_space_rgb, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Host);
+
+    CGFloat back_rgba[] = {1, 1, 1, 0};
+    CGColorRef backColor = CGColorCreate(color_space_rgb, back_rgba);
     CGContextSetFillColorWithColor(bitmap, backColor);
     CGColorRelease(backColor);
     
@@ -222,22 +237,19 @@ struct text_texture *create_text_texture(const char *text) {
 void render_text_texture(struct text_texture *text) {
     struct text_metrics m = text->metrics;
     
+    /*
     glColor4f(0.5, 0.5, 0.5, 1);
     glDisable(GL_TEXTURE_2D);
     glBegin(GL_LINES);
     glVertex2i(0, 0);
     glVertex2i(m.size.width, 0);
     glEnd();
-    
-    glEnableClientState(GL_VERTEX_ARRAY);
+     */
     
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
-    glColor4f(1, 1, 1, 1);
     glEnable(GL_TEXTURE_2D);
     vec2 offset = {0, -m.ascent};
     render_quad(m.size, offset, text->pos, m.size);
-    
-    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void destroy_text_texture(struct text_texture *text) {

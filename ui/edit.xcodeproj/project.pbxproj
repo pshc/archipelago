@@ -7,22 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		503901E3150DCC3C00F4D172 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E2150DCC3C00F4D172 /* UIKit.framework */; };
-		503901E5150DCC3C00F4D172 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E4150DCC3C00F4D172 /* Foundation.framework */; };
-		503901E7150DCC3C00F4D172 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E6150DCC3C00F4D172 /* CoreGraphics.framework */; };
-		503901E9150DCC3C00F4D172 /* GLKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901E8150DCC3C00F4D172 /* GLKit.framework */; };
-		503901EB150DCC3C00F4D172 /* OpenGLES.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 503901EA150DCC3C00F4D172 /* OpenGLES.framework */; };
 		503901F1150DCC3C00F4D172 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 503901EF150DCC3C00F4D172 /* InfoPlist.strings */; };
 		503901F3150DCC3C00F4D172 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901F2150DCC3C00F4D172 /* main.m */; };
 		503901F7150DCC3C00F4D172 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901F6150DCC3C00F4D172 /* AppDelegate.m */; };
-		503901F9150DCC3C00F4D172 /* Shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 503901F8150DCC3C00F4D172 /* Shader.fsh */; };
-		503901FB150DCC3C00F4D172 /* Shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 503901FA150DCC3C00F4D172 /* Shader.vsh */; };
 		503901FE150DCC3C00F4D172 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 503901FD150DCC3C00F4D172 /* ViewController.m */; };
 		505439DC144A96DF000D162E /* control.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D4144A96DF000D162E /* control.c */; };
 		505439DD144A96DF000D162E /* edit.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D6144A96DF000D162E /* edit.c */; };
 		505439DE144A96DF000D162E /* serial.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D8144A96DF000D162E /* serial.c */; };
 		505439DF144A96DF000D162E /* util.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439DA144A96DF000D162E /* util.c */; };
 		507D64DE1443C377009AC187 /* SunkenWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 507D64DD1443C377009AC187 /* SunkenWindow.m */; };
+		50AA732B15266FF8007F0D02 /* control.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D4144A96DF000D162E /* control.c */; };
+		50AA732D15266FF8007F0D02 /* edit.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D6144A96DF000D162E /* edit.c */; };
+		50AA733015266FF8007F0D02 /* serial.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439D8144A96DF000D162E /* serial.c */; };
+		50AA733215266FF8007F0D02 /* texture.c in Sources */ = {isa = PBXBuildFile; fileRef = 50C29F071522957000425C56 /* texture.c */; };
+		50AA733515266FF8007F0D02 /* util.c in Sources */ = {isa = PBXBuildFile; fileRef = 505439DA144A96DF000D162E /* util.c */; };
+		50AA733715266FF8007F0D02 /* visual.c in Sources */ = {isa = PBXBuildFile; fileRef = 50C29F0B15229BF500425C56 /* visual.c */; };
+		50AA733915267011007F0D02 /* shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29EFF15228B9A00425C56 /* shader.fsh */; };
+		50AA733A15267011007F0D02 /* shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29F0015228B9A00425C56 /* shader.vsh */; };
+		50AA73461526719D007F0D02 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50AA734315267167007F0D02 /* CoreGraphics.framework */; };
+		50AA73471526719D007F0D02 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50AA733D152670DA007F0D02 /* Foundation.framework */; };
+		50AA73481526719D007F0D02 /* GLKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50AA73411526715A007F0D02 /* GLKit.framework */; };
+		50AA73491526719D007F0D02 /* OpenGLES.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50AA733F152670EA007F0D02 /* OpenGLES.framework */; };
+		50AA734A1526719D007F0D02 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50AA733B152670D2007F0D02 /* UIKit.framework */; };
 		50C29F051522941D00425C56 /* shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29EFF15228B9A00425C56 /* shader.fsh */; };
 		50C29F061522941D00425C56 /* shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 50C29F0015228B9A00425C56 /* shader.vsh */; };
 		50C29F081522957000425C56 /* texture.c in Sources */ = {isa = PBXBuildFile; fileRef = 50C29F071522957000425C56 /* texture.c */; };
@@ -34,23 +40,19 @@
 		50D7F1151442D11B00B8C83F /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 50D7F1131442D11B00B8C83F /* MainMenu.xib */; };
 		50D7F11D1442D67400B8C83F /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50D7F11B1442D65D00B8C83F /* OpenGL.framework */; };
 		50D7F1231442E83600B8C83F /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50D7F1221442E83600B8C83F /* Viewport.m */; };
+		50DFA6481526743B00748D5A /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50DFA6471526743B00748D5A /* CoreText.framework */; };
+		50DFA64A1526778100748D5A /* platform.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DFA6491526778100748D5A /* platform.m */; };
+		50DFA64B1526791D00748D5A /* platform.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DFA6491526778100748D5A /* platform.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		503901E0150DCC3C00F4D172 /* Editor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Editor.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		503901E2150DCC3C00F4D172 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
-		503901E4150DCC3C00F4D172 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		503901E6150DCC3C00F4D172 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = Library/Frameworks/CoreGraphics.framework; sourceTree = DEVELOPER_DIR; };
-		503901E8150DCC3C00F4D172 /* GLKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLKit.framework; path = Library/Frameworks/GLKit.framework; sourceTree = DEVELOPER_DIR; };
-		503901EA150DCC3C00F4D172 /* OpenGLES.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGLES.framework; path = Library/Frameworks/OpenGLES.framework; sourceTree = DEVELOPER_DIR; };
 		503901EE150DCC3C00F4D172 /* Editor-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Editor-Info.plist"; sourceTree = "<group>"; };
 		503901F0150DCC3C00F4D172 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		503901F2150DCC3C00F4D172 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		503901F4150DCC3C00F4D172 /* Editor-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Editor-Prefix.pch"; sourceTree = "<group>"; };
 		503901F5150DCC3C00F4D172 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		503901F6150DCC3C00F4D172 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		503901F8150DCC3C00F4D172 /* Shader.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.fsh; path = Shaders/Shader.fsh; sourceTree = "<group>"; };
-		503901FA150DCC3C00F4D172 /* Shader.vsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.vsh; path = Shaders/Shader.vsh; sourceTree = "<group>"; };
 		503901FC150DCC3C00F4D172 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
 		503901FD150DCC3C00F4D172 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
 		505439D4144A96DF000D162E /* control.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = control.c; sourceTree = SOURCE_ROOT; };
@@ -63,6 +65,11 @@
 		505439DB144A96DF000D162E /* util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = util.h; sourceTree = SOURCE_ROOT; };
 		507D64DC1443C377009AC187 /* SunkenWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SunkenWindow.h; sourceTree = "<group>"; };
 		507D64DD1443C377009AC187 /* SunkenWindow.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SunkenWindow.m; sourceTree = "<group>"; };
+		50AA733B152670D2007F0D02 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		50AA733D152670DA007F0D02 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		50AA733F152670EA007F0D02 /* OpenGLES.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGLES.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/OpenGLES.framework; sourceTree = DEVELOPER_DIR; };
+		50AA73411526715A007F0D02 /* GLKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/GLKit.framework; sourceTree = DEVELOPER_DIR; };
+		50AA734315267167007F0D02 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/CoreGraphics.framework; sourceTree = DEVELOPER_DIR; };
 		50C29EFF15228B9A00425C56 /* shader.fsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = shader.fsh; sourceTree = SOURCE_ROOT; };
 		50C29F0015228B9A00425C56 /* shader.vsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = shader.vsh; sourceTree = SOURCE_ROOT; };
 		50C29F0415228C0D00425C56 /* platform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = platform.h; sourceTree = "<group>"; };
@@ -83,6 +90,8 @@
 		50D7F11B1442D65D00B8C83F /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		50D7F1211442E83600B8C83F /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50D7F1221442E83600B8C83F /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
+		50DFA6471526743B00748D5A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/CoreText.framework; sourceTree = DEVELOPER_DIR; };
+		50DFA6491526778100748D5A /* platform.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = platform.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -90,11 +99,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				503901E3150DCC3C00F4D172 /* UIKit.framework in Frameworks */,
-				503901E5150DCC3C00F4D172 /* Foundation.framework in Frameworks */,
-				503901E7150DCC3C00F4D172 /* CoreGraphics.framework in Frameworks */,
-				503901E9150DCC3C00F4D172 /* GLKit.framework in Frameworks */,
-				503901EB150DCC3C00F4D172 /* OpenGLES.framework in Frameworks */,
+				50DFA6481526743B00748D5A /* CoreText.framework in Frameworks */,
+				50AA73461526719D007F0D02 /* CoreGraphics.framework in Frameworks */,
+				50AA73471526719D007F0D02 /* Foundation.framework in Frameworks */,
+				50AA73481526719D007F0D02 /* GLKit.framework in Frameworks */,
+				50AA73491526719D007F0D02 /* OpenGLES.framework in Frameworks */,
+				50AA734A1526719D007F0D02 /* UIKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -115,10 +125,9 @@
 			children = (
 				503901F5150DCC3C00F4D172 /* AppDelegate.h */,
 				503901F6150DCC3C00F4D172 /* AppDelegate.m */,
-				503901F8150DCC3C00F4D172 /* Shader.fsh */,
-				503901FA150DCC3C00F4D172 /* Shader.vsh */,
 				503901FC150DCC3C00F4D172 /* ViewController.h */,
 				503901FD150DCC3C00F4D172 /* ViewController.m */,
+				50AA734515267188007F0D02 /* Frameworks */,
 				503901ED150DCC3C00F4D172 /* Supporting Files */,
 			);
 			path = iOS;
@@ -144,10 +153,24 @@
 				507D64DD1443C377009AC187 /* SunkenWindow.m */,
 				50D7F1211442E83600B8C83F /* Viewport.h */,
 				50D7F1221442E83600B8C83F /* Viewport.m */,
+				50D7F0FD1442D11A00B8C83F /* Frameworks */,
 				50D7F1051442D11A00B8C83F /* Supporting Files */,
 			);
 			name = "OS X";
 			path = OSX;
+			sourceTree = "<group>";
+		};
+		50AA734515267188007F0D02 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				50AA734315267167007F0D02 /* CoreGraphics.framework */,
+				50DFA6471526743B00748D5A /* CoreText.framework */,
+				50AA733D152670DA007F0D02 /* Foundation.framework */,
+				50AA73411526715A007F0D02 /* GLKit.framework */,
+				50AA733F152670EA007F0D02 /* OpenGLES.framework */,
+				50AA733B152670D2007F0D02 /* UIKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		50D7F0EF1442D11A00B8C83F = {
@@ -156,7 +179,6 @@
 				50D7F1041442D11A00B8C83F /* Editor */,
 				503901EC150DCC3C00F4D172 /* iOS */,
 				506FE8DC144A968400690D99 /* OS X */,
-				50D7F0FD1442D11A00B8C83F /* Frameworks */,
 				50D7F0FB1442D11A00B8C83F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -175,13 +197,9 @@
 			children = (
 				50D7F0FE1442D11A00B8C83F /* Cocoa.framework */,
 				50D7F11B1442D65D00B8C83F /* OpenGL.framework */,
-				503901E2150DCC3C00F4D172 /* UIKit.framework */,
-				503901E4150DCC3C00F4D172 /* Foundation.framework */,
-				503901E6150DCC3C00F4D172 /* CoreGraphics.framework */,
-				503901E8150DCC3C00F4D172 /* GLKit.framework */,
-				503901EA150DCC3C00F4D172 /* OpenGLES.framework */,
 			);
 			name = Frameworks;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		50D7F1041442D11A00B8C83F /* Editor */ = {
@@ -192,6 +210,7 @@
 				505439D6144A96DF000D162E /* edit.c */,
 				505439D7144A96DF000D162E /* edit.h */,
 				50C29F0415228C0D00425C56 /* platform.h */,
+				50DFA6491526778100748D5A /* platform.m */,
 				505439D8144A96DF000D162E /* serial.c */,
 				505439D9144A96DF000D162E /* serial.h */,
 				50C29F071522957000425C56 /* texture.c */,
@@ -287,9 +306,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				50AA733915267011007F0D02 /* shader.fsh in Resources */,
+				50AA733A15267011007F0D02 /* shader.vsh in Resources */,
 				503901F1150DCC3C00F4D172 /* InfoPlist.strings in Resources */,
-				503901F9150DCC3C00F4D172 /* Shader.fsh in Resources */,
-				503901FB150DCC3C00F4D172 /* Shader.vsh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -311,7 +330,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				50AA732B15266FF8007F0D02 /* control.c in Sources */,
+				50AA732D15266FF8007F0D02 /* edit.c in Sources */,
+				50AA733015266FF8007F0D02 /* serial.c in Sources */,
+				50AA733215266FF8007F0D02 /* texture.c in Sources */,
+				50AA733515266FF8007F0D02 /* util.c in Sources */,
+				50AA733715266FF8007F0D02 /* visual.c in Sources */,
 				503901F3150DCC3C00F4D172 /* main.m in Sources */,
+				50DFA64B1526791D00748D5A /* platform.m in Sources */,
 				503901F7150DCC3C00F4D172 /* AppDelegate.m in Sources */,
 				503901FE150DCC3C00F4D172 /* ViewController.m in Sources */,
 			);
@@ -322,6 +348,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				50D7F10B1442D11A00B8C83F /* main.m in Sources */,
+				50DFA64A1526778100748D5A /* platform.m in Sources */,
 				50D7F1121442D11A00B8C83F /* AppDelegate.m in Sources */,
 				50D7F1231442E83600B8C83F /* Viewport.m in Sources */,
 				507D64DE1443C377009AC187 /* SunkenWindow.m in Sources */,
@@ -368,7 +395,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -391,7 +418,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",

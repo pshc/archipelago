@@ -1,4 +1,3 @@
-#include <OpenGL/gl.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +6,7 @@
 #include "control.h"
 #include "edit.h"
 #include "serial.h"
+#include "platform.h"
 #include "texture.h"
 #include "uniforms.h"
 #include "util.h"
@@ -33,6 +33,10 @@ void create_editor(void) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+#ifndef GL_ES_VERSION_2_0
+    glEnableClientState(GL_VERTEX_ARRAY);
+#endif
+
     unsigned int background;
     glGenTextures(1, &background);
     glBindTexture(GL_TEXTURE_2D, background);
@@ -43,7 +47,7 @@ void create_editor(void) {
     for (y = 0; y < 16; y++)
         for (x = y%8; x < 16; x += 8)
             pattern[y*16 + x] = 50;
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, 16, 16, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pattern);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 16, 16, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pattern);
     free(pattern);
     editor->background_texture = background;
 
@@ -56,16 +60,9 @@ void create_editor(void) {
 
 void resize_editor(struct size size) {
     editor->view_size = size;
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, size.width, size.height, 0, -1, 1);
     glViewport(0, 0, size.width, size.height);
-    
     glUseProgram(editor->shader_program);
     set_view_size(size);
-
-    glMatrixMode(GL_MODELVIEW);
 }
 
 void editor_move_view_pos(vec2 dir) {
@@ -174,6 +171,7 @@ static vec2 rotate(vec2 d, float rad) {
 }
 
 static void render_arrow(vec2 a, vec2 b) {
+    /*
     vec2 points[4] = {a, {0, a.y}, {0, b.y}, b};
     vec2 pos;
     float t;
@@ -207,6 +205,7 @@ static void render_arrow(vec2 a, vec2 b) {
     glVertex2f(pos.x, pos.y);
     glVertex2f(pos.x + p2.x*arrow_mag, pos.y - p2.y*arrow_mag);
     glEnd();
+     */
 }
 
 static const char *get_layout_obj_desc(struct layout_node *node) {
@@ -278,12 +277,12 @@ static void render_layout_node(struct layout_node *node) {
 }
 
 void render_editor(void) {
-    glLoadIdentity();
 
     glUseProgram(0);
 
     // background
-    //glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
+    /*
     glColor4f(1, 1, 1, 1);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, editor->background_texture);
@@ -308,6 +307,7 @@ void render_editor(void) {
     glVertex2i(0, -100);
     glVertex2i(0, 1000);
     glEnd();
+    */
 
     glUseProgram(editor->shader_program);
     set_view_pos(editor->view_pos);
