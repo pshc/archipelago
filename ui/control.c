@@ -8,10 +8,7 @@
 #include "util.h"
 
 void control_setup(void) {
-    char *dir = strdup(__FILE__);
-    *(strrchr(dir, '/') + 1) = '\0';
-    setup_serial(dir);
-    free(dir);
+    setup_serial();
 
     struct adt *body_dt = map_get(named_dts, "CompilationUnit");
     struct module *bedrock_mod = load_named_module("bedrock", body_dt);

@@ -43,6 +43,7 @@
 		50DFA6481526743B00748D5A /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50DFA6471526743B00748D5A /* CoreText.framework */; };
 		50DFA64A1526778100748D5A /* platform.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DFA6491526778100748D5A /* platform.m */; };
 		50DFA64B1526791D00748D5A /* platform.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DFA6491526778100748D5A /* platform.m */; };
+		50DFA659152702B800748D5A /* forms.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 50DFA6561527028600748D5A /* forms.bundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -92,6 +93,7 @@
 		50D7F1221442E83600B8C83F /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
 		50DFA6471526743B00748D5A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.1.sdk/System/Library/Frameworks/CoreText.framework; sourceTree = DEVELOPER_DIR; };
 		50DFA6491526778100748D5A /* platform.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = platform.m; sourceTree = "<group>"; };
+		50DFA6561527028600748D5A /* forms.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = forms.bundle; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +125,7 @@
 		503901EC150DCC3C00F4D172 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
+				50DFA6561527028600748D5A /* forms.bundle */,
 				503901F5150DCC3C00F4D172 /* AppDelegate.h */,
 				503901F6150DCC3C00F4D172 /* AppDelegate.m */,
 				503901FC150DCC3C00F4D172 /* ViewController.h */,
@@ -306,6 +309,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				50DFA659152702B800748D5A /* forms.bundle in Resources */,
 				50AA733915267011007F0D02 /* shader.fsh in Resources */,
 				50AA733A15267011007F0D02 /* shader.vsh in Resources */,
 				503901F1150DCC3C00F4D172 /* InfoPlist.strings in Resources */,

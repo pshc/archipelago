@@ -5,35 +5,32 @@
     BOOL isEditorLoaded;
 }
 @property (strong, nonatomic) EAGLContext *context;
-@property (strong, nonatomic) GLKBaseEffect *effect;
 
 @end
 
 @implementation ViewController
 
 @synthesize context = _context;
-@synthesize effect = _effect;
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
     
     self.context = [[[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2] autorelease];
-
-    if (!self.context) {
-        NSLog(@"Failed to create ES context");
-    }
+    [EAGLContext setCurrentContext:self.context];
 
     CGRect frame = [[UIScreen mainScreen] applicationFrame];
     GLKView *view = [[GLKView alloc] initWithFrame:frame context:self.context];
     view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-    self.view = view;
     view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
-    [view release];
 
-    [EAGLContext setCurrentContext:self.context];
     create_editor();
+    struct size size = {view.bounds.size.width, view.bounds.size.height};
+    resize_editor(size);
     isEditorLoaded = YES;
+    
+    self.view = view;
+    [view release];
 }
 
 - (void)viewDidUnload
@@ -59,7 +56,6 @@
         isEditorLoaded = NO;
     }
     [_context release];
-    [_effect release];
     [super dealloc];
 }
 
@@ -73,6 +69,19 @@
 }
 
 #pragma mark - GLKView and GLKViewController delegate methods
+
+/*
+- (void)scrollWheel:(UIEvent *)theEvent
+{
+    CGFloat dx, dy;
+    dx = theEvent.deltaX;
+    dy = theEvent.deltaY;
+
+    vec2 d = {-dx, -dy};
+    editor_move_view_pos(d);
+    self.needsDisplay = YES;
+}
+ */
 
 - (void)update
 {

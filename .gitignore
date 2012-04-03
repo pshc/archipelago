@@ -6,8 +6,8 @@
 *.swp
 *.dot
 *.png
-mods
-opt
+/mods
+/opt
 views
 a.out
 hello

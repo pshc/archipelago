@@ -1,11 +1,11 @@
-attribute vec2 position;
-attribute vec2 texCoord0;
+attribute lowp vec2 position;
+attribute lowp vec2 texCoord0;
 
-varying vec2 uv;
+varying lowp vec2 uv;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
-uniform vec2 invAtlasSize;
+uniform lowp vec2 invAtlasSize;
 
 void main() {
     uv = texCoord0 * invAtlasSize;

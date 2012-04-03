@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "platform.h"
 #include "serial.h"
 #include "util.h"
 
@@ -13,10 +14,6 @@ struct map *loaded_modules;
 struct map *loaded_atoms;
 struct map *atom_names, *named_dts, *form_dts;
 struct module *forms_module;
-
-static char *base_dir = NULL;
-static char *mod_dir = "../mods/";
-static char *opt_dir = "../opt/";
 
 /* Deserialization context */
 static FILE *f = NULL;
@@ -211,7 +208,8 @@ static void destroy_ADT(struct adt *adt) {
 	free(adt);
 }
 
-void setup_serial(const char *dir) {
+void setup_serial(void) {
+    setup_platform();
 	Type = ADT("Type");
 	TypeVar = ADT("TypeVar");
 	ADT_ctors(TypeVar, 1, Ctor("TypeVar", 0));
@@ -254,7 +252,6 @@ void setup_serial(const char *dir) {
 	ADT_ctors(Overlay, 1, Ctor("Overlay", 1,
 		"entries", arrayT(adtT(Entry))));
 
-	base_dir = strdup(dir);
 	form_dts = new_map(NULL, NULL, &destroy_ADT);
 	named_dts = new_map(&strcmp, &free, NULL);
 	loaded_atoms = new_map(NULL, NULL, &free);
@@ -270,13 +267,13 @@ void cleanup_serial(void) {
 	destroy_map(loaded_atoms);
 	destroy_map(named_dts);
 	destroy_map(form_dts);
-	free(base_dir);
 	destroy_ADT(Type);
 	destroy_ADT(TypeVar);
 	destroy_ADT(FieldForm);
 	destroy_ADT(CtorForm);
 	destroy_ADT(DtForm);
 	destroy_ADT(DtList);
+    cleanup_platform();
 }
 
 static int read_char() {
@@ -445,16 +442,15 @@ static void *read_node(type_t type) {
 }
 
 char *module_hash_by_name(const char *name) {
-	char *full = alloca(strlen(base_dir) + strlen(mod_dir) + strlen(name));
-	strcpy(full, base_dir);
-	strcat(full, mod_dir);
-	strcat(full, name);
-	char *hash = malloc(65);
+    char *full = module_path("mods", name);
+    char *hash = malloc(65);
 	ssize_t read = readlink(full, hash, 64);
 	if (read < 0) {
 		perror(full);
+        free(full);
 		fail("Couldn't find hash for module '%s'.", name);
 	}
+    free(full);
 	hash[read] = '\0';
 	CHECK(read == 64, "Bad hash: %s", hash);
 	return hash;
@@ -476,7 +472,7 @@ static void populate_own_listing(void *key, void *value) {
 }
 
 struct module *load_module(const char *hash, type_t root_type) {
-	char *full;
+	char *full, *combined;
 	int atom_count, dep_count, i;
 	char dep[65];
 	size_t count;
@@ -489,27 +485,27 @@ struct module *load_module(const char *hash, type_t root_type) {
 		return map_get(loaded_modules, hash);
 
 	/* Get the node count for ease of loading */
-	full = alloca(strlen(base_dir) + strlen(opt_dir) + strlen(hash) + 7);
-	strcpy(full, base_dir);
-	strcat(full, opt_dir);
-	strcat(full, hash);
-	strcat(full, "_count");
+    combined = alloca(strlen(hash) + 7);
+	strcpy(combined, hash);
+	strcat(combined, "_count");
+    full = module_path("opt", combined);
 	f = fopen(full, "rb");
+    free(full);
 	if (!f)
-		error_out(full);
+		error_out(combined);
+
 	atom_count = read_int();
 	CHECK(atom_count > 0, "Empty mod or bad metadata");
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing metadata");
 	fclose(f);
 	printf("%s has %d atom(s).\n", hash, atom_count);
 
-	full = alloca(strlen(base_dir) + strlen(mod_dir) + strlen(hash));
-	strcpy(full, base_dir);
-	strcat(full, mod_dir);
-	strcat(full, hash);
+	full = module_path("mods", hash);
 	f = fopen(full, "rb");
+    free(full);
+    full = NULL;
 	if (!f)
-		error_out(full);
+		error_out(hash);
 
 	dep_count = read_int();
 	printf("%s has %d dep(s).\n", hash, dep_count);
@@ -521,7 +517,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 	for (i = 0; i < dep_count; i++) {
 		count = fread(dep, sizeof dep - 1, 1, saved);
 		if (!count)
-			error_out(full);
+			error_out(hash);
 		dep[sizeof dep - 1] = '\0';
 		/* TODO: Where do we get the dep root type? */
 		dep_mod = load_module(dep, root_type);

@@ -35,3 +35,44 @@ char *read_resource(const char *name)
     buf[len] = '\0';
     return buf;
 }
+
+#if defined (__IPHONE_OS_VERSION_MIN_REQUIRED)
+static NSBundle *bundle = nil;
+
+void setup_platform(void) {
+    bundle = [[NSBundle alloc] initWithPath:[[NSBundle mainBundle] pathForResource:@"forms" ofType:@"bundle"]];
+}
+
+void cleanup_platform(void) {
+    [bundle release];
+    bundle = nil;
+}
+
+char *module_path(const char *cat, const char *name) {
+    NSString *resourceName = [NSString stringWithCString:name encoding:NSUTF8StringEncoding];
+    NSString *subdir = [NSString stringWithCString:cat encoding:NSUTF8StringEncoding];
+    NSString *path = [bundle pathForResource:resourceName ofType:@"" inDirectory:subdir];
+    if (!path) {
+        return NULL;
+    }
+    return strdup([path cStringUsingEncoding:NSUTF8StringEncoding]);
+}
+#else
+static char *base_dir = NULL;
+
+void setup_platform(void) {
+    base_dir = strdup(__FILE__);
+    *(strrchr(base_dir, '/') + 1) = '\0';
+}
+
+void cleanup_platform(void) {
+    free(base_dir);
+    base_dir = NULL;
+}
+
+char *module_path(const char *cat, const char *name) {
+    char *full = malloc(strlen(base_dir) + strlen(cat) + strlen(name) + 5);
+    sprintf(full, "%s../%s/%s", base_dir, cat, name);
+    return full;
+}
+#endif

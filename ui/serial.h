@@ -57,7 +57,7 @@ struct ctor *Ctor(const char *name, size_t field_count, ...);
 struct adt *ADT(const char *name);
 void ADT_ctors(struct adt *adt, size_t ctor_count, ...);
 
-void setup_serial(const char *base_dir);
+void setup_serial(void);
 void cleanup_serial(void);
 
 struct module {
