@@ -889,7 +889,7 @@ static void read_forms_module(void) {
 
 #ifdef STANDALONE
 int main(void) {
-	setup_serial("");
+	setup_serial();
 	cleanup_serial();
 	return 0;
 }
