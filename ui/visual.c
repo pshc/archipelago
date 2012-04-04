@@ -41,8 +41,8 @@ void set_view_size(struct size size) {
     glUniformMatrix4fv(uniform.projectionMatrix, 1, GL_FALSE, proj_matrix);
 }
 
-static int compile_shader(GLenum kind, const char *filename) {
-    char *src = read_resource(filename);
+static int compile_shader(GLenum kind, const char *name, const char *ext) {
+    char *src = read_shader(name, ext);
     if (!src)
         return 0;
     
@@ -88,16 +88,16 @@ static int link_program(int program) {
     return status;
 }
 
-int _load_shader(const char *vsh, const char *fsh, void *uniforms, const char * const *spec, size_t uniform_count) {
+int _load_shader(const char *name, void *uniforms, const char * const *spec, size_t uniform_count) {
     GLuint vertShader, fragShader;
     int program;
     size_t i;
     
-    vertShader = compile_shader(GL_VERTEX_SHADER, vsh);
+    vertShader = compile_shader(GL_VERTEX_SHADER, name, "vsh");
     if (!vertShader)
         return 0;
 
-    fragShader = compile_shader(GL_FRAGMENT_SHADER, fsh);
+    fragShader = compile_shader(GL_FRAGMENT_SHADER, name, "fsh");
     if (!fragShader) {
         glDeleteShader(vertShader);
         return 0;

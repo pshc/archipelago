@@ -51,7 +51,7 @@ void create_editor(void) {
     free(pattern);
     editor->background_texture = background;
 
-    editor->shader_program = load_shader("shader.vsh", "shader.fsh", uniform);
+    editor->shader_program = load_shader("shader", uniform);
     glUseProgram(editor->shader_program);
     setup_texture();
 

@@ -10,7 +10,7 @@
 void setup_platform(void);
 void cleanup_platform(void);
 
-char *read_resource(const char *name);
+char *read_shader(const char *name, const char *ext);
 char *module_path(const char *cat, const char *hash);
 
 

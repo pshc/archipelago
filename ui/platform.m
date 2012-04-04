@@ -1,28 +1,31 @@
 #import "platform.h"
 
-char *read_resource(const char *name)
+char *read_shader(const char *name, const char *ext)
 {
-    // Man is this dumb. So much unnecessary glue
-    NSArray *bits = [[NSString stringWithCString:name encoding:NSUTF8StringEncoding] componentsSeparatedByString:@"."];
-    if ([bits count] != 2)
-    {
-        NSCAssert(FALSE, @"Couldn't figure out extension of %s", name);
-        return NULL;
-    }
-    NSString *path = [[NSBundle mainBundle] pathForResource:[bits objectAtIndex:0] ofType:[bits objectAtIndex:1]];
+    NSString *path = [[NSBundle mainBundle] pathForResource:[NSString stringWithCString:name encoding:NSUTF8StringEncoding] ofType:[NSString stringWithCString:ext encoding:NSUTF8StringEncoding]];
     if (!path)
     {
-        NSCAssert(FALSE, @"Couldn't get path for %s", name);
+        NSCAssert(FALSE, @"Couldn't get path for %s.%s", name, ext);
         return NULL;
     }
     NSError *error = nil;
     NSData *contents = [[NSData alloc] initWithContentsOfFile:path options:0 error:&error];
     if (!contents || error)
     {
-        NSCAssert(FALSE, @"Couldn't read %s: %@", name, error);
+        NSCAssert(FALSE, @"Couldn't read %s.%s: %@", name, ext, error);
         [contents release];
         return NULL;
     }
+
+#if !defined (__IPHONE_OS_VERSION_MIN_REQUIRED)
+    /* remove precision annots, really inefficient */
+    NSString *stringContents = [[NSString alloc] initWithData:contents encoding:NSUTF8StringEncoding];
+    [contents release];
+    NSString *fixed = [stringContents stringByReplacingOccurrencesOfString:@"lowp " withString:@""];
+    [stringContents release];
+    contents = [[fixed dataUsingEncoding:NSUTF8StringEncoding] retain];
+#endif
+
     NSUInteger len = [contents length];
     char *buf = malloc(len + 1);
     if (!buf)
