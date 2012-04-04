@@ -34,7 +34,7 @@ void setup_texture(void) {
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, 4, (GLsizei) atlas_size.width, (GLsizei) atlas_size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) atlas_size.width, (GLsizei) atlas_size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     atlas_rows = nope();
 
     glUniform1i(uniform.atlas, 0);
