@@ -33,6 +33,9 @@ void create_editor(void) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    glEnableVertexAttribArray(ATTRIB_POS);
+    glEnableVertexAttribArray(ATTRIB_UV);
+
 #ifndef GL_ES_VERSION_2_0
     glEnableClientState(GL_VERTEX_ARRAY);
 #endif

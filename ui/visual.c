@@ -141,9 +141,7 @@ static void render_rects(struct rect_data *rects) {
     // VBOs later
     static GLubyte indices[] = {0, 1, 2, 0, 2, 3};
     glVertexAttribPointer(ATTRIB_POS, 2, GL_FLOAT, GL_FALSE, sizeof *rects, &rects[0].pos);
-    glEnableVertexAttribArray(ATTRIB_POS);
     glVertexAttribPointer(ATTRIB_UV, 2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof *rects, &rects[0].uv);
-    glEnableVertexAttribArray(ATTRIB_UV);
     glDrawElements(GL_TRIANGLES, sizeof indices / sizeof *indices, GL_UNSIGNED_BYTE, indices);
 }
 
