@@ -27,14 +27,14 @@ static GLuint atlas_texture = 0;
 static const struct size atlas_size = {512, 512};
 static struct list *atlas_rows = NULL;
 
-static CGColorSpaceRef color_space_rgb = NULL;
+static CGColorSpaceRef color_space_gray = NULL;
 
 void setup_texture(void) {
     glGenTextures(1, &atlas_texture);
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) atlas_size.width, (GLsizei) atlas_size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, (GLsizei) atlas_size.width, (GLsizei) atlas_size.height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, NULL);
     atlas_rows = nope();
 
     glUniform1i(uniform.atlas, 0);
@@ -130,11 +130,11 @@ struct rasterized_text *create_rasterized_text(const char *input_text) {
     CTFontRef font = CTFontCreateWithName(CFSTR("Helvetica"), 40, NULL);
     /* for italics etc, use CTFontCreateCopyWithSymbolicTraits */
 
-    if (!color_space_rgb) {
-        color_space_rgb = CGColorSpaceCreateDeviceRGB();
+    if (!color_space_gray) {
+        color_space_gray = CGColorSpaceCreateDeviceGray();
     }
-    CGFloat white_rgba[] = {1, 1, 1, 1};
-    CGColorRef white_color = CGColorCreate(color_space_rgb, white_rgba);
+    CGFloat white[] = {1, 1};
+    CGColorRef white_color = CGColorCreate(color_space_gray, white);
 
     const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
     const void *values[] = {font, white_color};
@@ -157,24 +157,15 @@ struct rasterized_text *create_rasterized_text(const char *input_text) {
     
     size_t width = (size_t) ceil(w);
     size_t height = (size_t) ceil(ascent + descent);
-    size_t row = width * 4;
+    size_t row = ((width + 3) / 4) * 4;
     
-    void *buf = calloc(height, row);
+    unsigned char *buf = calloc(height, row);
     if (!buf)
     {
         CFRelease(line);
         return NULL;
     }
-    CGContextRef bitmap = CGBitmapContextCreate(buf, width, height, 8, row, color_space_rgb, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Host);
-
-    CGFloat back_rgba[] = {1, 1, 1, 0};
-    CGColorRef backColor = CGColorCreate(color_space_rgb, back_rgba);
-    CGContextSetFillColorWithColor(bitmap, backColor);
-    CGColorRelease(backColor);
-    
-    CGRect rect = {CGPointZero, {width, height}};
-    CGContextFillRect(bitmap, rect);
-    
+    CGContextRef bitmap = CGBitmapContextCreate(buf, width, height, 8, row, color_space_gray, kCGImageAlphaOnly);
     CGContextSetTextPosition(bitmap, 0, descent);
     CTLineDraw(line, bitmap);
     CGContextFlush(bitmap);
@@ -218,7 +209,7 @@ struct text_texture *create_text_texture(const char *text) {
     }
     
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, atlas_pos.x, atlas_pos.y, (GLsizei) metrics.size.width, (GLsizei) metrics.size.height, GL_RGBA, GL_UNSIGNED_BYTE, rasterized->buf);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, atlas_pos.x, atlas_pos.y, (GLsizei) metrics.size.width, (GLsizei) metrics.size.height, GL_ALPHA, GL_UNSIGNED_BYTE, rasterized->buf);
     destroy_rasterized_text(rasterized);
     
     struct text_texture *texture = malloc(sizeof *texture);
