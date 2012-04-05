@@ -13,5 +13,6 @@ void cleanup_platform(void);
 char *read_shader(const char *name, const char *ext);
 char *module_path(const char *cat, const char *hash);
 
+float get_scale_factor(void);
 
 #endif /* PLATFORM_H */

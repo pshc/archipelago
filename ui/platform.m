@@ -60,6 +60,10 @@ char *module_path(const char *cat, const char *name) {
     }
     return strdup([path cStringUsingEncoding:NSUTF8StringEncoding]);
 }
+
+float get_scale_factor(void) {
+    return [UIScreen mainScreen].scale;
+}
 #else
 static char *base_dir = NULL;
 
@@ -77,5 +81,9 @@ char *module_path(const char *cat, const char *name) {
     char *full = malloc(strlen(base_dir) + strlen(cat) + strlen(name) + 5);
     sprintf(full, "%s../%s/%s", base_dir, cat, name);
     return full;
+}
+
+float get_scale_factor(void) {
+    return 1.0f;
 }
 #endif

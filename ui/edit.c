@@ -74,8 +74,8 @@ void editor_move_view_pos(vec2 dir) {
 }
 
 static vec2 layout_pos;
-#define LO_LINE_HEIGHT 50
-#define LO_INDENT 50
+#define LO_LINE_HEIGHT 25
+#define LO_INDENT 25
 
 struct layout_node {
     vec2 pos;

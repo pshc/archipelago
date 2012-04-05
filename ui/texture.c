@@ -24,12 +24,19 @@ struct atlas_row {
 };
 
 static GLuint atlas_texture = 0;
-static const struct size atlas_size = {512, 512};
+static struct size atlas_size;
 static struct list *atlas_rows = NULL;
 
 static CGColorSpaceRef color_space_gray = NULL;
 
+static float scale_factor, inv_scale_factor;
+
 void setup_texture(void) {
+    scale_factor = get_scale_factor();
+    inv_scale_factor = 1.0f / scale_factor;
+    unsigned short factor = ceil(scale_factor);
+    atlas_size.width = atlas_size.height = 512 * factor;
+
     glGenTextures(1, &atlas_texture);
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -127,7 +134,7 @@ static void destroy_texture_atlas(void) {
 /* TEXT TEXTURES */
 
 struct rasterized_text *create_rasterized_text(const char *input_text) {
-    CTFontRef font = CTFontCreateWithName(CFSTR("Helvetica"), 40, NULL);
+    CTFontRef font = CTFontCreateWithName(CFSTR("Helvetica"), 20 * scale_factor, NULL);
     /* for italics etc, use CTFontCreateCopyWithSymbolicTraits */
 
     if (!color_space_gray) {
@@ -240,7 +247,8 @@ void render_text_texture(struct text_texture *text) {
     glBindTexture(GL_TEXTURE_2D, atlas_texture);
     glEnable(GL_TEXTURE_2D);
     vec2 offset = {0, -m.ascent};
-    render_quad(m.size, offset, text->pos, m.size);
+    struct size scaled = {m.size.width * inv_scale_factor, m.size.height * inv_scale_factor};
+    render_quad(scaled, offset, text->pos, m.size);
 }
 
 void destroy_text_texture(struct text_texture *text) {
