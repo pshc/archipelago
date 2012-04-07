@@ -6,6 +6,7 @@
 @interface Viewport ()
 {
     vec2 pointerOrigin, scrollOrigin;
+    vec2 viewPos;
 }
 @end
 
@@ -63,8 +64,9 @@
         dy = theEvent.deltaY;
     }
 
-    vec2 d = {-dx, -dy};
-    editor_move_view_pos(d);
+    viewPos.x -= dx;
+    viewPos.y -= dy;
+    editor_set_view_pos(viewPos);
     self.needsDisplay = YES;
 }
 

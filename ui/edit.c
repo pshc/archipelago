@@ -68,9 +68,8 @@ void resize_editor(struct size size) {
     set_view_size(size);
 }
 
-void editor_move_view_pos(vec2 dir) {
-    editor->view_pos.x += dir.x;
-    editor->view_pos.y += dir.y;
+void editor_set_view_pos(vec2 pos) {
+    editor->view_pos = pos;
 }
 
 static vec2 layout_pos;

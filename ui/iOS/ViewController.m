@@ -3,14 +3,18 @@
 
 @interface ViewController () {
     BOOL isEditorLoaded;
+    vec2 viewPos;
+    vec2 panStart;
 }
 @property (strong, nonatomic) EAGLContext *context;
+@property (strong, nonatomic) UIPanGestureRecognizer *panRecognizer;
 
 @end
 
 @implementation ViewController
 
 @synthesize context = _context;
+@synthesize panRecognizer;
 
 - (void)viewDidLoad
 {
@@ -23,11 +27,17 @@
     GLKView *view = [[GLKView alloc] initWithFrame:frame context:self.context];
     view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
+    view.opaque = YES;
+
+    self.panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan)];
+    [view addGestureRecognizer:panRecognizer];
+    [panRecognizer release];
 
     create_editor();
     struct size size = {view.bounds.size.width, view.bounds.size.height};
     resize_editor(size);
     isEditorLoaded = YES;
+    viewPos.x = viewPos.y = 0;
     
     self.view = view;
     [view release];
@@ -41,7 +51,9 @@
         destroy_editor();
         isEditorLoaded = NO;
     }
-    
+
+    self.panRecognizer = nil;
+
     if ([EAGLContext currentContext] == self.context) {
         [EAGLContext setCurrentContext:nil];
     }
@@ -68,25 +80,34 @@
     }
 }
 
-#pragma mark - GLKView and GLKViewController delegate methods
-
-/*
-- (void)scrollWheel:(UIEvent *)theEvent
+- (void)handlePan
 {
-    CGFloat dx, dy;
-    dx = theEvent.deltaX;
-    dy = theEvent.deltaY;
-
-    vec2 d = {-dx, -dy};
-    editor_move_view_pos(d);
-    self.needsDisplay = YES;
+    switch (panRecognizer.state) {
+        case UIGestureRecognizerStateBegan:
+            panStart = viewPos;
+            break;
+        case UIGestureRecognizerStateChanged:
+        {
+            CGPoint translation = [panRecognizer translationInView:self.view];
+            viewPos.x = panStart.x - translation.x;
+            viewPos.y = panStart.y - translation.y;
+            editor_set_view_pos(viewPos);
+            break;
+        }
+        case UIGestureRecognizerStateEnded:
+        {
+            // XXX fling
+            break;
+        }
+        default:
+            break;
+    }
+    editor_set_view_pos(viewPos);
 }
- */
 
-- (void)update
+- (NSInteger)preferredFramesPerSecond
 {
-    //float aspect = fabsf(self.view.bounds.size.width / self.view.bounds.size.height);
-    //_rotation += self.timeSinceLastUpdate * 0.5f;
+    return 60;
 }
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
