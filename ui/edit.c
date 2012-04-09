@@ -29,7 +29,7 @@ struct editor *editor = NULL;
 void create_editor(void) {
     editor = calloc(1, sizeof *editor);
 
-    glClearColor(0, 0, 0, 1);
+    glClearColor(1, 1, 1, 1);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
