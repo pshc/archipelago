@@ -165,20 +165,24 @@ def load_module_dep(filename, deps):
         deps.add(mod)
         return mod
     loaded_modules[name] = None
-    from ast import convert_file
-    names = {}
-    mod = capture_extrinsic(Name, names,
+    from ast import convert_file, ASTAnnot
+    def conv_mod():
+        names = {}
+        mod = capture_extrinsic(Name, names,
             lambda: convert_file(filename, name, deps))
-    write_mod_repr('views/' + name + '.txt', mod, [Name])
+        write_mod_repr('views/' + name + '.txt', mod, [Name])
 
-    import native
-    native.serialize(mod)
-    names_mod = extrinsic_mod(Name, names, mod)
-    native.serialize(names_mod)
+        import native
+        native.serialize(mod)
+        names_mod = extrinsic_mod(Name, names, mod)
+        native.serialize(names_mod)
 
-    from hm import infer_types
-    inferences = infer_types(mod.root)
-    write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
+        from prop import prop_types
+        prop_types(mod.root)
+        write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
+
+        return mod
+    mod = scope_extrinsic(ASTAnnot, conv_mod)
 
     from expand import in_expansion_env
     return in_expansion_env(lambda: _do_mod(mod, name))
