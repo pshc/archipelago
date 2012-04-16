@@ -280,6 +280,8 @@ _types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
 def realize_type(t):
     ast = compiler.ast
     if isinstance(t, ast.CallFunc):
+        if isinstance(t.node, ast.Name) and t.node.name == 't':
+            return TTuple(map(realize_type, t.args))
         assert len(t.args) == 1
         dt = realize_type(t.node)
         tvar = 'a'
