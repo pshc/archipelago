@@ -26,8 +26,6 @@ def type_equal(a, b):
     if a is b:
         return True
     return match((a, b),
-        ("(TMeta(a), b)", type_equal),
-        ("(a, TMeta(b))", type_equal),
         ("(TVar(a), TVar(b))", lambda a, b: a is b),
         ("(TInt(), TInt())", lambda: True),
         ("(TStr(), TStr())", lambda: True),
@@ -60,8 +58,6 @@ def _type_repr(t):
         return '<cyclic 0x%x>' % id(t)
     REPR_ENV.add(t)
     rstr = match(t, ("TVar(a)", _get_name),
-                    ("t==TMeta(Just(j))", _meta_type_repr),
-                    ("TMeta(Nothing())", lambda: '<bad meta>'),
                     ("TInt()", lambda: 'int'),
                     ("TStr()", lambda: 'str'),
                     ("TChar()", lambda: 'char'),
@@ -96,8 +92,6 @@ _inject_type_reprs()
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
     return match(t, ("tv==TVar(_)", f),
-                    ("m==TMeta(r)", lambda m, r:
-                        maybe(m, lambda r: map_type_vars(f, r), r)),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a) for a in args],
                               map_type_vars(f, ret))),

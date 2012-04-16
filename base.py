@@ -219,11 +219,10 @@ _restore_forms()
 
 TypeVar = DT('TypeVar')
 
-Type, TVar, TMeta, TInt, TStr, TChar, TBool, TVoid, \
+Type, TVar, TInt, TStr, TChar, TBool, TVoid, \
     TTuple, TAnyTuple, TFunc, TData, TApply, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
-        'TMeta', ('metaType', 'Maybe(Type)'),
         'TInt', 'TStr', 'TChar', 'TBool',
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
