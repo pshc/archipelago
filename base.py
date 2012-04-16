@@ -396,6 +396,14 @@ def __repr__(o):
 
 Structured.__repr__ = __repr__
 
+# Type annotations
+
+def annot(t):
+    def dec(func):
+        func.typeannot = t
+        return func
+    return dec
+
 # Matching
 
 named_match_dispatch = {}

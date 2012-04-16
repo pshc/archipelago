@@ -1,5 +1,6 @@
 from bedrock import *
 
+@annot('void -> int')
 def main():
     a = Cons(0, Cons(1, Nil()))
     a = Cons(1, Cons(2, Cons(3, Nil)))

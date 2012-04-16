@@ -15,6 +15,8 @@ OmniContext = DT('OmniContext', ('imports', [object]),
                                 ('directlyImportedModuleNames', set([str])))
 OMNI = new_env('OMNI', OmniContext)
 
+ASTAnnot = new_extrinsic('ASTAnnot', None)
+
 def ast_envs():
     omni = OmniContext({}, {}, {}, set(), set())
     scope = ScopeContext(0, {}, None)
@@ -647,6 +649,14 @@ def conv_from(s):
 @stmt(ast.Function)
 @top_level(ast.Function)
 def conv_function(s):
+    astannot = None
+    if s.decorators:
+        for dec in s.decorators.nodes:
+            if isinstance(dec, ast.CallFunc):
+                if dec.node.name == 'annot':
+                    assert astannot is None
+                    assert isinstance(dec.args[0], ast.Const)
+                    astannot = dec.args[0].value
     func = Func([], Body([]))
     @inside_scope
     def rest():
@@ -656,7 +666,10 @@ def conv_function(s):
     var = Var()
     glob = is_top_level()
     identifier(var, s.name, export=glob)
-    return [(TopDefn if glob else Defn)(var, FuncExpr(rest()))]
+    f = (TopDefn if glob else Defn)(var, FuncExpr(rest()))
+    assert astannot, "Function %r has no type annot" % f
+    add_extrinsic(ASTAnnot, func, astannot)
+    return [f]
 
 @stmt(ast.If)
 def conv_if(s):

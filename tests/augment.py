@@ -1,5 +1,6 @@
 from bedrock import *
 
+@annot('void -> int')
 def main():
     a = 1
     n = 0 
