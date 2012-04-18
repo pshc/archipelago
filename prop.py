@@ -12,7 +12,8 @@ PROP = new_env('PROP', '*Type')
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 
-PropScope = DT('PropScope', ('retType', 'Maybe(Type)'))
+PropScope = DT('PropScope', ('retType', 'Maybe(Type)'),
+                            ('closedVars', set([TypeVar])))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
@@ -21,8 +22,11 @@ def with_context(msg):
         ("Just(s)", lambda s: "At:\n%s\n%s" % (s, msg)),
         ("_", lambda: msg))
 
+def global_scope():
+    return PropScope(Nothing(), set())
+
 def in_new_scope(retT, f):
-    new_scope = PropScope(retT)
+    new_scope = PropScope(retT, env(PROPSCOPE).closedVars.copy())
     return in_env(PROPSCOPE, new_scope, f)
 
 def unification_failure(e1, e2, msg):
@@ -83,7 +87,7 @@ def set_scheme(e, s):
     add_extrinsic(TypeOf, e, s)
 
 def get_type(e, ref):
-    return extrinsic(TypeOf, e)
+    return extrinsic(TypeOf, e).type
 
 def pat_tuple(ps):
     ts = match(env(PROP), ("TTuple(ps)", identity))
@@ -92,7 +96,7 @@ def pat_tuple(ps):
         in_env(PROP, t, lambda: prop_pat(p))
 
 def pat_var(v):
-    set_scheme(v, env(PROP))
+    set_scheme(v, Scheme([], env(PROP)))
 
 def pat_capture(v, p):
     pat_var(v)
@@ -139,11 +143,13 @@ def prop_logic(l, r):
 def prop_func(e, f, ps, b):
     tvars = {}
     fannot = in_env(TVARS, tvars, lambda: parse_type(extrinsic(ASTAnnot, f)))
-    print fannot
     tps, tret = match(fannot, ('TFunc(tps, tret)', tuple2))
     set_scheme(f, Scheme(tvars.values(), fannot))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     def inside_func_scope():
+        closed = env(PROPSCOPE).closedVars
+        for tvar in tvars.itervalues():
+            closed.add(tvar)
         for p, tp in zip(ps, tps):
             set_scheme(p, Scheme([], tp))
         prop_body(b)
@@ -156,15 +162,16 @@ def prop_match(m, e, cs):
     for c in cs:
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         def prop_case():
-            print et, cp
             in_env(PROP, et, lambda: prop_pat(cp))
             rt = prop_expr(ce)
+            retT = env(PROPSCOPE).retType
             if isJust(retT):
                 t = m.arg
                 unify(rt, fromJust(retT))
             else:
                 retT = Just(rt)
-        in_new_scope(retT, prop_case)
+            return retT
+        retT = in_new_scope(retT, prop_case)
     return fromJust(retT)
 
 def prop_attr(s, f, ft):
@@ -233,7 +240,7 @@ def prop_new_extrinsic(ext):
     pass
 
 def prop_defn(a, e):
-    set_scheme(a, prop_expr(e))
+    set_scheme(a, Scheme([], prop_expr(e)))
 
 def prop_assign(a, e):
     t = prop_lhs(a)
@@ -310,7 +317,7 @@ def nop():
 def prop_types(root):
     captures = {}
     annots = {}
-    in_new_scope(Nothing(),
+    in_env(PROPSCOPE, global_scope(),
         lambda: capture_scoped([TypeCast], captures,
         lambda: capture_extrinsic(TypeOf, annots,
         lambda: in_new_scope(Nothing(),

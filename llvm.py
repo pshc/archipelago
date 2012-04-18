@@ -83,14 +83,16 @@ def temp_reg_named(nm):
 
 # TYPES
 
-IType, IInt, IPtr = ADT('IType',
+IType, IInt, IPtr, IVoidPtr = ADT('IType',
         'IInt',
-        'IPtr', ('type', 'IType'))
+        'IPtr', ('type', 'IType'),
+        'IVoidPtr')
 
 def typeof(e):
     if has_extrinsic(TypeOf, e):
         return match(extrinsic(TypeOf, e).type,
-            ("TInt()", lambda: IInt()))
+            ("TInt()", lambda: IInt()),
+            ("TVar(_)", lambda: IVoidPtr()))
     def no_type():
         print 'HAS NO TYPEOF: %s' % (e,)
         return IInt()
@@ -101,7 +103,8 @@ def typeof(e):
 def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
-        ("IPtr(p)", lambda p: t_str(p) + "*"))
+        ("IPtr(p)", lambda p: t_str(p) + "*"),
+        ("IVoidPtr()", lambda: "i8*"))
 
 def out_t(t):
     out('%s ' % (t_str(t),))
