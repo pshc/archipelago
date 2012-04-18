@@ -297,7 +297,12 @@ def realize_type(t):
         o, e = t.ops[-1]
         assert o == '>'
         r = realize_type(e)
-        return reduce(lambda r, ts: TFunc(map(realize_type, ts), r), ops, r)
+        def step(r, ts):
+            params = map(realize_type, ts)
+            if len(params) == 1 and matches(params[0], 'TVoid()'):
+                params = []
+            return TFunc(params, r)
+        return reduce(step, ops, r)
     elif isinstance(t, ast.List):
         assert len(t.nodes) == 1
         return TArray(realize_type(t.nodes[0]))
