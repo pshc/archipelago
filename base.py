@@ -622,6 +622,9 @@ def mapMaybe(f, val):
     return match(val, ('Just(j)', lambda j: Just(f(j))),
                       ('Nothing()', Nothing))
 
+def hint(e, **kwargs):
+    return e
+
 # Will be replaced by bedrock.List equivalents
 
 def cons(car, cdr):

@@ -15,7 +15,8 @@ OmniContext = DT('OmniContext', ('imports', [object]),
                                 ('directlyImportedModuleNames', set([str])))
 OMNI = new_env('OMNI', OmniContext)
 
-ASTAnnot = new_extrinsic('ASTAnnot', None)
+AstType = new_extrinsic('AstType', Type)
+AstHint = new_extrinsic('AstHint', {str: str})
 
 def ast_envs():
     omni = OmniContext({}, {}, {}, set(), set())
@@ -263,6 +264,12 @@ def conv_get_extrinsic(args):
     # XXX
     return GetExtrinsic(*args)
 
+def conv_hint(args, kwargs):
+    assert len(args) == 1
+    e = args[0]
+    add_extrinsic(AstHint, e, kwargs)
+    return e
+
 def conv_special(e):
     """
     For DT and env argument conversion into types
@@ -394,6 +401,7 @@ extra_call_forms = {
         'match': conv_match,
         'env': conv_get_env, 'in_env': conv_in_env,
         'extrinsic': conv_get_extrinsic,
+        'hint': conv_hint,
 }
 
 @expr(ast.CallFunc)
@@ -410,10 +418,19 @@ def conv_callfunc(e):
                     assert len(e.args) == 2
                     t = conv_special(e.args[1])
                     return SpecialCallForm(kind, [name, t])
-    argsa = map(conv_expr, e.args)
+    # omit kw args
+    argsa = map(conv_expr,
+            filter(lambda a: not isinstance(a, ast.Keyword), e.args))
     if isinstance(e.node, ast.Name):
         f = extra_call_forms.get(e.node.name)
         if f:
+            if e.node.name == 'hint':
+                # collect kw args for this special form
+                info = {}
+                for arg in e.args:
+                    if isinstance(arg, ast.Keyword):
+                        info[arg.name] = conv_expr(arg.expr)
+                return f(argsa, info)
             return f(argsa)
         elif e.node.name == 'char':
             c = match(argsa[0], ('StrLit(s)', identity))
@@ -668,7 +685,7 @@ def conv_function(s):
     identifier(var, s.name, export=glob)
     f = (TopDefn if glob else Defn)(var, FuncExpr(rest()))
     assert astannot, "Function %r has no type annot" % f
-    add_extrinsic(ASTAnnot, func, astannot)
+    add_extrinsic(AstType, func, astannot)
     return [f]
 
 @stmt(ast.If)

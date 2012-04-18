@@ -165,7 +165,7 @@ def load_module_dep(filename, deps):
         deps.add(mod)
         return mod
     loaded_modules[name] = None
-    from ast import convert_file, ASTAnnot
+    from ast import convert_file, AstType, AstHint
     def conv_mod():
         names = {}
         mod = capture_extrinsic(Name, names,
@@ -182,7 +182,7 @@ def load_module_dep(filename, deps):
         write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
         return mod
-    mod = scope_extrinsic(ASTAnnot, conv_mod)
+    mod = scope_extrinsic(AstType, lambda: scope_extrinsic(AstHint, conv_mod))
 
     from expand import in_expansion_env
     return in_expansion_env(lambda: _do_mod(mod, name))
