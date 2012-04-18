@@ -5,6 +5,7 @@ from base import *
 from bedrock import *
 from globs import *
 from types_builtin import *
+import types
 
 Builtin = DT('Builtin')
 
@@ -110,15 +111,15 @@ def getname(sym):
     return match(sym, ('named(nm)', identity))
 
 def _fix_type(t):
-    return t() if isinstance(t, type) else t
+    return t() if isinstance(t, (type, types.FunctionType)) else t
 
-def builtin_type(name):
+def builtin_scheme(name):
     t = builtins_types.get(name)
     if t is None:
-        return None
+        assert False, 'Unknown builtin %s' % name
     if isinstance(t, tuple):
         if None in t:
-            return None
+            assert False, 'Incomplete builtin %s: %s' % (name, t)
         t = map(_fix_type, t)
         t = TFunc(t[:-1], t[-1])
     else:
