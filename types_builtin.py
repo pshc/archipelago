@@ -2,6 +2,14 @@ from base import *
 from bedrock import List
 from globs import Scheme
 
+def _type_prim_equal(p1, p2):
+    return match((p1, p2),
+        ("(PInt(), PInt())", lambda: True),
+        ("(PStr(), PStr())", lambda: True),
+        ("(PChar(), PChar())", lambda: True),
+        ("(PBool(), PBool())", lambda: True),
+        ("_", lambda: False))
+
 def _type_tuple_equal(ts1, ts2):
     for t1, t2 in zip(ts1, ts2):
         if not type_equal(t1, t2):
@@ -27,10 +35,7 @@ def type_equal(a, b):
         return True
     return match((a, b),
         ("(TVar(a), TVar(b))", lambda a, b: a is b),
-        ("(TInt(), TInt())", lambda: True),
-        ("(TStr(), TStr())", lambda: True),
-        ("(TChar(), TChar())", lambda: True),
-        ("(TBool(), TBool())", lambda: True),
+        ("(TPrim(a), TPrim(b))", _type_prim_equal),
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TAnyTuple(), TAnyTuple())", lambda: True),
@@ -58,10 +63,10 @@ def _type_repr(t):
         return '<cyclic 0x%x>' % id(t)
     REPR_ENV.add(t)
     rstr = match(t, ("TVar(a)", _get_name),
-                    ("TInt()", lambda: 'int'),
-                    ("TStr()", lambda: 'str'),
-                    ("TChar()", lambda: 'char'),
-                    ("TBool()", lambda: 'bool'),
+                    ("TPrim(PInt())", lambda: 'int'),
+                    ("TPrim(PStr())", lambda: 'str'),
+                    ("TPrim(PChar())", lambda: 'char'),
+                    ("TPrim(PBool())", lambda: 'bool'),
                     ("TVoid()", lambda: 'void'),
                     ("TTuple(ts)", lambda ts: '(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),

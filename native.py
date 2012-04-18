@@ -59,10 +59,10 @@ def _serialize_node(node, t):
             else:
                 _serialize_node(sub, field.type)
     elif isinstance(node, basestring):
-        assert isinstance(t, TStr)
+        assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))
     elif isinstance(node, int):
-        assert isinstance(t, TInt)
+        assert isinstance(t, TPrim) and isinstance(t.primType, PInt)
         _write(_encode_int(node))
     elif isinstance(node, list):
         assert isinstance(t, TArray), "Unexpected array:\n%s\nfor:\n%s" % (
@@ -204,9 +204,9 @@ def _read_node(t, path):
             setattr(val, fnm, child)
 
         return val
-    elif isinstance(t, TInt):
+    elif matches(t, 'TPrim(PInt())'):
         return _read_int()
-    elif isinstance(t, TStr):
+    elif matches(t, 'TPrim(PStr())'):
         return _read_str()
     elif isinstance(t, TApply):
         assert t.appTarget == list, 'TEMP'

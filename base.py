@@ -219,11 +219,14 @@ _restore_forms()
 
 TypeVar = DT('TypeVar')
 
-Type, TVar, TInt, TStr, TChar, TBool, TVoid, \
+PrimType, PInt, PStr, PChar, PBool = ADT('PrimType',
+        'PInt', 'PStr', 'PChar', 'PBool')
+
+Type, TVar, TPrim, TVoid, \
     TTuple, TAnyTuple, TFunc, TData, TApply, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
-        'TInt', 'TStr', 'TChar', 'TBool',
+        'TPrim', ('primType', PrimType),
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
         'TAnyTuple',
@@ -233,6 +236,15 @@ Type, TVar, TInt, TStr, TChar, TBool, TVoid, \
                                          ('appArg', 'Type'),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
+
+def TInt():
+    return TPrim(PInt())
+def TBool():
+    return TPrim(PBool())
+def TStr():
+    return TPrim(PStr())
+def TChar():
+    return TPrim(PChar())
 
 _parsed_type_cache = {}
 

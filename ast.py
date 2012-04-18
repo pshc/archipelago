@@ -172,7 +172,7 @@ def conv_type(t, tvars, dt=None):
         return type_ref(s)
     return match(t,
         ("BindBuiltin(_)", lambda: t),
-        ("TStr() or TInt()", lambda: t),
+        ("TPrim(_)", lambda: t),
         ("StrLit(s)", type_str),
         ("ListLit([t])",
             lambda t: TArray(conv_type(t, tvars, dt))),
