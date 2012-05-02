@@ -23,7 +23,7 @@ def _make_ctor(name, members, superclass):
     code = """class %(name)s(superclass):
   __slots__ = [%(slots)s]
   __types__ = []
-  def __init__(self%(args)s):
+  def __init__(self%(args)s, **_tvars):
     self._ix = %(ix)d
 %(stmts)s""" % locals()
     exec code

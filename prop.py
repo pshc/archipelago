@@ -2,7 +2,7 @@
 from atom import *
 from base import *
 from types_builtin import *
-from ast import AstType
+from ast import AstType, AstHint
 from globs import TypeOf
 
 TypeCast = new_extrinsic('TypeCast', (Scheme, Scheme))
@@ -13,7 +13,7 @@ PROP = new_env('PROP', '*Type')
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 
 PropScope = DT('PropScope', ('retType', 'Maybe(Type)'),
-                            ('closedVars', set([TypeVar])))
+                            ('closedVars', {str: TypeVar}))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
@@ -23,11 +23,68 @@ def with_context(msg):
         ("_", lambda: msg))
 
 def global_scope():
-    return PropScope(Nothing(), set())
+    return PropScope(Nothing(), {})
 
 def in_new_scope(retT, f):
     new_scope = PropScope(retT, env(PROPSCOPE).closedVars.copy())
     return in_env(PROPSCOPE, new_scope, f)
+
+# instantiated types
+CType, CVar, CPrim, CVoid, CTuple, CAnyTuple, CFunc, CData, CArray, CWeak \
+    = ADT('CType',
+        'CVar', ('typeVar', '*TypeVar'), ('appType', 'CType'),
+        'CPrim', ('primType', '*PrimType'),
+        'CVoid',
+        'CTuple', ('tupleTypes', ['CType']),
+        'CAnyTuple',
+        'CFunc', ('funcArgs', ['CType']), ('funcRet', 'CType'),
+        'CData', ('data', '*DataType'), ('appTypes', ['CType']),
+        'CArray', ('elemType', 'CType'),
+        'CWeak', ('refType', 'CType'))
+
+INST = new_env('INST', {Type: Type})
+
+def instantiate_tvar(tv):
+    t = env(INST).get(extrinsic(Name, tv))
+    if t is None:
+        t = TVar(tv) # free
+    return CVar(tv, t)
+
+def instantiate_tdata(dt):
+    return CData(dt, []) # XXX
+
+def instantiate_type(s):
+    return match(s,
+        ('TVar(tv)', instantiate_tvar),
+        ('TPrim(p)', CPrim),
+        ('TVoid()', CVoid),
+        ('TTuple(ts)', lambda ts: CTuple(map(instantiate_type, ts))),
+        ('TAnyTuple()', lambda: CAnyTuple),
+        ('TFunc(ps, r)', lambda ps, r:
+                CFunc(map(instantiate_type, ps), instantiate_type(r))),
+        ('TData(dt)', instantiate_tdata),
+        ('TArray(t)', lambda t: CArray(instantiate_type(t))),
+        ('TWeak(t)', lambda t: CWeak(instantiate_type(t))))
+
+def instantiate_scheme(s, ref):
+    overrides = {}
+    if has_extrinsic(AstHint, ref):
+        # instantiate named tvars with given types
+        """
+        stvs, st = match(s, ('Scheme(stvs, st)', tuple2))
+        for nm, t in extrinsic(AstHint, ref).iteritems():
+            for stv in stvs:
+                if extrinsic(Name, stv) == nm:
+                    overrides[stv] = env(PROPSCOPE).closedVars[t]
+                    break
+            else:
+                assert False, 'No tvar "%s" to instantiate in %s' % (nm, s)
+        """
+        overrides = extrinsic(AstHint, ref)
+    return in_env(INST, overrides, lambda: instantiate_type(s.type))
+
+def instantiate(v, ref):
+    return instantiate_scheme(extrinsic(TypeOf, v), ref)
 
 def unification_failure(e1, e2, msg):
     assert False, with_context("Couldn't unify %r\nwith %r:\n%s" % (
@@ -54,6 +111,10 @@ def unify_data_and_apply(data, tvars, appTarget, appVar, appArg):
     unify(data, appTarget)
     assert appVar in tvars, "Not a relevant tvar."
 
+def unify_prims(p1, p2, e1, e2):
+    if not prim_equal(p1, p2):
+        unification_failure(e1, e2, "primitive types")
+
 def unify(e1, e2):
     same = nop
     fail = lambda m: unification_failure(e1, e2, m)
@@ -69,10 +130,7 @@ def unify(e1, e2):
         ("(d==TData(DataType(_, tvs)), TApply(t,v,a))", unify_data_and_apply),
         ("(TApply(t, v, a), d==TData(DataType(_, tvs)))",
             lambda t, v, a, d, tvs: unify_data_and_apply(d, tvs, t, v, a)),
-        ("(TInt(), TInt())", same),
-        ("(TStr(), TStr())", same),
-        ("(TChar(), TChar())", same),
-        ("(TBool(), TBool())", same),
+        ("(TPrim(p1), TPrim(p2))", lambda p1, p2: unify_prims(p1, p2, e1, e2)),
         ("(TVoid(), TVoid())", same),
         ("(TTuple(_), TAnyTuple())", same),
         ("(TAnyTuple(), TTuple(_))", same),
@@ -85,9 +143,6 @@ def unify_m(e):
 
 def set_scheme(e, s):
     add_extrinsic(TypeOf, e, s)
-
-def get_type(e, ref):
-    return extrinsic(TypeOf, e).type
 
 def pat_tuple(ps):
     ts = match(env(PROP), ("TTuple(ps)", identity))
@@ -120,11 +175,11 @@ def prop_pat(p):
         ("PatCapture(v, p)", pat_capture),
         ("p==PatCtor(c, args)", pat_ctor))
 
-def prop_binding(binding, ref):
+def prop_binding(ref, binding):
     return match(binding,
-        ("BindVar(v) or BindCtor(v)", lambda v: get_type(v, ref)),
-        ("BindBuiltin(b)",
-                lambda b: instantiate_scheme(builtin_scheme(b), ref)),
+        ("BindVar(v) or BindCtor(v)", lambda v: instantiate(v, ref)),
+        ("BindBuiltin(b)", lambda b:
+            instantiate_scheme(builtin_scheme(extrinsic(Name, b), ref))),
     )
 
 def prop_call(f, s):
@@ -149,7 +204,7 @@ def prop_func(e, f, ps, b):
     def inside_func_scope():
         closed = env(PROPSCOPE).closedVars
         for tvar in tvars.itervalues():
-            closed.add(tvar)
+            closed[extrinsic(Name, tvar)] = tvar
         for p, tp in zip(ps, tps):
             set_scheme(p, Scheme([], tp))
         prop_body(b)
@@ -201,7 +256,7 @@ def prop_expr(e):
         ("Attr(s, f==Field(ft))", prop_attr),
         ("GetCtxt(environ)", prop_getenv),
         ("InCtxt(environ, init, f)", prop_inenv),
-        ("Bind(b)", lambda b: prop_binding(b, e)),
+        ("ref==Bind(b)", prop_binding),
         ("_", lambda: unknown_prop(e)))
 
 def check_expr(t, e):
@@ -210,7 +265,7 @@ def check_expr(t, e):
 def check_lhs(tv, lhs):
     in_env(PROP, tv, lambda: match(lhs,
         ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
-        ("LhsVar(v)", lambda v: unify_m(get_type(v, tv))),
+        ("LhsVar(v)", lambda v: unify_m(instantiate(v, tv))),
         ("_", lambda: unknown_prop(lhs))))
 
 def prop_lhs(a):

@@ -2,7 +2,7 @@ from base import *
 from bedrock import List
 from globs import Scheme
 
-def _type_prim_equal(p1, p2):
+def prim_equal(p1, p2):
     return match((p1, p2),
         ("(PInt(), PInt())", lambda: True),
         ("(PStr(), PStr())", lambda: True),
@@ -35,7 +35,7 @@ def type_equal(a, b):
         return True
     return match((a, b),
         ("(TVar(a), TVar(b))", lambda a, b: a is b),
-        ("(TPrim(a), TPrim(b))", _type_prim_equal),
+        ("(TPrim(a), TPrim(b))", prim_equal),
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TAnyTuple(), TAnyTuple())", lambda: True),
