@@ -90,7 +90,7 @@ IType, IInt, IPtr, IVoidPtr = ADT('IType',
 
 def typeof(e):
     if has_extrinsic(TypeOf, e):
-        return match(extrinsic(TypeOf, e).type,
+        return match(extrinsic(TypeOf, e),
             ("TPrim(PInt())", lambda: IInt()),
             ("TVar(_)", lambda: IVoidPtr()))
     def no_type():

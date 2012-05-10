@@ -10,9 +10,7 @@ Location = _base.new_extrinsic('Location', Pos)
 Entry = _base.DT('Entry', ('key', '*a'), ('value', str))
 Overlay = _base.DT('Overlay', ('mapping', [Entry]))
 
-Scheme = _base.DT('Scheme', ('tvars', [_base.TypeVar]), ('type', _base.Type))
-
-TypeOf = _base.new_extrinsic('TypeOf', Scheme)
+TypeOf = _base.new_extrinsic('TypeOf', _base.Type)
 
 loaded_modules = {}
 loaded_module_atoms = {}

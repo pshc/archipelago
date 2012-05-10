@@ -1,6 +1,5 @@
 from base import *
 from bedrock import List
-from globs import Scheme
 
 def prim_equal(p1, p2):
     return match((p1, p2),
@@ -103,14 +102,6 @@ def map_type_vars(f, t):
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))
-
-def _scheme_repr(s):
-    begin = ':: '
-    vs = s.tvars
-    if vs:
-        begin += ', '.join(map(_get_name, vs)) + ' => '
-    return begin + repr(s.type)
-Scheme.__repr__ = _scheme_repr
 
 # TODO
 TDict = None

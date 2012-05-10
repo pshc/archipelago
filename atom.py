@@ -133,7 +133,10 @@ def builtin_scheme(name):
             tvars[index] = tvar
         return TVar(tvars[index])
     t = map_type_vars(builtin_typevar, t)
-    return Scheme(tvars.values(), t)
+    return (tvars.values(), t)
+
+def builtin_type(name):
+    return builtin_scheme(name)[1]
 
 def add_sym(name):
     node = boot_sym_names.get(name)
