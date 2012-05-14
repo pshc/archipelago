@@ -406,9 +406,11 @@ def __repr__(o):
         return brief
 
     if has_extrinsic(Name, o):
-        name = '%s "%s"' % (name, extrinsic(Name, o))
-    params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
-    return '%s(%s)' % (name, ', '.join(params))
+        name = '%s "%s" at 0x%x' % (name, extrinsic(Name, o), id(o))
+    if len(t.__slots__) > 1:
+        params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
+        name = '%s(%s)' % (name, ', '.join(params))
+    return name
 
 Structured.__repr__ = __repr__
 
