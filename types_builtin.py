@@ -113,7 +113,7 @@ builtins_types = {
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),
     '//': (TInt, TInt, TInt),
     'negate': (TInt, TInt),
-    '==': (_var(1), _var(1), TBool), '!=': (_var(1), _var(1), TBool),
+    '==': (TInt, TInt, TBool), '!=': (TInt, TInt, TBool),
     '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
     '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
     'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
