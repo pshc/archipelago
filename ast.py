@@ -260,6 +260,12 @@ def conv_hint(args, kwargs):
     add_extrinsic(AstHint, e, insts)
     return e
 
+def conv_anno(args):
+    assert len(args) == 2
+    e = args[1]
+    add_extrinsic(AstType, e.func, args[0].val)
+    return e
+
 def conv_special(e):
     """
     For DT and env argument conversion into types
@@ -388,6 +394,7 @@ extra_call_forms = {
         'env': conv_get_env, 'in_env': conv_in_env,
         'extrinsic': conv_get_extrinsic,
         'hint': conv_hint,
+        'anno': conv_anno,
 }
 
 @expr(ast.CallFunc)
