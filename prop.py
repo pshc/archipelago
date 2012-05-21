@@ -207,7 +207,8 @@ def prop_logic(l, r):
 
 def prop_func(e, f, ps, b):
     tvars = {}
-    ft = in_env(TVARS, tvars, lambda: parse_type(extrinsic(AstType, f)))
+    ft = in_env(NEWTYPEVARS, None, lambda:
+            in_env(TVARS, tvars, lambda: parse_type(extrinsic(AstType, f))))
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     set_type(f, ft)

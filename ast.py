@@ -158,19 +158,8 @@ def conv_type(t, tvars, dt=None):
         destroy_forward_ref(t)
         return type_ref(type_nm)
     def type_str(s):
-        if len(s) == 1:
-            tvar = tvars.get(s)
-            if not tvar:
-                tvar = TypeVar()
-                add_extrinsic(Name, tvar, s)
-                tvars[s] = tvar
-            return TVar(tvar)
-        if '(' in s and s[-1] == ')':
-            ctor, p, args = s[:-1].partition('(')
-            args = args.split(',')
-            assert len(args) == 1, "TODO multiple applications"
-            return TApply(type_str(ctor), args[0], type_str(args[0]))
-        return type_ref(s)
+        return in_env(NEWTYPEVARS, None, lambda:
+                in_env(TVARS, tvars, lambda: parse_type(s)))
     return match(t,
         ("BindBuiltin(_)", lambda: t),
         ("TPrim(_)", lambda: t),

@@ -100,6 +100,7 @@ def have_env(ctxt):
     return bool(ctxt.ctxtStack)
 
 TVARS = new_env('TVARS', None)
+NEWTYPEVARS = new_env('NEWTYPEVARS', None)
 
 # Extrinsics
 
@@ -188,7 +189,7 @@ def _ctor_form(ctor):
     fields = []
     for nm, t in zip(ctor.__slots__, ctor.__types__):
         if _deferred_type_parses is None:
-            t = parse_type(t)
+            t = in_env(NEWTYPEVARS, None, lambda: parse_type(t))
         field = Field(t)
         add_extrinsic(Name, field, nm)
         fields.append(field)
@@ -326,6 +327,7 @@ def realize_type(t):
             tvars = env(TVARS)
             tvar = tvars.get(t)
             if tvar is None:
+                assert have_env(NEWTYPEVARS), "Tried to create TypeVar %s" % t
                 tvar = TypeVar()
                 add_extrinsic(Name, tvar, t)
                 tvars[t] = tvar
@@ -369,7 +371,7 @@ def _parse_deferred():
             for field in ctor.fields:
                 field.type = parse_type(field.type)
         tvars = {}
-        in_env(TVARS, tvars, parse)
+        in_env(NEWTYPEVARS, None, lambda: in_env(TVARS, tvars, parse))
         ctor.__dt__.tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()
