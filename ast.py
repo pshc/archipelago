@@ -256,7 +256,10 @@ def conv_get_extrinsic(args):
 def conv_hint(args, kwargs):
     assert len(args) == 1
     e = args[0]
-    add_extrinsic(AstHint, e, kwargs)
+    insts = {}
+    for k, s in kwargs.iteritems():
+        insts[k] = s.val
+    add_extrinsic(AstHint, e, insts)
     return e
 
 def conv_special(e):

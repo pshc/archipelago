@@ -34,7 +34,7 @@ def in_new_scope(retT, f):
 # instantiated types
 CType, CVar, CPrim, CVoid, CTuple, CAnyTuple, CFunc, CData, CArray, CWeak \
     = ADT('CType',
-        'CVar', ('typeVar', '*TypeVar'), ('appType', 'CType'),
+        'CVar', ('typeVar', '*TypeVar'),
         'CPrim', ('primType', '*PrimType'),
         'CVoid',
         'CTuple', ('tupleTypes', ['CType']),
@@ -51,10 +51,14 @@ def CStr(): return CPrim(PStr())
 INST = new_env('INST', {Type: Type})
 
 def instantiate_tvar(tv):
-    t = env(INST).get(extrinsic(Name, tv)) # XXX
-    if t is None:
-        t = TVar(tv) # free
-    return CVar(tv, t)
+    t = env(INST).get(extrinsic(Name, tv))
+    if t is not None:
+        pt = in_env(TVARS, env(PROPSCOPE).closedVars, lambda: parse_type(t))
+
+        TEMP = object()
+        return instantiate_type(pt, TEMP)
+    else:
+        return CVar(tv) # free
 
 def instantiate_tdata(dt):
     return CData(dt, []) # XXX
@@ -80,12 +84,11 @@ def instantiate_type(t, ref):
 
 def instantiate(v, ref):
     t = extrinsic(TypeOf, v)
-    print t
     return instantiate_type(t, ref)
 
 def _gen_type(s):
     return match(s,
-        ('CVar(tv, _)', TVar),
+        ('CVar(tv)', TVar),
         ('CPrim(p)', TPrim),
         ('CVoid()', TVoid),
         ('CTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
@@ -113,36 +116,35 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
     unify(ret1, ret2)
 
-def unify_applications(e1, t1, v1, a1, e2, t2, v2, a2):
-    unify(t1, t2)
-    if v1 == v2:
-        unify(a1, a2)
-    else:
-        assert False("TODO: Save this info in schemes")
-
-def unify_data_and_apply(data, tvars, appTarget, appVar, appArg):
-    unify(data, appTarget)
-    assert appVar in tvars, "Not a relevant tvar."
+def unify_datas(da, a, ats, db, b, bts):
+    if a is not b:
+        unification_failure(da, db, "mismatched datatypes")
+    assert len(at) == len(a.tvars), "Wrong %s typevar count" % (a,)
+    assert len(at) == len(bt), "%s typevar count mismatch" % (a,)
+    for at, bt in zip(ats, bts):
+        unify(at, bt)
 
 def unify_prims(p1, p2, e1, e2):
     if not prim_equal(p1, p2):
         unification_failure(e1, e2, "primitive types")
 
+def unify_typevars(e1, tv1, e2, tv2):
+    if tv1 is not tv2:
+        unification_failure(e1, e2, "typevars")
+
 def unify(e1, e2):
-    same = nop
     fail = lambda m: unification_failure(e1, e2, m)
     match((e1, e2),
-        ("(CVar(_, _), CVar(_, _))", same), # TEMP
+        ("(e1==CVar(tv1), e2==CVar(tv2))", unify_typevars),
         ("(CTuple(t1), CTuple(t2))",
             lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
         ("(CArray(t1), CArray(t2))", unify),
         ("(f1==CFunc(a1, r1), f2==CFunc(a2, r2))", unify_funcs),
-        ("(CData(a, _), CData(b, _))", lambda a, b: same() if a is b # XXX
-                                 else fail("mismatched datatypes")),
+        ("(da==CData(a, ats), db==CData(b, bts))", unify_datas),
         ("(CPrim(p1), CPrim(p2))", lambda p1, p2: unify_prims(p1, p2, e1, e2)),
-        ("(CVoid(), CVoid())", same),
-        ("(CTuple(_), CAnyTuple())", same),
-        ("(CAnyTuple(), CTuple(_))", same),
+        ("(CVoid(), CVoid())", nop),
+        ("(CTuple(_), CAnyTuple())", nop),
+        ("(CAnyTuple(), CTuple(_))", nop),
         ("(CAnyTuple(), _)", lambda: fail("tuple expected")),
         ("(_, CAnyTuple())", lambda: fail("tuple expected")),
         ("_", lambda: fail("type mismatch")))
@@ -168,7 +170,7 @@ def pat_capture(v, p):
     prop_pat(p)
 
 def pat_ctor(ref, ctor, args):
-    ctorT = instantiate(get_type(ctor), ref)
+    ctorT = instantiate(ctor, ref)
     fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
     unify_m(dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
@@ -177,9 +179,9 @@ def pat_ctor(ref, ctor, args):
 
 def prop_pat(p):
     match(p,
-        ("PatInt(_)", lambda: unify_m(CPrim(PInt()))),
-        ("PatStr(_)", lambda: unify_m(CPrim(PStr()))),
-        ("PatWild()", lambda: None),
+        ("PatInt(_)", lambda: unify_m(CInt())),
+        ("PatStr(_)", lambda: unify_m(CStr())),
+        ("PatWild()", nop),
         ("PatTuple(ps)", pat_tuple),
         ("PatVar(v)", pat_var),
         ("PatCapture(v, p)", pat_capture),
@@ -278,12 +280,12 @@ def check_expr(t, e):
 def check_lhs(tv, lhs):
     in_env(PROP, tv, lambda: match(lhs,
         ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
-        ("LhsVar(v)", lambda v: unify_m(instantiate(v, tv))),
+        ("LhsVar(v)", lambda v: instantiate(v, tv)),
         ("_", lambda: unknown_prop(lhs))))
 
 def prop_lhs(a):
-    tv = fresh()
-    check_lhs(tv, a)
+    #tv = fresh()
+    #check_lhs(tv, a)
     return tv
 
 def prop_DT(form):
@@ -308,6 +310,7 @@ def prop_defn(a, e):
     set_type(a, generalize_type(prop_expr(e)))
 
 def prop_assign(a, e):
+    return # TEMP
     t = prop_lhs(a)
     check_expr(t, e)
 

@@ -104,10 +104,10 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
 
-def builtin_scheme(name):
-    t = builtins_types.get(name)
+def make_builtin_scheme(name, t):
+    tvars = {}
     if t is None:
-        assert False, 'Unknown builtin %s' % name
+        assert False, 'Unknown builtin %s' % (name,)
     if isinstance(t, tuple):
         if None in t:
             assert False, 'Incomplete builtin %s: %s' % (name, t)
@@ -115,7 +115,6 @@ def builtin_scheme(name):
         t = TFunc(t[:-1], t[-1])
     else:
         t = _fix_type(t)
-    tvars = {}
     def builtin_typevar(v):
         index = match(v, ('TVar(n)', identity))
         if index not in tvars:
@@ -124,10 +123,7 @@ def builtin_scheme(name):
             tvars[index] = tvar
         return TVar(tvars[index])
     t = map_type_vars(builtin_typevar, t)
-    return (tvars.values(), t)
-
-def builtin_type(name):
-    return builtin_scheme(name)[1]
+    return t, tvars
 
 def add_sym(name):
     pass
