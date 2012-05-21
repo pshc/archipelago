@@ -60,6 +60,11 @@ def instantiate_tvar(tv):
     else:
         return CVar(tv) # free
 
+def instantiate_tapply(dt, tvar, t):
+    assert len(dt.tvars) == 1 # TEMP
+    assert dt.tvars[0] is tvar
+    return CData(dt, [t])
+
 def instantiate_tdata(dt):
     return CData(dt, []) # XXX
 
@@ -72,6 +77,7 @@ def _inst_type(s):
         ('TAnyTuple()', CAnyTuple),
         ('TFunc(ps, r)', lambda ps, r:
                 CFunc(map(_inst_type, ps), _inst_type(r))),
+        ('TApply(TData(dt), tvar, t)', instantiate_tapply),
         ('TData(dt)', instantiate_tdata),
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
