@@ -729,9 +729,6 @@ def conv_stmts_noscope(stmts):
 def conv_while(s):
     return [While(conv_expr(s.test), Body(conv_stmts(s.body)))]
 
-# Shouldn't this be an env or something?
-BUILTINS = {}
-
 def setup_builtin_module():
     for name, t in builtins_types.iteritems():
         t, tvars = make_builtin_scheme(name, t)

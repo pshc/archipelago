@@ -7,6 +7,9 @@ from globs import *
 from types_builtin import *
 import types
 
+# Shouldn't this be an env or something?
+BUILTINS = {}
+
 Builtin = DT('Builtin')
 
 Ctxt = DT('Ctxt', ('type', Type))
@@ -95,7 +98,6 @@ TopLevel, TopDefn, TopDT, TopExtrinsic, TopCtxt = \
 CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
 
 def symcall(name, params):
-    from ast import BUILTINS
     return Call(Bind(BindBuiltin(BUILTINS[name])), params)
 
 def getname(sym):
@@ -244,7 +246,7 @@ def _resolve_tvar(node, name):
 BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
 
 def load_builtins():
-    from ast import BUILTINS, setup_builtin_module, loaded_module_export_names
+    from ast import setup_builtin_module, loaded_module_export_names
     setup_builtin_module()
     root = BuiltinList(map(snd, sorted(BUILTINS.items())))
     mod = Module(t_DT(BuiltinList), root)
@@ -322,7 +324,7 @@ map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
 def _match_key(atom, ast):
     assert len(ast.args) == 1
     name = ast.args[0].value
-    target = boot_sym_names.get(name)
+    target = BUILTINS.get(name)
     return [] if atom is target else None
 
 @matcher('sym')
