@@ -340,7 +340,7 @@ def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
 
 def prop_stmt(a):
-    in_env(STMTCTXT, a, lambda: match(a,
+    in_env(STMTCTXT, Just(a), lambda: match(a,
         ("Defn(var, e)", prop_defn),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
@@ -358,7 +358,7 @@ def prop_body(body):
         prop_stmt(s)
 
 def prop_top_level(a):
-    in_env(STMTCTXT, a, lambda: match(a,
+    in_env(STMTCTXT, Just(a), lambda: match(a,
         ("TopDT(form)", prop_DT),
         ("TopCtxt(environ)", prop_new_env),
         ("TopDefn(var, e)", prop_defn),
