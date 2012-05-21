@@ -182,7 +182,6 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
                   ast.Div: '/', ast.FloorDiv: '//',
                   ast.Bitand: '&', ast.Bitor: '|', ast.Bitxor: '^',
                   ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
-    add_sym(op)
     @expr(cls)
     def binop(e, o=op):
         return symcall(o, [conv_expr(e.left), conv_expr(e.right)])
@@ -191,7 +190,6 @@ for (cls, sym) in {ast.UnaryAdd: 'positive',
                    ast.UnarySub: 'negate',
                    ast.Not: 'not',
                    ast.Invert: 'invert'}.iteritems():
-    add_sym(sym)
     @expr(cls)
     def unaop(e, s=sym):
         return symcall(s, [conv_expr(e.expr)])
@@ -332,10 +330,6 @@ named_match_cases = {'key': [1], 'named': [1], 'sym': [2, 3],
                      'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
 assert set(named_match_cases) == set(named_match_dispatch)
 
-for nm, ns in named_match_cases.iteritems():
-    for n in ns:
-        add_sym('%s%d' % (nm, n))
-del nm, ns
 def conv_match_try(node, bs):
     if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
         nm = node.node.name
@@ -431,8 +425,6 @@ def conv_callfunc(e):
     fa = conv_expr(e.node)
     return Call(conv_expr(e.node), argsa)
 
-map(add_sym, ['<', '>', '==', '!=', '<=', '>='])
-map(add_sym, ['is', 'is not', 'in', 'not in'])
 @expr(ast.Compare)
 def conv_compare(e):
     assert len(e.ops) == 1
@@ -512,7 +504,6 @@ def conv_or(e):
     assert len(e.nodes) == 2
     return Or(conv_exprs(e.nodes))
 
-map(add_sym, ['arraycopy', 'slice', 'lslice', 'uslice'])
 @expr(ast.Slice)
 def conv_slice(e):
     (ea, et) = conv_expr(e.expr)
@@ -529,7 +520,6 @@ def conv_slice(e):
         args.append(ua)
     return (symcall(sym, args), '%s[%s:%s]' % (et, lt, ut))
 
-add_sym('subscript')
 @expr(ast.Subscript)
 def conv_subscript(e):
     assert len(e.subs) == 1

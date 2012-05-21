@@ -127,9 +127,6 @@ def make_builtin_scheme(name, t):
     t = map_type_vars(builtin_typevar, t)
     return t, tvars
 
-def add_sym(name):
-    pass
-
 def extrinsic_mod(extr, mapping, src_mod):
     items = {}
     for k, v in mapping.iteritems():
@@ -315,10 +312,6 @@ def load_forms():
     native.serialize(names_mod)
 
 DtList = DT('DtList', ('dts', [DataType]))
-
-map(add_sym, ('None,True,False,getattr,ord,range,len,set,'
-        '+,-,*,/,//,%,negate,==,!=,<,>,<=,>=,is,is not,in,not in,'
-        'slice,printf,object').split(','))
 
 @matcher('key')
 def _match_key(atom, ast):
