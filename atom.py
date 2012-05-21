@@ -94,18 +94,9 @@ TopLevel, TopDefn, TopDT, TopExtrinsic, TopCtxt = \
 
 CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
 
-# Bootstrap module
-boot_syms = []
-boot_sym_names = {}
-
-csym_roots = []
-
-def builtin_binding(name):
-    assert name in boot_sym_names, '%s not a boot symbol' % (name,)
-    return Bind(BindBuiltin(boot_sym_names[name]))
-
 def symcall(name, params):
-    return Call(builtin_binding(name), params)
+    from ast import BUILTINS
+    return Call(Bind(BindBuiltin(BUILTINS[name])), params)
 
 def getname(sym):
     return match(sym, ('named(nm)', identity))
@@ -139,13 +130,7 @@ def builtin_type(name):
     return builtin_scheme(name)[1]
 
 def add_sym(name):
-    node = boot_sym_names.get(name)
-    if not node:
-        node = Builtin()
-        add_extrinsic(Name, node, name)
-        boot_syms.append(node)
-        boot_sym_names[name] = node
-    return node
+    pass
 
 def extrinsic_mod(extr, mapping, src_mod):
     items = {}
@@ -205,12 +190,6 @@ def _do_mod(mod, name):
 _ast_setup = False
 
 def load_module(filename):
-    global _ast_setup
-    if not _ast_setup:
-        print 'Setting up builtins'
-        import ast
-        ast.setup_builtin_module()
-        _ast_setup = True
     deps = set()
     print 'Loading %s' % (filename,)
     mod = load_module_dep(filename, deps)
@@ -269,13 +248,14 @@ def _resolve_tvar(node, name):
 BuiltinList = DT('BuiltinList', ('builtins', [Builtin]))
 
 def load_builtins():
-    root = BuiltinList(boot_syms)
+    from ast import BUILTINS, setup_builtin_module, loaded_module_export_names
+    setup_builtin_module()
+    root = BuiltinList(map(snd, sorted(BUILTINS.items())))
     mod = Module(t_DT(BuiltinList), root)
     add_extrinsic(Name, mod, 'builtins')
     exports = {}
-    for sym in boot_syms:
-        exports[extrinsic(Name, sym)] = sym
-    from ast import loaded_module_export_names
+    for name, sym in BUILTINS.iteritems():
+        exports[name] = sym
     loaded_module_export_names[mod] = exports
 
     write_mod_repr('views/symbols.txt', mod, [Name])

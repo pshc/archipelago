@@ -189,7 +189,7 @@ def prop_binding(ref, binding):
     return match(binding,
         ("BindVar(v) or BindCtor(v)", lambda v: instantiate(v, ref)),
         ("BindBuiltin(b)", lambda b:
-            instantiate_type(builtin_type(extrinsic(Name, b)), ref)),
+            instantiate_type(extrinsic(TypeOf, b), ref)),
     )
 
 def prop_call(f, s):

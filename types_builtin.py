@@ -103,28 +103,10 @@ def map_type_vars(f, t):
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("_", lambda: t))
 
-# TODO
-TDict = None
-TList = TData(List)
-TSet = None
-
-TFile = None
-THash = None
-
 def _var(n): return TVar(n)
 
 # Tuples are a shortcut for functions
 builtins_types = {
-    'fgetc': (TFile, TChar),
-    'fputc': (TFile, TChar, TVoid),
-    'fwrite': (TFile, TStr, TVoid),
-    'fread': (TVoid, TInt, TInt, TFile, TVoid),
-    'fopen': (TStr, TStr, TFile),
-    'fclose': (TFile, TVoid),
-    'sha256': (THash,),
-    'sha256_hexdigest': (THash, TStr),
-    'sha256_update': (THash, TStr, TVoid),
-
     'True': TBool, 'False': TBool,
     'ord': (TChar, TInt),
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),

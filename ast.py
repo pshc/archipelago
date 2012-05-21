@@ -730,14 +730,13 @@ def conv_while(s):
 BUILTINS = {}
 
 def setup_builtin_module():
-    namespace = valueNamespace
-    for name in builtins_types:
-        # TODO: Deal with this conflict
-        builtin = boot_sym_names.get(name)
-        if builtin is None:
-            builtin = Builtin()
-            add_extrinsic(Name, builtin, name)
-        BUILTINS[(name, namespace)] = (builtin, BindBuiltin)
+    for name, t in builtins_types.iteritems():
+        t, tvars = make_builtin_scheme(name, t)
+        builtin = Builtin()
+        add_extrinsic(Name, builtin, name)
+        add_extrinsic(TypeOf, builtin, t)
+        # TODO: Put the TypeVars somewhere too
+        BUILTINS[name] = builtin
 
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
@@ -748,7 +747,8 @@ def convert_file(filename, name, deps):
     omni, scope = ast_envs()
     omni.loadedModules = deps
     def go():
-        scope.syms.update(BUILTINS)
+        for name, b in BUILTINS.iteritems():
+            scope.syms[(name, valueNamespace)] = (b, BindBuiltin)
         root = []
         for top in tops:
             root += conv_top_level(top)
