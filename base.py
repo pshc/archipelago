@@ -392,6 +392,9 @@ def pretty_brief(name, o):
         return 't%r' % (tuple(o.vals),)
     return None
 
+def _id(o):
+    return '@x' + ('%x' % (id(o),))[-5:]
+
 def __repr__(o):
     if not in_extrinsic_scope(PrettyPrinted):
         return scope_extrinsic(PrettyPrinted, lambda: repr(o))
@@ -400,7 +403,7 @@ def __repr__(o):
     if has_extrinsic(PrettyPrinted, o):
         if has_extrinsic(Name, o):
             name = '%s "%s"' % (name, extrinsic(Name, o))
-        return '<%s at 0x%x>' % (name, id(o))
+        return '<%s %s>' % (name, _id(o))
     add_extrinsic(PrettyPrinted, o, None)
 
     brief = pretty_brief(name, o)
@@ -408,7 +411,7 @@ def __repr__(o):
         return brief
 
     if has_extrinsic(Name, o):
-        name = '%s "%s" at 0x%x' % (name, extrinsic(Name, o), id(o))
+        name = '%s "%s" %s' % (name, extrinsic(Name, o), _id(o))
     if len(t.__slots__) > 1:
         params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
         name = '%s(%s)' % (name, ', '.join(params))
