@@ -382,8 +382,13 @@ _parse_deferred()
 PrettyPrinted = new_extrinsic('PrettyPrinted', None)
 
 def pretty_brief(name, o):
-    if name == 'BindBuiltin':
-        return '&%s' % extrinsic(Name, o.builtin)
+    if name == 'Bind':
+        o = o.binding
+        name = type(o).__name__
+        if name == 'BindBuiltin':
+            return '&%s' % extrinsic(Name, o.builtin)
+        elif name == 'BindCtor':
+            return u'%s' % extrinsic(Name, o.ctor)
     elif name == 'IntLit':
         return 'i%d' % (o.val,)
     elif name == 'StrLit':
