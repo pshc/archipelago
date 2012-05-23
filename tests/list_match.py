@@ -2,7 +2,7 @@ from bedrock import *
 
 @annot('void -> int')
 def main():
-    a = Cons(0, Cons(1, Nil()))
+    a = hint(Cons(0, Cons(1, Nil())), a='int')
     a = Cons(1, Cons(2, Cons(3, Nil)))
     b = match(a, ("Cons(_, Cons(two, Cons(_, Nil())))", identity),
                  ("_", lambda: 4))

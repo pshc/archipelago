@@ -54,9 +54,7 @@ def instantiate_tvar(tv):
     t = env(INST).get(extrinsic(Name, tv))
     if t is not None:
         pt = in_env(TVARS, env(PROPSCOPE).closedVars, lambda: parse_type(t))
-
-        TEMP = object()
-        return instantiate_type(pt, TEMP)
+        return in_env(INST, {}, lambda: _inst_type(pt))
     else:
         return CVar(tv) # free
 
@@ -83,10 +81,7 @@ def _inst_type(s):
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
 
 def instantiate_type(t, ref):
-    overrides = {}
-    if has_extrinsic(AstHint, ref):
-        overrides = extrinsic(AstHint, ref)
-    return in_env(INST, overrides, lambda: _inst_type(t))
+    return _inst_type(t)
 
 def instantiate(v, ref):
     t = extrinsic(TypeOf, v)
@@ -264,6 +259,17 @@ def unknown_prop(a):
     assert False, with_context('Unknown prop case:\n%s' % (a,))
 
 def prop_expr(e):
+
+    if has_extrinsic(AstHint, e):
+        old = env(INST)
+        new = extrinsic(AstHint, e)
+        print 'old vs new', old, new
+        for k, v in new.iteritems():
+            if k not in old or old[k] != v:
+                updated = old.copy()
+                updated.update(new)
+                return in_env(INST, updated, lambda: prop_expr(e))
+
     return match(e,
         ("IntLit(_)", lambda: CPrim(PInt())),
         ("StrLit(_)", lambda: CPrim(PStr())),
@@ -372,8 +378,10 @@ def prop_top_level(a):
         ("otherwise", unknown_prop)))
 
 def prop_compilation_unit(unit):
-    for s in unit.tops:
-        prop_top_level(s)
+    def go():
+        for s in unit.tops:
+            prop_top_level(s)
+    in_env(INST, {}, go)
 
 def with_fields(func):
     def go():
