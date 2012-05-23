@@ -125,8 +125,8 @@ def unify_funcs(f1, args1, ret1, f2, args2, ret2):
 def unify_datas(da, a, ats, db, b, bts):
     if a is not b:
         unification_failure(da, db, "mismatched datatypes")
-    assert len(at) == len(a.tvars), "Wrong %s typevar count" % (a,)
-    assert len(at) == len(bt), "%s typevar count mismatch" % (a,)
+    assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
+    assert len(ats) == len(bts), "%s typevar count mismatch" % (a,)
     for at, bt in zip(ats, bts):
         unify(at, bt)
 
@@ -220,7 +220,7 @@ def prop_func(e, f, ps, b):
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     set_type(f, ft)
-    cft = instantiate_type(ft, f)
+    cft = instantiate_type(ft, e)
     cret = match(cft, ('CFunc(_, cret)', Just))
     def inside_func_scope():
         closed = env(PROPSCOPE).closedVars
