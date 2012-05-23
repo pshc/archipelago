@@ -11,6 +11,7 @@ FieldDT = new_extrinsic('FieldDT', '*DataType')
 PROP = new_env('PROP', '*Type')
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
+EXPRCTXT = new_env('EXPRCTXT', '*Expr')
 
 PropScope = DT('PropScope', ('level', int),
                             ('retType', 'Maybe(CType)'),
@@ -19,9 +20,10 @@ PropScope = DT('PropScope', ('level', int),
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
 def with_context(msg):
-    return match(env(STMTCTXT),
-        ("Just(s)", lambda s: "At:\n%s\n%s" % (s, msg)),
-        ("_", lambda: msg))
+    if have_env(EXPRCTXT):
+        msg = "Expr: %s\n%s" % (env(EXPRCTXT), msg)
+    msg = "\nAt: %s\n%s" % (env(STMTCTXT), msg)
+    return msg
 
 def global_scope():
     return PropScope(0, Nothing(), {})
@@ -260,17 +262,18 @@ def unknown_prop(a):
     assert False, with_context('Unknown prop case:\n%s' % (a,))
 
 def prop_expr(e):
-
     if has_extrinsic(AstHint, e):
         old = env(INST)
         new = extrinsic(AstHint, e)
-        print 'old vs new', old, new
         for k, v in new.iteritems():
             if k not in old or old[k] != v:
                 updated = old.copy()
                 updated.update(new)
-                return in_env(INST, updated, lambda: prop_expr(e))
+                return in_env(EXPRCTXT, e, lambda:
+                        in_env(INST, updated, lambda: _prop_expr(e)))
+    return in_env(EXPRCTXT, e, lambda: _prop_expr(e))
 
+def _prop_expr(e):
     return match(e,
         ("IntLit(_)", lambda: CPrim(PInt())),
         ("StrLit(_)", lambda: CPrim(PStr())),
