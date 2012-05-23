@@ -395,6 +395,8 @@ def pretty_brief(name, o):
         return 's%r' % (o.val,)
     elif name == 'TupleLit':
         return 't%r' % (tuple(o.vals),)
+    elif name == 'DataType':
+        return extrinsic(Name, o)
     return None
 
 def _id(o):

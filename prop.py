@@ -12,6 +12,7 @@ PROP = new_env('PROP', '*Type')
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')
+UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
 PropScope = DT('PropScope', ('level', int),
                             ('retType', 'Maybe(CType)'),
@@ -20,6 +21,9 @@ PropScope = DT('PropScope', ('level', int),
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
 def with_context(msg):
+    if have_env(UNIFYCTXT):
+        t1, t2 = env(UNIFYCTXT)
+        msg = "Types: %s & %s\n%s" % (t1, t2, msg)
     if have_env(EXPRCTXT):
         msg = "Expr: %s\n%s" % (env(EXPRCTXT), msg)
     msg = "\nAt: %s\n%s" % (env(STMTCTXT), msg)
@@ -114,11 +118,11 @@ def unify_tuples(t1, list1, t2, list2, desc):
     if len(list1) != len(list2):
         unification_failure(t1, t2, "%s length mismatch" % (desc,))
     for a1, a2 in zip(list1, list2):
-        unify(a1, a2)
+        _unify(a1, a2)
 
 def unify_funcs(f1, args1, ret1, f2, args2, ret2):
     unify_tuples(f1, args1, f2, args2, "func params")
-    unify(ret1, ret2)
+    _unify(ret1, ret2)
 
 def unify_datas(da, a, ats, db, b, bts):
     if a is not b:
@@ -126,7 +130,7 @@ def unify_datas(da, a, ats, db, b, bts):
     assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
     assert len(ats) == len(bts), "%s typevar count mismatch" % (a,)
     for at, bt in zip(ats, bts):
-        unify(at, bt)
+        _unify(at, bt)
 
 def unify_prims(p1, p2, e1, e2):
     if not prim_equal(p1, p2):
@@ -137,6 +141,9 @@ def unify_typevars(e1, tv1, e2, tv2):
         unification_failure(e1, e2, "typevars")
 
 def unify(e1, e2):
+    in_env(UNIFYCTXT, (e1, e2), lambda: _unify(e1, e2))
+
+def _unify(e1, e2):
     fail = lambda m: unification_failure(e1, e2, m)
     match((e1, e2),
         ("(e1==CVar(tv1), e2==CVar(tv2))", unify_typevars),
