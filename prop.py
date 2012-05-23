@@ -61,10 +61,11 @@ def instantiate_tvar(tv):
 def instantiate_tapply(dt, tvar, t):
     assert len(dt.tvars) == 1 # TEMP
     assert dt.tvars[0] is tvar
-    return CData(dt, [t])
+    return CData(dt, [_inst_type(t)])
 
 def instantiate_tdata(dt):
-    return CData(dt, []) # XXX
+    ts = [CVar(tv) for tv in dt.tvars]
+    return CData(dt, ts)
 
 def _inst_type(s):
     return match(s,
