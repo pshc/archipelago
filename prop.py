@@ -54,13 +54,19 @@ def CInt(): return CPrim(PInt())
 def CBool(): return CPrim(PBool())
 def CStr(): return CPrim(PStr())
 
-INST = new_env('INST', {Type: Type})
+# actual instantiation (outer, name-based hack for now)
+INST = new_env('INST', {str: Type})
+# direct transformation to C* (hacky reuse of _inst_type)
+SUBST = new_env('SUBST', None)
 
 def instantiate_tvar(tv):
+    if have_env(SUBST):
+        return CVar(tv)
+
     t = env(INST).get(extrinsic(Name, tv))
     if t is not None:
         pt = in_env(TVARS, env(PROPSCOPE).closedVars, lambda: parse_type(t))
-        return in_env(INST, {}, lambda: _inst_type(pt))
+        return in_env(SUBST, None, lambda: _inst_type(pt))
     else:
         return CVar(tv) # free
 
@@ -70,8 +76,7 @@ def instantiate_tapply(dt, tvar, t):
     return CData(dt, [_inst_type(t)])
 
 def instantiate_tdata(dt):
-    ts = [CVar(tv) for tv in dt.tvars]
-    return CData(dt, ts)
+    return CData(dt, [instantiate_tvar(tv) for tv in dt.tvars])
 
 def _inst_type(s):
     return match(s,
