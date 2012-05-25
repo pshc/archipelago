@@ -18,10 +18,10 @@ def tuple2(a, b): return (a, b)
 
 @annot('t(a, b) -> a')
 def fst(t):
-    return match(t, ('(f, _)', lambda f: f))
+    return match(t, ('(f, _)', identity))
 
 @annot('t(a, b) -> b')
 def snd(t):
-    return match(t, ('(_, s)', lambda s: s))
+    return match(t, ('(_, s)', identity))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
