@@ -191,7 +191,7 @@ def pat_ctor(ref, ctor, args):
     unify_m(dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
     for arg, fieldT in zip(args, fieldTs):
-        in_env(PROP, fieldT, lambda: check_pat(arg))
+        in_env(PROP, fieldT, lambda: prop_pat(arg))
 
 def prop_pat(p):
     match(p,
