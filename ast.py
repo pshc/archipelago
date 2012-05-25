@@ -316,8 +316,9 @@ SPECIAL_CASES = {
 def conv_match_case(code, f):
     bs = []
     c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
-    special = SPECIAL_CASES.get(match(f, ('BindBuiltin(nm)', identity),
-                                         ('_', lambda: None)))
+    bname = match(f, ('Bind(BindVar(v))', lambda v: extrinsic(Name, v)),
+                     ('_', lambda: None))
+    special = bname and SPECIAL_CASES.get(bname)
     if special:
         e = special(lambda i: bs[i])
     else:
