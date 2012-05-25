@@ -320,7 +320,7 @@ def conv_match_case(code, f):
                      ('_', lambda: None))
     special = bname and SPECIAL_CASES.get(bname)
     if special:
-        e = special(lambda i: bs[i])
+        e = special(lambda i: Bind(BindVar(bs[i])))
     else:
         e = match(f, ('FuncExpr(Func(params, b))', lambda params, b:
                          replace_refs(dict(zip(params, bs)), extract_ret(b))),
