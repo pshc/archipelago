@@ -194,6 +194,10 @@ def pat_ctor(ref, ctor, args):
         in_env(PROP, fieldT, lambda: prop_pat(arg))
 
 def prop_pat(p):
+    # bad type, meh
+    return in_env(EXPRCTXT, p, lambda: _prop_pat(p))
+
+def _prop_pat(p):
     match(p,
         ("PatInt(_)", lambda: unify_m(CInt())),
         ("PatStr(_)", lambda: unify_m(CStr())),
