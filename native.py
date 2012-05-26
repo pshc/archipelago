@@ -41,7 +41,7 @@ def _encode_str(s):
 
 def _serialize_node(node, t):
     if isinstance(node, Structured):
-        assert isinstance(t, TData)
+        assert isinstance(t, TData), "%r is not a datatype" % (t,)
         adt = extrinsic(FormBacking, t.data)
         assert isinstance(node, adt), "%r is not a %s" % (node, adt)
         if len(t.data.ctors) > 1:
