@@ -682,7 +682,7 @@ def conv_function(s):
 def conv_if(s):
     conds = []
     for (test, body) in s.tests:
-        conds.append(Case(conv_expr(test), conv_stmts(body)))
+        conds.append(CondCase(conv_expr(test), Body(conv_stmts(body))))
     else_ = Just(Body(conv_stmts(s.else_))) if s.else_ else Nothing()
     return [Cond(conds, else_)]
 

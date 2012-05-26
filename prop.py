@@ -252,7 +252,6 @@ def prop_match(m, e, cs):
             rt = prop_expr(ce)
             retT = env(PROPSCOPE).retType
             if isJust(retT):
-                t = m.arg
                 unify(rt, fromJust(retT))
             else:
                 retT = Just(rt)

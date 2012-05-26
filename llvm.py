@@ -120,6 +120,9 @@ def expr_bind_builtin(b):
         ('key("True")', lambda: Const('1')),
         ('key("False")', lambda: Const('0')))
 
+def expr_bind_ctor(c):
+    return Const(func_ref(c))
+
 def expr_bind_var(v):
     if has_extrinsic(Replacement, v):
         return extrinsic(Replacement, v)
@@ -198,6 +201,7 @@ def expr_tuple_lit(ts):
 def express(expr):
     return match(expr,
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
+        ('Bind(BindCtor(c))', expr_bind_ctor),
         ('Bind(BindVar(v))', expr_bind_var),
         ('Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
