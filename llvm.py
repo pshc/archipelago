@@ -1,12 +1,15 @@
-#!/usr/bin/env python2
 from atom import *
+import expand
 import sys
 
-IRInfo = DT('IRInfo', ('needIndent', bool), ('tempCtr', int))
+IRInfo = DT('IRInfo', ('stream', None),
+                      ('needIndent', bool),
+                      ('tempCtr', int))
 IR = new_env('IR', IRInfo)
 
 def setup_ir():
-    return IRInfo(False, 0)
+    stream = sys.stdout
+    return IRInfo(stream, False, 0)
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -25,10 +28,13 @@ Replacement = new_extrinsic('Replacement', BindingReplacement)
 # OUTPUT
 
 def out(s):
-    if env(IR).needIndent:
-        sys.stdout.write('  ')
+    if env(GENOPTS).quiet:
+        return
+    ir = env(IR)
+    if ir.needIndent:
+        ir.stream.write('  ')
         clear_indent()
-    sys.stdout.write(s)
+    ir.stream.write(s)
 
 def out_name(a):
     out(extrinsic(Name, a))
@@ -63,8 +69,11 @@ def clear_indent():
     env(IR).needIndent = False
 
 def newline():
-    sys.stdout.write('\n')
-    env(IR).needIndent = True
+    if env(GENOPTS).quiet:
+        return
+    ir = env(IR)
+    ir.stream.write('\n')
+    ir.needIndent = True
 
 def comma():
     out(', ')
@@ -173,8 +182,7 @@ def expr_call(f, args):
     return m.result()
 
 def expr_func(f, ps, body):
-    from expand import Closure
-    clos = extrinsic(Closure, f)
+    clos = extrinsic(expand.Closure, f)
     assert not clos.isClosure, "TODO"
     return Const(func_ref(clos.func))
 
@@ -184,8 +192,7 @@ def expr_match(m, e, cs):
     #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
 
 def expr_strlit(lit):
-    from expand import ExpandedDecl
-    info = extrinsic(ExpandedDecl, lit)
+    info = extrinsic(expand.ExpandedDecl, lit)
     tmp = temp_reg()
     out_xpr(tmp)
     out(' = getelementptr [0 x i8]* %s, i32 0, i32 0' %
@@ -239,9 +246,8 @@ def has_static_replacement(v, e):
     m = match(e)
     if m('FuncExpr(f)'):
         f = m.arg
-        from expand import VarUsage
-        if has_extrinsic(VarUsage, v):
-            if extrinsic(VarUsage, v).isReassigned:
+        if has_extrinsic(expand.VarUsage, v):
+            if extrinsic(expand.VarUsage, v).isReassigned:
                 return False
         add_extrinsic(Replacement, v, Const(func_ref(f)))
         return True
@@ -394,10 +400,9 @@ def write_top(top):
     newline()
 
 def write_unit(unit):
-    from expand import Expansion
     for top in unit.tops:
-        if has_extrinsic(Expansion, top):
-            for ex in extrinsic(Expansion, top):
+        if has_extrinsic(expand.Expansion, top):
+            for ex in extrinsic(expand.Expansion, top):
                 match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
                     ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))
@@ -421,22 +426,5 @@ def simple_test():
     body += [Defn(foo, add(IntLit(40), IntLit(2))),
              Return(sum)]
     write_ir(Body([FuncStmt(func)]))
-
-def main():
-    import sys
-    load_builtins()
-    load_forms()
-    load_module('bedrock.py')
-    for filename in sys.argv[1:]:
-        load_module(filename)
-
-if __name__ == '__main__':
-    scope_extrinsic(Location,
-        lambda: scope_extrinsic(ModIndex,
-        lambda: scope_extrinsic(ModDigest,
-        lambda: scope_extrinsic(TypeOf,
-        main
-    ))))
-
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -12,6 +12,9 @@ Overlay = base.DT('Overlay', ('mapping', [Entry]))
 
 TypeOf = base.new_extrinsic('TypeOf', base.Type)
 
+GenOpts = base.DT('GenOpts', ('quiet', bool))
+GENOPTS = base.new_env('GENOPTS', GenOpts)
+
 loaded_modules = {}
 loaded_module_atoms = {}
 

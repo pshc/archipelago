@@ -1,5 +1,6 @@
 TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
+CODEGEN = ./construct.py -q --
 
 all: test
 
@@ -19,10 +20,10 @@ views:
 	mkdir $@
 
 views/tests_%: tests/%.py dirs
-	./llvm.py $<
+	$(CODEGEN) $<
 
 remake_tests: dirs
-	./llvm.py $(TESTS)
+	$(CODEGEN) $(TESTS)
 
 test: remake_tests
 	@echo -n Running tests

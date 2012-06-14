@@ -1,5 +1,4 @@
 from base import *
-from bedrock import List
 
 def prim_equal(p1, p2):
     return match((p1, p2),

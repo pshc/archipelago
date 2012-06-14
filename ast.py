@@ -645,6 +645,7 @@ def conv_from(s):
         omni = env(OMNI)
         if modname not in omni.directlyImportedModuleNames:
             omni.directlyImportedModuleNames.add(modname)
+            from construct import load_module_dep
             mod = load_module_dep(modname.replace('.', '/') + '.py',
                     omni.loadedDeps)
             symbols = loaded_module_export_names[mod]
