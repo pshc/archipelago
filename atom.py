@@ -7,6 +7,8 @@ from globs import *
 from types_builtin import *
 import types
 
+types_by_name['set'] = lambda: TData(Set.__dt__.__form__)
+
 # Shouldn't this be an env or something?
 BUILTINS = {}
 

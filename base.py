@@ -287,7 +287,7 @@ def parse_type(t):
         return t
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
 
-_types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
+types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
 
 def realize_type(t):
     ast = compiler.ast
@@ -334,8 +334,8 @@ def realize_type(t):
             return TVar(tvar)
         elif t in DATATYPES:
             return TData(DATATYPES[t].__form__)
-        elif t in _types_by_name:
-            return _types_by_name[t]()
+        elif t in types_by_name:
+            return types_by_name[t]()
         else:
             return TForward(t)
     elif isinstance(t, ast.UnarySub):
