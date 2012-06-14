@@ -710,6 +710,10 @@ def conv_printnl(s):
         assert False, "Unexpected print form: %s" % s
     return [ExprStmt(symcall('printf', exprsa))]
 
+@top_level(ast.Printnl)
+def ignore_debug_print(s):
+    return []
+
 @stmt(ast.Return)
 def conv_return(s):
     if isinstance(s.value, ast.Const) and s.value.value is None:
