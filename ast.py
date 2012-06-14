@@ -81,12 +81,6 @@ def refs_existing(nm, namespace=valueNamespace):
     ref = ident_exists(nm, namespace)
     if isJust(ref):
         return Bind(fromJust(ref))
-    if namespace == typeNamespace:
-        if nm == 'int':
-            return TInt()
-        if nm == 'str':
-            return TStr()
-        # Bind() is wrong for types... or is it?
     key = (nm, namespace)
     fwd_ref = Bind(key)
     omni = env(OMNI)
@@ -106,7 +100,10 @@ def bind_kind(v):
         raise ValueError("Can't bind to %r" % (v,))
 
 def type_ref(nm):
-    return refs_existing(nm, namespace=typeNamespace)
+    if nm in types_by_name:
+        return types_by_name[nm]()
+    ref = ident_exists(nm, typeNamespace)
+    return maybe_(TForward(nm), ref)
 
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):

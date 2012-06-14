@@ -265,8 +265,6 @@ def check_match(m, e, cs):
     set_monotype(e, et, True)
 
 def check_attr(struct, f, ref):
-    # Would be nice if we didn't have to instantiate a TData pointlessly
-    # every time, but then we'd have to start garbage collecting a shared one
     check_expr(TData(extrinsic(FieldDT, f)), struct)
     unify_m(get_type(f, ref))
 
