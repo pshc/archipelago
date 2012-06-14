@@ -6,10 +6,6 @@ Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
 
 Location = base.new_extrinsic('Location', Pos)
 
-# TEMP
-Entry = base.DT('Entry', ('key', '*a'), ('value', str))
-Overlay = base.DT('Overlay', ('mapping', [Entry]))
-
 TypeOf = base.new_extrinsic('TypeOf', base.Type)
 
 GenOpts = base.DT('GenOpts', ('quiet', bool))

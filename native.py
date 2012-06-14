@@ -41,23 +41,36 @@ def _encode_str(s):
 
 def _serialize_node(node, t):
     if isinstance(node, Structured):
+        # Collect instantiations
+        apps = {}
+        while isinstance(t, TApply):
+            target, var, arg = match(t, ("TApply(t, v, a)", tuple3))
+            assert var not in apps
+            apps[var] = arg
+            t = target
         assert isinstance(t, TData), "%r is not a datatype" % (t,)
         adt = extrinsic(FormBacking, t.data)
         assert isinstance(node, adt), "%r is not a %s" % (node, adt)
+        # Possibly write discriminator
         if len(t.data.ctors) > 1:
             ix = node._ctor_ix
             _write(_encode_int(ix))
             form = t.data.ctors[node._ctor_ix]
         else:
             form = t.data.ctors[0]
+        # Dump fields
         ctor = extrinsic(FormBacking, form)
         assert isinstance(node, ctor), "%r is not a %s" % (node, ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
-            if isinstance(field.type, TWeak):
-                _write_ref(sub, field.type.refType)
+            ft = field.type
+            if isinstance(ft, TWeak):
+                _write_ref(sub, apps.get(ft.refType, ft.refType))
+            elif isinstance(ft, TVar):
+                assert ft in apps, "Can't write free %r in %r" % (ft, field)
+                _serialize_node(sub, apps[ft])
             else:
-                _serialize_node(sub, field.type)
+                _serialize_node(sub, ft)
     elif isinstance(node, basestring):
         assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))

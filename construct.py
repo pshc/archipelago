@@ -10,6 +10,10 @@ import expand
 import prop
 import llvm
 
+# TEMP
+Entry = base.DT('Entry', ('key', '*a'), ('value', str))
+Overlay = base.DT('Overlay', ('mapping', [Entry]))
+
 def extrinsic_mod(extr, mapping, src_mod):
     items = {}
     for k, v in mapping.iteritems():

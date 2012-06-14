@@ -16,6 +16,9 @@ def identity(val): return hint(val, a='a')
 @annot('(a, b) -> (a, b)')
 def tuple2(a, b): return (a, b)
 
+@annot('(a, b, c) -> (a, b, c)')
+def tuple3(a, b, c): return (a, b, c)
+
 @annot('t(a, b) -> a')
 def fst(t):
     return match(t, ('(f, _)', identity))
