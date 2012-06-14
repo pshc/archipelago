@@ -1,16 +1,16 @@
-import base as _base
+import base
 
-ModIndex = _base.new_extrinsic('ModIndex', [int])
+ModIndex = base.new_extrinsic('ModIndex', [int])
 
-Pos = _base.DT('Pos', ('module', '*Module'), ('index', int))
+Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
 
-Location = _base.new_extrinsic('Location', Pos)
+Location = base.new_extrinsic('Location', Pos)
 
 # TEMP
-Entry = _base.DT('Entry', ('key', '*a'), ('value', str))
-Overlay = _base.DT('Overlay', ('mapping', [Entry]))
+Entry = base.DT('Entry', ('key', '*a'), ('value', str))
+Overlay = base.DT('Overlay', ('mapping', [Entry]))
 
-TypeOf = _base.new_extrinsic('TypeOf', _base.Type)
+TypeOf = base.new_extrinsic('TypeOf', base.Type)
 
 loaded_modules = {}
 loaded_module_atoms = {}
