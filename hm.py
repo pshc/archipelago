@@ -9,8 +9,6 @@ FieldDT = new_extrinsic('FieldDT', '*DataType')
 
 ALGM = new_env('ALGM', '*Type')
 
-STMTCTXT = new_env('STMTCTXT', '*Stmt')
-
 HmScope = DT('HmScope', ('table', {'*Expr': (Scheme, bool)}),
                         ('retType', Type),
                         ('returned', 'Maybe(bool)'),
@@ -456,9 +454,6 @@ def with_fields(func):
         """
         return func()
     return scope_extrinsic(FieldDT, go)
-
-def nop():
-    pass
 
 # Collapse strings of metavars
 def _zonk_meta(meta):

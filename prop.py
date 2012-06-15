@@ -10,8 +10,6 @@ FieldDT = new_extrinsic('FieldDT', '*DataType')
 
 PROP = new_env('PROP', '*Type')
 
-STMTCTXT = new_env('STMTCTXT', '*Stmt')
-EXPRCTXT = new_env('EXPRCTXT', '*Expr')
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
 PropScope = DT('PropScope', ('level', int),
@@ -371,7 +369,7 @@ def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
 
 def prop_stmt(a):
-    in_env(STMTCTXT, Just(a), lambda: match(a,
+    in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(var, e)", prop_defn),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
@@ -389,7 +387,7 @@ def prop_body(body):
         prop_stmt(s)
 
 def prop_top_level(a):
-    in_env(STMTCTXT, Just(a), lambda: match(a,
+    in_env(STMTCTXT, a, lambda: match(a,
         ("TopDT(form)", prop_DT),
         ("TopCtxt(environ)", prop_new_env),
         ("TopDefn(var, e)", prop_defn),
@@ -411,9 +409,6 @@ def with_fields(func):
         """
         return func()
     return scope_extrinsic(FieldDT, go)
-
-def nop():
-    pass
 
 def prop_types(root):
     captures = {}

@@ -218,9 +218,6 @@ def ex_stmt(s):
         ("Return(e)", ex_return),
         ("ReturnNothing()", ex_returnnothing))
 
-def nop():
-    pass
-
 def ex_body(body):
     map_(ex_stmt, body.stmts)
 

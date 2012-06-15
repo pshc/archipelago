@@ -97,6 +97,9 @@ TopLevel, TopDefn, TopDT, TopExtrinsic, TopCtxt = \
         'TopExtrinsic', ('extrinsic', Extrinsic),
         'TopCtxt', ('ctxt', Ctxt))
 
+STMTCTXT = new_env('STMTCTXT', '*Stmt')
+EXPRCTXT = new_env('EXPRCTXT', '*Expr')
+
 CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
 
 def symcall(name, params):

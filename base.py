@@ -665,4 +665,7 @@ def unzip(list):
         second.append(s)
     return (first, second)
 
+def nop():
+    pass
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
