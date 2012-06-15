@@ -72,32 +72,32 @@ def ADT(*ctors):
 def _dt_form(dt):
     pass
 
-# Contexts
+# Envs
 
-ContextInfo = DT('ContextInfo', ('ctxtName', str), ('ctxtType', 'Type'),
-                                ('ctxtStack', '[a]'))
+EnvInfo = DT('EnvInfo', ('envName', str), ('envType', 'Type'),
+                        ('envStack', '[a]'))
 
 def new_env(name, t):
     assert isinstance(name, basestring)
     if t is not None:
         t = parse_type(t)
-    return ContextInfo(name, t, [])
+    return EnvInfo(name, t, [])
 
-def in_env(ctxt, initial, func):
-    stack = ctxt.ctxtStack
+def in_env(e, initial, func):
+    stack = e.envStack
     stack.append(initial)
     count = len(stack)
     ret = func()
-    assert len(stack) == count, 'Imbalanced env %s stack' % ctxt.ctxtName
+    assert len(stack) == count, 'Imbalanced env %s stack' % e.envName
     stack.pop()
     return ret
 
-def env(ctxt):
-    assert len(ctxt.ctxtStack), 'Not in env %s at present' % ctxt.ctxtName
-    return ctxt.ctxtStack[-1]
+def env(e):
+    assert len(e.envStack), 'Not in env %s at present' % e.envName
+    return e.envStack[-1]
 
-def have_env(ctxt):
-    return bool(ctxt.ctxtStack)
+def have_env(e):
+    return bool(e.envStack)
 
 TVARS = new_env('TVARS', None)
 NEWTYPEVARS = new_env('NEWTYPEVARS', None)

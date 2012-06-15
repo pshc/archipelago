@@ -94,7 +94,7 @@ def bind_kind(v):
         return BindBuiltin
     elif isinstance(v, Ctor):
         return BindCtor
-    elif isinstance(v, (DataType, Ctxt, Extrinsic)):
+    elif isinstance(v, (DataType, Env, Extrinsic)):
         return identity
     else:
         raise ValueError("Can't bind to %r" % (v,))
@@ -223,9 +223,9 @@ def make_dt(*args):
 
 def make_env(nm, t):
     tvars = {}
-    ctxt = Ctxt(conv_type(t, tvars))
-    identifier(ctxt, nm, namespace=symbolNamespace, export=True)
-    return [TopCtxt(ctxt)]
+    e = Env(conv_type(t, tvars))
+    identifier(e, nm, namespace=symbolNamespace, export=True)
+    return [TopEnv(e)]
 
 def make_extrinsic(nm, t):
     tvars = {}
@@ -236,12 +236,12 @@ def make_extrinsic(nm, t):
 def conv_get_env(args):
     assert len(args) == 1
     # XXX Need to deref
-    return GetCtxt(args[0])
+    return GetEnv(args[0])
 
 def conv_in_env(args):
     assert len(args) == 3
     # XXX Need to deref the first arg...
-    return InCtxt(*args)
+    return InEnv(*args)
 
 def conv_get_extrinsic(args):
     assert len(args) == 2

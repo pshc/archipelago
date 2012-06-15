@@ -311,8 +311,8 @@ def check_expr(tv, e):
         ("e==FuncExpr(f==Func(ps, b))", check_funcexpr),
         ("m==Match(p, cs)", check_match),
         ("Attr(s, f)", lambda s, f: check_attr(s, f, e)),
-        ("GetCtxt(environ)", check_getenv),
-        ("InCtxt(environ, init, f)", check_inenv),
+        ("GetEnv(environ)", check_getenv),
+        ("InEnv(environ, init, f)", check_inenv),
         ("Bind(b)", lambda b: check_binding(b, e)),
         ("_", lambda: unknown_infer(e))))
 
@@ -436,7 +436,7 @@ def infer_body(body):
 def infer_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("TopDT(form)", infer_DT),
-        ("TopCtxt(environ)", infer_new_env),
+        ("TopEnv(environ)", infer_new_env),
         ("TopDefn(var, e)", infer_defn),
         ("TopExtrinsic(extr)", infer_new_extrinsic),
         ("otherwise", unknown_infer)))

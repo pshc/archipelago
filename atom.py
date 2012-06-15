@@ -14,7 +14,7 @@ BUILTINS = {}
 
 Builtin = DT('Builtin')
 
-Ctxt = DT('Ctxt', ('type', Type))
+Env = DT('Env', ('type', Type))
 
 Extrinsic = DT('Extrinsic', ('type', Type))
 
@@ -39,7 +39,7 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
 Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
-        GetCtxt, GetExtrinsic, InCtxt, \
+        GetEnv, GetExtrinsic, InEnv, \
         IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
@@ -50,9 +50,9 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
         'FuncExpr', ('func', 'Func'),
         'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
                    ('listExpr', 'Expr'), ('preds', '[Expr]'),
-        'GetCtxt', ('ctxt', '*Ctxt'),
+        'GetEnv', ('env', '*Env'),
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
-        'InCtxt', ('ctxt', '*Ctxt'), ('init', 'Expr'), ('expr', 'Expr'),
+        'InEnv', ('env', '*Env'), ('init', 'Expr'), ('expr', 'Expr'),
         'IntLit', ('val', int),
         'ListLit', ('vals', '[Expr]'),
         'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
@@ -90,12 +90,12 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'ReturnNothing',
         'While', ('test', Expr), ('body', Body))
 
-TopLevel, TopDefn, TopDT, TopExtrinsic, TopCtxt = \
+TopLevel, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',
         'TopDefn', ('var', Var), ('expr', Expr),
         'TopDT', ('form', 'DataType'),
         'TopExtrinsic', ('extrinsic', Extrinsic),
-        'TopCtxt', ('ctxt', Ctxt))
+        'TopEnv', ('env', Env))
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')

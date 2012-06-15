@@ -129,8 +129,8 @@ def ex_expr(e):
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
         ("m==Match(e, cases)", ex_match),
         ("Attr(e, _)", ex_expr),
-        ("GetCtxt(environ)", ex_getenv),
-        ("InCtxt(environ, i, e)", ex_inenv),
+        ("GetEnv(environ)", ex_getenv),
+        ("InEnv(environ, i, e)", ex_inenv),
         ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
@@ -228,7 +228,7 @@ def ex_top_level(s):
     match(s,
         ("TopDefn(_, e)", ex_top_defn),
         ("TopDT(_)", nop),
-        ("TopCtxt(_)", nop),
+        ("TopEnv(_)", nop),
         ("TopExtrinsic(_)", nop))
 
 def in_expansion_env(func):

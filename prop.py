@@ -298,8 +298,8 @@ def _prop_expr(e):
         ("e==FuncExpr(f==Func(ps, b))", prop_func),
         ("m==Match(p, cs)", prop_match),
         ("Attr(s, f==Field(ft))", prop_attr),
-        ("GetCtxt(environ)", prop_getenv),
-        ("InCtxt(environ, init, f)", prop_inenv),
+        ("GetEnv(environ)", prop_getenv),
+        ("InEnv(environ, init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
         ("_", lambda: unknown_prop(e)))
 
@@ -389,7 +389,7 @@ def prop_body(body):
 def prop_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("TopDT(form)", prop_DT),
-        ("TopCtxt(environ)", prop_new_env),
+        ("TopEnv(environ)", prop_new_env),
         ("TopDefn(var, e)", prop_defn),
         ("TopExtrinsic(extr)", prop_new_extrinsic),
         ("otherwise", unknown_prop)))
