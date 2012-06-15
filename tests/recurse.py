@@ -9,5 +9,6 @@ def fact(a):
 
 @annot('void -> int')
 def main():
-    assert fact(10) == 3628800, "Factorial"
+    # workaround while we don't have support for big ints
+    assert fact(10) == 90 * 4032, "Factorial"
     return 0
