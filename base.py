@@ -249,6 +249,10 @@ def TChar():
 
 _parsed_type_cache = {}
 
+def parse_new_type(t, tvars):
+    return in_env(NEWTYPEVARS, None, lambda:
+            in_env(TVARS, tvars, lambda: parse_type(t)))
+
 def parse_type(t):
     if type(t) is type and issubclass(t, Structured):
         form = t.__form__

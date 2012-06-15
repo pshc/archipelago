@@ -154,13 +154,10 @@ def conv_type(t, tvars, dt=None):
         type_nm = t.refAtom
         destroy_forward_ref(t)
         return type_ref(type_nm)
-    def type_str(s):
-        return in_env(NEWTYPEVARS, None, lambda:
-                in_env(TVARS, tvars, lambda: parse_type(s)))
     return match(t,
         ("BindBuiltin(_)", lambda: t),
         ("TPrim(_)", lambda: t),
-        ("StrLit(s)", type_str),
+        ("StrLit(s)", lambda s: parse_new_type(s, tvars)),
         ("ListLit([t])",
             lambda t: TArray(conv_type(t, tvars, dt))),
         ("_", unknown))
