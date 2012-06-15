@@ -12,6 +12,8 @@ SerialState = DT('SerialState',
 
 Serialize = new_env('Serialize', SerialState)
 
+SAPPS = new_env('SAPPS', {TypeVar: Type})
+
 def _write(b):
     state = env(Serialize)
     state.file.write(b)
@@ -42,7 +44,7 @@ def _encode_str(s):
 def _serialize_node(node, t):
     if isinstance(node, Structured):
         # Collect instantiations
-        apps = {}
+        apps = env(SAPPS).copy()
         while isinstance(t, TApply):
             target, var, arg = match(t, ("TApply(t, v, a)", tuple3))
             assert var not in apps
@@ -64,13 +66,16 @@ def _serialize_node(node, t):
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
             ft = field.type
+            if isinstance(ft, TVar):
+                assert ft.typeVar in apps, \
+                        "Can't write free %r in %r with env %r" % (
+                        ft, field, apps)
+                ft = apps[ft.typeVar]
+                assert not isinstance(ft, TWeak), "TVar instantiated weakly?"
             if isinstance(ft, TWeak):
-                _write_ref(sub, apps.get(ft.refType, ft.refType))
-            elif isinstance(ft, TVar):
-                assert ft in apps, "Can't write free %r in %r" % (ft, field)
-                _serialize_node(sub, apps[ft])
+                _write_ref(sub, ft.refType)
             else:
-                _serialize_node(sub, ft)
+                in_env(SAPPS, apps, lambda: _serialize_node(sub, ft))
     elif isinstance(node, basestring):
         assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))
@@ -135,7 +140,8 @@ def serialize(module):
         def go():
             _write(_encode_int(len(deps)))
             map_(_write, deps)
-            _serialize_node(module.root, module.rootType)
+            in_env(SAPPS, {},
+                    lambda: _serialize_node(module.root, module.rootType))
         in_env(Serialize, state, go)
         f.close()
         return inspect.count
