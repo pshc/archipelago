@@ -350,9 +350,9 @@ def prop_augassign(a, e):
     check_expr(CInt(), e)
 
 def prop_cond(cases, else_):
-    for t, b in cases:
-        check_expr(CBool(), t)
-        prop_body(b)
+    for case in cases:
+        check_expr(CBool(), case.test)
+        prop_body(case.body)
     if isJust(else_):
         prop_body(fromJust(else_))
 
