@@ -1,5 +1,5 @@
 from atom import *
-from ast import AstHint, AstType
+from astconv import AstHint, AstType
 
 Inward = DT('Inward', ('closedVars', {'*TypeVar': Type}))
 INWARD = new_env('INWARD', Inward)

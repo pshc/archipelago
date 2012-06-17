@@ -5,7 +5,7 @@ from bedrock import *
 import types_builtin
 import native
 import atom
-import ast
+import astconv
 import expand
 import scan
 import prop
@@ -40,7 +40,7 @@ def load_module_dep(filename, deps):
     def conv_mod():
         names = {}
         mod = capture_extrinsic(Name, names,
-            lambda: ast.convert_file(filename, name, deps))
+            lambda: astconv.convert_file(filename, name, deps))
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name])
 
         native.serialize(mod)
@@ -53,8 +53,8 @@ def load_module_dep(filename, deps):
 
         return mod
     mod = scope_extrinsic(InstMap,
-            lambda: scope_extrinsic(ast.AstType,
-            lambda: scope_extrinsic(ast.AstHint, conv_mod)))
+            lambda: scope_extrinsic(astconv.AstType,
+            lambda: scope_extrinsic(astconv.AstHint, conv_mod)))
 
     return expand.in_expansion_env(lambda: _do_mod(mod, name))
 
@@ -128,14 +128,14 @@ def _resolve_tvar(node, name):
 BuiltinList = DT('BuiltinList', ('builtins', [atom.Builtin]))
 
 def load_builtins():
-    ast.setup_builtin_module()
+    astconv.setup_builtin_module()
     root = BuiltinList(map(snd, sorted(atom.BUILTINS.items())))
     mod = Module(t_DT(BuiltinList), root)
     add_extrinsic(Name, mod, 'builtins')
     exports = {}
     for name, sym in atom.BUILTINS.iteritems():
         exports[name] = sym
-    ast.loaded_module_export_names[mod] = exports
+    astconv.loaded_module_export_names[mod] = exports
 
     atom.write_mod_repr('views/symbols.txt', mod, [Name])
 
