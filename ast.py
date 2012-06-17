@@ -660,17 +660,18 @@ def conv_function(s):
                     assert isinstance(dec.args[0], ast.Const)
                     astannot = dec.args[0].value
     func = Func([], Body([]))
+    var = Var()
+    assert astannot, "Function %r has no type annot" % f
+    add_extrinsic(AstType, var, astannot)
+    add_extrinsic(AstType, func, astannot)
+    glob = is_top_level()
+    identifier(var, s.name, export=glob)
     @inside_scope
     def rest():
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    var = Var()
-    glob = is_top_level()
-    identifier(var, s.name, export=glob)
     f = (TopDefn if glob else Defn)(var, FuncExpr(rest()))
-    assert astannot, "Function %r has no type annot" % f
-    add_extrinsic(AstType, func, astannot)
     return [f]
 
 @stmt(ast.If)
