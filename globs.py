@@ -8,6 +8,8 @@ Location = base.new_extrinsic('Location', Pos)
 
 TypeOf = base.new_extrinsic('TypeOf', base.Type)
 
+InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})
+
 GenOpts = base.DT('GenOpts', ('quiet', bool))
 GENOPTS = base.new_env('GENOPTS', GenOpts)
 

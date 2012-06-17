@@ -7,6 +7,7 @@ import native
 import atom
 import ast
 import expand
+import scan
 import prop
 import llvm
 
@@ -46,12 +47,14 @@ def load_module_dep(filename, deps):
         names_mod = extrinsic_mod(Name, names, mod)
         native.serialize(names_mod)
 
+        scan.scan_root(mod.root)
         prop.prop_types(mod.root)
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
         return mod
-    mod = scope_extrinsic(ast.AstType,
-            lambda: scope_extrinsic(ast.AstHint, conv_mod))
+    mod = scope_extrinsic(InstMap,
+            lambda: scope_extrinsic(ast.AstType,
+            lambda: scope_extrinsic(ast.AstHint, conv_mod)))
 
     return expand.in_expansion_env(lambda: _do_mod(mod, name))
 

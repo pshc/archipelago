@@ -2,7 +2,6 @@
 from atom import *
 from base import *
 from types_builtin import *
-from ast import AstType, AstHint
 from globs import TypeOf
 
 TypeCast = new_extrinsic('TypeCast', (Type, Type))
@@ -52,19 +51,17 @@ def CInt(): return CPrim(PInt())
 def CBool(): return CPrim(PBool())
 def CStr(): return CPrim(PStr())
 
-# actual instantiation (outer, name-based hack for now)
-INST = new_env('INST', {str: Type})
+# instantiation lookup for this site
+INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', None)
 
 def instantiate_tvar(tv):
     if have_env(SUBST):
         return CVar(tv)
-
-    t = env(INST).get(extrinsic(Name, tv))
+    t = env(INST).get(tv)
     if t is not None:
-        pt = in_env(TVARS, env(PROPSCOPE).closedVars, lambda: parse_type(t))
-        return in_env(SUBST, None, lambda: _inst_type(pt))
+        return in_env(SUBST, None, lambda: _inst_type(t))
     else:
         return CVar(tv) # free
 
@@ -90,12 +87,13 @@ def _inst_type(s):
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
 
-def instantiate_type(t, ref):
-    return _inst_type(t)
+def instantiate_type(site, t):
+    inst = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
+    return in_env(INST, inst, lambda: _inst_type(t))
 
-def instantiate(v, ref):
+def instantiate(site, v):
     t = extrinsic(TypeOf, v)
-    return instantiate_type(t, ref)
+    return instantiate_type(site, t)
 
 def _gen_type(s):
     return match(s,
@@ -184,7 +182,7 @@ def pat_capture(v, p):
     prop_pat(p)
 
 def pat_ctor(ref, ctor, args):
-    ctorT = instantiate(ctor, ref)
+    ctorT = instantiate(ref, ctor)
     fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
     unify_m(dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
@@ -207,9 +205,9 @@ def _prop_pat(p):
 
 def prop_binding(ref, binding):
     return match(binding,
-        ("BindVar(v) or BindCtor(v)", lambda v: instantiate(v, ref)),
-        ("BindBuiltin(b)", lambda b:
-            instantiate_type(extrinsic(TypeOf, b), ref)),
+        ("s==BindVar(v)", instantiate),
+        ("s==BindCtor(v)", instantiate),
+        ("s==BindBuiltin(v)", instantiate)
     )
 
 def prop_call(f, s):
@@ -227,11 +225,10 @@ def prop_logic(l, r):
 
 def prop_func(e, f, ps, b):
     tvars = {}
-    ft = parse_new_type(extrinsic(AstType, f), tvars)
+    ft = extrinsic(TypeOf, f)
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
-    set_type(f, ft)
-    cft = instantiate_type(ft, e)
+    cft = instantiate_type(e, ft)
     cret = match(cft, ('CFunc(_, cret)', Just))
     def inside_func_scope():
         closed = env(PROPSCOPE).closedVars
@@ -274,19 +271,7 @@ def unknown_prop(a):
     assert False, with_context('Unknown prop case:\n%s' % (a,))
 
 def prop_expr(e):
-    if has_extrinsic(AstHint, e):
-        old = env(INST)
-        new = extrinsic(AstHint, e)
-        for k, v in new.iteritems():
-            if k not in old or old[k] != v:
-                updated = old.copy()
-                updated.update(new)
-                return in_env(EXPRCTXT, e, lambda:
-                        in_env(INST, updated, lambda: _prop_expr(e)))
-    return in_env(EXPRCTXT, e, lambda: _prop_expr(e))
-
-def _prop_expr(e):
-    return match(e,
+    return in_env(EXPRCTXT, e, lambda: match(e,
         ("IntLit(_)", lambda: CPrim(PInt())),
         ("StrLit(_)", lambda: CPrim(PStr())),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
@@ -300,7 +285,7 @@ def _prop_expr(e):
         ("GetEnv(environ)", prop_getenv),
         ("InEnv(environ, init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
-        ("_", lambda: unknown_prop(e)))
+        ("otherwise", unknown_prop)))
 
 def check_expr(t, e):
     unify(t, prop_expr(e))
@@ -308,7 +293,7 @@ def check_expr(t, e):
 def check_lhs(tv, lhs):
     in_env(PROP, tv, lambda: match(lhs,
         ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
-        ("LhsVar(v)", lambda v: instantiate(v, tv)),
+        ("LhsVar(v)", lambda v: instantiate(tv, v)),
         ("_", lambda: unknown_prop(lhs))))
 
 def prop_lhs(a):
@@ -394,10 +379,7 @@ def prop_top_level(a):
         ("otherwise", unknown_prop)))
 
 def prop_compilation_unit(unit):
-    def go():
-        for s in unit.tops:
-            prop_top_level(s)
-    in_env(INST, {}, go)
+    map_(prop_top_level, unit.tops)
 
 def with_fields(func):
     def go():
