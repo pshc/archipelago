@@ -439,14 +439,20 @@ def pretty_brief(name, o):
     if name == 'Bind':
         o = o.binding
         name = type(o).__name__
-        if name == 'BindBuiltin':
-            return fmtcol('^Red&{0}^N', extrinsic(Name, o.builtin))
-        elif name == 'BindCtor':
-            return extrinsic(Name, o.ctor)
+        pb = pretty_brief(name, o)
+        if pb is not None:
+            return "'%s" % (pb,)
+
+    if name == 'BindBuiltin':
+        return col('Yellow', extrinsic(Name, o.builtin))
+    elif name == 'BindCtor':
+        return fmtcol('^Brown{0}^N', extrinsic(Name, o.ctor))
+    elif name == 'BindVar':
+        return repr(o)
     elif name == 'IntLit':
         return col('Cyan', 'i%d' % (o.val,))
     elif name == 'StrLit':
-        return fmtcol('^Cyan^s%r^N', o.val)
+        return fmtcol('^Cyan^s{0!r}^N', o.val)
     elif name == 'TupleLit':
         return 't%r' % (tuple(o.vals),)
     elif name == 'DataType':
