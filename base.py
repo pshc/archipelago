@@ -524,7 +524,7 @@ def match(atom, *cases):
         if call_args is not None:
             return f(*call_args)
     case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
-    assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom, case_list)
+    assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom, case_list)
 
 def match_blocks(atom):
     cases = []
@@ -546,7 +546,7 @@ def match_blocks(atom):
             return case.success
         else:
             case_list = ''.join('* %s\n' % p for p in cases)
-            assert False, "Match failed.\nVALUE:\n%s\nCASES:\n%s" % (atom,
+            assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom,
                     case_list)
     case.result = result
     return case
