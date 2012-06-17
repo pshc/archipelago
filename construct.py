@@ -48,6 +48,8 @@ def load_module_dep(filename, deps):
         native.serialize(names_mod)
 
         scan.scan_root(mod.root)
+        atom.write_mod_repr('views/' + name + '.txt', mod,
+                [Name, TypeOf, InstMap])
         prop.prop_types(mod.root)
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
