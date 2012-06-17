@@ -206,7 +206,7 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    options = GenOpts(False)
+    options = GenOpts(False, None)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
@@ -215,6 +215,9 @@ def main():
         elif arg.startswith('-'):
             if arg == '-q':
                 options.quiet = True
+            elif arg == '--color':
+                from IPython.utils.coloransi import TermColors
+                options.color = TermColors
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:

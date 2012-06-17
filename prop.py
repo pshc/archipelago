@@ -17,14 +17,14 @@ PropScope = DT('PropScope', ('level', int),
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
-def with_context(msg):
+def with_context(desc, msg):
     if have_env(UNIFYCTXT):
         t1, t2 = env(UNIFYCTXT)
-        msg = "Types: %s & %s\n%s" % (t1, t2, msg)
+        desc = fmtcol("^DG^Types:^N {0} ^DG&^N {1}\n{2}", t1, t2, desc)
     if have_env(EXPRCTXT):
-        msg = "Expr: %s\n%s" % (env(EXPRCTXT), msg)
-    msg = "\nAt: %s\n%s" % (env(STMTCTXT), msg)
-    return msg
+        desc = fmtcol("^DG^Expr:^N {0}\n{1}", env(EXPRCTXT), desc)
+    desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
+    return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
 def global_scope():
     return PropScope(0, Nothing(), {})
@@ -112,8 +112,8 @@ def generalize_type(t):
     return _gen_type(t)
 
 def unification_failure(e1, e2, msg):
-    assert False, with_context("Couldn't unify %r\nwith %r:\n%s" % (
-            e1, e2, msg))
+    desc = fmtcol("^DG^Couldn't unify^N {0!r}\n^DG^with^N {1!r}", e1, e2)
+    assert False, with_context(desc, msg)
 
 def unify_tuples(t1, list1, t2, list2, desc):
     if len(list1) != len(list2):
@@ -268,7 +268,7 @@ def prop_inenv(environ, init, f):
     return stuff
 
 def unknown_prop(a):
-    assert False, with_context('Unknown prop case:\n%s' % (a,))
+    assert False, with_context('Unknown prop case:', a)
 
 def prop_expr(e):
     return in_env(EXPRCTXT, e, lambda: match(e,

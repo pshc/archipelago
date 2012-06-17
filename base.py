@@ -380,6 +380,35 @@ def _parse_deferred():
     _deferred_type_parses = None
 _parse_deferred()
 
+# Global options
+
+GenOpts = DT('GenOpts', ('quiet', bool), ('color', None))
+GENOPTS = new_env('GENOPTS', GenOpts)
+
+import re
+_col_re = re.compile(r'\^(\w+)\^?')
+del re
+_col_shorts = {'N': 'Normal', 'DG': 'DarkGray'}
+
+def col(c, s):
+    colors = env(GENOPTS).color
+    if colors:
+        c = _col_shorts.get(c, c)
+        s = '%s%s%s' % (getattr(colors, c), s, colors.Normal)
+    return s
+
+def fmtcol(s, *args):
+    colors = env(GENOPTS).color
+    if colors:
+        def colorize(m):
+            c = m.group(1)
+            c = _col_shorts.get(c, c)
+            return getattr(colors, c)
+        s = _col_re.sub(colorize, s)
+    else:
+        s = _col_re.sub('', s)
+    return s.format(*args)
+
 # Pretty printing
 # (naive quadratic version)
 
@@ -390,21 +419,21 @@ def pretty_brief(name, o):
         o = o.binding
         name = type(o).__name__
         if name == 'BindBuiltin':
-            return '&%s' % extrinsic(Name, o.builtin)
+            return fmtcol('^Red&{0}^N', extrinsic(Name, o.builtin))
         elif name == 'BindCtor':
-            return u'%s' % extrinsic(Name, o.ctor)
+            return extrinsic(Name, o.ctor)
     elif name == 'IntLit':
-        return 'i%d' % (o.val,)
+        return col('Cyan', 'i%d' % (o.val,))
     elif name == 'StrLit':
-        return 's%r' % (o.val,)
+        return fmtcol('^Cyan^s%r^N', o.val)
     elif name == 'TupleLit':
         return 't%r' % (tuple(o.vals),)
     elif name == 'DataType':
-        return extrinsic(Name, o)
+        return col('Brown', extrinsic(Name, o))
     return None
 
 def _id(o):
-    return '@x' + ('%x' % (id(o),))[-5:]
+    return fmtcol('^DG@x{0:x}^N', id(o) % 0xfffff)
 
 def __repr__(o):
     if not in_extrinsic_scope(PrettyPrinted):
@@ -413,19 +442,19 @@ def __repr__(o):
     name = t.__name__
     if has_extrinsic(PrettyPrinted, o):
         if has_extrinsic(Name, o):
-            name = '%s "%s"' % (name, extrinsic(Name, o))
+            name = fmtcol('{0} ^Green"{1}"^N', name, extrinsic(Name, o))
         return '<%s %s>' % (name, _id(o))
     add_extrinsic(PrettyPrinted, o, None)
 
     brief = pretty_brief(name, o)
     if brief is not None:
         return brief
-
     if has_extrinsic(Name, o):
-        name = '%s "%s" %s' % (name, extrinsic(Name, o), _id(o))
+        name = fmtcol('{0} ^Green"{1}"^N {2}', name, extrinsic(Name,o), _id(o))
     if len(t.__slots__) > 1:
         params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
-        name = '%s(%s)' % (name, ', '.join(params))
+        comma = col('Blue', ', ')
+        name = fmtcol('{0}^Blue(^N{1}^Blue)^N', name, comma.join(params))
     return name
 
 Structured.__repr__ = __repr__
