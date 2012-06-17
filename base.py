@@ -77,11 +77,15 @@ def _dt_form(dt):
 EnvInfo = DT('EnvInfo', ('envName', str), ('envType', 'Type'),
                         ('envStack', '[a]'))
 
+_ENVS = set()
+
 def new_env(name, t):
     assert isinstance(name, basestring)
     if t is not None:
         t = parse_type(t)
-    return EnvInfo(name, t, [])
+    e = EnvInfo(name, t, [])
+    _ENVS.add(e)
+    return e
 
 def in_env(e, initial, func):
     stack = e.envStack
@@ -98,6 +102,23 @@ def env(e):
 
 def have_env(e):
     return bool(e.envStack)
+
+def display_envs(verbose=False):
+    for e in _ENVS:
+        if e.envStack:
+            print col('Purple', e.envName + ':')
+            if verbose:
+                for s in e.envStack:
+                    print repr(s)
+            else:
+                print repr(e.envStack[-1])
+
+# stupid debugger shortcut
+class DumpEnvs(object):
+    def __repr__(self):
+        display_envs()
+        return '<DumpEnvs>'
+dumpenvs = DumpEnvs()
 
 TVARS = new_env('TVARS', None)
 NEWTYPEVARS = new_env('NEWTYPEVARS', None)
