@@ -4,6 +4,9 @@ CODEGEN = ./construct.py -q --
 
 all: test
 
+debug: CODEGEN = ipdb construct.py -q --
+debug: remake_tests
+
 llvm: dirs
 	@./llvm.py | tee hello.ll
 	@llvm-as < hello.ll | opt -mem2reg | lli || echo Exited with code $$?
@@ -31,7 +34,7 @@ test: remake_tests
 	@echo
 	@echo Done.
 
-.PHONY: all clean dirs llvm remake_tests test
+.PHONY: all clean debug dirs llvm remake_tests test
 
 clean:
 	rm -f -- mods/* opt/* views/* *.pyc *.bc *.ll hello a.out
