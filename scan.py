@@ -41,29 +41,45 @@ def scan_inenv(e, init, f):
     scan_expr(init)
     scap_expr(f)
 
+# Augment AST with instantiation records
+
+INSTSUSED = new_env('INSTSUSED', {TypeVar: Type})
+
+def record_tvar(tv):
+    insts = env(INSTSUSED)
+    if tv not in insts:
+        nm = extrinsic(Name, tv)
+        it = env(INWARD).closedVars.get(nm)
+        if it is not None:
+            insts[tv] = in_env(TVARS, {nm: tv}, lambda: parse_type(it))
+
+def scan_inst(s):
+    match(s,
+        ('TVar(tv)', record_tvar),
+        ('TPrim(_) or TVoid() or TAnyTuple()', nop),
+        ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
+        ('TFunc(ps, r)', lambda ps, r: map_(scan_inst, ps + [r])),
+        ('TApply(_, _, t)', scan_inst),
+        ('TData(DataType(_, tvs))', lambda tvs: map_(record_tvar, tvs)),
+        ('TArray(t)', scan_inst),
+        ('TWeak(t)', scan_inst))
+
 def instantiate_type(site, t):
-    closed = env(INWARD).closedVars
     insts = {}
-    def _inst_tvar(ref):
-        tv = match(ref, ("TVar(tv)", identity))
-        if tv not in insts:
-            nm = extrinsic(Name, tv)
-            it = closed.get(nm)
-            if it is not None:
-                insts[tv] = in_env(TVARS, closed, lambda: parse_type(it))
-        return ref
-    map_type_vars(_inst_tvar, t)
+    in_env(INSTSUSED, insts, lambda: scan_inst(t))
+    for k in insts.keys():
+        if insts[k] is None:
+            del insts[k]
     if insts:
         add_extrinsic(InstMap, site, insts)
-    return t
 
 def instantiate(site, v):
     if has_extrinsic(TypeOf, v):
-        return instantiate_type(site, extrinsic(TypeOf, v))
+        instantiate_type(site, extrinsic(TypeOf, v))
 
 def scan_binding(b):
     # Typeclasses would be nice
-    return match(b,
+    match(b,
         ("s==BindVar(v)", instantiate),
         ("s==BindCtor(c)", instantiate),
         ("s==BindBuiltin(b)", instantiate))
