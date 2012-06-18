@@ -448,11 +448,13 @@ def pretty_brief(name, o):
     elif name == 'BindCtor':
         return fmtcol('^Brown{0}^N', extrinsic(Name, o.ctor))
     elif name == 'BindVar':
-        return repr(o)
+        return repr(o.var)
     elif name == 'IntLit':
         return col('Cyan', 'i%d' % (o.val,))
     elif name == 'StrLit':
         return fmtcol('^Cyan^s{0!r}^N', o.val)
+    elif name == 'TPrim' or name == 'CPrim':
+        return col('Cyan', repr(o.primType))
     elif name == 'TupleLit':
         return 't%r' % (tuple(o.vals),)
     elif name == 'DataType':
