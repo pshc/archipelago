@@ -202,9 +202,6 @@ def _do_repr(s):
         c.seen.add(s)
         name = dt.__name__
         brief = pretty_brief(name, s)
-        if brief and name != 'TupleLit':
-            c.write(brief)
-            return
         if s in c.weakIndices:
             name = '%s #%d' % (name, c.weakIndices[s])
         for ext in c.exts:
