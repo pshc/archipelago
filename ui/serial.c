@@ -286,19 +286,25 @@ static int read_char() {
 	return c;
 }
 
+static int read_utf8_cont() {
+	int a = read_char();
+	CHECK((a & 0xc0) == 0x80, "Invalid continuation prefix");
+	return a & 0x3f;
+}
+
 static int read_int() {
 	int a = read_char(), b, c, d;
 	if (a <= 0x7f)
 		return a;
 	CHECK(a > 0xbf, "Invalid extension char");
-	b = read_char() & 0x3f;
+	b = read_utf8_cont();
 	if (a <= 0xdf) {
 		a &= 0x1f;
 		a = (a << 6) | b;
 		CHECK(a > 0x7f, "Two-byte literal underflow");
 		return a;
 	}
-	c = read_char() & 0x3f;
+	c = read_utf8_cont();
 	if (a <= 0xef) {
 		a &= 0x0f;
 		a = (a << 12) | (b << 6) | c;
@@ -307,7 +313,7 @@ static int read_int() {
 	}
 	CHECK(a <= 0xf7, "TODO");
 	a &= 0x07;
-	d = read_char() & 0x3f;
+	d = read_utf8_cont();
 	a = (a << 18) | (b << 12) | (c << 6) | d;
 	CHECK(a > 0xffff, "Four-byte literal underflow");
 	return a;
