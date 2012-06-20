@@ -86,11 +86,12 @@ def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
-def ex_funcexpr(f, params, body):
-    info = ex_func(params, body)
-    isClosure = len(info.closedVars) > 0
-    push_expansion(ExSurfacedFunc(f))
-    add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
+def ex_funcexpr(f):
+    info = ex_func(f.params, f.body)
+    if not matches(env(EXFUNC), 'ExStaticDefn()'):
+        isClosure = len(info.closedVars) > 0
+        push_expansion(ExSurfacedFunc(f))
+        add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
 def ex_match_case(c):
     pass
@@ -124,7 +125,7 @@ def ex_expr(e):
         ("IntLit(_)", nop),
         ("lit==StrLit(s)", ex_strlit),
         ("Call(f, args)", ex_call),
-        ("FuncExpr(f==Func(params, body))", ex_funcexpr),
+        ("FuncExpr(f)", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),
         ("m==Match(e, cases)", ex_match),
@@ -218,11 +219,16 @@ def ex_stmt(s):
 def ex_body(body):
     map_(ex_stmt, body.stmts)
 
+def ex_top_func(v, f):
+    add_extrinsic(Name, f, extrinsic(Name, v))
+    in_env(EXFUNC, ExStaticDefn(), lambda: ex_funcexpr(f))
+
 def ex_top_defn(e):
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
 
 def ex_top_level(s):
     match(s,
+        ("TopDefn(v, FuncExpr(f))", ex_top_func),
         ("TopDefn(_, e)", ex_top_defn),
         ("TopDT(_)", nop),
         ("TopEnv(_)", nop),
