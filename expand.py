@@ -160,20 +160,17 @@ def ex_flow(s, b, top):
     s.flowFrom = [top]
     ex_body(b)
 
-def ex_cond(cond, ss, cs):
+def ex_cond(cs, eb):
     incomingFlow = cur_flow()
-    for t, b in cs:
-        ex_expr(t)
+    for case in cs:
+        ex_expr(case.test)
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda: ex_body(b), flow)
-    eb = match(ss, ("contains(key('else', sized(body)))", Just),
-                   ("_", Nothing))
+        in_new_scope(lambda: ex_body(case.body), flow)
     if isJust(eb):
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
         in_new_scope(lambda: ex_body(fromJust(eb)), flow)
-    activate_flow(outgoingFlow)
 
 def ex_while(t, b):
     incomingFlow = cur_flow()
