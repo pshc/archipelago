@@ -1,6 +1,6 @@
 TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
-OPTS = -q --color
+OPTS = --color -t
 CODEGEN = ./construct.py $(OPTS) --
 
 all: test

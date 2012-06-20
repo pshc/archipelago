@@ -208,7 +208,7 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    options = GenOpts(False, None)
+    options = GenOpts(False, None, False)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
@@ -220,6 +220,8 @@ def main():
             elif arg == '--color':
                 from IPython.utils.coloransi import TermColors
                 options.color = TermColors
+            elif arg == '-t':
+                options.dumpTypes = True
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:
