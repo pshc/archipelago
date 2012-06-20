@@ -137,7 +137,8 @@ def typeof(e):
         return match(extrinsic(TypeOf, e),
             ("TPrim(PInt())", lambda: IInt()),
             ("TVar(_)", lambda: IVoidPtr()),
-            ("TFunc(_, _)", lambda: IVoidPtr()))
+            ("TFunc(_, _)", lambda: IVoidPtr()),
+            ("TData(_)", lambda: IVoidPtr()))
     def no_type():
         print 'HAS NO TYPEOF: %s' % (e,)
         return IInt()
@@ -189,6 +190,24 @@ def bin_op(b):
         ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'),
         ('_', lambda: ''))
 
+def aug_op(b):
+    return match(b,
+        ('AugAdd()', lambda: 'add'),
+        ('AugSubtract()', lambda: 'sub'),
+        ('AugMultiply()', lambda: 'mul'),
+        ('AugDivide()', lambda: 'sdiv'), # or udiv...
+        ('AugModulo()', lambda: 'srem')) # or urem...
+
+def expr_binop(op, left, right):
+    if is_const(left) and is_const(right):
+        return ConstOp(op, [left, right])
+    else:
+        tmp = temp_reg_named(op.split(' ')[-1])
+        out_xpr(tmp)
+        out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
+        newline()
+        return tmp
+
 def expr_call(f, args):
     m = match(f)
     if m('Bind(BindBuiltin(b))'):
@@ -198,14 +217,7 @@ def expr_call(f, args):
         assert len(args) == 2, '%s requires two args' % (op,)
         left = express(args[0])
         right = express(args[1])
-        if is_const(left) and is_const(right):
-            m.ret(ConstOp(op, [left, right]))
-        else:
-            tmp = temp_reg_named(op.split(' ')[-1])
-            out_xpr(tmp)
-            out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
-            newline()
-            m.ret(tmp)
+        m.ret(expr_binop(op, left, right))
     else:
         tmp = temp_reg()
         fx = express(f)
@@ -287,13 +299,32 @@ def write_assert(e, msg):
     newline()
     out_label(pass_)
 
+def store_var(v, xpr):
+    t = typeof(v)
+    out('store ')
+    out_t(t)
+    out_xpr(xpr)
+    comma()
+    out_t_ptr(t)
+    out_name_reg(v)
+
+def store_lhs(lhs, x):
+    match(lhs,
+        ('LhsVar(v)', lambda v: store_var(v, x)))
+
+def load_lhs(lhs):
+    return match(lhs,
+        ('LhsVar(v)', expr_bind_var))
+
 def write_assign(lhs, e):
     ex = express(e)
-    out('; TODO %s' % (xpr_str(ex),))
+    store_lhs(lhs, ex)
 
 def write_augassign(op, lhs, e):
-    ex = express(e)
-    out('; TODO %s' % (xpr_str(ex),))
+    right = express(e)
+    left = load_lhs(lhs)
+    ex = expr_binop(aug_op(op), left, right)
+    store_lhs(lhs, ex)
 
 def write_break():
     begin, end = env(LOCALS).loopLabels
