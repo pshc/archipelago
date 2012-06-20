@@ -7,13 +7,16 @@ IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
-IRLocals = DT('IRLocals', ('tempCtr', int))
+IRLocals = DT('IRLocals', ('tempCtr', int), ('labelCtr', int))
 
 LOCALS = new_env('LOCALS', IRLocals)
 
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
     return IRInfo(stream, False, 0)
+
+def setup_locals():
+    return IRLocals(0, 0)
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -28,6 +31,8 @@ def is_const(x):
 
 BindingReplacement = DT('BindingReplacement', ('replacement', Xpr))
 Replacement = new_extrinsic('Replacement', BindingReplacement)
+
+Label = DT('Label', ('name', str), ('index', int))
 
 # OUTPUT
 
@@ -61,9 +66,17 @@ def global_ref(v):
 def out_func_ref(f):
     out(func_ref(f))
 
-def out_label(name):
+def out_label(label):
     clear_indent()
-    out('%s:' % (name,))
+    out('%s_%d:' % (label.name, label.index))
+    newline()
+
+def out_label_ref(label):
+    out('label %%%s_%d' % (label.name, label.index))
+
+def out_br_label(label):
+    out('br ')
+    out_label_ref(label)
     newline()
 
 def out_xpr(x):
@@ -103,6 +116,12 @@ def temp_reg_named(nm):
     reg = Reg(nm, lcl.tempCtr)
     lcl.tempCtr += 1
     return reg
+
+def new_label(nm):
+    lcl = env(LOCALS)
+    label = Label(nm, lcl.labelCtr)
+    lcl.labelCtr += 1
+    return label
 
 # TYPES
 
@@ -249,17 +268,22 @@ def express(expr):
 
 def write_assert(e, msg):
     ex = express(e)
+    pass_ = new_label('pass')
+    fail_ = new_label('fail')
     out('br i1 ')
     out_xpr(ex)
-    out(', label %pass, label %fail')
+    comma()
+    out_label_ref(pass_)
+    comma()
+    out_label_ref(fail_)
     newline()
-    out_label('fail')
+    out_label(fail_)
     m = express(msg)
     out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
     newline()
     out('unreachable')
     newline()
-    out_label('pass')
+    out_label(pass_)
 
 def write_assign(lhs, e):
     ex = express(e)
@@ -275,27 +299,37 @@ def write_break():
 def write_cond(cs, else_):
     n = len(cs)
     haveElse = isJust(else_)
+    elif_ = Nothing()
+    else_label = Nothing()
+    endif = new_label('endif')
     for i, case in enumerate(cs):
-        if i > 0:
-            out_label('if%d' % (i,))
+        if isJust(elif_):
+            out_label(fromJust(elif_))
         ex = express(case.test)
         out('br i1 ')
         out_xpr(ex)
-        out(', label then%d, label ' % (i,))
+        comma()
+        then = new_label('then')
+        out_label_ref(then)
+        comma()
         if i + 1 < n:
-            out('if%d' % (i+1,))
+            elif_ = Just(new_label('elif'))
+            out_label_ref(elif_)
+        elif haveElse:
+            e = new_label('else')
+            out_label_ref(e)
+            else_label = Just(e)
         else:
-            out('else' if haveElse else 'endif')
+            out_label_ref(endif)
         newline()
-        out_label('then%d' % (i,))
+        out_label(then)
         write_body(case.body)
         if i < n - 1 or haveElse:
-            out('br label endif')
-            newline()
+            out_br_label(endif)
     if haveElse:
-        out_label('else')
+        out_label(fromJust(else_label))
         write_body(fromJust(else_))
-    out_label('endif')
+    out_label(endif)
 
 def has_static_replacement(v, e):
     if has_extrinsic(Replacement, v):
@@ -394,19 +428,22 @@ def write_return(expr):
     out_xpr(ex)
 
 def write_while(cond, body):
-    clear_indent()
-    out('loop:')
-    newline()
+    begin = new_label('loop')
+    body_label = new_label('body')
+    exit = new_label('exit')
+    out_label(begin)
     ex = express(cond)
     out('br i1 ')
     out_xpr(ex)
-    out(', label %loop_body, label %loop_exit')
+    comma()
+    out_label_ref(body_label)
+    comma()
+    out_label_ref(exit)
     newline()
-    out_label('loop_body')
+    out_label(body_label)
     write_body(body)
-    out('br label %loop')
-    newline()
-    out_label('loop_exit')
+    out_br_label(begin)
+    out_label(exit)
 
 def write_stmt(stmt):
     match(stmt,
@@ -452,11 +489,11 @@ def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
-                in_env(LOCALS, IRLocals(0), lambda: match(ex,
+                in_env(LOCALS, setup_locals(), lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
                     ("ExSurfacedFunc(f==Func(ps, body))", write_top_func)))
                 newline()
-        in_env(LOCALS, IRLocals(0), lambda: write_top(top))
+        in_env(LOCALS, setup_locals(), lambda: write_top(top))
 
 def write_ir(filename, prog):
     in_env(IR, setup_ir(filename),
