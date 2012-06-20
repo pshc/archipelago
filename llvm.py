@@ -11,8 +11,8 @@ IRLocals = DT('IRLocals', ('tempCtr', int))
 
 LOCALS = new_env('LOCALS', IRLocals)
 
-def setup_ir():
-    stream = sys.stdout
+def setup_ir(filename):
+    stream = file(filename, 'wb') # really ought to close explicitly
     return IRInfo(stream, False, 0)
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
@@ -31,14 +31,18 @@ Replacement = new_extrinsic('Replacement', BindingReplacement)
 
 # OUTPUT
 
+def stdout(s):
+    if not env(GENOPTS).quiet:
+        sys.stdout.write(s)
+
 def out(s):
-    if env(GENOPTS).quiet:
-        return
     ir = env(IR)
     if ir.needIndent:
         ir.stream.write('  ')
+        stdout('  ')
         clear_indent()
     ir.stream.write(s)
+    stdout(s)
 
 def out_name(a):
     out(extrinsic(Name, a))
@@ -82,6 +86,7 @@ def newline():
         return
     ir = env(IR)
     ir.stream.write('\n')
+    stdout('\n')
     ir.needIndent = True
 
 def comma():
@@ -453,8 +458,8 @@ def write_unit(unit):
                 newline()
         in_env(LOCALS, IRLocals(0), lambda: write_top(top))
 
-def write_ir(prog):
-    in_env(IR, setup_ir(),
+def write_ir(filename, prog):
+    in_env(IR, setup_ir(filename),
         lambda: scope_extrinsic(Replacement,
         lambda: write_unit(prog)))
 
@@ -469,6 +474,6 @@ def simple_test():
     sum = add(Bind(BindVar(foo)), IntLit(1))
     body += [Defn(foo, add(IntLit(40), IntLit(2))),
              Return(sum)]
-    write_ir(Body([FuncStmt(func)]))
+    write_ir('ir/simple_test.ll', Body([FuncStmt(func)]))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

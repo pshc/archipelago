@@ -1,5 +1,5 @@
 TESTS := $(wildcard tests/*.py)
-TEST_BINS := $(TESTS:tests/%.py=views/tests_%)
+TEST_BINS := $(TESTS:tests/%.py=bin/tests_%)
 OPTS = --color -t
 CODEGEN = ./construct.py $(OPTS) --
 
@@ -15,7 +15,11 @@ llvm: dirs
 as: dirs
 	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
 
-dirs: mods opt views
+dirs: bin ir mods opt views
+bin:
+	mkdir $@
+ir:
+	mkdir $@
 mods:
 	mkdir $@
 opt:
@@ -38,4 +42,4 @@ test: remake_tests
 .PHONY: all clean debug dirs llvm remake_tests test
 
 clean:
-	rm -f -- mods/* opt/* views/* *.pyc *.bc *.ll hello a.out
+	rm -f -- bin/ ir/ mods/ opt/ views/ *.pyc *.bc hello a.out

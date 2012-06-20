@@ -63,7 +63,7 @@ def load_module_dep(filename, deps):
 def _do_mod(mod, name):
     expand.expand_module(mod)
 
-    llvm.write_ir(mod.root)
+    llvm.write_ir('ir/' + name + '.ll', mod.root)
 
     assert loaded_modules[name] is None
     loaded_modules[name] = mod
