@@ -136,7 +136,7 @@ def scan_stmt(stmt):
         ("Defn(var, e)", scan_defn),
         ("Assign(lhs, e)", scan_assign),
         ("AugAssign(_, lhs, e)", scan_augassign),
-        ("Break()", nop),
+        ("Break() or Continue()", nop),
         ("ExprStmt(e)", scan_expr),
         ("Cond(cases, elseCase)", scan_cond),
         ("While(t, b)", scan_while),

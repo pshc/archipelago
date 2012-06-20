@@ -299,6 +299,10 @@ def write_break():
     begin, end = env(LOCALS).loopLabels
     out_br_label(end)
 
+def write_continue():
+    begin, end = env(LOCALS).loopLabels
+    out_br_label(begin)
+
 def write_cond(cs, else_):
     n = len(cs)
     haveElse = isJust(else_)
@@ -461,6 +465,7 @@ def write_stmt(stmt):
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Break()", write_break),
+        ("Continue()", write_continue),
         ("Cond(cs, else_)", write_cond),
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),

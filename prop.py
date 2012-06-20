@@ -367,7 +367,7 @@ def prop_stmt(a):
         ("Defn(var, e)", prop_defn),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
-        ("Break()", nop),
+        ("Break() or Continue()", nop),
         ("ExprStmt(e)", prop_expr),
         ("Cond(cases, elseCase)", prop_cond),
         ("While(t, b)",prop_while),
