@@ -240,13 +240,17 @@ def express(expr):
 
 def write_assert(e, msg):
     ex = express(e)
-    out('br i1 %s, label %%pass, label %%fail\nfail:' %
-            (xpr_str(ex),))
+    out('br i1 ')
+    out_xpr(ex)
+    out(', label %pass, label %fail')
     newline()
+    out_label('fail')
     m = express(msg)
     out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
     newline()
-    out('unreachable\npass:')
+    out('unreachable')
+    newline()
+    out_label('pass')
 
 def write_assign(lhs, e):
     ex = express(e)
@@ -385,11 +389,15 @@ def write_while(cond, body):
     out('loop:')
     newline()
     ex = express(cond)
-    out('br i1 %s, label %%loop_body, label %%loop_exit\nloop_body:'
-            % (xpr_str(ex),))
+    out('br i1 ')
+    out_xpr(ex)
+    out(', label %loop_body, label %loop_exit')
     newline()
+    out_label('loop_body')
     write_body(body)
-    out('br label %loop\n\nloop_exit:')
+    out('br label %loop')
+    newline()
+    out_label('loop_exit')
 
 def write_stmt(stmt):
     match(stmt,
