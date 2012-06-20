@@ -286,13 +286,41 @@ static int read_char() {
 	return c;
 }
 
+static int read_int() {
+	int a = read_char(), b, c, d;
+	if (a <= 0x7f)
+		return a;
+	b = read_char();
+	if (a <= 0xbf) {
+		a &= 0x3f;
+		a = (a << 8) | b;
+		return a + 0x80;
+	}
+	c = read_char();
+	if (a <= 0xdf) {
+		a &= 0x1f;
+		a = (a << 16) | (b << 8) | c;
+		return a + 0x4080;
+	}
+	d = read_char();
+	if (a <= 0xef) {
+		a &= 0x0f;
+		a = (a << 24) | (b << 16) | (c << 8) | d;
+		return a + 0x204080;
+	}
+	CHECK(a == 0xf0, "Integer overflow");
+	/* Still overflow potential here really */
+	a = (b << 24) + (c << 16) + (d << 8) + read_char();
+	return a + 0x10204080;
+}
+
 static int read_utf8_cont() {
 	int a = read_char();
 	CHECK((a & 0xc0) == 0x80, "Invalid continuation prefix");
 	return a & 0x3f;
 }
 
-static int read_int() {
+static int read_utf8_char() {
 	int a = read_char(), b, c, d;
 	if (a <= 0x7f)
 		return a;
@@ -320,7 +348,7 @@ static int read_int() {
 }
 
 static char *read_str() {
-	int len = read_int();
+	int len = read_utf8_char();
 	char *str = malloc(len+1);
 	size_t count = fread(str, len, 1, f);
 	CHECK(count == 1, "String overflow");

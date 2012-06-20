@@ -35,7 +35,22 @@ def _write_ref(node, t):
     _write(_encode_int(a) + _encode_int(b))
 
 def _encode_int(n):
-    return unichr(n).encode('UTF-8')
+    if n < 0x80:
+        return chr(n)
+    n -= 0x80
+    if n < 0x4000:
+        return chr(n>>8 | 0x80) + chr(n & 0xff)
+    n -= 0x4000
+    if n < 0x200000:
+        return chr(n>>16 | 0xc0) + chr(n>>8 & 0xff) + chr(n & 0xff)
+    n -= 0x200000
+    if n < 0x10000000:
+        return chr(n>>24 | 0xe0) + chr(n>>16 & 0xff) + \
+                chr(n>>8 & 0xff) + chr(n & 0xff)
+    n -= 0x10000000
+    assert n < (0x100000000 - 0x10204080), "Int overflow"
+    return chr(0xf0) + chr(n>>24 & 0xff) + chr(n>>16 & 0xff) + \
+            chr(n>>8 & 0xff) + chr(n & 0xff)
 
 def _encode_str(s):
     b = s.encode('UTF-8')
