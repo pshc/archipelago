@@ -662,7 +662,6 @@ def conv_function(s):
     func = Func([], Body([]))
     var = Var()
     assert astannot, "Function %r has no type annot" % f
-    add_extrinsic(AstType, var, astannot)
     add_extrinsic(AstType, func, astannot)
     glob = is_top_level()
     identifier(var, s.name, export=glob)

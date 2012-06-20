@@ -320,7 +320,13 @@ def prop_new_extrinsic(ext):
     pass
 
 def prop_defn(a, e):
-    set_type(a, generalize_type(prop_expr(e)))
+    m = match(e)
+    if m("FuncExpr(f)"):
+        f = m.arg
+        set_type(a, extrinsic(TypeOf, f))
+        prop_expr(e)
+    else:
+        set_type(a, generalize_type(prop_expr(e)))
 
 def prop_assign(a, e):
     return # TEMP
