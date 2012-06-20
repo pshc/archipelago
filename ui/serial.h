@@ -40,7 +40,8 @@ struct adt {
 	struct ctor **ctors;
 };
 
-extern struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
+extern struct adt *Type, *TypeVar, *PrimType;
+extern struct adt *FieldForm, *CtorForm, *DtForm, *DtList;
 
 type_t intT(void);
 type_t strT(void);

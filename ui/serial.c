@@ -7,7 +7,8 @@
 #include "serial.h"
 #include "util.h"
 
-struct adt *Type, *TypeVar, *FieldForm, *CtorForm, *DtForm, *DtList;
+struct adt *Type, *TypeVar, *PrimType;
+struct adt *FieldForm, *CtorForm, *DtForm, *DtList;
 struct adt *Overlay, *Entry;
 struct map *loaded_modules;
 /* Map of array listings, keyed by module pointer */
@@ -223,13 +224,12 @@ void setup_serial(void) {
 	ADT_ctors(DtForm, 1, Ctor("DtForm", 2,
 		"ctors", arrayT(adtT(CtorForm)),
 		"tvars", arrayT(adtT(TypeVar))));
+	PrimType = ADT("PrimType");
+	ADT_ctors(PrimType, 4, Ctor("PInt", 0), Ctor("PStr", 0),
+		Ctor("PChar", 0), Ctor("PBool", 0));
 	ADT_ctors(Type, 14,
 		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
-		Ctor("TMeta", 0), /* XXX */
-		Ctor("TInt", 0),
-		Ctor("TStr", 0),
-		Ctor("TChar", 0),
-		Ctor("TBool", 0),
+		Ctor("TPrim", 1, "primType", adtT(PrimType)),
 		Ctor("TVoid", 0),
 		Ctor("TTuple", 1, "tupleTypes", arrayT(adtT(Type))),
 		Ctor("TAnyTuple", 0),
@@ -269,6 +269,7 @@ void cleanup_serial(void) {
 	destroy_map(form_dts);
 	destroy_ADT(Type);
 	destroy_ADT(TypeVar);
+	destroy_ADT(PrimType);
 	destroy_ADT(FieldForm);
 	destroy_ADT(CtorForm);
 	destroy_ADT(DtForm);
@@ -750,6 +751,14 @@ static void *read_tvar(void *tvar) {
 	return tvarT(tvar);
 }
 
+static void *read_tprim(void *prim) {
+	return match(prim, PrimType,
+		"PInt", intT,
+		"PStr", strT,
+		"PBool", boolT,
+		NULL);
+}
+
 static void *read_ttuple(struct array *subs) {
 	size_t i, len;
 	struct type *type, **types;
@@ -801,9 +810,7 @@ static void *read_tweak(void *type) {
 static type_t read_type(intptr_t *type) {
 	return match(type, Type,
 		"TVar", read_tvar,
-		"TInt", intT,
-		"TStr", strT,
-		"TBool", boolT,
+		"TPrim", read_tprim,
 		"TVoid", voidT,
 		"TTuple", read_ttuple,
 		"TAnyTuple", voidT,
