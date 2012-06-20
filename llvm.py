@@ -53,6 +53,11 @@ def global_ref(v):
 def out_func_ref(f):
     out(func_ref(f))
 
+def out_label(name):
+    clear_indent()
+    out('%s:' % (name,))
+    newline()
+
 def out_xpr(x):
     out(xpr_str(x))
 
@@ -101,7 +106,8 @@ def typeof(e):
     if has_extrinsic(TypeOf, e):
         return match(extrinsic(TypeOf, e),
             ("TPrim(PInt())", lambda: IInt()),
-            ("TVar(_)", lambda: IVoidPtr()))
+            ("TVar(_)", lambda: IVoidPtr()),
+            ("TFunc(_, _)", lambda: IVoidPtr()))
     def no_type():
         print 'HAS NO TYPEOF: %s' % (e,)
         return IInt()
@@ -240,6 +246,31 @@ def write_augassign(op, lhs, e):
 def write_break():
     out('br label %loop_exit')
 
+def write_cond(cs, else_):
+    n = len(cs)
+    haveElse = isJust(else_)
+    for i, case in enumerate(cs):
+        if i > 0:
+            out_label('if%d' % (i,))
+        ex = express(case.test)
+        out('br i1 ')
+        out_xpr(ex)
+        out(', label then%d, label ' % (i,))
+        if i + 1 < n:
+            out('if%d' % (i+1,))
+        else:
+            out('else' if haveElse else 'endif')
+        newline()
+        out_label('then%d' % (i,))
+        write_body(case.body)
+        if i < n - 1 or haveElse:
+            out('br label endif')
+            newline()
+    if haveElse:
+        out_label('else')
+        write_body(fromJust(else_))
+    out_label('endif')
+
 def has_static_replacement(v, e):
     if has_extrinsic(Replacement, v):
         return True
@@ -366,6 +397,7 @@ def write_stmt(stmt):
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Break()", write_break),
+        ("Cond(cs, else_)", write_cond),
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
