@@ -4,8 +4,12 @@ import sys
 
 IRInfo = DT('IRInfo', ('stream', None),
                       ('needIndent', bool),
-                      ('tempCtr', int))
+                      ('lcCtr', int))
 IR = new_env('IR', IRInfo)
+
+IRLocals = DT('IRLocals', ('tempCtr', int))
+
+LOCALS = new_env('LOCALS', IRLocals)
 
 def setup_ir():
     stream = sys.stdout
@@ -84,15 +88,15 @@ def comma():
     out(', ')
 
 def temp_reg():
-    ir = env(IR)
-    reg = Tmp(ir.tempCtr)
-    ir.tempCtr += 1
+    lcl = env(LOCALS)
+    reg = Tmp(lcl.tempCtr)
+    lcl.tempCtr += 1
     return reg
 
 def temp_reg_named(nm):
-    ir = env(IR)
-    reg = Reg(nm, ir.tempCtr)
-    ir.tempCtr += 1
+    lcl = env(LOCALS)
+    reg = Reg(nm, lcl.tempCtr)
+    lcl.tempCtr += 1
     return reg
 
 # TYPES
@@ -417,8 +421,8 @@ def write_body(body):
 
 def write_top_strlit(var, s):
     ir = env(IR)
-    add_extrinsic(Name, var, '.LC%d' % (ir.tempCtr,))
-    ir.tempCtr += 1
+    add_extrinsic(Name, var, '.LC%d' % (ir.lcCtr,))
+    ir.lcCtr += 1
 
     clear_indent()
     out('%s = internal constant %s' % (global_ref(var), escape_strlit(s)))
@@ -443,11 +447,11 @@ def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
-                match(ex,
+                in_env(LOCALS, IRLocals(0), lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
-                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))
+                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func)))
                 newline()
-        write_top(top)
+        in_env(LOCALS, IRLocals(0), lambda: write_top(top))
 
 def write_ir(prog):
     in_env(IR, setup_ir(),
