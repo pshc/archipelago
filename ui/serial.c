@@ -227,7 +227,7 @@ void setup_serial(void) {
 	PrimType = ADT("PrimType");
 	ADT_ctors(PrimType, 4, Ctor("PInt", 0), Ctor("PStr", 0),
 		Ctor("PChar", 0), Ctor("PBool", 0));
-	ADT_ctors(Type, 14,
+	ADT_ctors(Type, 10,
 		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
 		Ctor("TPrim", 1, "primType", adtT(PrimType)),
 		Ctor("TVoid", 0),
