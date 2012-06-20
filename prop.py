@@ -287,7 +287,8 @@ def prop_expr(e):
         ("ref==Bind(b)", prop_binding),
         ("otherwise", unknown_prop)))
     if env(GENOPTS).dumpTypes:
-        print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
+        if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
+            print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
     return rt
 
 def check_expr(t, e):
