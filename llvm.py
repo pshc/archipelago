@@ -7,7 +7,9 @@ IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
-IRLocals = DT('IRLocals', ('tempCtr', int), ('labelCtr', int))
+IRLocals = DT('IRLocals', ('tempCtr', int),
+                          ('labelCtr', int),
+                          ('loopLabels', 'Maybe((Label, Label))'))
 
 LOCALS = new_env('LOCALS', IRLocals)
 
@@ -16,7 +18,7 @@ def setup_ir(filename):
     return IRInfo(stream, False, 0)
 
 def setup_locals():
-    return IRLocals(0, 0)
+    return IRLocals(0, 0, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -294,7 +296,8 @@ def write_augassign(op, lhs, e):
     out('; TODO %s' % (xpr_str(ex),))
 
 def write_break():
-    out('br label %loop_exit')
+    begin, end = env(LOCALS).loopLabels
+    out_br_label(end)
 
 def write_cond(cs, else_):
     n = len(cs)
@@ -431,6 +434,11 @@ def write_while(cond, body):
     begin = new_label('loop')
     body_label = new_label('body')
     exit = new_label('exit')
+
+    # for break and continue
+    old_labels = env(LOCALS).loopLabels
+    env(LOCALS).loopLabels = (begin, exit)
+
     out_label(begin)
     ex = express(cond)
     out('br i1 ')
@@ -444,6 +452,8 @@ def write_while(cond, body):
     write_body(body)
     out_br_label(begin)
     out_label(exit)
+
+    env(LOCALS).loopLabels = old_labels
 
 def write_stmt(stmt):
     match(stmt,
