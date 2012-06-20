@@ -287,7 +287,7 @@ def write_expr_stmt(e):
 
 def write_extrinsic_stmt(extr):
     clear_indent()
-    out('; extrninsic ')
+    out('; extrinsic ')
     out(extrinsic(Name, extr))
 
 def write_top_func(f, ps, body):
