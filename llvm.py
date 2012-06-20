@@ -179,13 +179,26 @@ def expr_call(f, args):
     else:
         tmp = temp_reg()
         fx = express(f)
+        argxs = [express(arg) for arg in args]
         out_xpr(tmp)
         out(' = call i32 ')
         out_xpr(fx)
-        write_args(args)
+        write_xpr_list(argxs)
         newline()
         m.ret(tmp)
     return m.result()
+
+def write_xpr_list(args):
+    out('(')
+    first = True
+    for arg in args:
+        if first:
+            first = False
+        else:
+            comma()
+        out('i32 ')
+        out_xpr(arg)
+    out(')')
 
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
@@ -361,19 +374,6 @@ def write_top_func(f, ps, body):
     write_body(body)
     clear_indent()
     out('}\n')
-
-def write_args(args):
-    out('(')
-    bits = [express(arg) for arg in args]
-    first = True
-    for bit in bits:
-        if first:
-            first = False
-        else:
-            comma()
-        out('i32 ')
-        out_xpr(bit)
-    out(')')
 
 def write_return(expr):
     ex = express(expr)
