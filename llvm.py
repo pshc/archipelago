@@ -372,8 +372,9 @@ def write_cond(cs, else_):
         out_label_ref(then)
         comma()
         if i + 1 < n:
-            elif_ = Just(new_label('elif'))
-            out_label_ref(elif_)
+            e = new_label('elif')
+            out_label_ref(e)
+            elif_ = Just(e)
         elif haveElse:
             e = new_label('else')
             out_label_ref(e)
