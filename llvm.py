@@ -229,6 +229,15 @@ def expr_binop(op, left, right):
         newline()
         return tmp
 
+def write_call(tmp, f, args):
+    fx = express(f)
+    argxs = [express(arg) for arg in args]
+    out_xpr(tmp)
+    out(' = call i32 ')
+    out_xpr(fx)
+    write_xpr_list(argxs)
+    newline()
+
 def expr_call(f, args):
     m = match(f)
     if m('Bind(BindBuiltin(b))'):
@@ -239,15 +248,14 @@ def expr_call(f, args):
         left = express(args[0])
         right = express(args[1])
         m.ret(expr_binop(op, left, right))
+    elif m('Bind(BindVar(v))'):
+        v = m.arg
+        tmp = temp_reg_named(extrinsic(Name, v))
+        write_call(tmp, f, args)
+        m.ret(tmp)
     else:
         tmp = temp_reg()
-        fx = express(f)
-        argxs = [express(arg) for arg in args]
-        out_xpr(tmp)
-        out(' = call i32 ')
-        out_xpr(fx)
-        write_xpr_list(argxs)
-        newline()
+        write_call(tmp, f, args)
         m.ret(tmp)
     return m.result()
 
