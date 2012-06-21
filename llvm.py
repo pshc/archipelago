@@ -2,12 +2,20 @@ from atom import *
 import expand
 import sys
 
+Label = DT('Label', ('name', str), ('index', int))
+
+IRChunk, IRStr, IRLabel, IRLabelRef = ADT('IRChunk',
+        'IRStr', ('str', str),
+        'IRLabel', ('label', '*Label'),
+        'IRLabelRef', ('label', '*Label'))
+
 IRInfo = DT('IRInfo', ('stream', None),
-                      ('needIndent', bool),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
-IRLocals = DT('IRLocals', ('tempCtr', int),
+IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
+                          ('needIndent', bool),
+                          ('tempCtr', int),
                           ('labelCtr', int),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
@@ -15,10 +23,10 @@ LOCALS = new_env('LOCALS', IRLocals)
 
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
-    return IRInfo(stream, False, 0)
+    return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals(0, 0, Nothing())
+    return IRLocals([], False, 0, 0, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -34,22 +42,29 @@ def is_const(x):
 BindingReplacement = DT('BindingReplacement', ('replacement', Xpr))
 Replacement = new_extrinsic('Replacement', BindingReplacement)
 
-Label = DT('Label', ('name', str), ('index', int))
-
 # OUTPUT
 
-def stdout(s):
+def imm_out(s):
+    env(IR).stream.write(s)
     if not env(GENOPTS).quiet:
         sys.stdout.write(s)
 
-def out(s):
+def flush(lcl):
     ir = env(IR)
-    if ir.needIndent:
-        ir.stream.write('  ')
-        stdout('  ')
+    for chunk in lcl.chunks:
+        imm_out(match(chunk,
+            ('IRStr(s)', identity),
+            ('IRLabel(lbl)', lambda l: '%s_%d:\n' % (l.name, l.index)),
+            ('IRLabelRef(lbl)', lambda l: 'label %%%s_%d' % (l.name, l.index))
+        ))
+
+def out(s):
+    lcl = env(LOCALS)
+    if lcl.needIndent:
+        env(LOCALS).chunks.append(IRStr('  %s' % (s,)))
         clear_indent()
-    ir.stream.write(s)
-    stdout(s)
+    else:
+        env(LOCALS).chunks.append(IRStr(s))
 
 def out_name(a):
     out(extrinsic(Name, a))
@@ -74,7 +89,7 @@ def out_label(label):
     newline()
 
 def out_label_ref(label):
-    out('label %%%s_%d' % (label.name, label.index))
+    env(LOCALS).chunks.append(IRLabelRef(label))
 
 def out_br_label(label):
     out('br ')
@@ -94,15 +109,14 @@ def constop_str(f, args):
     return '%s (%s)' % (f, ', '.join('i32 %s' % (xpr_str(r),) for r in args))
 
 def clear_indent():
-    env(IR).needIndent = False
+    env(LOCALS).needIndent = False
 
 def newline():
-    if env(GENOPTS).quiet:
-        return
-    ir = env(IR)
-    ir.stream.write('\n')
-    stdout('\n')
-    ir.needIndent = True
+    if have_env(LOCALS):
+        out('\n')
+        env(LOCALS).needIndent = True
+    else:
+        imm_out('\n')
 
 def comma():
     out(', ')
@@ -531,15 +545,20 @@ def write_top(top):
         ("TopExtrinsic(extr)", write_extrinsic_stmt))
     newline()
 
+def as_local(f):
+    lcl = setup_locals()
+    in_env(LOCALS, lcl, f)
+    flush(lcl)
+
 def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
-                in_env(LOCALS, setup_locals(), lambda: match(ex,
+                as_local(lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
                     ("ExSurfacedFunc(f==Func(ps, body))", write_top_func)))
                 newline()
-        in_env(LOCALS, setup_locals(), lambda: write_top(top))
+        as_local(lambda: write_top(top))
 
 def write_ir(filename, prog):
     in_env(IR, setup_ir(filename),
