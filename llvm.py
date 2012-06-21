@@ -16,7 +16,7 @@ IR = new_env('IR', IRInfo)
 IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('needIndent', bool),
                           ('tempCtr', int),
-                          ('labelCtr', int),
+                          ('labelCtrs', {str: int}),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
 LOCALS = new_env('LOCALS', IRLocals)
@@ -26,7 +26,7 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals([], False, 0, 0, Nothing())
+    return IRLocals([], False, 0, {}, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -50,12 +50,19 @@ def imm_out(s):
         sys.stdout.write(s)
 
 def flush(lcl):
-    ir = env(IR)
-    for chunk in lcl.chunks:
+    def label_str(label):
+        # Unique labels don't need an index
+        if label.index == 0 and lcl.labelCtrs[label.name] == 1:
+            return label.name
+        else:
+            return '%s_%d' % (label.name, label.index)
+    chunks = lcl.chunks
+    lcl.chunks = []
+    for chunk in chunks:
         imm_out(match(chunk,
             ('IRStr(s)', identity),
-            ('IRLabel(lbl)', lambda l: '%s_%d:\n' % (l.name, l.index)),
-            ('IRLabelRef(lbl)', lambda l: 'label %%%s_%d' % (l.name, l.index))
+            ('IRLabel(lbl)', lambda l: '%s:\n' % (label_str(l),)),
+            ('IRLabelRef(lbl)', lambda l: 'label %%%s' % (label_str(l),))
         ))
 
 def out(s):
@@ -84,9 +91,8 @@ def out_func_ref(f):
     out(func_ref(f))
 
 def out_label(label):
-    clear_indent()
-    out('%s_%d:' % (label.name, label.index))
-    newline()
+    env(LOCALS).chunks.append(IRLabel(label))
+    env(LOCALS).needIndent = True
 
 def out_label_ref(label):
     env(LOCALS).chunks.append(IRLabelRef(label))
@@ -135,8 +141,9 @@ def temp_reg_named(nm):
 
 def new_label(nm):
     lcl = env(LOCALS)
-    label = Label(nm, lcl.labelCtr)
-    lcl.labelCtr += 1
+    ctr = lcl.labelCtrs.get(nm, 0)
+    label = Label(nm, ctr)
+    lcl.labelCtrs[nm] = ctr + 1
     return label
 
 # TYPES
@@ -453,10 +460,10 @@ def write_top_func(f, ps, body):
         tmps.append(tmp)
     out(')')
 
-    out(' {\nentry:')
+    out(' {')
+    newline()
 
     if len(ps) > 0:
-        newline()
         # write params to mem
         for p, tmp in zip(ps, tmps):
             out_name_reg(p)
@@ -468,7 +475,7 @@ def write_top_func(f, ps, body):
             out('i32* ')
             out_name_reg(p)
             newline()
-    newline()
+        newline()
 
     write_body(body)
     clear_indent()
