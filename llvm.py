@@ -203,7 +203,7 @@ def collapse_label_indirection(label):
 
 # INSTRUCTIONS
 
-def out_br_label(label):
+def br(label):
     out('br ')
     out_label_ref(label)
     term()
@@ -309,7 +309,7 @@ def expr_and(l, r):
     # left was true
     out_label(both)
     right = express(r)
-    out_br_label(end)
+    br(end)
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('and')
@@ -326,7 +326,7 @@ def expr_or(l, r):
     # left was false
     out_label(both)
     right = express(r)
-    out_br_label(end)
+    br(end)
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('or')
@@ -342,11 +342,11 @@ def expr_ternary(c, t, f):
 
     out_label(yes)
     true = express(t)
-    out_br_label(end)
+    br(end)
 
     out_label(no)
     false = express(f)
-    out_br_label(end)
+    br(end)
 
     out_label(end)
     result = temp_reg_named('either')
@@ -548,11 +548,11 @@ def write_augassign(op, lhs, e):
 
 def write_break():
     begin, end = env(LOCALS).loopLabels
-    out_br_label(end)
+    br(end)
 
 def write_continue():
     begin, end = env(LOCALS).loopLabels
-    out_br_label(begin)
+    br(begin)
 
 def write_cond(cs, else_):
     n = len(cs)
@@ -576,7 +576,7 @@ def write_cond(cs, else_):
         out_label(then)
         write_body(case.body)
         if i < n - 1 or haveElse:
-            out_br_label(endif)
+            br(endif)
     if haveElse:
         out_label(fromJust(else_label))
         write_body(fromJust(else_))
@@ -713,7 +713,7 @@ def write_while(cond, body):
     br_cond(ex, body_label, exit)
     out_label(body_label)
     write_body(body)
-    out_br_label(begin)
+    br(begin)
     out_label(exit)
 
     env(LOCALS).loopLabels = old_labels
