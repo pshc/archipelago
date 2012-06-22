@@ -1,11 +1,12 @@
 *.bc
-*.ll
 *.pyc
 *.pyd
 *.pyo
 *.swp
 *.dot
 *.png
+/bin
+/ir
 /mods
 /opt
 views
