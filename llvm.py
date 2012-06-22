@@ -305,7 +305,7 @@ def expr_call(e, f, args):
         assert len(args) == 2, '%s requires two args' % (op,)
         left = express(args[0])
         right = express(args[1])
-        m.ret(expr_binop(op, left, right, t))
+        m.ret(expr_binop(op, left, right, typeof(args[0])))
     elif m('Bind(BindVar(v))'):
         v = m.arg
         tmp = temp_reg_named(extrinsic(Name, v))
