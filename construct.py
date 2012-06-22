@@ -63,7 +63,16 @@ def load_module_dep(filename, deps):
 def _do_mod(mod, name):
     expand.expand_module(mod)
 
-    llvm.write_ir('ir/' + name + '.ll', mod.root)
+    ll = 'ir/' + name + '.ll'
+    llvm.write_ir(ll, mod.root)
+    if name.startswith('tests_'):
+        import os
+        try:
+            os.unlink('bin/' + name)
+        except OSError:
+            pass
+        if llvm.compile(ll, 'bin/' + name):
+            print 'Compiled %s' % (name,)
 
     assert loaded_modules[name] is None
     loaded_modules[name] = mod

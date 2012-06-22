@@ -1,19 +1,12 @@
 TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=bin/tests_%)
-OPTS = --color -t
+OPTS = --color -q
 CODEGEN = ./construct.py $(OPTS) --
 
 all: test
 
 debug: CODEGEN = ipdb construct.py $(OPTS) --
 debug: remake_tests
-
-llvm: dirs
-	@./llvm.py | tee hello.ll
-	@llvm-as < hello.ll | opt -mem2reg | lli || echo Exited with code $$?
-
-as: dirs
-	@llvm-as < hello.ll | opt -mem2reg | llvm-dis
 
 dirs: bin ir mods opt views
 bin:

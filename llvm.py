@@ -1,5 +1,6 @@
 from atom import *
 import expand
+import os
 import sys
 
 Label = DT('Label', ('name', str),
@@ -793,6 +794,13 @@ def write_ir(filename, prog):
         lambda: scope_extrinsic(Replacement,
         lambda: scope_extrinsic(LiteralSize,
         lambda: write_unit(prog))))
+
+def compile(ll, binary):
+    bc = ll + '.bc'
+    if os.system('llvm-as < %s | opt -mem2reg > %s' % (ll, bc)) == 0:
+        if os.system('llvm-ld -o %s %s' % (binary, bc)) == 0:
+            return True
+    return False
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])
