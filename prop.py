@@ -271,7 +271,10 @@ def unknown_prop(a):
     assert False, with_context('Unknown prop case:', a)
 
 def prop_expr(e):
-    rt = in_env(EXPRCTXT, e, lambda: match(e,
+    return in_env(EXPRCTXT, e, lambda: _prop_expr(e))
+
+def _prop_expr(e):
+    rt = match(e,
         ("IntLit(_)", lambda: CPrim(PInt())),
         ("StrLit(_)", lambda: CPrim(PStr())),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
@@ -285,7 +288,7 @@ def prop_expr(e):
         ("GetEnv(environ)", prop_getenv),
         ("InEnv(environ, init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
-        ("otherwise", unknown_prop)))
+        ("otherwise", unknown_prop))
     if env(GENOPTS).dumpTypes:
         if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
@@ -293,7 +296,7 @@ def prop_expr(e):
     return rt
 
 def check_expr(t, e):
-    unify(t, prop_expr(e))
+    in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
 
 def check_lhs(tv, lhs):
     in_env(CHECK, tv, lambda: match(lhs,
