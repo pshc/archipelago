@@ -197,6 +197,8 @@ def conv_and(e):
 def unwrap_ast(node):
     if isinstance(node, ast.Const):
         return node.value
+    elif isinstance(node, ast.Name):
+        return node.name
     elif isinstance(node, ast.Tuple):
         return tuple(map(unwrap_ast, node.nodes))
     else:
