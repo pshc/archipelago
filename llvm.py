@@ -46,6 +46,8 @@ def is_const(x):
 
 Replacement = new_extrinsic('Replacement', Xpr)
 
+LiteralSize = new_extrinsic('LiteralSize', int)
+
 # OUTPUT
 
 def imm_out(s):
@@ -343,8 +345,8 @@ def expr_strlit(lit):
     info = extrinsic(expand.ExpandedDecl, lit)
     tmp = temp_reg()
     out_xpr(tmp)
-    out(' = getelementptr [0 x i8]* %s, i32 0, i32 0' %
-            (global_ref(info.var),))
+    out(' = getelementptr [%d x i8]* %s, i32 0, i32 0' %
+            (extrinsic(LiteralSize, info.var), global_ref(info.var)))
     newline()
     return tmp
 
@@ -611,15 +613,18 @@ def write_top_strlit(var, s):
     ir.lcCtr += 1
 
     clear_indent()
-    out('%s = internal constant %s' % (global_ref(var), escape_strlit(s)))
+    escaped, n = escape_strlit(s)
+    add_extrinsic(LiteralSize, var, n)
+    out('%s = internal constant %s' % (global_ref(var), escaped))
 
 def escape_strlit(s):
     b = s.encode('utf-8')
-    lit = '[%d x i8] c"' % (len(b) + 1)
+    n = len(b) + 1
+    lit = '[%d x i8] c"' % (n,)
     for c in iter(b):
         i = ord(c)
         lit += c if 31 < i < 127 else '\\%02x' % (i,)
-    return lit + '\\00"'
+    return (lit + '\\00"', n)
 
 def write_top(top):
     match(top,
@@ -647,7 +652,8 @@ def write_unit(unit):
 def write_ir(filename, prog):
     in_env(IR, setup_ir(filename),
         lambda: scope_extrinsic(Replacement,
-        lambda: write_unit(prog)))
+        lambda: scope_extrinsic(LiteralSize,
+        lambda: write_unit(prog))))
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])
