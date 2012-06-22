@@ -202,6 +202,14 @@ def collapse_label_indirection(label):
         i.replacedBy = Just(label)
     return label
 
+def store_named(t, xpr, named):
+    out('store ')
+    out_t(t)
+    out_xpr(xpr)
+    comma()
+    out_t_ptr(t)
+    out_name_reg(named)
+
 # TYPES
 
 IType, IInt, IBool, IVoid, IPtr, IVoidPtr = ADT('IType',
@@ -403,13 +411,7 @@ def write_assert(e, msg):
     out_label(pass_)
 
 def store_var(v, xpr):
-    t = typeof(v)
-    out('store ')
-    out_t(t)
-    out_xpr(xpr)
-    comma()
-    out_t_ptr(t)
-    out_name_reg(v)
+    store_named(typeof(v), xpr, v)
 
 def store_lhs(lhs, x):
     match(lhs,
@@ -493,12 +495,7 @@ def write_defn(v, e):
     t = typeof(e)
     out_t_nospace(t)
     newline()
-    out('store ')
-    out_t(t)
-    out_xpr(ex)
-    comma()
-    out_t_ptr(t)
-    out_name_reg(v)
+    store_named(t, ex, v)
 
 def write_field_specs(fields):
     out('{ ')
@@ -573,12 +570,7 @@ def write_top_func(f, ps, body):
             out(' = alloca ')
             out_t(tp)
             newline()
-            out('store ')
-            out_t(tp)
-            out_xpr(tmp)
-            comma()
-            out_t(IPtr(tp))
-            out_name_reg(p)
+            store_named(tp, tmp, p)
             newline()
         newline()
 
