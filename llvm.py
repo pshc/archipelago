@@ -363,7 +363,7 @@ def expr_strlit(lit):
     return tmp
 
 def expr_tuple_lit(ts):
-    xs = ['%s %s' % (t_str(typeof(t)), express(t)) for t in ts]
+    xs = ['%s %s' % (t_str(typeof(t)), xpr_str(express(t))) for t in ts]
     return Const('{ %s }' % (', '.join(xs),))
 
 def express(expr):
