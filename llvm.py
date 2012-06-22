@@ -608,16 +608,55 @@ def write_defn(v, e):
     store_named(t, ex, v)
 
 def write_field_specs(fields):
-    out('{ ')
-    first = True
-    for f in fields:
-        if not first:
+    out('{')
+    newline()
+    n = len(fields)
+    for i, f in enumerate(fields):
+        out_t_nospace(convert_type(f.type))
+        if i < n - 1:
             comma()
         else:
-            first = False
-        out_t(convert_type(f.type))
-        out(extrinsic(Name, f))
-    out(' }')
+            out('  ')
+        out('; %s' % (extrinsic(Name, f),))
+        newline()
+    clear_indent()
+    out('}')
+
+def write_ctor(ctor, dt):
+    t = IData(dt)
+    inst = temp_reg_named(extrinsic(Name, dt))
+
+    clear_indent()
+    out('define ')
+    out_t(t)
+    out_func_ref(ctor)
+    fts = [convert_type(f.type) for f in ctor.fields]
+    tmps = write_params(ctor.fields, fts)
+    out(' {')
+    newline()
+    # compile-time sizeof
+    out('%sizeof = ptrtoint ')
+    out_t(t)
+    out('getelementptr(')
+    out_t(t)
+    out('null, i32 1) to i32')
+    newline()
+
+    out('%inst = call i8* @malloc(i32 %sizeof)')
+    newline()
+    out_xpr(inst)
+    out(' = bitcast i8* %inst to ')
+    out_t_nospace(t)
+    newline()
+
+    # TODO: Write initial field values
+
+    out('ret ')
+    out_t(t)
+    out_xpr(inst)
+    newline()
+    clear_indent()
+    out('}')
 
 def write_dtstmt(form):
     if len(form.ctors) > 1:
@@ -627,6 +666,8 @@ def write_dtstmt(form):
             out(' = type ')
             write_field_specs(ctor.fields)
             newline()
+            write_ctor(ctor, form)
+            newline()
         clear_indent()
         out('; skipping %')
         out_name_reg(form)
@@ -634,7 +675,10 @@ def write_dtstmt(form):
         clear_indent()
         out_name_reg(form)
         out(' = type ')
-        write_field_specs(form.ctors[0].fields)
+        ctor = form.ctors[0]
+        write_field_specs(ctor.fields)
+        newline()
+        write_ctor(ctor, form)
 
 def write_expr_stmt(e):
     ex = express(e)
@@ -645,19 +689,7 @@ def write_extrinsic_stmt(extr):
     out('; extrinsic ')
     out(extrinsic(Name, extr))
 
-def write_top_func(f, ps, body):
-    tps, tret = match(extrinsic(TypeOf, f),
-        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
-    assert len(ps) == len(tps)
-
-    clear_indent()
-    out('define ')
-    if not env(EXPORT):
-        out('internal ')
-    out_t(tret)
-    out_func_ref(f)
-
-    # param temporaries
+def write_params(ps, tps):
     out('(')
     first = True
     tmps = []
@@ -670,7 +702,22 @@ def write_top_func(f, ps, body):
         tmp = temp_reg_named(extrinsic(Name, p))
         out_xpr(tmp)
         tmps.append(tmp)
-    out(') {')
+    out(')')
+    return tmps
+
+def write_top_func(f, ps, body):
+    tps, tret = match(extrinsic(TypeOf, f),
+        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+    assert len(ps) == len(tps)
+
+    clear_indent()
+    out('define ')
+    if not env(EXPORT):
+        out('internal ')
+    out_t(tret)
+    out_func_ref(f)
+    tmps = write_params(ps, tps)
+    out(' {')
     newline()
 
     if len(ps) > 0:
@@ -776,6 +823,7 @@ def as_local(f):
     flush(lcl)
 
 prelude = """
+declare i8* @malloc(i32)
 declare void @fail(i8*) noreturn
 
 """
