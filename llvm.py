@@ -16,11 +16,14 @@ IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
+IRBlock = DT('IRBlock', ('label', Label), ('needsJumpInto', bool))
+
 IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('needIndent', bool),
+                          ('needTerminator', bool),
                           ('unreachable', bool),
                           ('tempCtr', int),
-                          ('pendingLabel', 'Maybe(Label)'),
+                          ('pendingBlock', 'Maybe(IRBlock)'),
                           ('labelCtrs', {str: int}),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
@@ -31,7 +34,7 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals([], False, False, 0, Nothing(), {}, Nothing())
+    return IRLocals([], False, True, False, 0, Nothing(), {}, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -77,9 +80,15 @@ def out(s):
     lcl = env(LOCALS)
     if lcl.unreachable:
         return
-    if isJust(lcl.pendingLabel):
-        lcl.chunks.append(IRLabel(fromJust(lcl.pendingLabel)))
-        lcl.pendingLabel = Nothing()
+    if isJust(lcl.pendingBlock):
+        block = fromJust(lcl.pendingBlock)
+        if block.needsJumpInto:
+            # Blocks can't implicitly fall-through to the next block, so jump
+            ref = IRLabelRef(block.label)
+            block.label.used = True
+            lcl.chunks += [IRStr('  br '), ref, IRStr('\n')]
+        lcl.chunks.append(IRLabel(block.label))
+        lcl.pendingBlock = Nothing()
     if lcl.needIndent:
         lcl.chunks.append(IRStr('  %s' % (s,)))
         clear_indent()
@@ -105,15 +114,17 @@ def out_func_ref(f):
 
 def out_label(label):
     lcl = env(LOCALS)
-    if isJust(lcl.pendingLabel):
-        fromJust(lcl.pendingLabel).replacedBy = Just(label)
-    lcl.pendingLabel = Just(label)
+    # Empty label substitution
+    if isJust(lcl.pendingBlock):
+        fromJust(lcl.pendingBlock).label.replacedBy = Just(label)
+    lcl.pendingBlock = Just(IRBlock(label, lcl.needTerminator))
     lcl.needIndent = True
+    lcl.needTerminator = True
     lcl.unreachable = False
 
 def out_label_ref(label):
     lcl = env(LOCALS)
-    assert isNothing(lcl.pendingLabel), "Unexpected label ref after label"
+    assert isNothing(lcl.pendingBlock), "Unexpected label ref after label"
     if not lcl.unreachable:
         lcl.chunks.append(IRLabelRef(label))
         label.used = True
@@ -141,7 +152,7 @@ def clear_indent():
 
 def newline():
     if have_env(LOCALS):
-        if isJust(env(LOCALS).pendingLabel):
+        if isJust(env(LOCALS).pendingBlock):
             return
         out('\n')
         env(LOCALS).needIndent = True
@@ -149,6 +160,7 @@ def newline():
         imm_out('\n')
 
 def term():
+    env(LOCALS).needTerminator = False
     newline()
     env(LOCALS).unreachable = True
 
@@ -378,13 +390,13 @@ def write_assert(e, msg):
     out_label_ref(pass_)
     comma()
     out_label_ref(fail_)
-    newline()
+    term()
     out_label(fail_)
     m = express(msg)
     out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
     newline()
     out('unreachable')
-    newline()
+    term()
     out_label(pass_)
 
 def store_var(v, xpr):
@@ -448,7 +460,7 @@ def write_cond(cs, else_):
             else_label = Just(e)
         else:
             out_label_ref(endif)
-        newline()
+        term()
         out_label(then)
         write_body(case.body)
         if i < n - 1 or haveElse:
@@ -549,9 +561,15 @@ def write_top_func(f, ps, body):
         newline()
 
     write_body(body)
-    clear_indent()
-    env(LOCALS).unreachable = False
-    out('}\n')
+
+    # Clean up, discard unused pending block if any
+    lcl = env(LOCALS)
+    if isJust(lcl.pendingBlock):
+        last_block = fromJust(lcl.pendingBlock)
+        if last_block.label.used:
+            out('ret void')
+            term()
+    lcl.chunks.append(IRStr('}\n'))
 
 def write_return(expr):
     ex = express(expr)
@@ -577,7 +595,7 @@ def write_while(cond, body):
     out_label_ref(body_label)
     comma()
     out_label_ref(exit)
-    newline()
+    term()
     out_label(body_label)
     write_body(body)
     out_br_label(begin)
