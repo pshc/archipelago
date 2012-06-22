@@ -32,12 +32,12 @@ Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'Const', ('frag', 'str'),
-        'ConstOp', ('op', 'str'), ('args', ['Xpr']))
+        'ConstOp', ('op', 'str'), ('args', ['Xpr']), ('type', 'IType'))
 
 def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
-        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
+        ('Const(_)', lambda: True), ('ConstOp(_, _, _)', lambda: True))
 
 Replacement = new_extrinsic('Replacement', Xpr)
 
@@ -108,10 +108,11 @@ def xpr_str(x):
     return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
                     ('Const(s)', identity),
-                    ('ConstOp(f, args)', constop_str))
+                    ('ConstOp(f, args, t)', constop_str))
 
-def constop_str(f, args):
-    return '%s (%s)' % (f, ', '.join('i32 %s' % (xpr_str(r),) for r in args))
+def constop_str(f, args, t):
+    ts = t_str(t)
+    return '%s (%s)' % (f, ', '.join('%s %s' % (ts, xpr_str(r)) for r in args))
 
 def clear_indent():
     env(LOCALS).needIndent = False
@@ -147,19 +148,26 @@ def new_label(nm):
 
 # TYPES
 
-IType, IInt, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IBool, IPtr, IVoidPtr = ADT('IType',
         'IInt',
+        'IBool',
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
+def convert_type(t):
+    return match(t,
+        ("TPrim(PInt())", lambda: IInt()),
+        ("TPrim(PBool())", lambda: IBool()),
+        ("TVar(_)", lambda: IVoidPtr()),
+        ("TFunc(_, _)", lambda: IVoidPtr()),
+        ("TData(_)", lambda: IVoidPtr()),
+        ("TTuple(_)", lambda: IVoidPtr()))
+
 def typeof(e):
     if has_extrinsic(TypeOf, e):
-        return match(extrinsic(TypeOf, e),
-            ("TPrim(PInt())", lambda: IInt()),
-            ("TVar(_)", lambda: IVoidPtr()),
-            ("TFunc(_, _)", lambda: IVoidPtr()),
-            ("TData(_)", lambda: IVoidPtr()))
+        return convert_type(extrinsic(TypeOf, e))
     def no_type():
+        assert isinstance(e, Expr), "%s is not expr" % (e,)
         print 'HAS NO TYPEOF: %s' % (e,)
         return IInt()
     return match(e,
@@ -169,6 +177,7 @@ def typeof(e):
 def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
+        ("IBool()", lambda: "i1"),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
 
@@ -218,26 +227,32 @@ def aug_op(b):
         ('AugDivide()', lambda: 'sdiv'), # or udiv...
         ('AugModulo()', lambda: 'srem')) # or urem...
 
-def expr_binop(op, left, right):
+def expr_binop(op, left, right, t):
     if is_const(left) and is_const(right):
-        return ConstOp(op, [left, right])
+        return ConstOp(op, [left, right], t)
     else:
         tmp = temp_reg_named(op.split(' ')[-1])
         out_xpr(tmp)
-        out(' = %s i32 %s, %s' % (op, xpr_str(left), xpr_str(right)))
+        out(' = %s ' % (op,))
+        out_t(t)
+        out_xpr(left)
+        comma()
+        out_xpr(right)
         newline()
         return tmp
 
-def write_call(tmp, f, args):
+def write_call(tmp, f, args, t):
     fx = express(f)
-    argxs = [express(arg) for arg in args]
+    argxs = [(express(arg), typeof(arg)) for arg in args]
     out_xpr(tmp)
-    out(' = call i32 ')
+    out(' = call ')
+    out_t(t)
     out_xpr(fx)
     write_xpr_list(argxs)
     newline()
 
-def expr_call(f, args):
+def expr_call(e, f, args):
+    t = typeof(e)
     m = match(f)
     if m('Bind(BindBuiltin(b))'):
         b = m.arg
@@ -246,27 +261,27 @@ def expr_call(f, args):
         assert len(args) == 2, '%s requires two args' % (op,)
         left = express(args[0])
         right = express(args[1])
-        m.ret(expr_binop(op, left, right))
+        m.ret(expr_binop(op, left, right, t))
     elif m('Bind(BindVar(v))'):
         v = m.arg
         tmp = temp_reg_named(extrinsic(Name, v))
-        write_call(tmp, f, args)
+        write_call(tmp, f, args, t)
         m.ret(tmp)
     else:
         tmp = temp_reg()
-        write_call(tmp, f, args)
+        write_call(tmp, f, args, t)
         m.ret(tmp)
     return m.result()
 
 def write_xpr_list(args):
     out('(')
     first = True
-    for arg in args:
+    for arg, t in args:
         if first:
             first = False
         else:
             comma()
-        out('i32 ')
+        out_t(t)
         out_xpr(arg)
     out(')')
 
@@ -290,16 +305,15 @@ def expr_strlit(lit):
     return tmp
 
 def expr_tuple_lit(ts):
-    xs = map(express, ts)
-    args = ', '.join('i32 %s' % (xpr_str(x),) for x in xs)
-    return Const('{ %s }' % (args,))
+    xs = ['%s %s' % (t_str(typeof(t)), express(t)) for t in ts]
+    return Const('{ %s }' % (', '.join(xs),))
 
 def express(expr):
     return match(expr,
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
         ('Bind(BindCtor(c))', expr_bind_ctor),
         ('Bind(BindVar(v))', expr_bind_var),
-        ('Call(f, args)', expr_call),
+        ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
@@ -351,7 +365,7 @@ def write_assign(lhs, e):
 def write_augassign(op, lhs, e):
     right = express(e)
     left = load_lhs(lhs)
-    ex = expr_binop(aug_op(op), left, right)
+    ex = expr_binop(aug_op(op), left, right, typeof(e))
     store_lhs(lhs, ex)
 
 def write_break():
@@ -447,20 +461,25 @@ def write_extrinsic_stmt(extr):
     out(extrinsic(Name, extr))
 
 def write_top_func(f, ps, body):
+    tps, tret = match(extrinsic(TypeOf, f),
+        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+    assert len(ps) == len(tps)
+
     clear_indent()
-    out('define i32 ')
+    out('define ')
+    out_t(tret)
     out_func_ref(f)
 
     # param temporaries
     out('(')
     first = True
     tmps = []
-    for p in ps:
+    for p, tp in zip(ps, tps):
         if first:
             first = False
         else:
             comma()
-        out('i32 ')
+        out_t(tp)
         tmp = temp_reg_named(extrinsic(Name, p))
         out_xpr(tmp)
         tmps.append(tmp)
@@ -471,14 +490,16 @@ def write_top_func(f, ps, body):
 
     if len(ps) > 0:
         # write params to mem
-        for p, tmp in zip(ps, tmps):
+        for p, tmp, tp in zip(ps, tmps, tps):
             out_name_reg(p)
-            out(' = alloca i32')
+            out(' = alloca ')
+            out_t(tp)
             newline()
-            out('store i32 ')
+            out('store ')
+            out_t(tp)
             out_xpr(tmp)
             comma()
-            out('i32* ')
+            out_t(IPtr(tp))
             out_name_reg(p)
             newline()
         newline()
@@ -489,7 +510,8 @@ def write_top_func(f, ps, body):
 
 def write_return(expr):
     ex = express(expr)
-    out('ret i32 ')
+    out('ret ')
+    out_t(typeof(expr))
     out_xpr(ex)
 
 def write_while(cond, body):
