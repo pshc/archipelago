@@ -15,6 +15,7 @@ IR = new_env('IR', IRInfo)
 
 IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('needIndent', bool),
+                          ('unreachable', bool),
                           ('tempCtr', int),
                           ('labelCtrs', {str: int}),
                           ('loopLabels', 'Maybe((Label, Label))'))
@@ -26,7 +27,7 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals([], False, 0, {}, Nothing())
+    return IRLocals([], False, False, 0, {}, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -66,7 +67,9 @@ def flush(lcl):
 
 def out(s):
     lcl = env(LOCALS)
-    if lcl.needIndent:
+    if lcl.unreachable:
+        pass
+    elif lcl.needIndent:
         env(LOCALS).chunks.append(IRStr('  %s' % (s,)))
         clear_indent()
     else:
@@ -90,16 +93,20 @@ def out_func_ref(f):
     out(func_ref(f))
 
 def out_label(label):
-    env(LOCALS).chunks.append(IRLabel(label))
-    env(LOCALS).needIndent = True
+    lcl = env(LOCALS)
+    lcl.chunks.append(IRLabel(label))
+    lcl.needIndent = True
+    lcl.unreachable = False
 
 def out_label_ref(label):
-    env(LOCALS).chunks.append(IRLabelRef(label))
+    lcl = env(LOCALS)
+    if not lcl.unreachable:
+        lcl.chunks.append(IRLabelRef(label))
 
 def out_br_label(label):
     out('br ')
     out_label_ref(label)
-    newline()
+    term()
 
 def out_xpr(x):
     out(xpr_str(x))
@@ -123,6 +130,10 @@ def newline():
         env(LOCALS).needIndent = True
     else:
         imm_out('\n')
+
+def term():
+    newline()
+    env(LOCALS).unreachable = True
 
 def comma():
     out(', ')
@@ -487,9 +498,7 @@ def write_top_func(f, ps, body):
         tmp = temp_reg_named(extrinsic(Name, p))
         out_xpr(tmp)
         tmps.append(tmp)
-    out(')')
-
-    out(' {')
+    out(') {')
     newline()
 
     if len(ps) > 0:
@@ -510,6 +519,7 @@ def write_top_func(f, ps, body):
 
     write_body(body)
     clear_indent()
+    env(LOCALS).unreachable = False
     out('}\n')
 
 def write_return(expr):
@@ -517,6 +527,7 @@ def write_return(expr):
     out('ret ')
     out_t(typeof(expr))
     out_xpr(ex)
+    term()
 
 def write_while(cond, body):
     begin = new_label('loop')
