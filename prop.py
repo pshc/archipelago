@@ -122,7 +122,8 @@ def generalize_type(t):
     return _gen_type(t)
 
 def unification_failure(e1, e2, msg):
-    desc = fmtcol("^DG^Couldn't unify^N {0!r}\n^DG^with^N {1!r}", e1, e2)
+    desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
+            type(e1), e1, type(e2), e2)
     assert False, with_context(desc, msg)
 
 def unify_tuples(t1, list1, t2, list2, desc):
