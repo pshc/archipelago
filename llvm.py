@@ -639,7 +639,13 @@ def as_local(f):
     in_env(LOCALS, lcl, f)
     flush(lcl)
 
+prelude = """
+declare void @fail(i8*) noreturn
+
+"""
+
 def write_unit(unit):
+    imm_out(prelude)
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
