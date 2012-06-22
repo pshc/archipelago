@@ -163,6 +163,7 @@ def convert_type(t):
         ("TVar(_)", lambda: IVoidPtr()),
         ("TFunc(_, _)", lambda: IVoidPtr()),
         ("TData(_)", lambda: IVoidPtr()),
+        ("TApply(_, _, _)", lambda: IVoidPtr()),
         ("TTuple(_)", lambda: IVoidPtr()))
 
 def typeof(e):

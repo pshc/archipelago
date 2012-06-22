@@ -95,6 +95,16 @@ def instantiate(site, v):
     t = extrinsic(TypeOf, v)
     return instantiate_type(site, t)
 
+def gen_tdata(dt, ats):
+    assert len(ats) == len(dt.tvars)
+    t = TData(dt)
+    for at, v in zip(ats, dt.tvars):
+        same = match(at, ('CVar(tv)', lambda tv: tv is v),
+                         ('_', lambda: False))
+        if not same:
+            t = TApply(t, v, generalize_type(at))
+    return t
+
 def _gen_type(s):
     return match(s,
         ('CVar(tv)', TVar),
@@ -104,7 +114,7 @@ def _gen_type(s):
         ('CAnyTuple()', TAnyTuple),
         ('CFunc(ps, r)', lambda ps, r:
                 TFunc(map(_gen_type, ps), _gen_type(r))),
-        ('CData(dt, _)', TData),
+        ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))))
 
@@ -298,16 +308,33 @@ def _prop_expr(e):
 def check_expr(t, e):
     in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
 
+def check_lhs_attr(s, f):
+    pass # TODO
+
+def check_lhs_var(lhs, v):
+    unify_m(instantiate(lhs, v))
+
 def check_lhs(tv, lhs):
     in_env(CHECK, tv, lambda: match(lhs,
-        ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
-        ("LhsVar(v)", lambda v: instantiate(tv, v)),
-        ("_", lambda: unknown_prop(lhs))))
+        ("LhsAttr(s, f)", check_lhs_attr),
+        ("lhs==LhsVar(v)", check_lhs_var)))
 
-def prop_lhs(a):
-    #tv = fresh()
-    #check_lhs(tv, a)
-    return tv
+def prop_lhs_attr(lhs, s, f):
+    dt = prop_lhs(s)
+
+    # XXX: really ought to have some kind of field->DT lookup
+    for ctor in dt.ctors:
+        if f in ctor.fields:
+            break
+    else:
+        assert False, "%s is not a field in %s" % (f, dt)
+
+    return instantiate(lhs, f.type)
+
+def prop_lhs(lhs):
+    return match(lhs,
+        ("lhs==LhsAttr(s, f)", prop_lhs_attr),
+        ("lhs==LhsVar(v)", instantiate))
 
 def prop_DT(form):
     dtT = TData(form)
@@ -331,13 +358,13 @@ def prop_defn(a, e):
     m = match(e)
     if m("FuncExpr(f)"):
         f = m.arg
-        set_type(a, extrinsic(TypeOf, f))
-        prop_expr(e)
+        t = extrinsic(TypeOf, f)
+        set_type(a, t)
+        check_expr(instantiate_type(e, t), e)
     else:
         set_type(a, generalize_type(prop_expr(e)))
 
 def prop_assign(a, e):
-    return # TEMP
     t = prop_lhs(a)
     check_expr(t, e)
 
