@@ -500,20 +500,34 @@ def write_defn(v, e):
     out_t_ptr(t)
     out_name_reg(v)
 
-def field_specs(fields):
-    fs = ('%s %s' % (t_str(convert_type(f.type)), extrinsic(Name, f))
-          for f in fields)
-    return '{ %s }' % (', '.join(fs),)
+def write_field_specs(fields):
+    out('{ ')
+    first = True
+    for f in fields:
+        if not first:
+            comma()
+        else:
+            first = False
+        out_t(convert_type(f.type))
+        out(extrinsic(Name, f))
+    out(' }')
 
 def write_dtstmt(form):
-    clear_indent()
     if len(form.ctors) > 1:
+        for ctor in form.ctors:
+            clear_indent()
+            out_name_reg(ctor)
+            out(' = type ')
+            write_field_specs(ctor.fields)
+            newline()
+        clear_indent()
         out('; skipping %')
         out_name_reg(form)
     else:
+        clear_indent()
         out_name_reg(form)
         out(' = type ')
-        out(field_specs(form.ctors[0].fields))
+        write_field_specs(form.ctors[0].fields)
 
 def write_expr_stmt(e):
     ex = express(e)
