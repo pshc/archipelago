@@ -39,8 +39,7 @@ def is_const(x):
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
-BindingReplacement = DT('BindingReplacement', ('replacement', Xpr))
-Replacement = new_extrinsic('Replacement', BindingReplacement)
+Replacement = new_extrinsic('Replacement', Xpr)
 
 # OUTPUT
 
@@ -399,22 +398,20 @@ def write_cond(cs, else_):
         write_body(fromJust(else_))
     out_label(endif)
 
-def has_static_replacement(v, e):
+def check_static_replacement(v, f):
     if has_extrinsic(Replacement, v):
         return True
-    m = match(e)
-    if m('FuncExpr(f)'):
-        f = m.arg
-        if has_extrinsic(expand.VarUsage, v):
-            if extrinsic(expand.VarUsage, v).isReassigned:
-                return False
-        add_extrinsic(Replacement, v, Const(func_ref(f)))
-        return True
-    return False
+    if has_extrinsic(expand.VarUsage, v):
+        if extrinsic(expand.VarUsage, v).isReassigned:
+            return False
+    add_extrinsic(Replacement, v, Const(func_ref(f)))
+    return True
+
+def write_func_defn(v, e, f):
+    if not check_static_replacement(v, f):
+        write_defn(v, e)
 
 def write_defn(v, e):
-    if has_static_replacement(v, e):
-        return
     ex = express(e)
     out_name_reg(v)
     out(' = alloca ')
@@ -528,6 +525,7 @@ def write_stmt(stmt):
         ("Break()", write_break),
         ("Continue()", write_continue),
         ("Cond(cs, else_)", write_cond),
+        ("Defn(v, e==FuncExpr(f))", write_func_defn),
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
@@ -536,6 +534,10 @@ def write_stmt(stmt):
 
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
+
+def write_top_var_func(v, f):
+    check_static_replacement(v, f)
+    write_top_func(f, f.params, f.body)
 
 def write_top_strlit(var, s):
     ir = env(IR)
@@ -555,7 +557,7 @@ def escape_strlit(s):
 
 def write_top(top):
     match(top,
-        ("TopDefn(_, FuncExpr(f==Func(ps, body)))", write_top_func),
+        ("TopDefn(v, FuncExpr(f))", write_top_var_func),
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
         ("TopExtrinsic(extr)", write_extrinsic_stmt))

@@ -88,10 +88,9 @@ def ex_call(f, args):
 
 def ex_funcexpr(f):
     info = ex_func(f.params, f.body)
-    if not matches(env(EXFUNC), 'ExStaticDefn()'):
-        isClosure = len(info.closedVars) > 0
-        push_expansion(ExSurfacedFunc(f))
-        add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
+    isClosure = len(info.closedVars) > 0
+    push_expansion(ExSurfacedFunc(f))
+    add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
 def ex_match_case(c):
     pass
@@ -221,7 +220,7 @@ def ex_body(body):
 
 def ex_top_func(v, f):
     add_extrinsic(Name, f, extrinsic(Name, v))
-    in_env(EXFUNC, ExStaticDefn(), lambda: ex_funcexpr(f))
+    in_env(EXFUNC, ExStaticDefn(), lambda: ex_func(f.params, f.body))
 
 def ex_top_defn(e):
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
