@@ -107,6 +107,7 @@ def _var(n): return TVar(n)
 # Tuples are a shortcut for functions
 builtins_types = {
     'True': TBool, 'False': TBool,
+    'not': (TBool, TBool),
     'ord': (TChar, TInt),
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '/': (TInt, TInt, TInt),

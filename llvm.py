@@ -10,7 +10,7 @@ Label = DT('Label', ('name', str),
 IRChunk, IRStr, IRLabel, IRLabelRef = ADT('IRChunk',
         'IRStr', ('str', str),
         'IRLabel', ('label', '*Label'),
-        'IRLabelRef', ('label', '*Label'))
+        'IRLabelRef', ('label', '*Label'), ('naked', bool))
 
 IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
@@ -75,7 +75,8 @@ def flush(lcl):
             ('IRStr(s)', identity),
             ('IRLabel(lbl)', lambda l: '%s:\n' % (label_str(l),)
                                        if l.used else ''),
-            ('IRLabelRef(lbl)', lambda l: 'label %%%s' % (label_str(l),))
+            ('IRLabelRef(l, True)', lambda l: '%%%s' % (label_str(l),)),
+            ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (label_str(l),))
         ))
 
 def out(s):
@@ -86,7 +87,7 @@ def out(s):
         block = fromJust(lcl.pendingBlock)
         if block.needsJumpInto:
             # Blocks can't implicitly fall-through to the next block, so jump
-            ref = IRLabelRef(block.label)
+            ref = IRLabelRef(block.label, False)
             block.label.used = True
             lcl.chunks += [IRStr('  br '), ref, IRStr('\n')]
         lcl.chunks.append(IRLabel(block.label))
@@ -124,17 +125,15 @@ def out_label(label):
     lcl.needTerminator = True
     lcl.unreachable = False
 
-def out_label_ref(label):
+def out_naked_label_ref(label, naked):
     lcl = env(LOCALS)
     assert isNothing(lcl.pendingBlock), "Unexpected label ref after label"
     if not lcl.unreachable:
-        lcl.chunks.append(IRLabelRef(label))
+        lcl.chunks.append(IRLabelRef(label, naked))
         label.used = True
 
-def out_br_label(label):
-    out('br ')
-    out_label_ref(label)
-    term()
+def out_label_ref(label):
+    out_naked_label_ref(label, False)
 
 def out_xpr(x):
     out(xpr_str(x))
@@ -202,6 +201,39 @@ def collapse_label_indirection(label):
         i.replacedBy = Just(label)
     return label
 
+# INSTRUCTIONS
+
+def out_br_label(label):
+    out('br ')
+    out_label_ref(label)
+    term()
+
+def br_cond(cond, true, false):
+    out('br i1 ')
+    out_xpr(cond)
+    comma()
+    out_label_ref(true)
+    comma()
+    out_label_ref(false)
+    term()
+
+def phi2(reg, t, e1, lbl1, e2, lbl2):
+    out_xpr(reg)
+    out(' = phi ')
+    out_t(t)
+    out('[ ')
+    out_xpr(e1)
+    comma()
+    out_naked_label_ref(lbl1, True)
+    out(' ]')
+    comma()
+    out('[ ')
+    out_xpr(e2)
+    comma()
+    out_naked_label_ref(lbl2, True)
+    out(' ]')
+    newline()
+
 def store_named(t, xpr, named):
     out('store ')
     out_t(t)
@@ -209,6 +241,14 @@ def store_named(t, xpr, named):
     comma()
     out_t_ptr(t)
     out_name_reg(named)
+
+def store_xpr(t, val, dest):
+    out('store ')
+    out_t(t)
+    out_xpr(val)
+    comma()
+    out_t_ptr(t)
+    out_xpr(dest)
 
 # TYPES
 
@@ -259,6 +299,60 @@ def out_t_nospace(t):
 
 # EXPRESSIONS
 
+def expr_and(l, r):
+    entry = new_label('and')
+    out_label(entry)
+    left = express(l)
+    both = new_label('both')
+    end = new_label('endand')
+    br_cond(left, both, end)
+    # left was true
+    out_label(both)
+    right = express(r)
+    out_br_label(end)
+    # short-circuit with phi
+    out_label(end)
+    truth = temp_reg_named('and')
+    phi2(truth, IBool(), right, both, Const('false'), entry)
+    return truth
+
+def expr_or(l, r):
+    entry = new_label('or')
+    out_label(entry)
+    left = express(l)
+    both = new_label('both')
+    end = new_label('endor')
+    br_cond(left, end, both)
+    # left was false
+    out_label(both)
+    right = express(r)
+    out_br_label(end)
+    # short-circuit with phi
+    out_label(end)
+    truth = temp_reg_named('or')
+    phi2(truth, IBool(), right, both, Const('true'), entry)
+    return truth
+
+def expr_ternary(c, t, f):
+    cond = express(c)
+    yes = new_label('yes')
+    no = new_label('no')
+    end = new_label('endternary')
+    br_cond(cond, yes, no)
+
+    out_label(yes)
+    true = express(t)
+    out_br_label(end)
+
+    out_label(no)
+    false = express(f)
+    out_br_label(end)
+
+    out_label(end)
+    result = temp_reg_named('either')
+    phi2(result, typeof(t), true, yes, false, no)
+    return result
+
 def expr_bind_builtin(b):
     return match(b,
         ('key("True")', lambda: Const('true')),
@@ -278,6 +372,12 @@ def expr_bind_var(v):
     newline()
     return tmp
 
+def una_op(b):
+    # grr boilerplate
+    return match(b,
+        ('key("not")', lambda: 'not'),
+        ('_', lambda: ''))
+
 def bin_op(b):
     # grr boilerplate
     return match(b,
@@ -285,8 +385,7 @@ def bin_op(b):
         ('key("-")', lambda: 'sub'),
         ('key("*")', lambda: 'mul'),
         ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
-        ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'),
-        ('_', lambda: ''))
+        ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'))
 
 def aug_op(b):
     return match(b,
@@ -295,6 +394,20 @@ def aug_op(b):
         ('AugMultiply()', lambda: 'mul'),
         ('AugDivide()', lambda: 'sdiv'), # or udiv...
         ('AugModulo()', lambda: 'srem')) # or urem...
+
+def expr_unary(op, arg, t):
+    assert op == 'not'
+    assert matches(t, 'IBool()')
+    if is_const(arg):
+        return ConstOp('sub', [Const(1), arg], t)
+    else:
+        tmp = temp_reg_named(op)
+        out_xpr(tmp)
+        out(' = sub i1 1')
+        comma()
+        out_xpr(arg)
+        newline()
+        return tmp
 
 def expr_binop(op, left, right, t):
     if is_const(left) and is_const(right):
@@ -325,12 +438,17 @@ def expr_call(e, f, args):
     m = match(f)
     if m('Bind(BindBuiltin(b))'):
         b = m.arg
-        op = bin_op(b)
-        assert op != '', 'Unknown builtin %s' % (b,)
-        assert len(args) == 2, '%s requires two args' % (op,)
-        left = express(args[0])
-        right = express(args[1])
-        m.ret(expr_binop(op, left, right, typeof(args[0])))
+        op = una_op(b)
+        if op != '':
+            assert len(args) == 1, '%s is unary' % (op,)
+            arg = express(args[0])
+            m.ret(expr_unary(op, arg, typeof(args[0])))
+        else:
+            op = bin_op(b)
+            assert len(args) == 2, '%s requires two args' % (op,)
+            left = express(args[0])
+            right = express(args[1])
+            m.ret(expr_binop(op, left, right, typeof(args[0])))
     elif m('Bind(BindVar(v))'):
         v = m.arg
         tmp = temp_reg_named(extrinsic(Name, v))
@@ -379,14 +497,17 @@ def expr_tuple_lit(ts):
 
 def express(expr):
     return match(expr,
+        ('And(l, r)', expr_and),
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
         ('Bind(BindCtor(c))', expr_bind_ctor),
         ('Bind(BindVar(v))', expr_bind_var),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
+        ('Or(l, r)', expr_or),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('lit==StrLit(_)', expr_strlit),
+        ('Ternary(c, l, r)', expr_ternary),
         ('TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
@@ -395,13 +516,7 @@ def write_assert(e, msg):
     ex = express(e)
     pass_ = new_label('pass')
     fail_ = new_label('fail')
-    out('br i1 ')
-    out_xpr(ex)
-    comma()
-    out_label_ref(pass_)
-    comma()
-    out_label_ref(fail_)
-    term()
+    br_cond(ex, pass_, fail_)
     out_label(fail_)
     m = express(msg)
     out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
@@ -449,23 +564,15 @@ def write_cond(cs, else_):
         if isJust(elif_):
             out_label(fromJust(elif_))
         ex = express(case.test)
-        out('br i1 ')
-        out_xpr(ex)
-        comma()
         then = new_label('then')
-        out_label_ref(then)
-        comma()
+        e = endif
         if i + 1 < n:
             e = new_label('elif')
-            out_label_ref(e)
             elif_ = Just(e)
         elif haveElse:
             e = new_label('else')
-            out_label_ref(e)
             else_label = Just(e)
-        else:
-            out_label_ref(endif)
-        term()
+        br_cond(ex, then, e)
         out_label(then)
         write_body(case.body)
         if i < n - 1 or haveElse:
@@ -603,13 +710,7 @@ def write_while(cond, body):
 
     out_label(begin)
     ex = express(cond)
-    out('br i1 ')
-    out_xpr(ex)
-    comma()
-    out_label_ref(body_label)
-    comma()
-    out_label_ref(exit)
-    term()
+    br_cond(ex, body_label, exit)
     out_label(body_label)
     write_body(body)
     out_br_label(begin)

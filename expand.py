@@ -86,6 +86,15 @@ def ex_call(f, args):
     ex_expr(f)
     map_(ex_expr, args)
 
+def ex_logic(l, r):
+    ex_expr(l)
+    ex_expr(r)
+
+def ex_ternary(c, t, f):
+    ex_expr(c)
+    ex_expr(t)
+    ex_expr(f)
+
 def ex_funcexpr(f):
     info = ex_func(f.params, f.body)
     isClosure = len(info.closedVars) > 0
@@ -124,6 +133,8 @@ def ex_expr(e):
         ("IntLit(_)", nop),
         ("lit==StrLit(s)", ex_strlit),
         ("Call(f, args)", ex_call),
+        ("And(l, r) or Or(l, r)", ex_logic),
+        ("Ternary(c, t, f)", ex_ternary),
         ("FuncExpr(f)", ex_funcexpr),
         ("TupleLit(ts)", lambda ts: map_(ex_expr, ts)),
         ("ListLit(ls)", lambda ls: map_(ex_expr, ls)),

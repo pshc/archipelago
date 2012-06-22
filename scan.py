@@ -17,6 +17,11 @@ def scan_logic(l, r):
     scan_expr(l)
     scan_expr(r)
 
+def scan_ternary(c, t, f):
+    scan_expr(c)
+    scan_expr(t)
+    scan_expr(f)
+
 def scan_func(f, ps, b):
     tvars = {}
     ft = parse_new_type(extrinsic(AstType, f), tvars)
@@ -103,6 +108,7 @@ def _scan_expr(e):
         ("ListLit(ss)", lambda ss: map_(scan_expr, ss)),
         ("Call(f, s)", scan_call),
         ("And(l, r) or Or(l, r)", scan_logic),
+        ("Ternary(c, t, f)", scan_ternary),
         ("FuncExpr(f==Func(ps, b))", scan_func),
         ("Match(_, _)", scan_match),
         ("Attr(s, f==Field(ft))", scan_attr),

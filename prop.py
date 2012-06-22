@@ -230,9 +230,15 @@ def prop_call(f, s):
     return ft.funcRet
 
 def prop_logic(l, r):
-    check_expr(TBool(), l)
-    check_expr(TBool(), r)
-    return TBool()
+    check_expr(CBool(), l)
+    check_expr(CBool(), r)
+    return CBool()
+
+def prop_ternary(c, t, f):
+    check_expr(CBool(), c)
+    tt = prop_expr(t)
+    check_expr(tt, f)
+    return tt
 
 def prop_func(e, f, ps, b):
     tvars = {}
@@ -291,8 +297,8 @@ def _prop_expr(e):
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
         ("ListLit(ss)", lambda ts: CList(map(prop_expr, ts))),
         ("Call(f, s)", prop_call),
-        ("And(l, r)", prop_logic),
-        ("Or(l, r)", prop_logic),
+        ("And(l, r) or Or(l, r)", prop_logic),
+        ("Ternary(c, t, f)", prop_ternary),
         ("e==FuncExpr(f==Func(ps, b))", prop_func),
         ("m==Match(p, cs)", prop_match),
         ("Attr(s, f==Field(ft))", prop_attr),
