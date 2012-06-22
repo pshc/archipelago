@@ -135,6 +135,10 @@ def ex_expr(e):
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
 
+def ex_func_defn(v, e, f):
+    add_extrinsic(Name, f, extrinsic(Name, v))
+    ex_defn(v, e)
+
 def ex_defn(v, e):
     # a little redundant...
     add_extrinsic(LocalVar, v, VarInfo(env(EXFUNC)))
@@ -205,6 +209,7 @@ def ex_returnnothing():
 def ex_stmt(s):
     match(s,
         ("ExprStmt(e)", ex_expr),
+        ("Defn(var, e==FuncExpr(f))", ex_func_defn),
         ("Defn(var, e)", ex_defn),
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
