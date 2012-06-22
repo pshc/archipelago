@@ -253,8 +253,8 @@ def out_t_nospace(t):
 
 def expr_bind_builtin(b):
     return match(b,
-        ('key("True")', lambda: Const('1')),
-        ('key("False")', lambda: Const('0')))
+        ('key("True")', lambda: Const('true')),
+        ('key("False")', lambda: Const('false')))
 
 def expr_bind_ctor(c):
     return Const(func_ref(c))
