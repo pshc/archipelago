@@ -2,7 +2,10 @@ from atom import *
 import expand
 import sys
 
-Label = DT('Label', ('name', str), ('index', int))
+Label = DT('Label', ('name', str),
+                    ('index', int),
+                    ('used', bool),
+                    ('replacedBy', 'Maybe(Label)'))
 
 IRChunk, IRStr, IRLabel, IRLabelRef = ADT('IRChunk',
         'IRStr', ('str', str),
@@ -17,6 +20,7 @@ IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('needIndent', bool),
                           ('unreachable', bool),
                           ('tempCtr', int),
+                          ('pendingLabel', 'Maybe(Label)'),
                           ('labelCtrs', {str: int}),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
@@ -27,7 +31,7 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals([], False, False, 0, {}, Nothing())
+    return IRLocals([], False, False, 0, Nothing(), {}, Nothing())
 
 Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -51,6 +55,7 @@ def imm_out(s):
 
 def flush(lcl):
     def label_str(label):
+        label = collapse_label_indirection(label)
         # Unique labels don't need an index
         if label.index == 0 and lcl.labelCtrs[label.name] == 1:
             return label.name
@@ -61,19 +66,23 @@ def flush(lcl):
     for chunk in chunks:
         imm_out(match(chunk,
             ('IRStr(s)', identity),
-            ('IRLabel(lbl)', lambda l: '%s:\n' % (label_str(l),)),
+            ('IRLabel(lbl)', lambda l: '%s:\n' % (label_str(l),)
+                                       if l.used else ''),
             ('IRLabelRef(lbl)', lambda l: 'label %%%s' % (label_str(l),))
         ))
 
 def out(s):
     lcl = env(LOCALS)
     if lcl.unreachable:
-        pass
-    elif lcl.needIndent:
-        env(LOCALS).chunks.append(IRStr('  %s' % (s,)))
+        return
+    if isJust(lcl.pendingLabel):
+        lcl.chunks.append(IRLabel(fromJust(lcl.pendingLabel)))
+        lcl.pendingLabel = Nothing()
+    if lcl.needIndent:
+        lcl.chunks.append(IRStr('  %s' % (s,)))
         clear_indent()
     else:
-        env(LOCALS).chunks.append(IRStr(s))
+        lcl.chunks.append(IRStr(s))
 
 def out_name(a):
     out(extrinsic(Name, a))
@@ -94,14 +103,18 @@ def out_func_ref(f):
 
 def out_label(label):
     lcl = env(LOCALS)
-    lcl.chunks.append(IRLabel(label))
+    if isJust(lcl.pendingLabel):
+        fromJust(lcl.pendingLabel).replacedBy = Just(label)
+    lcl.pendingLabel = Just(label)
     lcl.needIndent = True
     lcl.unreachable = False
 
 def out_label_ref(label):
     lcl = env(LOCALS)
+    assert isNothing(lcl.pendingLabel), "Unexpected label ref after label"
     if not lcl.unreachable:
         lcl.chunks.append(IRLabelRef(label))
+        label.used = True
 
 def out_br_label(label):
     out('br ')
@@ -126,6 +139,8 @@ def clear_indent():
 
 def newline():
     if have_env(LOCALS):
+        if isJust(env(LOCALS).pendingLabel):
+            return
         out('\n')
         env(LOCALS).needIndent = True
     else:
@@ -153,8 +168,22 @@ def temp_reg_named(nm):
 def new_label(nm):
     lcl = env(LOCALS)
     ctr = lcl.labelCtrs.get(nm, 0)
-    label = Label(nm, ctr)
+    label = Label(nm, ctr, False, Nothing())
     lcl.labelCtrs[nm] = ctr + 1
+    return label
+
+def collapse_label_indirection(label):
+    if isNothing(label.replacedBy):
+        return label
+    indirect = []
+    prev = label
+    label = fromJust(label.replacedBy)
+    while isJust(label.replacedBy):
+        label = fromJust(label.replacedBy)
+        indirect.append(prev)
+        prev = label
+    for i in indirect:
+        i.replacedBy = Just(label)
     return label
 
 # TYPES
