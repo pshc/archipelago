@@ -148,9 +148,10 @@ def new_label(nm):
 
 # TYPES
 
-IType, IInt, IBool, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IBool, IVoid, IPtr, IVoidPtr = ADT('IType',
         'IInt',
         'IBool',
+        'IVoid',
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
@@ -158,6 +159,7 @@ def convert_type(t):
     return match(t,
         ("TPrim(PInt())", lambda: IInt()),
         ("TPrim(PBool())", lambda: IBool()),
+        ("TVoid()", lambda: IVoid()),
         ("TVar(_)", lambda: IVoidPtr()),
         ("TFunc(_, _)", lambda: IVoidPtr()),
         ("TData(_)", lambda: IVoidPtr()),
@@ -178,6 +180,7 @@ def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
         ("IBool()", lambda: "i1"),
+        ("IVoid()", lambda: "void"),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
 
