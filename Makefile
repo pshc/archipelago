@@ -20,10 +20,13 @@ opt:
 views:
 	mkdir $@
 
+ir/z.o: z.c
+	cc -c -o $@ $^
+
 views/tests_%: tests/%.py dirs
 	$(CODEGEN) $<
 
-remake_tests: dirs
+remake_tests: dirs ir/z.o
 	$(CODEGEN) $(TESTS)
 
 test: remake_tests

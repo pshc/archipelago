@@ -797,10 +797,14 @@ def write_ir(filename, prog):
 
 def compile(ll, binary):
     bc = ll + '.bc'
-    if os.system('llvm-as < %s | opt -mem2reg > %s' % (ll, bc)) == 0:
-        if os.system('llvm-ld -o %s %s' % (binary, bc)) == 0:
-            return True
-    return False
+    s = ll + '.s'
+    if os.system('llvm-as < %s | opt -mem2reg > %s' % (ll, bc)) != 0:
+        return False
+    if os.system('llc -disable-cfi -o %s %s' % (s, bc)) != 0:
+        return False
+    if os.system('cc -o %s ir/z.o %s' % (binary, s)) != 0:
+        return False
+    return True
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])
