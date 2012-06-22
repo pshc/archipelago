@@ -525,6 +525,12 @@ def match_try(atom, ast):
             return named_matcher(atom, ast)
         assert False, "Unknown match: %s (%s)" % (ast.node.name, ast.args)
     elif isinstance(ast, compiler.ast.Name):
+        if ast.name == 'True':
+            assert isinstance(atom, bool)
+            return [] if atom else None
+        elif ast.name == 'False':
+            assert isinstance(atom, bool)
+            return None if atom else []
         # Just a simple variable name match; always succeeds
         return [] if ast.name == '_' else [atom]
     elif isinstance(ast, compiler.ast.Const):
