@@ -29,6 +29,8 @@ IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
 
 LOCALS = new_env('LOCALS', IRLocals)
 
+EXPORT = new_env('EXPORT', bool)
+
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
     return IRInfo(stream, 0)
@@ -529,6 +531,8 @@ def write_top_func(f, ps, body):
 
     clear_indent()
     out('define ')
+    if not env(EXPORT):
+        out('internal ')
     out_t(tret)
     out_func_ref(f)
 
@@ -671,11 +675,11 @@ def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
-                as_local(lambda: match(ex,
+                in_env(EXPORT, False, lambda: as_local(lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
-                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func)))
+                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))))
                 newline()
-        as_local(lambda: write_top(top))
+        in_env(EXPORT, True, lambda: as_local(lambda: write_top(top)))
 
 def write_ir(filename, prog):
     in_env(IR, setup_ir(filename),
