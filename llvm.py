@@ -253,10 +253,11 @@ def store_xpr(t, val, dest):
 
 # TYPES
 
-IType, IInt, IBool, IVoid, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IBool, IVoid, IData, IPtr, IVoidPtr = ADT('IType',
         'IInt',
         'IBool',
         'IVoid',
+        'IData', ('datatype', '*DataType'),
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
@@ -267,7 +268,7 @@ def convert_type(t):
         ("TVoid()", lambda: IVoid()),
         ("TVar(_)", lambda: IVoidPtr()),
         ("TFunc(_, _)", lambda: IVoidPtr()),
-        ("TData(_)", lambda: IVoidPtr()),
+        ("TData(dt)", IData),
         ("TApply(_, _, _)", lambda: IVoidPtr()),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(_)", lambda: IVoidPtr()))
@@ -288,6 +289,7 @@ def t_str(t):
         ("IInt()", lambda: "i32"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
+        ("IData(dt)", lambda dt: "%%%s*" % extrinsic(Name, dt)),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
 
