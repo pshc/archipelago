@@ -504,7 +504,7 @@ def conv_name(e):
 @expr(ast.Or)
 def conv_or(e):
     assert len(e.nodes) == 2
-    return Or(conv_exprs(e.nodes))
+    return Or(*conv_exprs(e.nodes))
 
 @expr(ast.Slice)
 def conv_slice(e):
