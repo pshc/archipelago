@@ -42,4 +42,4 @@ test: remake_tests
 .PHONY: all clean debug dirs llvm remake_tests test
 
 clean:
-	rm -f -- bin/ ir/ mods/ opt/ views/ *.pyc *.bc hello a.out
+	rm -rf -- bin/ ir/ mods/ opt/ views/ *.pyc *.bc hello a.out
