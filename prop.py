@@ -7,7 +7,7 @@ from globs import TypeOf
 TypeCast = new_extrinsic('TypeCast', (Type, Type))
 FieldDT = new_extrinsic('FieldDT', '*DataType')
 
-PROP = new_env('PROP', '*Type')
+CHECK = new_env('CHECK', '*Type')
 
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
@@ -162,20 +162,20 @@ def _unify(e1, e2):
         ("_", lambda: fail("type mismatch")))
 
 def unify_m(e):
-    unify(env(PROP), e)
+    unify(env(CHECK), e)
 
 def set_type(e, t):
     assert isinstance(t, Type), "%s is not a type" % (t,)
     add_extrinsic(TypeOf, e, t)
 
 def pat_tuple(ps):
-    ts = match(env(PROP), ("CTuple(ps)", identity))
+    ts = match(env(CHECK), ("CTuple(ps)", identity))
     assert len(ps) == len(ts), "Tuple pattern length mismatch"
     for p, t in zip(ps, ts):
-        in_env(PROP, t, lambda: prop_pat(p))
+        in_env(CHECK, t, lambda: prop_pat(p))
 
 def pat_var(v):
-    set_type(v, generalize_type(env(PROP)))
+    set_type(v, generalize_type(env(CHECK)))
 
 def pat_capture(v, p):
     pat_var(v)
@@ -187,7 +187,7 @@ def pat_ctor(ref, ctor, args):
     unify_m(dt)
     assert len(args) == len(fieldTs), "Wrong ctor param count"
     for arg, fieldT in zip(args, fieldTs):
-        in_env(PROP, fieldT, lambda: prop_pat(arg))
+        in_env(CHECK, fieldT, lambda: prop_pat(arg))
 
 def prop_pat(p):
     # bad type, meh
@@ -246,7 +246,7 @@ def prop_match(m, e, cs):
     for c in cs:
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         def prop_case():
-            in_env(PROP, et, lambda: prop_pat(cp))
+            in_env(CHECK, et, lambda: prop_pat(cp))
             rt = prop_expr(ce)
             retT = env(PROPSCOPE).retType
             if isJust(retT):
@@ -296,7 +296,7 @@ def check_expr(t, e):
     unify(t, prop_expr(e))
 
 def check_lhs(tv, lhs):
-    in_env(PROP, tv, lambda: match(lhs,
+    in_env(CHECK, tv, lambda: match(lhs,
         ("LhsAttr(s, f)", lambda s, f: check_attr_lhs(s, f, lhs)),
         ("LhsVar(v)", lambda v: instantiate(tv, v)),
         ("_", lambda: unknown_prop(lhs))))
