@@ -218,6 +218,7 @@ def convert_type(t):
         ("TFunc(_, _)", lambda: IVoidPtr()),
         ("TData(_)", lambda: IVoidPtr()),
         ("TApply(_, _, _)", lambda: IVoidPtr()),
+        ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(_)", lambda: IVoidPtr()))
 
 def typeof(e):
@@ -497,6 +498,11 @@ def write_defn(v, e):
     out_t_ptr(t)
     out_name_reg(v)
 
+def field_specs(fields):
+    fs = ('%s %s' % (t_str(convert_type(f.type)), extrinsic(Name, f))
+          for f in fields)
+    return '{ %s }' % (', '.join(fs),)
+
 def write_dtstmt(form):
     clear_indent()
     if len(form.ctors) > 1:
@@ -504,10 +510,8 @@ def write_dtstmt(form):
         out_name_reg(form)
     else:
         out_name_reg(form)
-        out(' = type { ')
-        ctor = form.ctors[0]
-        out(', '.join('i32 %s' % (extrinsic(Name, f),) for f in ctor.fields))
-        out(' }')
+        out(' = type ')
+        out(field_specs(form.ctors[0].fields))
 
 def write_expr_stmt(e):
     ex = express(e)
