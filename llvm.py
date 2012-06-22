@@ -263,15 +263,15 @@ IType, IInt, IBool, IVoid, IData, IPtr, IVoidPtr = ADT('IType',
 
 def convert_type(t):
     return match(t,
-        ("TPrim(PInt())", lambda: IInt()),
-        ("TPrim(PBool())", lambda: IBool()),
-        ("TVoid()", lambda: IVoid()),
-        ("TVar(_)", lambda: IVoidPtr()),
-        ("TFunc(_, _)", lambda: IVoidPtr()),
+        ("TPrim(PInt())", IInt),
+        ("TPrim(PBool())", IBool),
+        ("TVoid()", IVoid),
+        ("TVar(_)", IVoidPtr),
+        ("TFunc(_, _)", IVoidPtr),
         ("TData(dt)", IData),
-        ("TApply(_, _, _)", lambda: IVoidPtr()),
+        ("TApply(_, _, _)", IVoidPtr),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
-        ("TTuple(_)", lambda: IVoidPtr()))
+        ("TTuple(_)", IVoidPtr))
 
 def typeof(e):
     if has_extrinsic(TypeOf, e):
