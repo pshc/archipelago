@@ -78,7 +78,7 @@ def flush(lcl):
     for chunk in chunks:
         imm_out(match(chunk,
             ('IRStr(s)', identity),
-            ('IRLabel(lbl)', lambda l: '%s:\n' % (label_str(l),)
+            ('IRLabel(lbl)', lambda l: '\n%s:\n' % (label_str(l),)
                                        if l.used else ''),
             ('IRLabelRef(l, True)', lambda l: '%%%s' % (label_str(l),)),
             ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (label_str(l),))
