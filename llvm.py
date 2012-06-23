@@ -681,10 +681,11 @@ def write_ctor(ctor, dt):
     out_t_ptr(t)
     out_func_ref(ctor)
     fts = [convert_type(f.type) for f in ctor.fields]
-    tmps = write_params(ctor.fields, fts)
     if env(DECLSONLY):
+        write_param_types(fts)
         newline()
         return
+    tmps = write_params(ctor.fields, fts)
     out(' {')
     newline()
     # compile-time sizeof
@@ -764,6 +765,17 @@ def write_extrinsic_stmt(extr):
     out(extrinsic(Name, extr))
     newline()
 
+def write_param_types(tps):
+    out('(')
+    first = True
+    for t in tps:
+        if first:
+            first = False
+        else:
+            comma()
+        out_t_nospace(t)
+    out(')')
+
 def write_params(ps, tps):
     out('(')
     first = True
@@ -794,10 +806,11 @@ def write_top_func(f, ps, body):
             out('internal ')
     out_t(tret)
     out_func_ref(f)
-    tmps = write_params(ps, tps)
     if env(DECLSONLY):
+        write_param_types(tps)
         newline()
         return
+    tmps = write_params(ps, tps)
     out(' {')
     newline()
 
