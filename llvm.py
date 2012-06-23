@@ -251,6 +251,7 @@ def store_named(t, xpr, named):
     comma()
     out_t_ptr(t)
     out_name_reg(named)
+    newline()
 
 def store_xpr(t, val, dest):
     out('store ')
@@ -259,6 +260,7 @@ def store_xpr(t, val, dest):
     comma()
     out_t_ptr(t)
     out_xpr(dest)
+    newline()
 
 def get_field_ptr(ex, t, f):
     fieldptr = temp_reg_named(extrinsic(Name, f))
@@ -270,6 +272,7 @@ def get_field_ptr(ex, t, f):
     out('i32 0')
     comma()
     out('i32 %d' % (extrinsic(expand.FieldIndex, f),))
+    newline()
     return fieldptr
 
 # TYPES
@@ -509,7 +512,6 @@ def expr_match(m, e, cs):
 def expr_attr(e, f):
     ex = express(e)
     fieldptr = get_field_ptr(ex, typeof(e), f)
-    newline()
     val = temp_reg_named(extrinsic(Name, f))
     out_xpr(val)
     out(' = load ')
@@ -568,7 +570,6 @@ def store_var(v, xpr):
 def store_attr(dest, f, val):
     ex = express(dest)
     fieldptr = get_field_ptr(ex, typeof(dest), f)
-    newline()
     store_xpr(convert_type(f.type), val, fieldptr)
 
 def store_lhs(lhs, x):
@@ -682,6 +683,7 @@ def write_ctor(ctor, dt):
     fts = [convert_type(f.type) for f in ctor.fields]
     tmps = write_params(ctor.fields, fts)
     if env(DECLSONLY):
+        newline()
         return
     out(' {')
     newline()
@@ -718,7 +720,6 @@ def write_ctor(ctor, dt):
         i += 1
         accum = new_val
     store_xpr(t, accum, inst)
-    newline()
 
     out('ret ')
     out_t_ptr(t)
@@ -726,6 +727,7 @@ def write_ctor(ctor, dt):
     newline()
     clear_indent()
     out('}')
+    newline()
 
 def write_dtstmt(form):
     if len(form.ctors) > 1:
@@ -736,10 +738,10 @@ def write_dtstmt(form):
             write_field_specs(ctor.fields)
             newline()
             write_ctor(ctor, form)
-            newline()
         clear_indent()
         out('; skipping %')
         out_name_reg(form)
+        newline()
     else:
         clear_indent()
         out_name_reg(form)
@@ -748,6 +750,9 @@ def write_dtstmt(form):
         write_field_specs(ctor.fields)
         newline()
         write_ctor(ctor, form)
+    if not env(DECLSONLY):
+        clear_indent()
+        newline()
 
 def write_expr_stmt(e):
     ex = express(e)
@@ -757,6 +762,7 @@ def write_extrinsic_stmt(extr):
     clear_indent()
     out('; extrinsic ')
     out(extrinsic(Name, extr))
+    newline()
 
 def write_params(ps, tps):
     out('(')
@@ -803,7 +809,6 @@ def write_top_func(f, ps, body):
             out_t(tp)
             newline()
             store_named(tp, tmp, p)
-            newline()
         newline()
 
     write_body(body)
@@ -815,7 +820,7 @@ def write_top_func(f, ps, body):
         if last_block.label.used:
             out('ret void')
             term()
-    lcl.chunks.append(IRStr('}\n'))
+    lcl.chunks.append(IRStr('}\n\n'))
 
 def write_return(expr):
     ex = express(expr)
@@ -856,7 +861,6 @@ def write_stmt(stmt):
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
         ("While(c, b)", write_while))
-    newline()
 
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
@@ -875,6 +879,7 @@ def write_top_strlit(var, s):
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
     out('%s = internal constant %s' % (global_ref(var), escaped))
+    newline()
 
 def escape_strlit(s):
     b = s.encode('utf-8')
@@ -891,7 +896,6 @@ def write_top(top):
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
         ("TopExtrinsic(extr)", write_extrinsic_stmt))
-    newline()
 
 def as_local(f):
     lcl = setup_locals()
@@ -905,14 +909,14 @@ def write_unit(unit):
                 in_env(EXPORTSYMS, False, lambda: as_local(lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
                     ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))))
-                newline()
+            newline()
         in_env(EXPORTSYMS, True, lambda: as_local(lambda: write_top(top)))
 
 def write_unit_decls(unit):
     for top in unit.tops:
         as_local(lambda: write_top(top))
 
-prelude = """
+prelude = """; prelude
 declare i8* @malloc(i32)
 declare void @fail(i8*) noreturn
 
