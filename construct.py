@@ -66,7 +66,7 @@ def _do_mod(mod, name):
     expand.expand_module(mod)
 
     ll = 'ir/' + name + '.ll'
-    llvm.write_ir(ll, mod.root)
+    llvm.write_ir(ll, mod)
     if name.startswith('tests_'):
         import os
         try:

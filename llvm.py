@@ -32,6 +32,8 @@ LOCALS = new_env('LOCALS', IRLocals)
 
 EXPORTSYMS = new_env('EXPORTSYMS', bool)
 
+DECLSONLY = new_env('DECLSONLY', bool)
+
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
     return IRInfo(stream, 0)
@@ -647,30 +649,40 @@ def write_defn(v, e):
     store_named(t, ex, v)
 
 def write_field_specs(fields):
-    out('{')
-    newline()
+    verbose = not env(DECLSONLY)
+    if verbose:
+        out('{')
+        newline()
+    else:
+        out('{ ')
     n = len(fields)
     for i, f in enumerate(fields):
         out_t_nospace(convert_type(f.type))
         if i < n - 1:
             comma()
-        else:
+        elif verbose:
             out('  ')
-        out('; %s' % (extrinsic(Name, f),))
-        newline()
-    clear_indent()
-    out('}')
+        if verbose:
+            out('; %s' % (extrinsic(Name, f),))
+            newline()
+    if verbose:
+        clear_indent()
+        out('}')
+    else:
+        out(' }')
 
 def write_ctor(ctor, dt):
     t = IData(dt)
     inst = temp_reg_named(extrinsic(Name, dt))
 
     clear_indent()
-    out('define ')
+    out('declare ' if env(DECLSONLY) else 'define ')
     out_t_ptr(t)
     out_func_ref(ctor)
     fts = [convert_type(f.type) for f in ctor.fields]
     tmps = write_params(ctor.fields, fts)
+    if env(DECLSONLY):
+        return
     out(' {')
     newline()
     # compile-time sizeof
@@ -768,12 +780,18 @@ def write_top_func(f, ps, body):
     assert len(ps) == len(tps)
 
     clear_indent()
-    out('define ')
-    if not env(EXPORTSYMS):
-        out('internal ')
+    if env(DECLSONLY):
+        out('declare ')
+    else:
+        out('define ')
+        if not env(EXPORTSYMS):
+            out('internal ')
     out_t(tret)
     out_func_ref(f)
     tmps = write_params(ps, tps)
+    if env(DECLSONLY):
+        newline()
+        return
     out(' {')
     newline()
 
@@ -844,7 +862,8 @@ def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
 
 def write_top_var_func(v, f):
-    check_static_replacement(v, f)
+    if not env(DECLSONLY):
+        check_static_replacement(v, f)
     write_top_func(f, f.params, f.body)
 
 def write_top_strlit(var, s):
@@ -879,14 +898,7 @@ def as_local(f):
     in_env(LOCALS, lcl, f)
     flush(lcl)
 
-prelude = """
-declare i8* @malloc(i32)
-declare void @fail(i8*) noreturn
-
-"""
-
 def write_unit(unit):
-    imm_out(prelude)
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
@@ -896,11 +908,42 @@ def write_unit(unit):
                 newline()
         in_env(EXPORTSYMS, True, lambda: as_local(lambda: write_top(top)))
 
-def write_ir(filename, prog):
+def write_unit_decls(unit):
+    for top in unit.tops:
+        as_local(lambda: write_top(top))
+
+prelude = """
+declare i8* @malloc(i32)
+declare void @fail(i8*) noreturn
+
+"""
+
+def write_imports(deps, seen):
+    for dep in deps:
+        if dep in seen:
+            continue
+        seen.add(dep)
+        write_imports(extrinsic(ModDeps, dep), seen)
+
+        dt = match(dep.rootType, ('TData(dt)', identity))
+        if dt is DATATYPES['CompilationUnit'].__form__:
+            imm_out('; %s' % (extrinsic(Name, dep),))
+            newline()
+            in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
+
+def write_ir(filename, mod):
+    def go():
+        imm_out(prelude)
+        write_imports(extrinsic(ModDeps, mod), set())
+        newline()
+        imm_out('; main')
+        newline()
+        in_env(DECLSONLY, False, lambda: write_unit(mod.root))
+
     in_env(IR, setup_ir(filename),
         lambda: scope_extrinsic(Replacement,
         lambda: scope_extrinsic(LiteralSize,
-        lambda: write_unit(prog))))
+        go)))
 
 def compile(ll, binary):
     bc = ll + '.bc'
