@@ -9,6 +9,7 @@ Dict = DT('Dict', ('contents', [('k', 'v')]))
 
 Module = DT('Module', ('rootType', 'Type'), ('root', 'a'))
 ModDigest = new_extrinsic('ModDigest', str)
+ModDeps = new_extrinsic('ModDeps', '[*Module]')
 
 @annot('a -> a')
 def identity(val): return hint(val, a='a')

@@ -137,30 +137,42 @@ def _inspect_node(node):
         for sub in node:
             _inspect_node(sub)
 
+def _cmp_digest(a, b):
+    return cmp(extrinsic(ModDigest, a), extrinsic(ModDigest, b))
+
+ModInspection = DT('ModInspection', ('atomCount', int),
+                                    ('deps', ['*Module']))
+
+def inspect(module):
+    inspect = InspectState(module, 0, set())
+    in_env(Inspection, inspect, lambda: _inspect_node(module.root))
+    deps = list(inspect.deps)
+    deps.sort(_cmp_digest)
+    return ModInspection(inspect.count, deps)
+
 def serialize(module):
     assert not has_extrinsic(ModDigest, module)
     temp = '/tmp/serialize'
     hash = sha256()
-    def index():
-        inspect = InspectState(module, 0, set())
-        in_env(Inspection, inspect, lambda: _inspect_node(module.root))
-        f = file(temp, 'wb')
-        deps = []
-        depmap = {module: 0}
-        byDigest = [(extrinsic(ModDigest, mod), mod) for mod in inspect.deps]
-        for digest, mod in sorted(byDigest):
-            deps.append(digest)
-            depmap[mod] = len(deps) # one-based
-        state = SerialState(f, hash, 0, depmap)
-        def go():
-            _write(_encode_int(len(deps)))
-            map_(_write, deps)
-            in_env(SAPPS, {},
-                    lambda: _serialize_node(module.root, module.rootType))
-        in_env(Serialize, state, go)
-        f.close()
-        return inspect.count
-    count = index()
+
+    inspection = inspect(module)
+    deps = inspection.deps
+    add_extrinsic(ModDeps, module, deps)
+    depmap = {module: 0}
+    for i, mod in enumerate(deps):
+        depmap[mod] = i + 1 # one-based
+
+    f = file(temp, 'wb')
+    state = SerialState(f, hash, 0, depmap)
+    def go():
+        _write(_encode_int(len(deps)))
+        for dep in deps:
+            _write(extrinsic(ModDigest, dep))
+        in_env(SAPPS, {},
+                lambda: _serialize_node(module.root, module.rootType))
+    in_env(Serialize, state, go)
+    f.close()
+
     hex = hash.digest().encode('hex')
     name = extrinsic(Name, module)
     add_extrinsic(ModDigest, module, hex)
@@ -172,7 +184,7 @@ def serialize(module):
     f = file('opt/%s_count' % (hex,), 'wb')
     state = SerialState(f, sha256(), 0, None)
     def write_opt_count():
-        _write(_encode_int(count))
+        _write(_encode_int(inspection.atomCount))
     in_env(Serialize, state, write_opt_count)
     f.close()
     system('ln -sf -- %s_count opt/%s_count' % (hex, name))

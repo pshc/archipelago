@@ -37,8 +37,9 @@ def load_module_dep(filename, deps):
         deps.add(mod)
         return mod
     loaded_modules[name] = None
+    names = {}
+
     def conv_mod():
-        names = {}
         mod = capture_extrinsic(Name, names,
             lambda: astconv.convert_file(filename, name, deps))
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name])
@@ -50,14 +51,14 @@ def load_module_dep(filename, deps):
         prop.prop_types(mod.root)
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
 
-        native.serialize(mod)
-        names_mod = extrinsic_mod(Name, names, mod)
-        native.serialize(names_mod)
-
         return mod
     mod = scope_extrinsic(InstMap,
             lambda: scope_extrinsic(astconv.AstType,
             lambda: scope_extrinsic(astconv.AstHint, conv_mod)))
+
+    native.serialize(mod)
+    names_mod = extrinsic_mod(Name, names, mod)
+    native.serialize(names_mod)
 
     return expand.in_expansion_env(lambda: _do_mod(mod, name))
 
@@ -240,9 +241,10 @@ def main():
         lambda: scope_extrinsic(Location,
         lambda: scope_extrinsic(ModIndex,
         lambda: scope_extrinsic(ModDigest,
+        lambda: scope_extrinsic(ModDeps,
         lambda: scope_extrinsic(TypeOf,
         lambda: load_files(files)
-    )))))
+    ))))))
 
 if __name__ == '__main__':
     main()
