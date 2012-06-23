@@ -688,7 +688,25 @@ def write_ctor(ctor, dt):
     out_t_nospace(IPtr(t))
     newline()
 
-    # TODO: Write initial field values
+    accum = Const('undef')
+    assert len(fts) == len(tmps)
+    i = 0
+    for ft, tmp in zip(fts, tmps):
+        new_val = temp_reg_named('vals')
+        out_xpr(new_val)
+        out(' = insertvalue ')
+        out_t(t)
+        out_xpr(accum)
+        comma()
+        out_t(ft)
+        out_xpr(tmp)
+        comma()
+        out('%d' % (i,))
+        newline()
+        i += 1
+        accum = new_val
+    store_xpr(t, accum, inst)
+    newline()
 
     out('ret ')
     out_t_ptr(t)
