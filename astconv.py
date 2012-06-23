@@ -617,8 +617,8 @@ def conv_ass(s):
         return Just(LhsTuple([conv_ass(n) for n in s.nodes]))
     elif isinstance(s, ast.AssAttr):
         expra = conv_expr(s.expr)
-        attra = ident_ref(s.attrname, True, export=False)
-        return Just(LhsAttr([expra, attra]))
+        # Don't know the type, have to look up the field later...
+        return Just(LhsAttr(expra, s.attrname))
     else:
         assert False, "Can't convert %s" % (s,)
 

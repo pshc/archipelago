@@ -315,33 +315,30 @@ def _prop_expr(e):
 def check_expr(t, e):
     in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
 
-def check_lhs_attr(s, f):
-    pass # TODO
-
-def check_lhs_var(lhs, v):
-    unify_m(instantiate(lhs, v))
-
-def check_lhs(tv, lhs):
-    in_env(CHECK, tv, lambda: match(lhs,
-        ("LhsAttr(s, f)", check_lhs_attr),
-        ("lhs==LhsVar(v)", check_lhs_var)))
-
 def prop_lhs_attr(lhs, s, f):
-    dt = prop_lhs(s)
+    t = prop_expr(s)
+    dt, ts = match(t, ('CData(dt, ts)', tuple2))
 
-    # XXX: really ought to have some kind of field->DT lookup
+    # TEMP: resolve the field name now that we have type info
+    real_field = None
     for ctor in dt.ctors:
-        if f in ctor.fields:
-            break
-    else:
-        assert False, "%s is not a field in %s" % (f, dt)
+        for field in ctor.fields:
+            if extrinsic(Name, field) == f:
+                assert real_field == None, "Ambiguous field ref %s" % (f,)
+                real_field = field
+    assert real_field is not None, "%s is not a field in %s" % (f, dt)
+    lhs.attr = f = real_field
 
-    return instantiate(lhs, f.type)
+    # TODO: Take tvs into account
+    return instantiate_type(lhs, f.type)
 
 def prop_lhs(lhs):
     return match(lhs,
         ("lhs==LhsAttr(s, f)", prop_lhs_attr),
         ("lhs==LhsVar(v)", instantiate))
+
+def check_lhs(t, lhs):
+    unify(t, prop_lhs(lhs))
 
 def prop_DT(form):
     dtT = TData(form)

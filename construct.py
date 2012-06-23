@@ -43,15 +43,16 @@ def load_module_dep(filename, deps):
             lambda: astconv.convert_file(filename, name, deps))
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name])
 
-        native.serialize(mod)
-        names_mod = extrinsic_mod(Name, names, mod)
-        native.serialize(names_mod)
-
         scan.scan_root(mod.root)
         atom.write_mod_repr('views/' + name + '.txt', mod,
                 [Name, TypeOf, InstMap])
+
         prop.prop_types(mod.root)
         atom.write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
+
+        native.serialize(mod)
+        names_mod = extrinsic_mod(Name, names, mod)
+        native.serialize(names_mod)
 
         return mod
     mod = scope_extrinsic(InstMap,

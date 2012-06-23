@@ -116,10 +116,21 @@ def _scan_expr(e):
         ("InEnv(env, init, f)", scan_inenv),
         ("Bind(b)", scan_binding)))
 
+def scan_lhs_attr(e, f):
+    scan_expr(e)
+    # Ideally with type info here we would fix f. Deferred to prop for now.
+
+def scan_lhs(lhs):
+    match(lhs,
+        ("lhs==LhsVar(v)", instantiate),
+        ("LhsAttr(e, f)", scan_lhs_attr))
+
 def scan_assign(lhs, e):
+    scan_lhs(lhs)
     scan_expr(e)
 
 def scan_augassign(lhs, e):
+    scan_lhs(lhs)
     scan_expr(e)
 
 def scan_cond(cases, else_):

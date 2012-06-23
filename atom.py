@@ -72,7 +72,7 @@ Func = DT('Func', ('params', [Var]), ('body', Body))
 
 Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
-        'LhsAttr', ('sub', 'Lhs'), ('attr', '*Field'),
+        'LhsAttr', ('sub', Expr), ('attr', '*Field'),
         'LhsTuple', ('vals', '[Lhs]'))
 
 Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \

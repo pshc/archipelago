@@ -44,6 +44,8 @@ VarUsage = new_extrinsic('VarUsage', VarUsageInfo)
 VarInfo = DT('VarInfo', ('function', ExFunc))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
+FieldIndex = new_extrinsic('FieldIndex', int)
+
 def top_scope():
     return ExScope(new_flow(), [], {}, Nothing())
 
@@ -162,7 +164,7 @@ def ex_assign(a, e):
 
 def ex_lhs(a):
     match(a,
-        ("LhsAttr(s, _)", ex_lhs),
+        ("LhsAttr(s, _)", ex_expr),
         ("LhsVar(v)", ex_lhs_var))
 
 def ex_lhs_var(v):
@@ -241,17 +243,22 @@ def ex_top_func(v, f):
 def ex_top_defn(e):
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
 
+def ex_dt(dt):
+    for ctor in dt.ctors:
+        for ix, field in enumerate(ctor.fields):
+            add_extrinsic(FieldIndex, field, ix)
+
 def ex_top_level(s):
     match(s,
         ("TopDefn(v, FuncExpr(f))", ex_top_func),
         ("TopDefn(_, e)", ex_top_defn),
-        ("TopDT(_)", nop),
+        ("TopDT(dt)", ex_dt),
         ("TopEnv(_)", nop),
         ("TopExtrinsic(_)", nop))
 
 def in_expansion_env(func):
     captures = {}
-    extrs = [Expansion, Closure, ExpandedDecl, VarUsage]
+    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, FieldIndex]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(mod):

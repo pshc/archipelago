@@ -531,9 +531,25 @@ def write_assert(e, msg):
 def store_var(v, xpr):
     store_named(typeof(v), xpr, v)
 
+def store_attr(dest, f, val):
+    ex = express(dest)
+    t = extrinsic(TypeOf, dest)
+    fieldptr = temp_reg_named(extrinsic(Name, f))
+    out_xpr(fieldptr)
+    out(' = getelementptr ')
+    out_t(convert_type(t))
+    out_xpr(ex)
+    comma()
+    out('i32 0')
+    comma()
+    out('i32 %d' % (extrinsic(expand.FieldIndex, f),))
+    newline()
+    store_xpr(convert_type(f.type), val, fieldptr)
+
 def store_lhs(lhs, x):
     match(lhs,
-        ('LhsVar(v)', lambda v: store_var(v, x)))
+        ('LhsVar(v)', lambda v: store_var(v, x)),
+        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
 def load_lhs(lhs):
     return match(lhs,
