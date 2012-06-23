@@ -170,7 +170,7 @@ def in_extrinsic_scope(ext):
     return bool(ext.stack)
 
 def add_extrinsic(ext, obj, val):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     map = ext.stack[-1]
     assert obj not in map, "%r already has %s extrinsic" % (obj, ext.label)
@@ -181,7 +181,7 @@ def add_extrinsic(ext, obj, val):
         cap[obj] = val
 
 def update_extrinsic(ext, obj, val):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     map = ext.stack[-1]
     assert obj in map, "%r doesn't have %s extrinsic yet" % (obj, ext.label)
@@ -192,7 +192,7 @@ def update_extrinsic(ext, obj, val):
         cap[obj] = val
 
 def has_extrinsic(ext, obj):
-    assert not isinstance(obj, value_types), "No extrinsics on values"
+    assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     return obj in ext.stack[-1]
 
