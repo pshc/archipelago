@@ -287,7 +287,7 @@ def convert_type(t):
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
         ("TFunc(_, _)", IVoidPtr),
-        ("TData(dt)", IData),
+        ("TData(dt)", lambda t: IPtr(IData(t))),
         ("TApply(_, _, _)", IVoidPtr),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(_)", IVoidPtr))
@@ -308,7 +308,7 @@ def t_str(t):
         ("IInt()", lambda: "i32"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
-        ("IData(dt)", lambda dt: "%%%s*" % extrinsic(Name, dt)),
+        ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
 
@@ -667,7 +667,7 @@ def write_ctor(ctor, dt):
 
     clear_indent()
     out('define ')
-    out_t(t)
+    out_t_ptr(t)
     out_func_ref(ctor)
     fts = [convert_type(f.type) for f in ctor.fields]
     tmps = write_params(ctor.fields, fts)
@@ -675,9 +675,9 @@ def write_ctor(ctor, dt):
     newline()
     # compile-time sizeof
     out('%sizeof = ptrtoint ')
-    out_t(t)
+    out_t_ptr(t)
     out('getelementptr(')
-    out_t(t)
+    out_t_ptr(t)
     out('null, i32 1) to i32')
     newline()
 
@@ -685,13 +685,13 @@ def write_ctor(ctor, dt):
     newline()
     out_xpr(inst)
     out(' = bitcast i8* %inst to ')
-    out_t_nospace(t)
+    out_t_nospace(IPtr(t))
     newline()
 
     # TODO: Write initial field values
 
     out('ret ')
-    out_t(t)
+    out_t_ptr(t)
     out_xpr(inst)
     newline()
     clear_indent()
