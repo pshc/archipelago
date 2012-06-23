@@ -39,15 +39,17 @@ def setup_ir(filename):
 def setup_locals():
     return IRLocals([], False, True, False, 0, Nothing(), {}, Nothing())
 
-Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
+Xpr, Reg, Tmp, ConstStruct, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
+        'ConstStruct', ('vals', ['(IType, Xpr)']),
         'Const', ('frag', 'str'),
         'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']))
 
 def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
+        ('ConstStruct(_)', lambda: True),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
 Replacement = new_extrinsic('Replacement', Xpr)
@@ -142,12 +144,17 @@ def out_xpr(x):
 def xpr_str(x):
     return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
+                    ('ConstStruct(vals)', conststruct_str),
                     ('Const(s)', identity),
                     ('ConstOp(f, args)', constop_str))
 
 def constop_str(f, args):
     ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in args)
     return '%s (%s)' % (f, ', '.join(ss))
+
+def conststruct_str(vals):
+    ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in vals)
+    return '{ %s }' % (', '.join(ss),)
 
 def clear_indent():
     env(LOCALS).needIndent = False
