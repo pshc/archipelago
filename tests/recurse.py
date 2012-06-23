@@ -9,5 +9,5 @@ def fact(a):
 
 @annot('void -> int')
 def main():
-    assert fact(10) == 322560, "Factorial"
+    assert fact(10) == 3628800, "Factorial"
     return 0
