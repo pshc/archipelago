@@ -251,6 +251,18 @@ def store_xpr(t, val, dest):
     out_t_ptr(t)
     out_xpr(dest)
 
+def get_field_ptr(ex, t, f):
+    fieldptr = temp_reg_named(extrinsic(Name, f))
+    out_xpr(fieldptr)
+    out(' = getelementptr ')
+    out_t(t)
+    out_xpr(ex)
+    comma()
+    out('i32 0')
+    comma()
+    out('i32 %d' % (extrinsic(expand.FieldIndex, f),))
+    return fieldptr
+
 # TYPES
 
 IType, IInt, IBool, IVoid, IData, IPtr, IVoidPtr = ADT('IType',
@@ -485,6 +497,18 @@ def expr_match(m, e, cs):
     #for c in cs:
     #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
 
+def expr_attr(e, f):
+    ex = express(e)
+    fieldptr = get_field_ptr(ex, typeof(e), f)
+    newline()
+    val = temp_reg_named(extrinsic(Name, f))
+    out_xpr(val)
+    out(' = load ')
+    out_t_ptr(convert_type(f.type))
+    out_xpr(fieldptr)
+    newline()
+    return val
+
 def expr_strlit(lit):
     info = extrinsic(expand.ExpandedDecl, lit)
     tmp = temp_reg()
@@ -507,6 +531,7 @@ def express(expr):
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('m==Match(p, cs)', expr_match),
+        ('Attr(e, f)', expr_attr),
         ('Or(l, r)', expr_or),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('lit==StrLit(_)', expr_strlit),
@@ -533,16 +558,7 @@ def store_var(v, xpr):
 
 def store_attr(dest, f, val):
     ex = express(dest)
-    t = extrinsic(TypeOf, dest)
-    fieldptr = temp_reg_named(extrinsic(Name, f))
-    out_xpr(fieldptr)
-    out(' = getelementptr ')
-    out_t(convert_type(t))
-    out_xpr(ex)
-    comma()
-    out('i32 0')
-    comma()
-    out('i32 %d' % (extrinsic(expand.FieldIndex, f),))
+    fieldptr = get_field_ptr(ex, typeof(dest), f)
     newline()
     store_xpr(convert_type(f.type), val, fieldptr)
 

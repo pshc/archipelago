@@ -5,4 +5,4 @@ Isle = DT('Isle', ('area', int))
 def main():
     isle = Isle(1)
     isle.area = 0
-    return 0
+    return isle.area

@@ -274,9 +274,15 @@ def prop_match(m, e, cs):
         retT = in_new_scope(retT, prop_case)
     return fromJust(retT)
 
-def prop_attr(s, f, ft):
-    check_expr(CData(extrinsic(FieldDT, f), []), s) # XXX
-    return ft
+def prop_attr(e, s, f):
+    t = prop_expr(s)
+    dt, ts = match(t, ('CData(dt, ts)', tuple2))
+
+    # TEMP: resolve the field name now that we have type info
+    e.field = resolve_field_by_name(dt, f)
+
+    # TODO: Take tvs into account
+    return instantiate_type(e, e.field.type)
 
 def prop_getenv(environ):
     return stuff
@@ -301,7 +307,7 @@ def _prop_expr(e):
         ("Ternary(c, t, f)", prop_ternary),
         ("e==FuncExpr(f==Func(ps, b))", prop_func),
         ("m==Match(p, cs)", prop_match),
-        ("Attr(s, f==Field(ft))", prop_attr),
+        ("e==Attr(s, f)", prop_attr),
         ("GetEnv(environ)", prop_getenv),
         ("InEnv(environ, init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
@@ -315,11 +321,7 @@ def _prop_expr(e):
 def check_expr(t, e):
     in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
 
-def prop_lhs_attr(lhs, s, f):
-    t = prop_expr(s)
-    dt, ts = match(t, ('CData(dt, ts)', tuple2))
-
-    # TEMP: resolve the field name now that we have type info
+def resolve_field_by_name(dt, f):
     real_field = None
     for ctor in dt.ctors:
         for field in ctor.fields:
@@ -327,10 +329,17 @@ def prop_lhs_attr(lhs, s, f):
                 assert real_field == None, "Ambiguous field ref %s" % (f,)
                 real_field = field
     assert real_field is not None, "%s is not a field in %s" % (f, dt)
-    lhs.attr = f = real_field
+    return real_field
+
+def prop_lhs_attr(lhs, s, f):
+    t = prop_expr(s)
+    dt, ts = match(t, ('CData(dt, ts)', tuple2))
+
+    # TEMP: resolve the field name now that we have type info
+    lhs.attr = resolve_field_by_name(dt, f)
 
     # TODO: Take tvs into account
-    return instantiate_type(lhs, f.type)
+    return instantiate_type(lhs, lhs.attr.type)
 
 def prop_lhs(lhs):
     return match(lhs,

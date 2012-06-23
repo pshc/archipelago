@@ -36,7 +36,8 @@ def scan_func(f, ps, b):
 def scan_match():
     pass
 
-def scan_attr(s, f, ft):
+def scan_attr(s, f):
+    # Can't resolve f without type info. Deferred to prop for now.
     scan_expr(s)
 
 def scan_getenv(e):
@@ -111,7 +112,7 @@ def _scan_expr(e):
         ("Ternary(c, t, f)", scan_ternary),
         ("FuncExpr(f==Func(ps, b))", scan_func),
         ("Match(_, _)", scan_match),
-        ("Attr(s, f==Field(ft))", scan_attr),
+        ("Attr(s, f)", scan_attr),
         ("GetEnv(env)", scan_getenv),
         ("InEnv(env, init, f)", scan_inenv),
         ("Bind(b)", scan_binding)))

@@ -468,7 +468,8 @@ def conv_genexprinner(e):
 
 @expr(ast.Getattr)
 def conv_getattr(e):
-    return Attr(conv_expr(e.expr), refs_existing(e.attrname))
+    # Resolve field name later
+    return Attr(conv_expr(e.expr), e.attrname)
 
 @expr(ast.IfExp)
 def conv_ifexp(e):
