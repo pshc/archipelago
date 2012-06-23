@@ -43,12 +43,12 @@ Xpr, Reg, Tmp, Const, ConstOp = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'Const', ('frag', 'str'),
-        'ConstOp', ('op', 'str'), ('args', ['Xpr']), ('type', 'IType'))
+        'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']))
 
 def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
-        ('Const(_)', lambda: True), ('ConstOp(_, _, _)', lambda: True))
+        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
 Replacement = new_extrinsic('Replacement', Xpr)
 
@@ -143,11 +143,11 @@ def xpr_str(x):
     return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
                     ('Const(s)', identity),
-                    ('ConstOp(f, args, t)', constop_str))
+                    ('ConstOp(f, args)', constop_str))
 
-def constop_str(f, args, t):
-    ts = t_str(t)
-    return '%s (%s)' % (f, ', '.join('%s %s' % (ts, xpr_str(r)) for r in args))
+def constop_str(f, args):
+    ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in args)
+    return '%s (%s)' % (f, ', '.join(ss))
 
 def clear_indent():
     env(LOCALS).needIndent = False
@@ -414,7 +414,7 @@ def expr_unary(op, arg, t):
     assert op == 'not'
     assert matches(t, 'IBool()')
     if is_const(arg):
-        return ConstOp('sub', [Const(1), arg], t)
+        return ConstOp('sub', [(t, Const(1)), (t, arg)])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
@@ -426,7 +426,7 @@ def expr_unary(op, arg, t):
 
 def expr_binop(op, left, right, t):
     if is_const(left) and is_const(right):
-        return ConstOp(op, [left, right], t)
+        return ConstOp(op, [(t, left), (t, right)])
     else:
         tmp = temp_reg_named(op.split(' ')[-1])
         out_xpr(tmp)
