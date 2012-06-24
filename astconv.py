@@ -177,7 +177,9 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
                   ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
     @expr(cls)
     def binop(e, o=op):
-        return symcall(o, [conv_expr(e.left), conv_expr(e.right)])
+        cs = e.getChildren()
+        assert len(cs) == 2
+        return symcall(o, [conv_expr(cs[0]), conv_expr(cs[1])])
 
 for (cls, sym) in {ast.UnaryAdd: 'positive',
                    ast.UnarySub: 'negate',

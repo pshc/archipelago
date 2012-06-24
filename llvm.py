@@ -469,6 +469,8 @@ def bin_op(b):
         ('key("+")', lambda: 'add'), ('key("-")', lambda: 'sub'),
         ('key("*")', lambda: 'mul'), ('key("//")', lambda: 'sdiv'),
         ('key("%")', lambda: 'srem'),
+        ('key("&")', lambda: 'and'), ('key("|")', lambda: 'or'),
+        ('key("^")', lambda: 'xor'),
         ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
         ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'))
 
