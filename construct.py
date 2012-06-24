@@ -86,7 +86,7 @@ def _do_mod(mod, test):
             pass
         if compiled:
             if llvm.link(mod):
-                print 'Linked %s' % (name,)
+                print col('Green', 'Linked'), name
 
     assert loaded_modules[name] is None
     loaded_modules[name] = mod
@@ -94,10 +94,8 @@ def _do_mod(mod, test):
 
 def load_module(filename):
     deps = set()
-    print 'Loading %s' % (filename,)
+    print col('DG', 'Loading'), filename
     mod = load_module_dep(filename, deps)
-    dep_names = ', '.join(extrinsic(Name, d) for d in deps)
-    print 'Loaded [%s] for %s' % (dep_names, filename)
     return (mod, deps)
 
 def resolve_forward_type_refs():
