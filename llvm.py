@@ -742,12 +742,12 @@ def write_field_specs(fields, discrim):
         out(' }')
 
 def write_ctor(ctor, dt, discrim):
-    t = IData(dt)
+    dtt = IData(dt)
     inst = temp_reg_named(extrinsic(Name, dt))
 
     clear_indent()
     out('declare ' if env(DECLSONLY) else 'define ')
-    out_t_ptr(t)
+    out_t_ptr(dtt)
     out_func_ref(ctor)
     fts = [convert_type(f.type) for f in ctor.fields]
     if env(DECLSONLY):
@@ -757,11 +757,13 @@ def write_ctor(ctor, dt, discrim):
     tmps = write_params(ctor.fields, fts)
     out(' {')
     newline()
+
+    ctort = IData(ctor)
     # compile-time sizeof
     out('%sizeof = ptrtoint ')
-    out_t_ptr(t)
+    out_t_ptr(ctort)
     out('getelementptr(')
-    out_t_ptr(t)
+    out_t_ptr(ctort)
     out('null, i32 1) to i32')
     newline()
 
@@ -769,7 +771,7 @@ def write_ctor(ctor, dt, discrim):
     newline()
     out_xpr(inst)
     out(' = bitcast i8* %inst to ')
-    out_t_nospace(IPtr(t))
+    out_t_nospace(IPtr(ctort))
     newline()
 
     if discrim:
@@ -783,7 +785,7 @@ def write_ctor(ctor, dt, discrim):
         new_val = temp_reg_named('vals')
         out_xpr(new_val)
         out(' = insertvalue ')
-        out_t(t)
+        out_t(ctort)
         out_xpr(accum)
         comma()
         out_t(ft)
@@ -793,11 +795,14 @@ def write_ctor(ctor, dt, discrim):
         newline()
         i += 1
         accum = new_val
-    store_xpr(t, accum, inst)
+    store_xpr(ctort, accum, inst)
 
+    ret = inst
+    if discrim:
+        ret = cast(ret, IPtr(ctort), IPtr(dtt))
     out('ret ')
-    out_t_ptr(t)
-    out_xpr(inst)
+    out_t_ptr(dtt)
+    out_xpr(ret)
     newline()
     clear_indent()
     out('}')
