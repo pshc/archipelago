@@ -200,30 +200,30 @@ DeserialState = DT('DeserialState',
 Deserialize = new_env('Deserialize', DeserialState)
 
 def _read_int():
-    # TODO: Check extension chars for prefix
     f = env(Deserialize).file
     a = ord(f.read(1))
     if a <= 0b01111111:
         return a
     elif a <= 0b10111111:
-        assert False, "Invalid extension char"
-    elif a <= 0b11011111:
         b = ord(f.read(1))
-        a = ((a & 0b00011111)<<6) | (b & 0b00111111)
-        assert a > 0b01111111
-        return a
+        a = ((a & 0b00111111)<<8) | b
+        return a + 0x80
+    elif a <= 0b11011111:
+        b, c = map(ord, f.read(2))
+        a = ((a & 0b00011111)<<16) | (b<<8) | c
+        return a + 0x4080
     elif a <= 0b11101111:
-        b, c = [ord(c) & 0b00111111 for c in f.read(2)]
-        a = ((a & 0b00001111)<<12) | (b<<6) | c
-        assert a > 0b11111111111
-        return a
-    elif a <= 0b11110111:
-        b, c, d = [ord(c) & 0b00111111 for c in f.read(3)]
-        a = ((a & 0b00000111)<<18) | (b<<12) | (c<<6) | d
-        assert a > 0b1111111111111111
+        b, c, d = map(ord, f.read(3))
+        a = ((a & 0b00001111)<<24) | (b<<16) | (c<<8) | d
+        return a + 0x204080
+    elif a == 0b11110000:
+        b, c, d, e = map(ord, f.read(4))
+        a = (b<<24) | (c<<16) | (d<<8) | e
+        a += 0x10204080
+        assert a < 0x100000000, "Int overflow"
         return a
     else:
-        assert False, "TODO"
+        assert False, "Int overflow"
 
 def _read_str():
     n = _read_int()
