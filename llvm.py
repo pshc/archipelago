@@ -1056,17 +1056,4 @@ def in_llvm_env(func):
     extrs = [LLFile, OFile]
     return capture_scoped(extrs, captures, func)
 
-def simple_test():
-    add = lambda a, b: symcall('+', [a, b])
-
-    body = []
-    func = Func([], Body(body))
-    add_extrinsic(Name, func, 'main')
-    foo = Var()
-    add_extrinsic(Name, foo, 'foo')
-    sum = add(Bind(BindVar(foo)), IntLit(1))
-    body += [Defn(foo, add(IntLit(40), IntLit(2))),
-             Return(sum)]
-    write_ir('ir/simple_test.ll', Body([FuncStmt(func)]))
-
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
