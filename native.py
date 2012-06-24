@@ -4,11 +4,13 @@ from globs import *
 from hashlib import sha256
 from os import system
 
+ModuleMeta = DT('ModuleMeta', ('count', int), ('deps', [str]))
+
 SerialState = DT('SerialState',
         ('file', file),
         ('hash', None),
-        ('index', int),
-        ('deps', {Module: int}))
+        ('count', int),
+        ('depmap', {Module: int}))
 
 Serialize = new_env('Serialize', SerialState)
 
@@ -30,9 +32,16 @@ def _write_ref(node, t):
     else:
         assert False, "%r is not a ref type" % (t,)
     loc = extrinsic(Location, node)
-    a = env(Serialize).deps[loc.module]
-    b = loc.index
-    _write(_encode_int(a) + _encode_int(b))
+    b = _encode_int(loc.index)
+    depmap = env(Serialize).depmap
+    if loc.module not in depmap:
+        # New module; new index
+        a = len(depmap)
+        depmap[loc.module] = a
+        _write(_encode_int(a) + extrinsic(ModDigest, loc.module) + b)
+    else:
+        # Existing module; refer by index
+        _write(_encode_int(depmap[loc.module]) + b)
 
 def _encode_int(n):
     if n < 0x80:
@@ -58,6 +67,7 @@ def _encode_str(s):
 
 def _serialize_node(node, t):
     if isinstance(node, Structured):
+        env(Serialize).count += 1
         # Collect instantiations
         apps = env(SAPPS).copy()
         while isinstance(t, TApply):
@@ -107,11 +117,7 @@ def _serialize_node(node, t):
     else:
         assert False, "Can't serialize %r" % (node,)
 
-InspectState = DT('InspectState',
-        ('module', '*Module'),
-        ('count', int),
-        ('deps', set([str])),
-        )
+InspectState = DT('InspectState', ('module', '*Module'), ('count', int))
 
 Inspection = new_env('Inspection', InspectState)
 
@@ -125,13 +131,7 @@ def _inspect_node(node):
         assert isinstance(form, Ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
-            if isinstance(field.type, TWeak):
-                # Record this ref's target digest
-                if has_extrinsic(Location, sub):
-                    mod = extrinsic(Location, sub).module
-                    if mod != state.module:
-                        state.deps.add(mod)
-            else:
+            if not isinstance(field.type, TWeak):
                 _inspect_node(sub)
     elif isinstance(node, list):
         for sub in node:
@@ -144,50 +144,44 @@ ModInspection = DT('ModInspection', ('atomCount', int),
                                     ('deps', ['*Module']))
 
 def inspect(module):
-    inspect = InspectState(module, 0, set())
+    inspect = InspectState(module, 0)
     in_env(Inspection, inspect, lambda: _inspect_node(module.root))
-    deps = list(inspect.deps)
-    deps.sort(_cmp_digest)
-    return ModInspection(inspect.count, deps)
+    return inspect.count
 
 def serialize(module):
     assert not has_extrinsic(ModDigest, module)
     temp = '/tmp/serialize'
     hash = sha256()
-
-    inspection = inspect(module)
-    deps = inspection.deps
-    add_extrinsic(ModDeps, module, deps)
-    depmap = {module: 0}
-    for i, mod in enumerate(deps):
-        depmap[mod] = i + 1 # one-based
+    inspection_count = inspect(module)
 
     f = file(temp, 'wb')
+    depmap = {module: 0}
     state = SerialState(f, hash, 0, depmap)
-    def go():
-        _write(_encode_int(len(deps)))
-        for dep in deps:
-            _write(extrinsic(ModDigest, dep))
-        in_env(SAPPS, {},
-                lambda: _serialize_node(module.root, module.rootType))
-    in_env(Serialize, state, go)
+    in_env(Serialize, state,
+            lambda: in_env(SAPPS, {},
+            lambda: _serialize_node(module.root, module.rootType)))
     f.close()
 
     hex = hash.digest().encode('hex')
     name = extrinsic(Name, module)
-    add_extrinsic(ModDigest, module, hex)
     system('mv -f -- %s mods/%s' % (temp, hex))
     system('ln -sf -- %s mods/%s' % (hex, name))
 
-    # XXX tiny amount of (optional, optimizing) metadata.
-    # How should this be stored?
-    f = file('opt/%s_count' % (hex,), 'wb')
-    state = SerialState(f, sha256(), 0, None)
-    def write_opt_count():
-        _write(_encode_int(inspection.atomCount))
-    in_env(Serialize, state, write_opt_count)
+    del depmap[module]
+    deps = depmap.items()
+    deps.sort(lambda a, b: cmp(a[1], b[1]))
+    deps = map(fst, deps)
+    add_extrinsic(ModDeps, module, deps)
+    add_extrinsic(ModDigest, module, hex)
+
+    assert state.count == inspection_count, "Inconsistent atom count"
+    meta = ModuleMeta(state.count, [extrinsic(ModDigest, d) for d in deps])
+    f = file('opt/%s_meta' % (hex,), 'wb')
+    in_env(Serialize, SerialState(f, sha256(), 0, None),
+            lambda: in_env(SAPPS, {},
+            lambda: _serialize_node(meta, t_DT(ModuleMeta))))
     f.close()
-    system('ln -sf -- %s_count opt/%s_count' % (hex, name))
+    system('ln -sf -- %s_meta opt/%s_meta' % (hex, name))
 
 DeserialState = DT('DeserialState',
         ('file', file),

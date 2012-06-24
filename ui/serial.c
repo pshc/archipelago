@@ -18,7 +18,7 @@ struct module *forms_module;
 
 /* Deserialization context */
 static FILE *f = NULL;
-static intptr_t node_ctr;
+static intptr_t node_ctr, dep_ctr;
 static struct map *own_map, *forward_refs;
 static void ***dep_listing;
 static intptr_t *cur_field;
@@ -26,6 +26,8 @@ static intptr_t *cur_field;
 static void *read_node(type_t type);
 static void destroy_module(struct module *);
 static void read_forms_module(void);
+
+static const int HASHLEN = 64;
 
 type_t intT(void) {
 	type_t type = malloc(sizeof *type);
@@ -407,13 +409,14 @@ static void *read_adt(struct adt *adt) {
 }
 
 static void *read_weak(type_t type) {
-	size_t atom_ix, mod_ix;
+	size_t atom_ix, count, mod_ix;
+	char *dep;
 	void *dest = NULL;
 	void *key;
 	struct list *refs;
 	mod_ix = read_int();
-	atom_ix = read_int();
 	if (mod_ix == 0) {
+		atom_ix = read_int();
 		/* XXX: Should be able to get a cheaper check for this? */
 		if (map_has(own_map, (void *) atom_ix)) {
 			dest = map_get(own_map, (void *) atom_ix);
@@ -429,7 +432,20 @@ static void *read_weak(type_t type) {
 			dest = (void *) 0xaaaaaaaa;
 		}
 	}
+	else if (mod_ix > (size_t) dep_ctr) {
+		CHECK(mod_ix == (size_t) dep_ctr + 1, "Dep too soon?!");
+		dep_ctr++;
+		dep = alloca(HASHLEN+1);
+		count = fread(dep, HASHLEN, 1, f);
+		if (!count)
+			error_out("EOF during dep digest");
+		dep[HASHLEN] = '\0';
+		CHECK(map_has(loaded_modules, dep), "Unexpected dep?");
+		atom_ix = read_int();
+		dest = dep_listing[mod_ix - 1][atom_ix];
+	}
 	else {
+		atom_ix = read_int();
 		dest = dep_listing[mod_ix - 1][atom_ix];
 	}
 	/* TODO: typecheck the referenced atom */
@@ -477,8 +493,8 @@ static void *read_node(type_t type) {
 
 char *module_hash_by_name(const char *name) {
     char *full = module_path("mods", name);
-    char *hash = malloc(65);
-	ssize_t read = readlink(full, hash, 64);
+    char *hash = malloc(HASHLEN+1);
+	ssize_t read = readlink(full, hash, HASHLEN);
 	if (read < 0) {
 		perror(full);
         free(full);
@@ -486,7 +502,7 @@ char *module_hash_by_name(const char *name) {
 	}
     free(full);
 	hash[read] = '\0';
-	CHECK(read == 64, "Bad hash: %s", hash);
+	CHECK(read == HASHLEN, "Bad hash: %s", hash);
 	return hash;
 }
 
@@ -507,8 +523,8 @@ static void populate_own_listing(void *key, void *value) {
 
 struct module *load_module(const char *hash, type_t root_type) {
 	char *full, *combined;
-	int atom_count, dep_count, i;
-	char dep[65];
+	int atom_count, dep_count, i, n;
+	char dep[HASHLEN+1];
 	size_t count;
 	void *root;
 	struct module *module, *dep_mod;
@@ -518,10 +534,10 @@ struct module *load_module(const char *hash, type_t root_type) {
 	if (map_has(loaded_modules, hash))
 		return map_get(loaded_modules, hash);
 
-	/* Get the node count for ease of loading */
-    combined = alloca(strlen(hash) + 7);
+	/* Get metadata for ease of loading */
+    combined = alloca(strlen(hash) + 6);
 	strcpy(combined, hash);
-	strcat(combined, "_count");
+	strcat(combined, "_meta");
     full = module_path("opt", combined);
 	f = fopen(full, "rb");
     free(full);
@@ -530,9 +546,34 @@ struct module *load_module(const char *hash, type_t root_type) {
 
 	atom_count = read_int();
 	CHECK(atom_count > 0, "Empty mod or bad metadata");
+	dep_count = read_int();
+
+	if (dep_count > 0)
+		dep_listing = malloc(sizeof *dep_listing * dep_count);
+
+	/* Loading deps will overwrite context. Preserve it. */
+	saved = f;
+	saved_dep_listing = dep_listing;
+
+	for (i = 0; i < dep_count; i++) {
+		n = read_int();
+		CHECK(n == HASHLEN, "Bad hash length");
+		count = fread(dep, HASHLEN, 1, saved);
+		if (!count)
+			error_out(hash);
+		dep[HASHLEN] = '\0';
+		/* TODO: Where do we get the dep root type? */
+		dep_mod = load_module(dep, root_type);
+		saved_dep_listing[i] = map_get(loaded_atoms, dep_mod);
+	}
+
+	f = saved;
+	dep_listing = saved_dep_listing;
+
 	CHECK(fgetc(f) == EOF && feof(f), "Trailing metadata");
 	fclose(f);
-	printf("%s has %d atom(s).\n", hash, atom_count);
+	printf("%s has %d atom(s) and %d dep(s).\n", hash, atom_count,
+			dep_count);
 
 	full = module_path("mods", hash);
 	f = fopen(full, "rb");
@@ -541,26 +582,7 @@ struct module *load_module(const char *hash, type_t root_type) {
 	if (!f)
 		error_out(hash);
 
-	dep_count = read_int();
-	printf("%s has %d dep(s).\n", hash, dep_count);
-	if (dep_count > 0)
-		saved_dep_listing = malloc(sizeof *dep_listing * dep_count);
-
-	/* Loading deps will overwrite context. Preserve it. */
-	saved = f;
-	for (i = 0; i < dep_count; i++) {
-		count = fread(dep, sizeof dep - 1, 1, saved);
-		if (!count)
-			error_out(hash);
-		dep[sizeof dep - 1] = '\0';
-		/* TODO: Where do we get the dep root type? */
-		dep_mod = load_module(dep, root_type);
-		saved_dep_listing[i] = map_get(loaded_atoms, dep_mod);
-	}
-
-	f = saved;
-	dep_listing = saved_dep_listing;
-	node_ctr = 0;
+	node_ctr = dep_ctr = 0;
 	cur_field = NULL;
 	own_map = new_map(NULL, NULL, NULL);
 	forward_refs = new_map(NULL, NULL, &free_list);
