@@ -41,12 +41,13 @@ def setup_ir(filename):
 def setup_locals():
     return IRLocals([], False, True, False, 0, Nothing(), {}, Nothing())
 
-Xpr, Reg, Tmp, ConstStruct, Const, ConstOp = ADT('Xpr',
+Xpr, Reg, Tmp, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'ConstStruct', ('vals', ['(IType, Xpr)']),
         'Const', ('frag', 'str'),
-        'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']))
+        'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']),
+        'ConstCast', ('kind', str), ('val', 'Xpr'), ('type', 'IType'))
 
 def is_const(x):
     return match(x,
@@ -275,6 +276,29 @@ def get_field_ptr(ex, t, f):
     newline()
     return fieldptr
 
+def cast(xpr, src, dest):
+    if types_equal(src, dest):
+        return xpr
+    s = IVoidPtr() if matches(src, 'IPtr(_)') else src
+    d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
+    kind = match((s, d),
+        ('(IInt(), IVoidPtr())', lambda: 'inttoptr'),
+        ('(IVoidPtr(), IInt(_))', lambda: 'ptrtoint'),
+        ('(IVoidPtr(), IVoidPtr())', lambda: 'bitcast'),
+        ('_', lambda: 'invalid'))
+    assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
+    if is_const(xpr):
+        return ConstCast(kind, xpr, dest)
+    tmp = temp_reg_named(kind)
+    out_xpr(tmp)
+    out(' = %s ')
+    out_t(src)
+    out_xpr(xpr)
+    out(' to ')
+    out_t_nospace(dest)
+    newline()
+    return tmp
+
 # TYPES
 
 IType, IInt, IBool, IVoid, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
@@ -286,18 +310,45 @@ IType, IInt, IBool, IVoid, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
+APPS = new_env('APPS', {TypeVar: IType})
+
 def convert_type(t):
     return match(t,
         ("TPrim(PInt())", IInt),
         ("TPrim(PBool())", IBool),
         ("TVoid()", IVoid),
-        ("TVar(_)", IVoidPtr),
+        ("TVar(tvar)", _conv_tvar),
         ("TFunc(ps, r)", lambda ps, r:
                          IFunc(map(convert_type, ps), convert_type(r))),
-        ("TData(dt)", lambda t: IPtr(IData(t))),
-        ("TApply(t, _, _)", convert_type),
+        ("TData(dt)", lambda dt: IPtr(IData(dt))),
+        ("TApply(t, tvar, a)", _conv_apply),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(_)", IVoidPtr))
+
+def _conv_apply(target, tvar, app):
+    apps = env(APPS) if have_env(APPS) else {}
+    apps[tvar] = in_env(APPS, {}, lambda: convert_type(target))
+    return in_env(APPS, apps, lambda: convert_type(target))
+
+def _conv_tvar(tvar):
+    if have_env(APPS):
+        return env(APPS).get(tvar, IVoidPtr())
+    return IVoidPtr()
+
+def types_equal(src, dest):
+    same = lambda: True
+    return match((src, dest),
+        ('(IInt(), IInt())', same),
+        ('(IBool(), IBool())', same),
+        ('(IVoid(), IVoid())', same),
+        ('(IData(a), IData(b))', lambda a, b: a is b),
+        ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
+            len(ps1) == len(ps2) and
+            all(types_equal(a, b) for a, b in zip(ps1, ps2)) and
+            types_equal(r1, r2)),
+        ('(IPtr(a), IPtr(b))', types_equal),
+        ('(IVoidPtr(), IVoidPtr())', same),
+        ('_', lambda: False))
 
 def typeof(e):
     if has_extrinsic(TypeOf, e):
@@ -458,7 +509,13 @@ def expr_binop(op, left, right, t):
 
 def write_call(tmp, f, args, t):
     fx = express(f)
-    argxs = [(express(arg), typeof(arg)) for arg in args]
+    paramts = match(typeof(f), ("IFunc(paramts, _)", identity))
+    argxs = []
+    for arg, paramt in zip(args, paramts):
+        argt = typeof(arg)
+        argx = cast(express(arg), argt, paramt)
+        argxs.append((argx, argt))
+
     out_xpr(tmp)
     out(' = call ')
     out_t(t)
