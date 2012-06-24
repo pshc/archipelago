@@ -31,6 +31,12 @@ def extrinsic_mod(extr, mapping, src_mod):
 def load_module_dep(src, deps):
     assert src.endswith('.py')
     name = src.replace('/', '_')[:-3]
+
+    test = False
+    if name.startswith('tests_'):
+        name = name[6:]
+        test = True
+
     if name in loaded_modules:
         mod = loaded_modules[name]
         assert mod is not None, "%s is not ready yet!" % (name,)
@@ -63,16 +69,16 @@ def load_module_dep(src, deps):
     native.serialize(names_mod)
 
     return expand.in_expansion_env(lambda:
-            llvm.in_llvm_env(lambda: _do_mod(mod)))
+            llvm.in_llvm_env(lambda: _do_mod(mod, test)))
 
-def _do_mod(mod):
+def _do_mod(mod, test):
     expand.expand_module(mod)
 
     llvm.write_ir(mod)
     compiled = llvm.compile(mod)
 
     name = extrinsic(Filename, mod)
-    if name.startswith('tests_'):
+    if test:
         import os
         try:
             os.unlink('bin/' + name)

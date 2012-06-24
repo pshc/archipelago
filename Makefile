@@ -1,5 +1,5 @@
 TESTS := $(wildcard tests/*.py)
-TEST_BINS := $(TESTS:tests/%.py=bin/tests_%)
+TEST_BINS := $(TESTS:tests/%.py=bin/%)
 DIRS = bin ir mods opt views
 OPTS = --color -q
 CODEGEN = ./construct.py $(OPTS) --
@@ -16,7 +16,7 @@ $(DIRS):
 ir/z.o: z.c
 	cc -c -o $@ $^
 
-views/tests_%: tests/%.py dirs
+bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
 remake_tests: dirs ir/z.o
