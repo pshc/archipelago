@@ -30,7 +30,7 @@ def package(files):
         dest = readlink(f)
         full.append(mod(dest))
     for f in found:
-        p = opt(f + '_count')
+        p = opt(f + '_meta')
         full += [p, opt(readlink(p))]
 
     for f in full:
