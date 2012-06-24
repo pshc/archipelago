@@ -649,13 +649,19 @@ def write_defn(v, e):
     newline()
     store_named(t, ex, v)
 
-def write_field_specs(fields):
+def write_field_specs(fields, discrim):
     verbose = not env(DECLSONLY)
     if verbose:
         out('{')
         newline()
     else:
         out('{ ')
+
+    if discrim:
+        ix = Field(TInt())
+        add_extrinsic(Name, ix, "discrim")
+        fields = [ix] + fields
+
     n = len(fields)
     for i, f in enumerate(fields):
         out_t_nospace(convert_type(f.type))
@@ -672,7 +678,7 @@ def write_field_specs(fields):
     else:
         out(' }')
 
-def write_ctor(ctor, dt):
+def write_ctor(ctor, dt, discrim):
     t = IData(dt)
     inst = temp_reg_named(extrinsic(Name, dt))
 
@@ -703,6 +709,10 @@ def write_ctor(ctor, dt):
     out_t_nospace(IPtr(t))
     newline()
 
+    if discrim:
+        fts = [IInt()] + fts
+        tmps = [Const(str(extrinsic(expand.CtorIndex, ctor)))] + tmps
+
     accum = Const('undef')
     assert len(fts) == len(tmps)
     i = 0
@@ -716,7 +726,7 @@ def write_ctor(ctor, dt):
         out_t(ft)
         out_xpr(tmp)
         comma()
-        out('%d' % (i,))
+        out(str(i))
         newline()
         i += 1
         accum = new_val
@@ -731,26 +741,19 @@ def write_ctor(ctor, dt):
     newline()
 
 def write_dtstmt(form):
-    if len(form.ctors) > 1:
-        for ctor in form.ctors:
-            clear_indent()
-            out_name_reg(ctor)
-            out(' = type ')
-            write_field_specs(ctor.fields)
-            newline()
-            write_ctor(ctor, form)
+    discrim = len(form.ctors) > 1
+    if discrim:
         clear_indent()
-        out('; skipping %')
         out_name_reg(form)
+        out(' = type opaque')
         newline()
-    else:
+    for ctor in form.ctors:
         clear_indent()
-        out_name_reg(form)
+        out_name_reg(ctor)
         out(' = type ')
-        ctor = form.ctors[0]
-        write_field_specs(ctor.fields)
+        write_field_specs(ctor.fields, discrim)
         newline()
-        write_ctor(ctor, form)
+        write_ctor(ctor, form, discrim)
     if not env(DECLSONLY):
         clear_indent()
         newline()

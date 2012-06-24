@@ -44,6 +44,7 @@ VarUsage = new_extrinsic('VarUsage', VarUsageInfo)
 VarInfo = DT('VarInfo', ('function', ExFunc))
 LocalVar = new_extrinsic('LocalVar', VarInfo)
 
+CtorIndex = new_extrinsic('CtorIndex', int)
 FieldIndex = new_extrinsic('FieldIndex', int)
 
 def top_scope():
@@ -244,9 +245,11 @@ def ex_top_defn(e):
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
 
 def ex_dt(dt):
-    for ctor in dt.ctors:
+    discrim = len(dt.ctors) > 1
+    for i, ctor in enumerate(dt.ctors):
+        add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):
-            add_extrinsic(FieldIndex, field, ix)
+            add_extrinsic(FieldIndex, field, ix + 1 if discrim else ix)
 
 def ex_top_level(s):
     match(s,
@@ -258,7 +261,7 @@ def ex_top_level(s):
 
 def in_expansion_env(func):
     captures = {}
-    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, FieldIndex]
+    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, CtorIndex, FieldIndex]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(mod):
