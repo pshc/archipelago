@@ -291,7 +291,7 @@ def cast(xpr, src, dest):
         return ConstCast(kind, xpr, dest)
     tmp = temp_reg_named(kind)
     out_xpr(tmp)
-    out(' = %s ')
+    out(' = %s ' % (kind,))
     out_t(src)
     out_xpr(xpr)
     out(' to ')
