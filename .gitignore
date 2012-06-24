@@ -1,15 +1,10 @@
-*.bc
 *.pyc
 *.pyd
 *.pyo
 *.swp
-*.dot
-*.png
 /bin
 /ir
 /mods
 /opt
-views
-a.out
-hello
+/views
 .DS_Store
