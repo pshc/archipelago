@@ -245,13 +245,12 @@ PrimType, PInt, PStr, PChar, PBool = ADT('PrimType',
         'PInt', 'PStr', 'PChar', 'PBool')
 
 Type, TVar, TPrim, TVoid, \
-    TTuple, TAnyTuple, TFunc, TData, TApply, TArray, TWeak \
+    TTuple, TFunc, TData, TApply, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TPrim', ('primType', PrimType),
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
-        'TAnyTuple',
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
         'TData', ('data', '*DataType'),
         'TApply', ('appTarget', 'Type'), ('appVar', '*TypeVar'),

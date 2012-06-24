@@ -91,10 +91,6 @@ def unify(e1, e2):
         ("(TChar(), TChar())", same),
         ("(TBool(), TBool())", same),
         ("(TVoid(), TVoid())", same),
-        ("(TTuple(_), TAnyTuple())", same),
-        ("(TAnyTuple(), TTuple(_))", same),
-        ("(TAnyTuple(), _)", fail("tuple expected")),
-        ("(_, TAnyTuple())", fail("tuple expected")),
         ("_", fail("type mismatch")))
 
 def unify_m(e):

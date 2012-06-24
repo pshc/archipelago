@@ -62,7 +62,7 @@ def record_tvar(tv):
 def scan_inst(s):
     match(s,
         ('TVar(tv)', record_tvar),
-        ('TPrim(_) or TVoid() or TAnyTuple()', nop),
+        ('TPrim(_) or TVoid()', nop),
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
         ('TFunc(ps, r)', lambda ps, r: map_(scan_inst, ps + [r])),
         ('TApply(_, _, t)', scan_inst),

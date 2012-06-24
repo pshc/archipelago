@@ -35,13 +35,12 @@ def in_new_scope(retT, f):
     return in_env(PROPSCOPE, new_scope, f)
 
 # instantiated types
-CType, CVar, CPrim, CVoid, CTuple, CAnyTuple, CFunc, CData, CArray, CWeak \
+CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak \
     = ADT('CType',
         'CVar', ('typeVar', '*TypeVar'),
         'CPrim', ('primType', '*PrimType'),
         'CVoid',
         'CTuple', ('tupleTypes', ['CType']),
-        'CAnyTuple',
         'CFunc', ('funcArgs', ['CType']), ('funcRet', 'CType'),
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
@@ -79,7 +78,6 @@ def _inst_type(s):
         ('TPrim(p)', CPrim),
         ('TVoid()', CVoid),
         ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
-        ('TAnyTuple()', CAnyTuple),
         ('TFunc(ps, r)', lambda ps, r:
                 CFunc(map(_inst_type, ps), _inst_type(r))),
         ('TApply(TData(dt), tvar, t)', instantiate_tapply),
@@ -111,7 +109,6 @@ def _gen_type(s):
         ('CPrim(p)', TPrim),
         ('CVoid()', TVoid),
         ('CTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
-        ('CAnyTuple()', TAnyTuple),
         ('CFunc(ps, r)', lambda ps, r:
                 TFunc(map(_gen_type, ps), _gen_type(r))),
         ('CData(dt, ts)', gen_tdata),
@@ -166,10 +163,6 @@ def _unify(e1, e2):
         ("(da==CData(a, ats), db==CData(b, bts))", unify_datas),
         ("(CPrim(p1), CPrim(p2))", lambda p1, p2: unify_prims(p1, p2, e1, e2)),
         ("(CVoid(), CVoid())", nop),
-        ("(CTuple(_), CAnyTuple())", nop),
-        ("(CAnyTuple(), CTuple(_))", nop),
-        ("(CAnyTuple(), _)", lambda: fail("tuple expected")),
-        ("(_, CAnyTuple())", lambda: fail("tuple expected")),
         ("_", lambda: fail("type mismatch")))
 
 def unify_m(e):

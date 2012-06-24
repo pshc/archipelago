@@ -227,12 +227,11 @@ void setup_serial(void) {
 	PrimType = ADT("PrimType");
 	ADT_ctors(PrimType, 4, Ctor("PInt", 0), Ctor("PStr", 0),
 		Ctor("PChar", 0), Ctor("PBool", 0));
-	ADT_ctors(Type, 10,
+	ADT_ctors(Type, 9,
 		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
 		Ctor("TPrim", 1, "primType", adtT(PrimType)),
 		Ctor("TVoid", 0),
 		Ctor("TTuple", 1, "tupleTypes", arrayT(adtT(Type))),
-		Ctor("TAnyTuple", 0),
 		Ctor("TFunc", 2, "funcArgs", arrayT(adtT(Type)),
 				"funcRet", adtT(Type)),
 		Ctor("TData", 1, "data", weak(adtT(DtForm))),
@@ -847,7 +846,6 @@ static type_t read_type(intptr_t *type) {
 		"TPrim", read_tprim,
 		"TVoid", voidT,
 		"TTuple", read_ttuple,
-		"TAnyTuple", voidT,
 		"TFunc", read_tfunc,
 		"TData", read_tdata,
 		"TApply", read_tapply,

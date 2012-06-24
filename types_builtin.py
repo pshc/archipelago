@@ -36,7 +36,6 @@ def type_equal(a, b):
         ("(TPrim(a), TPrim(b))", prim_equal),
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
-        ("(TAnyTuple(), TAnyTuple())", lambda: True),
         ("(TFunc(args1, r1), TFunc(args2, r2))", _type_func_equal),
         ("(TData(a), TData(b))", lambda: a is b),
         ("(TApply(t1, _, a1), TApply(t2, _, a2))", _type_apply_equal),
@@ -68,7 +67,6 @@ def _type_repr(t):
                     ("TVoid()", lambda: 'void'),
                     ("TTuple(ts)", lambda ts: '(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),
-                    ("TAnyTuple()", lambda: 'tuple(*)'),
                     ("TFunc(s, r)", lambda s, r: '(%s)' %
                         (' -> '.join(_type_repr(t) for t in s + [r]),)),
                     ("TData(d)", _get_name),
@@ -117,8 +115,6 @@ builtins_types = {
     '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
     '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
     'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
-    'printf': (TStr, TAnyTuple, TVoid),
-    '%': (TStr, TAnyTuple, TStr),
 }
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
