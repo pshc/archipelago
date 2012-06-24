@@ -1014,7 +1014,12 @@ def write_imports(deps, seen):
             newline()
             in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
 
-def write_ir(filename, mod):
+LLFile = new_extrinsic('LLFile', str)
+OFile = new_extrinsic('OFile', str)
+
+def write_ir(mod):
+    filename = 'ir/' + extrinsic(Filename, mod) + '.ll'
+
     def go():
         imm_out(prelude)
         write_imports(extrinsic(ModDeps, mod), set())
@@ -1028,16 +1033,28 @@ def write_ir(filename, mod):
         lambda: scope_extrinsic(LiteralSize,
         go)))
 
-def compile(ll, binary):
-    bc = ll + '.bc'
+    add_extrinsic(LLFile, mod, filename)
+
+def compile(mod):
+    ll = extrinsic(LLFile, mod)
     s = ll + '.s'
-    if os.system('llvm-as < %s | opt -mem2reg > %s' % (ll, bc)) != 0:
+    o = ll + '.o'
+    if os.system('llc -disable-cfi -o %s %s' % (s, ll)) != 0:
         return False
-    if os.system('llc -disable-cfi -o %s %s' % (s, bc)) != 0:
+    if os.system('cc -c -o %s %s' % (o, s)) != 0:
         return False
-    if os.system('cc -o %s ir/z.o %s' % (binary, s)) != 0:
-        return False
+    add_extrinsic(OFile, mod, o)
     return True
+
+def link(mod):
+    objs = ['ir/z.o', extrinsic(OFile, mod)]
+    binary = 'bin/%s' % (extrinsic(Filename, mod),)
+    return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
+
+def in_llvm_env(func):
+    captures = {}
+    extrs = [LLFile, OFile]
+    return capture_scoped(extrs, captures, func)
 
 def simple_test():
     add = lambda a, b: symcall('+', [a, b])

@@ -28,9 +28,9 @@ def extrinsic_mod(extr, mapping, src_mod):
     add_extrinsic(Name, mod, extrinsic(Name, src_mod) + '_' + extr.label)
     return mod
 
-def load_module_dep(filename, deps):
-    assert filename.endswith('.py')
-    name = filename.replace('/', '_')[:-3]
+def load_module_dep(src, deps):
+    assert src.endswith('.py')
+    name = src.replace('/', '_')[:-3]
     if name in loaded_modules:
         mod = loaded_modules[name]
         assert mod is not None, "%s is not ready yet!" % (name,)
@@ -41,15 +41,17 @@ def load_module_dep(filename, deps):
 
     def conv_mod():
         mod = capture_extrinsic(Name, names,
-            lambda: astconv.convert_file(filename, name, deps))
-        atom.write_mod_repr('views/' + name + '.txt', mod, [Name])
+            lambda: astconv.convert_file(src, name, deps))
+        add_extrinsic(Filename, mod, name)
+
+        view = 'views/%s.txt' % (name,)
+        atom.write_mod_repr(view, mod, [Name])
 
         scan.scan_root(mod.root)
-        atom.write_mod_repr('views/' + name + '.txt', mod,
-                [Name, TypeOf, InstMap])
+        atom.write_mod_repr(view, mod, [Name, TypeOf, InstMap])
 
         prop.prop_types(mod.root)
-        atom.write_mod_repr('views/' + name + '.txt', mod, [Name, TypeOf])
+        atom.write_mod_repr(view, mod, [Name, TypeOf])
 
         return mod
     mod = scope_extrinsic(InstMap,
@@ -60,21 +62,25 @@ def load_module_dep(filename, deps):
     names_mod = extrinsic_mod(Name, names, mod)
     native.serialize(names_mod)
 
-    return expand.in_expansion_env(lambda: _do_mod(mod, name))
+    return expand.in_expansion_env(lambda:
+            llvm.in_llvm_env(lambda: _do_mod(mod)))
 
-def _do_mod(mod, name):
+def _do_mod(mod):
     expand.expand_module(mod)
 
-    ll = 'ir/' + name + '.ll'
-    llvm.write_ir(ll, mod)
+    llvm.write_ir(mod)
+    compiled = llvm.compile(mod)
+
+    name = extrinsic(Filename, mod)
     if name.startswith('tests_'):
         import os
         try:
             os.unlink('bin/' + name)
         except OSError:
             pass
-        if llvm.compile(ll, 'bin/' + name):
-            print 'Compiled %s' % (name,)
+        if compiled:
+            if llvm.link(mod):
+                print 'Linked %s' % (name,)
 
     assert loaded_modules[name] is None
     loaded_modules[name] = mod
@@ -215,6 +221,10 @@ def load_files(files):
     for filename in files:
         load_module(filename)
 
+def in_construct_env(func):
+    extrs = [Filename, Location, ModIndex, ModDigest, ModDeps, TypeOf]
+    return capture_scoped(extrs, {}, func)
+
 def main():
     import sys
     files = []
@@ -237,14 +247,8 @@ def main():
                 assert False, "Unknown option: %s" % (arg,)
         else:
             files.append(arg)
-    in_env(GENOPTS, options,
-        lambda: scope_extrinsic(Location,
-        lambda: scope_extrinsic(ModIndex,
-        lambda: scope_extrinsic(ModDigest,
-        lambda: scope_extrinsic(ModDeps,
-        lambda: scope_extrinsic(TypeOf,
-        lambda: load_files(files)
-    ))))))
+    in_env(GENOPTS, options, lambda: in_construct_env(
+            lambda: load_files(files)))
 
 if __name__ == '__main__':
     main()

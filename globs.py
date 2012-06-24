@@ -1,6 +1,7 @@
 import base
 
 ModIndex = base.new_extrinsic('ModIndex', [int])
+Filename = base.new_extrinsic('Filename', str)
 
 Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
 
