@@ -7,5 +7,5 @@ def main():
     assert 5 % 3 == 2, "Modulus"
     assert 12 & 24 == 8, "And"
     assert 1 | 2 == 3, "Or"
-    assert 1 ^ 3 == 2, "Or"
+    assert 1 ^ 3 == 2, "Xor"
     return 0
