@@ -460,14 +460,15 @@ def una_op(b):
     # grr boilerplate
     return match(b,
         ('key("not")', lambda: 'not'),
+        ('key("negate")', lambda: 'negate'),
         ('_', lambda: ''))
 
 def bin_op(b):
     # grr boilerplate
     return match(b,
-        ('key("+")', lambda: 'add'),
-        ('key("-")', lambda: 'sub'),
-        ('key("*")', lambda: 'mul'),
+        ('key("+")', lambda: 'add'), ('key("-")', lambda: 'sub'),
+        ('key("*")', lambda: 'mul'), ('key("//")', lambda: 'sdiv'),
+        ('key("%")', lambda: 'srem'),
         ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
         ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'))
 
@@ -480,14 +481,16 @@ def aug_op(b):
         ('AugModulo()', lambda: 'srem')) # or urem...
 
 def expr_unary(op, arg, t):
-    assert op == 'not'
-    assert matches(t, 'IBool()')
+    assert op == 'not' or op == 'negate'
+    pivot = Const('1' if op == 'not' else '0')
     if is_const(arg):
-        return ConstOp('sub', [(t, Const(1)), (t, arg)])
+        return ConstOp('sub', [(t, pivot), (t, arg)])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
-        out(' = sub i1 1')
+        out(' = sub ')
+        out_t(t)
+        out_xpr(pivot)
         comma()
         out_xpr(arg)
         newline()

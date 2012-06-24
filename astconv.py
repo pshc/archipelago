@@ -172,8 +172,7 @@ def conv_exprs(elist):
 # EXPRESSIONS
 
 for (cls, op) in {ast.Add: '+', ast.Sub: '-',
-                  ast.Mul: '*', ast.Mod: '%',
-                  ast.Div: '/', ast.FloorDiv: '//',
+                  ast.Mul: '*', ast.FloorDiv: '//', ast.Mod: '%',
                   ast.Bitand: '&', ast.Bitor: '|', ast.Bitxor: '^',
                   ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
     @expr(cls)
@@ -585,7 +584,7 @@ def conv_asstuple(s):
 
 def op_to_aug(op):
     return {'+=': AugAdd, '-=': AugSubtract, '*=': AugMultiply,
-            '/=': AugDivide, '%=': AugModulo}[op]()
+            '//=': AugDivide, '%=': AugModulo}[op]()
 
 @stmt(ast.AugAssign)
 def conv_augassign(s):
