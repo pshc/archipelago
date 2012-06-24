@@ -430,6 +430,9 @@ def fmtcol(s, *args):
         s = _col_re.sub('', s)
     return s.format(*args)
 
+def mark(s):
+    return col('Red', s)
+
 # Pretty printing
 # (naive quadratic version)
 
