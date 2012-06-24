@@ -1006,23 +1006,18 @@ def write_unit_decls(unit):
         as_local(lambda: write_top(top))
 
 prelude = """; prelude
+%Type = type opaque
 declare i8* @malloc(i32)
 declare void @fail(i8*) noreturn
 
 """
 
-def write_imports(deps, seen):
-    for dep in deps:
-        if dep in seen:
-            continue
-        seen.add(dep)
-        write_imports(extrinsic(ModDeps, dep), seen)
-
-        dt = match(dep.rootType, ('TData(dt)', identity))
-        if dt is DATATYPES['CompilationUnit'].__form__:
-            imm_out('; %s' % (extrinsic(Name, dep),))
-            newline()
-            in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
+def write_imports(dep):
+    dt = match(dep.rootType, ('TData(dt)', identity))
+    if dt is DATATYPES['CompilationUnit'].__form__:
+        imm_out('; %s' % (extrinsic(Name, dep),))
+        newline()
+        in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
 
 LLFile = new_extrinsic('LLFile', str)
 OFile = new_extrinsic('OFile', str)
@@ -1032,7 +1027,7 @@ def write_ir(mod):
 
     def go():
         imm_out(prelude)
-        write_imports(extrinsic(ModDeps, mod), set())
+        walk_deps(write_imports, mod)
         newline()
         imm_out('; main')
         newline()
@@ -1057,7 +1052,18 @@ def compile(mod):
     return True
 
 def link(mod):
-    objs = ['ir/z.o', extrinsic(OFile, mod)]
+    objs = ['ir/z.o']
+
+    def add_obj(dep):
+        dt = dep.rootType.data
+        if dt is DATATYPES['CompilationUnit'].__form__:
+            if not has_extrinsic(OFile, dep):
+                print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
+                return
+            objs.append(extrinsic(OFile, dep))
+    walk_deps(add_obj, mod)
+
+    objs.append(extrinsic(OFile, mod))
     binary = 'bin/%s' % (extrinsic(Filename, mod),)
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
 

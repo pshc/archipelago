@@ -169,6 +169,18 @@ def _match_named(atom, ast):
         return match_try(extrinsic(Name, atom), ast.args[0])
     return None
 
+def walk_deps(func, mod):
+    seen = set()
+    def walk(deps):
+        for dep in deps:
+            if dep in seen:
+                continue
+            seen.add(dep)
+            walk(extrinsic(ModDeps, dep))
+            func(dep)
+    walk(extrinsic(ModDeps, mod))
+    return seen
+
 ModRepr = DT('ModRepr', ('write', 'str -> void'),
                         ('indent', int),
                         ('exts', [object]),
