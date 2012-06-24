@@ -277,11 +277,12 @@ def get_field_ptr(ex, t, f):
 
 # TYPES
 
-IType, IInt, IBool, IVoid, IData, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IBool, IVoid, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
         'IBool',
         'IVoid',
         'IData', ('datatype', '*DataType'),
+        'IFunc', ('params', ['IType']), ('ret', 'IType'),
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
@@ -291,9 +292,10 @@ def convert_type(t):
         ("TPrim(PBool())", IBool),
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(_, _)", IVoidPtr),
+        ("TFunc(ps, r)", lambda ps, r:
+                         IFunc(map(convert_type, ps), convert_type(r))),
         ("TData(dt)", lambda t: IPtr(IData(t))),
-        ("TApply(_, _, _)", IVoidPtr),
+        ("TApply(t, _, _)", convert_type),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(_)", IVoidPtr))
 
@@ -314,8 +316,12 @@ def t_str(t):
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
+        ("IFunc(ps, r)", t_func_str),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
+
+def t_func_str(ps, r):
+    return '%s (%s)' % (', '.join(t_str(p) for p in ps), t_str(r))
 
 def out_t(t):
     out('%s ' % (t_str(t),))
