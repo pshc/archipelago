@@ -617,7 +617,7 @@ def expr_func(f, ps, body):
     return Const(func_ref(clos.func))
 
 def expr_match(m, e, cs):
-    return Const('undefined ;match')
+    return Const('undef ;match')
     #for c in cs:
     #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
 
