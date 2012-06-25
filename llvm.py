@@ -263,6 +263,41 @@ def store_xpr(t, val, dest):
     out_xpr(dest)
     newline()
 
+def malloc(t):
+    sizeof = temp_reg_named('sizeof')
+    out_xpr(sizeof)
+    out(' = ptrtoint ')
+    out_t_ptr(t)
+    out('getelementptr(')
+    out_t_ptr(t)
+    out('null, i32 1) to i32')
+    newline()
+    mem = temp_reg()
+    out_xpr(mem)
+    out(' = call i8* @malloc')
+    write_args([(IInt(), sizeof)])
+    newline()
+    inst = temp_reg_named('inst')
+    out_xpr(inst)
+    out(' = bitcast i8* ')
+    out_xpr(mem)
+    out(' to ')
+    out_t_nospace(IPtr(t))
+    newline()
+    return inst
+
+def write_args(args):
+    out('(')
+    first = True
+    for t, arg in args:
+        if first:
+            first = False
+        else:
+            comma()
+        out_t(t)
+        out_xpr(arg)
+    out(')')
+
 def get_field_ptr(ex, t, f):
     fieldptr = temp_reg_named(extrinsic(Name, f))
     out_xpr(fieldptr)
@@ -320,10 +355,11 @@ def cast(xpr, src, dest):
 
 # TYPES
 
-IType, IInt, IBool, IVoid, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
         'IBool',
         'IVoid',
+        'ITuple', ('types', ['IType']),
         'IData', ('datatype', '*DataType'),
         'IFunc', ('params', ['IType']), ('ret', 'IType'),
         'IPtr', ('type', 'IType'),
@@ -342,7 +378,7 @@ def convert_type(t):
         ("TData(dt)", lambda dt: IPtr(IData(dt))),
         ("TApply(t, tvar, a)", _conv_apply),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
-        ("TTuple(_)", IVoidPtr))
+        ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
 def _conv_apply(target, tvar, app):
     apps = env(APPS) if have_env(APPS) else {}
@@ -385,6 +421,7 @@ def t_str(t):
         ("IInt()", lambda: "i32"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
+        ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
         ("IFunc(ps, r)", t_func_str),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
@@ -538,13 +575,13 @@ def write_call(tmp, f, args, t):
     for arg, paramt in zip(args, paramts):
         argt = typeof(arg)
         argx = cast(express(arg), argt, paramt)
-        argxs.append((argx, argt))
+        argxs.append((argt, argx))
 
     out_xpr(tmp)
     out(' = call ')
     out_t(t)
     out_xpr(fx)
-    write_xpr_list(argxs)
+    write_args(argxs)
     newline()
 
 def expr_call(e, f, args):
@@ -573,18 +610,6 @@ def expr_call(e, f, args):
         write_call(tmp, f, args, t)
         m.ret(tmp)
     return m.result()
-
-def write_xpr_list(args):
-    out('(')
-    first = True
-    for arg, t in args:
-        if first:
-            first = False
-        else:
-            comma()
-        out_t(t)
-        out_xpr(arg)
-    out(')')
 
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
@@ -616,9 +641,13 @@ def expr_strlit(lit):
     newline()
     return tmp
 
-def expr_tuple_lit(ts):
-    xs = ['%s %s' % (t_str(typeof(t)), xpr_str(express(t))) for t in ts]
-    return Const('{ %s }' % (', '.join(xs),))
+def expr_tuple_lit(lit, ts):
+    tt = match(typeof(lit), ("IPtr(tt==ITuple(_))", identity))
+    tmp = malloc(tt)
+    xs = [(typeof(t), express(t)) for t in ts]
+    struct = build_struct(tt, xs)
+    store_xpr(tt, struct, tmp)
+    return tmp
 
 def express(expr):
     return match(expr,
@@ -634,7 +663,7 @@ def express(expr):
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('lit==StrLit(_)', expr_strlit),
         ('Ternary(c, l, r)', expr_ternary),
-        ('TupleLit(es)', expr_tuple_lit))
+        ('lit==TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
 
@@ -783,20 +812,7 @@ def write_ctor(ctor, dt, discrim):
     newline()
 
     ctort = IData(ctor)
-    # compile-time sizeof
-    out('%sizeof = ptrtoint ')
-    out_t_ptr(ctort)
-    out('getelementptr(')
-    out_t_ptr(ctort)
-    out('null, i32 1) to i32')
-    newline()
-
-    out('%inst = call i8* @malloc(i32 %sizeof)')
-    newline()
-    out_xpr(inst)
-    out(' = bitcast i8* %inst to ')
-    out_t_nospace(IPtr(ctort))
-    newline()
+    inst = malloc(ctort)
 
     if discrim:
         fts = [IInt()] + fts
