@@ -276,6 +276,25 @@ def get_field_ptr(ex, t, f):
     newline()
     return fieldptr
 
+def build_struct(t, args):
+    i = 0
+    accum = Const('undef')
+    for ft, tmp in args:
+        new_val = temp_reg()
+        out_xpr(new_val)
+        out(' = insertvalue ')
+        out_t(t)
+        out_xpr(accum)
+        comma()
+        out_t(ft)
+        out_xpr(tmp)
+        comma()
+        out(str(i))
+        newline()
+        i += 1
+        accum = new_val
+    return accum
+
 def cast(xpr, src, dest):
     if types_equal(src, dest):
         return xpr
@@ -782,25 +801,9 @@ def write_ctor(ctor, dt, discrim):
     if discrim:
         fts = [IInt()] + fts
         tmps = [Const(str(extrinsic(expand.CtorIndex, ctor)))] + tmps
-
-    accum = Const('undef')
     assert len(fts) == len(tmps)
-    i = 0
-    for ft, tmp in zip(fts, tmps):
-        new_val = temp_reg_named('vals')
-        out_xpr(new_val)
-        out(' = insertvalue ')
-        out_t(ctort)
-        out_xpr(accum)
-        comma()
-        out_t(ft)
-        out_xpr(tmp)
-        comma()
-        out(str(i))
-        newline()
-        i += 1
-        accum = new_val
-    store_xpr(ctort, accum, inst)
+    struct = build_struct(ctort, zip(fts, tmps))
+    store_xpr(ctort, struct, inst)
 
     ret = inst
     if discrim:
