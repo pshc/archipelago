@@ -124,7 +124,8 @@ def scan_lhs_attr(e, f):
 def scan_lhs(lhs):
     match(lhs,
         ("lhs==LhsVar(v)", instantiate),
-        ("LhsAttr(e, f)", scan_lhs_attr))
+        ("LhsAttr(e, f)", scan_lhs_attr),
+        ("LhsTuple(ss)", lambda ss: map_(scan_lhs, ss)))
 
 def scan_assign(lhs, e):
     scan_lhs(lhs)

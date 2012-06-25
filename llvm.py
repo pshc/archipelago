@@ -688,10 +688,32 @@ def store_attr(dest, f, val):
     fieldptr = get_field_ptr(ex, typeof(dest), f)
     store_xpr(convert_type(f.type), val, fieldptr)
 
+def destructure_tuple(lhs, ss, xpr):
+    tupt = match(typeof(lhs), ('IPtr(t==ITuple(_))', identity))
+    tupval = temp_reg_named('tuple')
+    out_xpr(tupval)
+    out(' = load ')
+    out_t_ptr(tupt)
+    out_xpr(xpr)
+    newline()
+    i = 0
+    for s in ss:
+        val = temp_reg()
+        out_xpr(val)
+        out(' = extractvalue ')
+        out_t(tupt)
+        out_xpr(tupval)
+        comma()
+        out(str(i))
+        i += 1
+        newline()
+        store_lhs(s, val)
+
 def store_lhs(lhs, x):
     match(lhs,
         ('LhsVar(v)', lambda v: store_var(v, x)),
-        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
+        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)),
+        ('lhs==LhsTuple(ss)', lambda lhs, ss: destructure_tuple(lhs, ss, x)))
 
 def load_lhs(lhs):
     return match(lhs,

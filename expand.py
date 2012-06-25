@@ -165,8 +165,9 @@ def ex_assign(a, e):
 
 def ex_lhs(a):
     match(a,
+        ("LhsVar(v)", ex_lhs_var),
         ("LhsAttr(s, _)", ex_expr),
-        ("LhsVar(v)", ex_lhs_var))
+        ("LhsTuple(ss)", lambda ss: map_(ex_lhs, ss)))
 
 def ex_lhs_var(v):
     # close over in this scope

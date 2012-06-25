@@ -616,7 +616,9 @@ def conv_ass(s):
             ref = Just(LhsVar(ref.just.var))
         return ref
     elif isinstance(s, ast.AssTuple):
-        return Just(LhsTuple([conv_ass(n) for n in s.nodes]))
+        ss = [conv_ass(n) for n in s.nodes]
+        assert all(map(isJust, ss)), "Can't destructure tuple into new vars"
+        return Just(LhsTuple(map(fromJust, ss)))
     elif isinstance(s, ast.AssAttr):
         expra = conv_expr(s.expr)
         # Don't know the type, have to look up the field later...

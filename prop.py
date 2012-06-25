@@ -334,10 +334,16 @@ def prop_lhs_attr(lhs, s, f):
     # TODO: Take tvs into account
     return instantiate_type(lhs, lhs.attr.type)
 
+def prop_lhs_tuple(lhs, ss):
+    t = CTuple(map(prop_lhs, ss))
+    set_type(lhs, generalize_type(t))
+    return t
+
 def prop_lhs(lhs):
     return match(lhs,
+        ("lhs==LhsVar(v)", instantiate),
         ("lhs==LhsAttr(s, f)", prop_lhs_attr),
-        ("lhs==LhsVar(v)", instantiate))
+        ("lhs==LhsTuple(ss)", prop_lhs_tuple))
 
 def check_lhs(t, lhs):
     unify(t, prop_lhs(lhs))
