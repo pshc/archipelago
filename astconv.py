@@ -10,7 +10,7 @@ SCOPE = new_env('SCOPE', ScopeContext)
 
 OmniContext = DT('OmniContext', ('imports', [object]),
                                 ('exports', [object]),
-                                ('missingRefs', {(str, bool): [object]}),
+                                ('missingRefs', {(str, str): [object]}),
                                 ('loadedDeps', set([Module])),
                                 ('directlyImportedModuleNames', set([str])))
 OMNI = new_env('OMNI', OmniContext)
@@ -667,7 +667,7 @@ def conv_function(s):
                     astannot = dec.args[0].value
     func = Func([], Body([]))
     var = Var()
-    assert astannot, "Function %r has no type annot" % f
+    assert astannot, "Function %s has no type annot" % s.name
     add_extrinsic(AstType, func, astannot)
     glob = is_top_level()
     identifier(var, s.name, export=glob)
@@ -766,7 +766,7 @@ def convert_file(filename, name, deps):
                 bind.binding = b(obj)
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
-                ('type %s' if t else '%s') % s for s, t in missing)
+                '%s %s' % (t, s) for s, t in missing)
     global loaded_module_export_names
     loaded_module_export_names[mod] = omni.exports
     return mod
