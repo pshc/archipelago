@@ -621,19 +621,39 @@ def expr_func(f, ps, body):
     assert not clos.isClosure, "TODO"
     return Const(func_ref(clos.func))
 
-def expr_getenv(environ, tt):
-    tmp = temp_reg_named(extrinsic(Name, environ))
-    t = convert_type(tt)
+def env_type(environ):
+    return ITuple([convert_type(environ.type), IBool()])
+
+def read_env_state(environ, index, reg):
+    tmp = temp_reg()
+    t = env_type(environ)
     out_xpr(tmp)
     out(' = load ')
     out_t_ptr(t)
     out_global_ref(environ)
     newline()
-    return tmp
 
-def expr_inenv(environ, tt, init, e):
+    out_xpr(reg)
+    out(' = extractvalue ')
+    out_t(t)
+    out_xpr(tmp)
+    comma()
+    out(index)
+    newline()
+    return reg
+
+def expr_getenv(environ):
+    val = temp_reg_named(extrinsic(Name, environ))
+    return read_env_state(environ, '0', val)
+
+def expr_haveenv(environ):
+    have = temp_reg_named('have.%s' % (extrinsic(Name, environ)))
+    return read_env_state(environ, '1', have)
+
+def expr_inenv(environ, init, e):
     name = extrinsic(Name, environ)
-    t = convert_type(tt)
+    t = env_type(environ)
+    envt = match(t, ("ITuple([envt, IBool()])", identity))
     envref = global_ref(environ)
 
     out('; push env %s' % (name,))
@@ -645,7 +665,8 @@ def expr_inenv(environ, tt, init, e):
     out_xpr(envref)
     newline()
     i = express(init)
-    store_xpr(t, i, envref)
+    info = ConstStruct([(envt, i), (IBool(), Const('true'))])
+    store_xpr(t, info, envref)
 
     ret = express(e)
 
@@ -696,8 +717,9 @@ def express(expr):
         ('Bind(BindVar(v))', expr_bind_var),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
-        ('GetEnv(environ==Env(t))', expr_getenv),
-        ('InEnv(environ==Env(t), init, e)', expr_inenv),
+        ('GetEnv(environ)', expr_getenv),
+        ('HaveEnv(environ)', expr_haveenv),
+        ('InEnv(environ, init, e)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('Or(l, r)', expr_or),
@@ -922,7 +944,7 @@ def write_new_env(e):
     clear_indent()
     out_global_ref(e)
     out(' = %sglobal ' % ('external ' if decl else '',))
-    out_t_nospace(convert_type(e.type))
+    out_t_nospace(env_type(e))
     if not decl:
         out(' zeroinitializer')
     newline()

@@ -114,6 +114,7 @@ def _scan_expr(e):
         ("Match(_, _)", scan_match),
         ("Attr(s, f)", scan_attr),
         ("GetEnv(env)", scan_getenv),
+        ("HaveEnv(_)", nop),
         ("InEnv(env, init, f)", scan_inenv),
         ("Bind(b)", scan_binding)))
 

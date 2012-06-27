@@ -242,6 +242,10 @@ def refs_symbol(e):
 def conv_get_env(environ):
     return GetEnv(refs_symbol(environ))
 
+@special_call('have_env')
+def conv_get_env(environ):
+    return HaveEnv(refs_symbol(environ))
+
 @special_call('in_env')
 def conv_in_env(environ, val, f):
     environ = refs_symbol(environ)

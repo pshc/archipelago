@@ -300,6 +300,7 @@ def _prop_expr(e):
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
         ("GetEnv(Env(t))", lambda t: instantiate_type(e, t)),
+        ("HaveEnv(_)", lambda: CPrim(PBool())),
         ("e==InEnv(Env(t), init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
         ("otherwise", unknown_prop))

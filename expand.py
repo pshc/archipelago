@@ -144,6 +144,7 @@ def ex_expr(e):
         ("m==Match(e, cases)", ex_match),
         ("Attr(e, _)", ex_expr),
         ("GetEnv(environ)", ex_getenv),
+        ("HaveEnv(_)", nop),
         ("InEnv(environ, i, e)", ex_inenv),
         ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop),

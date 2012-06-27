@@ -39,7 +39,7 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
 Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
-        GetEnv, GetExtrinsic, InEnv, \
+        GetEnv, GetExtrinsic, HaveEnv, InEnv, \
         IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
@@ -52,6 +52,7 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
                    ('listExpr', 'Expr'), ('preds', '[Expr]'),
         'GetEnv', ('env', '*Env'),
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
+        'HaveEnv', ('env', '*Env'),
         'InEnv', ('env', '*Env'), ('init', 'Expr'), ('expr', 'Expr'),
         'IntLit', ('val', int),
         'ListLit', ('vals', '[Expr]'),
