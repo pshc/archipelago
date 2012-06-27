@@ -127,25 +127,29 @@ def inside_scope(f):
     new_scope.__name__ = f.__name__
     return new_scope
 
-def unknown_stmt(node):
-    print '??%s %s??' % (node.__class__,
-          ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
-    exit(-1)
-
-def unknown_expr(node):
-    print '%s?(%s)' % (str(node.__class__),
-          ', '.join(filter(lambda x: not x.startswith('_'), dir(node))))
-
-def make_grammar_decorator(default_dispatch):
+def make_grammar_decorator(index_only=False):
     dispatch_index = {}
-    def decorator(key):
+    def decorator(key, meta=None):
         def inserter(f):
             dispatch_index[key] = f
+            f.meta = meta
             return f
         return inserter
     def dispatch(nd, *args):
-        return dispatch_index.get(nd.__class__, default_dispatch)(nd, *args)
-    return (decorator, dispatch)
+        f = dispatch_index.get(nd.__class__)
+        if f is None:
+            return False
+        return f(nd, *args)
+    return (decorator, dispatch_index if index_only else dispatch)
+
+top_level, conv_top_level = make_grammar_decorator()
+stmt, conv_stmt = make_grammar_decorator()
+expr, conv_expr = make_grammar_decorator()
+special_assignment, SPECIAL_ASSIGNMENTS = make_grammar_decorator(True)
+special_call, SPECIAL_CALLS = make_grammar_decorator(True)
+
+def conv_exprs(elist):
+    return map(conv_expr, elist)
 
 def conv_type(t, tvars, dt=None):
     def unknown():
@@ -161,13 +165,6 @@ def conv_type(t, tvars, dt=None):
         ("ListLit([t])",
             lambda t: TArray(conv_type(t, tvars, dt))),
         ("_", unknown))
-
-(top_level, conv_top_level) = make_grammar_decorator(unknown_stmt)
-(stmt, conv_stmt) = make_grammar_decorator(unknown_stmt)
-(expr, conv_expr) = make_grammar_decorator(unknown_expr)
-
-def conv_exprs(elist):
-    return map(conv_expr, elist)
 
 # EXPRESSIONS
 
@@ -216,51 +213,57 @@ def _make_dt(dt_nm, *args, **opts):
         identifier(ctor, export=True)
     return [TopDT(dt)]
 
+@special_assignment('ADT')
 def make_adt(*args):
     return _make_dt(*args, **(dict(maker=ADT)))
+
+@special_assignment('DT')
 def make_dt(*args):
     return _make_dt(*args, **(dict(maker=DT)))
 
+@special_assignment('new_env')
 def make_env(nm, t):
     tvars = {}
-    e = Env(conv_type(t, tvars))
-    identifier(e, nm, namespace=symbolNamespace, export=True)
+    e = Env(conv_type(conv_special(t), tvars))
+    identifier(e, nm.value, namespace=symbolNamespace, export=True)
     return [TopEnv(e)]
 
+@special_assignment('new_extrinsic')
 def make_extrinsic(nm, t):
     tvars = {}
-    extr = Extrinsic(conv_type(t, tvars))
-    identifier(extr, nm, namespace=symbolNamespace, export=True)
+    extr = Extrinsic(conv_type(conv_special(t), tvars))
+    identifier(extr, nm.value, namespace=symbolNamespace, export=True)
     return [TopExtrinsic(extr)]
 
-def conv_get_env(args):
-    assert len(args) == 1
-    # XXX Need to deref
-    return GetEnv(args[0])
+@special_call('env')
+def conv_get_env(environ):
+    return GetEnv(refs_existing(environ.name, namespace=symbolNamespace))
 
-def conv_in_env(args):
-    assert len(args) == 3
-    # XXX Need to deref the first arg...
-    return InEnv(*args)
+@special_call('in_env')
+def conv_in_env(environ, val, f):
+    environ = refs_existing(environ.name, namespace=symbolNamespace)
+    val = conv_expr(val)
+    f = conv_byneed(f)
+    return InEnv(environ, val, f)
 
-def conv_get_extrinsic(args):
-    assert len(args) == 2
-    # XXX
-    return GetExtrinsic(*args)
+@special_call('extrinsic')
+def conv_get_extrinsic(ext, e):
+    ext = refs_existing(ext.name, namespace=symbolNamespace)
+    return GetExtrinsic(ext, conv_expr(e))
 
-def conv_hint(args, kwargs):
-    assert len(args) == 1
-    e = args[0]
+@special_call('hint', 'kwargs')
+def conv_hint(e, **kwargs):
+    e = conv_expr(e)
     insts = {}
     for k, s in kwargs.iteritems():
         insts[k] = s.val
     add_extrinsic(AstHint, e, insts)
     return e
 
-def conv_anno(args):
-    assert len(args) == 2
-    e = args[1]
-    add_extrinsic(AstType, e.func, args[0].val)
+@special_call('anno')
+def conv_anno(t, e):
+    e = conv_expr(e)
+    add_extrinsic(AstType, e.func, t.value)
     return e
 
 def conv_special(e):
@@ -309,10 +312,10 @@ SPECIAL_CASES = {
     'tuple5': lambda r: TupleLit([r(0),r(1),r(2),r(3),r(4)]),
 }
 
-@inside_scope
-def conv_match_case(code, f):
-    bs = []
-    c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
+def conv_byneed(f):
+    return conv_byneed_rebound(conv_expr(f), [])
+
+def conv_byneed_rebound(f, bs):
     bname = match(f, ('Bind(BindVar(v))', lambda v: extrinsic(Name, v)),
                      ('_', lambda: None))
     special = bname and SPECIAL_CASES.get(bname)
@@ -322,12 +325,21 @@ def conv_match_case(code, f):
         e = match(f, ('FuncExpr(Func(params, b))', lambda params, b:
                          replace_refs(dict(zip(params, bs)), extract_ret(b))),
                      ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
+    return e
+
+@inside_scope
+def conv_match_case(code, f):
+    bs = []
+    c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
+    e = conv_byneed_rebound(f, bs)
     return MatchCase(c, e)
 
-def conv_match(args):
-    expra = args.pop(0)
+@special_call('match')
+def conv_match(*args):
+    expra = conv_expr(args[0])
+    argsa = conv_exprs(args[1:])
     casesa = [match(a, ('TupleLit([StrLit(c), f])', conv_match_case))
-              for a in args]
+              for a in argsa]
     return Match(expra, casesa)
 
 named_match_cases = {'key': [1], 'named': [1], 'sym': [2, 3],
@@ -381,54 +393,28 @@ def conv_match_try(node, bs):
     assert False, "Unknown match case: %s" % node
 
 
-SpecialCallForm = DT('SpecialCall', ('name', str), ('args', [object]))
-special_call_forms = {
-        'ADT': make_adt, 'DT': make_dt,
-        'new_env': make_env,
-        'new_extrinsic': make_extrinsic,
-}
-extra_call_forms = {
-        'match': conv_match,
-        'env': conv_get_env, 'in_env': conv_in_env,
-        'extrinsic': conv_get_extrinsic,
-        'hint': conv_hint,
-        'anno': conv_anno,
-}
+SpecialAssignment = DT('SpecialAssignment', ('func', None), ('args', ['a']))
 
 @expr(ast.CallFunc)
 def conv_callfunc(e):
     assert not e.star_args and not e.dstar_args
+    # omit kw args
+    normal_args = filter(lambda a: not isinstance(a, ast.Keyword), e.args)
     if isinstance(e.node, ast.Name):
         kind = e.node.name
-        if kind in ('DT', 'ADT'):
-            return SpecialCallForm(kind, e.args)
-        elif kind in ('new_env', 'new_extrinsic'):
-            if e.args and isinstance(e.args[0], ast.Const):
-                name = e.args[0].value
-                if isinstance(name, basestring):
-                    assert len(e.args) == 2
-                    t = conv_special(e.args[1])
-                    return SpecialCallForm(kind, [name, t])
-    # omit kw args
-    argsa = map(conv_expr,
-            filter(lambda a: not isinstance(a, ast.Keyword), e.args))
-    if isinstance(e.node, ast.Name):
-        f = extra_call_forms.get(e.node.name)
-        if f:
-            if e.node.name == 'hint':
-                # collect kw args for this special form
+        spec = SPECIAL_ASSIGNMENTS.get(kind)
+        if spec is not None:
+            return SpecialAssignment(spec, e.args)
+        spec = SPECIAL_CALLS.get(kind)
+        if spec is not None:
+            if spec.meta == 'kwargs':
                 info = {}
                 for arg in e.args:
                     if isinstance(arg, ast.Keyword):
                         info[arg.name] = conv_expr(arg.expr)
-                return f(argsa, info)
-            return f(argsa)
-        elif e.node.name == 'char':
-            c = match(argsa[0], ('StrLit(s)', identity))
-            assert len(c) == 1
-            return CharLit(c)
-    fa = conv_expr(e.node)
-    return Call(conv_expr(e.node), argsa)
+                return spec(*normal_args, **info)
+            return spec(*normal_args)
+    return Call(conv_expr(e.node), map(conv_expr, normal_args))
 
 @expr(ast.Compare)
 def conv_compare(e):
@@ -551,9 +537,14 @@ def conv_assign(s):
     assert len(s.nodes) == 1
     left = s.nodes[0]
     expra = conv_expr(s.expr)
-    if isinstance(expra, SpecialCallForm):
-        # s.nodes[0] is usually the same as args[0], skipped for now
-        return special_call_forms[expra.name](*expra.args)
+    if isinstance(expra, SpecialAssignment):
+        if isinstance(left, ast.AssTuple):
+            left = left.nodes[0]
+        right = expra.args[0]
+        if isinstance(right, ast.Const):
+            right = right.value
+        assert left.name == right, "Name mismatch %s, %s" % (left.name, right)
+        return expra.func(*expra.args)
     # XXX Distinguish between defn and binding earlier
     m = match(conv_ass(left))
     global_scope = is_top_level()

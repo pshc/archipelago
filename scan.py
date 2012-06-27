@@ -45,7 +45,7 @@ def scan_getenv(e):
 
 def scan_inenv(e, init, f):
     scan_expr(init)
-    scap_expr(f)
+    scan_expr(f)
 
 # Augment AST with instantiation records
 
