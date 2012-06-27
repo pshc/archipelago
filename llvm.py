@@ -41,9 +41,10 @@ def setup_ir(filename):
 def setup_locals():
     return IRLocals([], False, True, False, 0, Nothing(), {}, Nothing())
 
-Xpr, Reg, Tmp, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
+Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
+        'Global', ('name', str),
         'ConstStruct', ('vals', ['(IType, Xpr)']),
         'Const', ('frag', 'str'),
         'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']),
@@ -52,7 +53,7 @@ Xpr, Reg, Tmp, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
 def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
-        ('ConstStruct(_)', lambda: True),
+        ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
 Replacement = new_extrinsic('Replacement', Xpr)
@@ -116,10 +117,13 @@ def func_ref(f):
     return '@%s' % (extrinsic(Name, f),)
 
 def global_ref(v):
-    return '@%s' % (extrinsic(Name, v),)
+    return Global(extrinsic(Name, v))
 
 def out_func_ref(f):
     out(func_ref(f))
+
+def out_global_ref(v):
+    out_xpr(global_ref(v))
 
 def out_label(label):
     lcl = env(LOCALS)
@@ -147,6 +151,7 @@ def out_xpr(x):
 def xpr_str(x):
     return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
+                    ('Global(name)', lambda name: '@%s' % (name,)),
                     ('ConstStruct(vals)', conststruct_str),
                     ('Const(s)', identity),
                     ('ConstOp(f, args)', constop_str))
@@ -616,6 +621,39 @@ def expr_func(f, ps, body):
     assert not clos.isClosure, "TODO"
     return Const(func_ref(clos.func))
 
+def expr_getenv(environ, tt):
+    tmp = temp_reg_named(extrinsic(Name, environ))
+    t = convert_type(tt)
+    out_xpr(tmp)
+    out(' = load ')
+    out_t_ptr(t)
+    out_global_ref(environ)
+    newline()
+    return tmp
+
+def expr_inenv(environ, tt, init, e):
+    name = extrinsic(Name, environ)
+    t = convert_type(tt)
+    envref = global_ref(environ)
+
+    out('; push env %s' % (name,))
+    newline()
+    old = temp_reg_named('old.%s' % (name,))
+    out_xpr(old)
+    out(' = load ')
+    out_t_ptr(t)
+    out_xpr(envref)
+    newline()
+    i = express(init)
+    store_xpr(t, i, envref)
+
+    ret = express(e)
+
+    out('; pop env %s' % (name,))
+    newline()
+    store_xpr(t, old, envref)
+    return ret
+
 def expr_match(m, e, cs):
     return Const('undef ;match')
     #for c in cs:
@@ -636,8 +674,9 @@ def expr_strlit(lit):
     info = extrinsic(expand.ExpandedDecl, lit)
     tmp = temp_reg()
     out_xpr(tmp)
-    out(' = getelementptr [%d x i8]* %s, i32 0, i32 0' %
-            (extrinsic(LiteralSize, info.var), global_ref(info.var)))
+    out(' = getelementptr [%d x i8]* ' % (extrinsic(LiteralSize, info.var),))
+    out_global_ref(info.var)
+    out(', i32 0, i32 0')
     newline()
     return tmp
 
@@ -657,6 +696,8 @@ def express(expr):
         ('Bind(BindVar(v))', expr_bind_var),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
+        ('GetEnv(environ==Env(t))', expr_getenv),
+        ('InEnv(environ==Env(t), init, e)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('Or(l, r)', expr_or),
@@ -876,7 +917,17 @@ def write_expr_stmt(e):
     ex = express(e)
     # Don't need to output ex since it is discarded and has no side-effects
 
-def write_extrinsic_stmt(extr):
+def write_new_env(e):
+    decl = env(DECLSONLY)
+    clear_indent()
+    out_global_ref(e)
+    out(' = %sglobal ' % ('external ' if decl else '',))
+    out_t_nospace(convert_type(e.type))
+    if not decl:
+        out(' zeroinitializer')
+    newline()
+
+def write_new_extrinsic(extr):
     clear_indent()
     out('; extrinsic ')
     out(extrinsic(Name, extr))
@@ -1008,7 +1059,8 @@ def write_top_strlit(var, s):
     clear_indent()
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
-    out('%s = internal constant %s' % (global_ref(var), escaped))
+    out_global_ref(var)
+    out(' = internal constant %s' % (escaped,))
     newline()
 
 def escape_strlit(s):
@@ -1025,7 +1077,8 @@ def write_top(top):
         ("TopDefn(v, FuncExpr(f))", write_top_var_func),
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
-        ("TopExtrinsic(extr)", write_extrinsic_stmt))
+        ("TopEnv(environ)", write_new_env),
+        ("TopExtrinsic(extr)", write_new_extrinsic))
 
 def as_local(f):
     lcl = setup_locals()

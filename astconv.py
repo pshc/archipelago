@@ -235,21 +235,23 @@ def make_extrinsic(nm, t):
     identifier(extr, nm.value, namespace=symbolNamespace, export=True)
     return [TopExtrinsic(extr)]
 
+def refs_symbol(e):
+    return refs_existing(e.name, namespace=symbolNamespace).binding
+
 @special_call('env')
 def conv_get_env(environ):
-    return GetEnv(refs_existing(environ.name, namespace=symbolNamespace))
+    return GetEnv(refs_symbol(environ))
 
 @special_call('in_env')
 def conv_in_env(environ, val, f):
-    environ = refs_existing(environ.name, namespace=symbolNamespace)
+    environ = refs_symbol(environ)
     val = conv_expr(val)
     f = conv_byneed(f)
     return InEnv(environ, val, f)
 
 @special_call('extrinsic')
 def conv_get_extrinsic(ext, e):
-    ext = refs_existing(ext.name, namespace=symbolNamespace)
-    return GetExtrinsic(ext, conv_expr(e))
+    return GetExtrinsic(refs_symbol(ext), conv_expr(e))
 
 @special_call('hint', 'kwargs')
 def conv_hint(e, **kwargs):

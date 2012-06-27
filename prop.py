@@ -277,11 +277,9 @@ def prop_attr(e, s, f):
     # TODO: Take tvs into account
     return instantiate_type(e, e.field.type)
 
-def prop_getenv(environ):
-    return stuff
-
-def prop_inenv(environ, init, f):
-    return stuff
+def prop_inenv(e, t, init, f):
+    check_expr(instantiate_type(e, t), init)
+    return prop_expr(f)
 
 def unknown_prop(a):
     assert False, with_context('Unknown prop case:', a)
@@ -301,8 +299,8 @@ def _prop_expr(e):
         ("e==FuncExpr(f==Func(ps, b))", prop_func),
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
-        ("GetEnv(environ)", prop_getenv),
-        ("InEnv(environ, init, f)", prop_inenv),
+        ("GetEnv(Env(t))", lambda t: instantiate_type(e, t)),
+        ("e==InEnv(Env(t), init, f)", prop_inenv),
         ("ref==Bind(b)", prop_binding),
         ("otherwise", unknown_prop))
     if env(GENOPTS).dumpTypes:
