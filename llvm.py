@@ -582,8 +582,11 @@ def write_call(tmp, f, args, t):
         argx = cast(express(arg), argt, paramt)
         argxs.append((argt, argx))
 
-    out_xpr(tmp)
-    out(' = call ')
+    if isJust(tmp):
+        out_xpr(fromJust(tmp))
+        out(' = call ')
+    else:
+        out('call ')
     out_t(t)
     out_xpr(fx)
     write_args(argxs)
@@ -608,11 +611,11 @@ def expr_call(e, f, args):
     elif m('Bind(BindVar(v))'):
         v = m.arg
         tmp = temp_reg_named(extrinsic(Name, v))
-        write_call(tmp, f, args, t)
+        write_call(Just(tmp), f, args, t)
         m.ret(tmp)
     else:
         tmp = temp_reg()
-        write_call(tmp, f, args, t)
+        write_call(Just(tmp), f, args, t)
         m.ret(tmp)
     return m.result()
 
@@ -650,10 +653,9 @@ def expr_haveenv(environ):
     have = temp_reg_named('have.%s' % (extrinsic(Name, environ)))
     return read_env_state(environ, '1', have)
 
-def expr_inenv(environ, init, e):
+def env_setup(environ, init):
     name = extrinsic(Name, environ)
     t = env_type(environ)
-    envt = match(t, ("ITuple([envt, IBool()])", identity))
     envref = global_ref(environ)
 
     out('; push env %s' % (name,))
@@ -665,15 +667,30 @@ def expr_inenv(environ, init, e):
     out_xpr(envref)
     newline()
     i = express(init)
+    envt = match(t, ("ITuple([envt, IBool()])", identity))
     info = ConstStruct([(envt, i), (IBool(), Const('true'))])
     store_xpr(t, info, envref)
+    return old
 
-    ret = express(e)
+def env_teardown(environ, old):
+    name = extrinsic(Name, environ)
+    t = env_type(environ)
+    envref = global_ref(environ)
 
     out('; pop env %s' % (name,))
     newline()
     store_xpr(t, old, envref)
+
+def expr_inenv(environ, init, e):
+    old = env_setup(environ, init)
+    ret = express(e)
+    env_teardown(environ, old)
     return ret
+
+def expr_inenv_void(environ, init, e):
+    old = env_setup(environ, init)
+    write_void_stmt(e)
+    env_teardown(environ, old)
 
 def expr_match(m, e, cs):
     return Const('undef ;match')
@@ -935,9 +952,17 @@ def write_dtstmt(form):
         clear_indent()
         newline()
 
+def write_void_stmt(e):
+    match(e,
+        ('Call(f, a)', lambda f, a: write_call(Nothing(), f, a, IVoid())),
+        ('InEnv(environ, init, e)', expr_inenv_void))
+
 def write_expr_stmt(e):
-    ex = express(e)
-    # Don't need to output ex since it is discarded and has no side-effects
+    t = typeof(e)
+    if matches(t, 'IVoid()'):
+        write_void_stmt(e)
+    else:
+        express(e)
 
 def write_new_env(e):
     decl = env(DECLSONLY)
