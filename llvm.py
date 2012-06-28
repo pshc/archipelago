@@ -6,7 +6,7 @@ import sys
 Label = DT('Label', ('name', str),
                     ('index', int),
                     ('used', bool),
-                    ('replacedBy', 'Maybe(Label)'))
+                    ('needsTerminator', bool))
 
 IRChunk, IRStr, IRLabel, IRLabelRef = ADT('IRChunk',
         'IRStr', ('str', str),
@@ -17,14 +17,12 @@ IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
-IRBlock = DT('IRBlock', ('label', Label), ('needsJumpInto', bool))
-
 IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('needIndent', bool),
-                          ('needTerminator', bool),
                           ('unreachable', bool),
                           ('tempCtr', int),
-                          ('pendingBlock', 'Maybe(IRBlock)'),
+                          ('entryBlock', Label),
+                          ('currentBlock', Label),
                           ('labelCtrs', {str: int}),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
@@ -39,7 +37,8 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    return IRLocals([], False, True, False, 0, Nothing(), {}, Nothing())
+    entry = Label(':entry:', -1, True, False)
+    return IRLocals([], False, False, 0, entry, entry, {}, Nothing())
 
 Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
@@ -60,45 +59,55 @@ Replacement = new_extrinsic('Replacement', Xpr)
 
 LiteralSize = new_extrinsic('LiteralSize', int)
 
-# OUTPUT
+# IMMEDIATE OUTPUT
+
+FlushState = DT('FlushState', ('labelCtrs', {str: int}), ('shouldTerm', bool))
+FLUSH = new_env('FLUSH', FlushState)
 
 def imm_out(s):
     env(IR).stream.write(s)
     if not env(GENOPTS).quiet:
         sys.stdout.write(s)
 
+def label_str(label):
+    # Unique labels don't need an index
+    if label.index == 0 and env(FLUSH).labelCtrs[label.name] == 1:
+        return label.name
+    else:
+        return '%s_%d' % (label.name, label.index)
+
+def _new_block(lbl):
+    if lbl.used:
+        s = '\n%s:\n' % (label_str(lbl),)
+        state = env(FLUSH)
+        if state.shouldTerm:
+            s = '  br label %%%s\n%s' % (label_str(lbl), s)
+        state.shouldTerm = lbl.needsTerminator
+        return s
+    else:
+        return ''
+
+def out_chunk(chunk):
+    imm_out(match(chunk,
+        ('IRStr(s)', identity),
+        ('IRLabel(lbl)', _new_block),
+        ('IRLabelRef(l, True)', lambda l: '%%%s' % (label_str(l),)),
+        ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (label_str(l),))
+    ))
+
 def flush(lcl):
-    def label_str(label):
-        label = collapse_label_indirection(label)
-        # Unique labels don't need an index
-        if label.index == 0 and lcl.labelCtrs[label.name] == 1:
-            return label.name
-        else:
-            return '%s_%d' % (label.name, label.index)
     chunks = lcl.chunks
     lcl.chunks = []
-    for chunk in chunks:
-        imm_out(match(chunk,
-            ('IRStr(s)', identity),
-            ('IRLabel(lbl)', lambda l: '\n%s:\n' % (label_str(l),)
-                                       if l.used else ''),
-            ('IRLabelRef(l, True)', lambda l: '%%%s' % (label_str(l),)),
-            ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (label_str(l),))
-        ))
+    state = FlushState(lcl.labelCtrs, lcl.entryBlock.needsTerminator)
+    in_env(FLUSH, state, lambda: map_(out_chunk, chunks))
+    assert not state.shouldTerm, "Last block not terminated?"
+
+# LATE-BOUND OUTPUT
 
 def out(s):
     lcl = env(LOCALS)
     if lcl.unreachable:
         return
-    if isJust(lcl.pendingBlock):
-        block = fromJust(lcl.pendingBlock)
-        if block.needsJumpInto:
-            # Blocks can't implicitly fall-through to the next block, so jump
-            ref = IRLabelRef(block.label, False)
-            block.label.used = True
-            lcl.chunks += [IRStr('  br '), ref, IRStr('\n')]
-        lcl.chunks.append(IRLabel(block.label))
-        lcl.pendingBlock = Nothing()
     if lcl.needIndent:
         lcl.chunks.append(IRStr('  %s' % (s,)))
         clear_indent()
@@ -127,17 +136,13 @@ def out_global_ref(v):
 
 def out_label(label):
     lcl = env(LOCALS)
-    # Empty label substitution
-    if isJust(lcl.pendingBlock):
-        fromJust(lcl.pendingBlock).label.replacedBy = Just(label)
-    lcl.pendingBlock = Just(IRBlock(label, lcl.needTerminator))
+    lcl.chunks.append(IRLabel(label))
+    lcl.currentBlock = label
     lcl.needIndent = True
-    lcl.needTerminator = True
     lcl.unreachable = False
 
 def out_naked_label_ref(label, naked):
     lcl = env(LOCALS)
-    assert isNothing(lcl.pendingBlock), "Unexpected label ref after label"
     if not lcl.unreachable:
         lcl.chunks.append(IRLabelRef(label, naked))
         label.used = True
@@ -169,7 +174,7 @@ def clear_indent():
 
 def newline():
     if have_env(LOCALS):
-        if isJust(env(LOCALS).pendingBlock):
+        if env(LOCALS).unreachable:
             return
         out('\n')
         env(LOCALS).needIndent = True
@@ -177,7 +182,7 @@ def newline():
         imm_out('\n')
 
 def term():
-    env(LOCALS).needTerminator = False
+    env(LOCALS).currentBlock.needsTerminator = False
     newline()
     env(LOCALS).unreachable = True
 
@@ -199,22 +204,8 @@ def temp_reg_named(nm):
 def new_label(nm):
     lcl = env(LOCALS)
     ctr = lcl.labelCtrs.get(nm, 0)
-    label = Label(nm, ctr, False, Nothing())
+    label = Label(nm, ctr, False, True)
     lcl.labelCtrs[nm] = ctr + 1
-    return label
-
-def collapse_label_indirection(label):
-    if isNothing(label.replacedBy):
-        return label
-    indirect = []
-    prev = label
-    label = fromJust(label.replacedBy)
-    while isJust(label.replacedBy):
-        label = fromJust(label.replacedBy)
-        indirect.append(prev)
-        prev = label
-    for i in indirect:
-        i.replacedBy = Just(label)
     return label
 
 # INSTRUCTIONS
@@ -1008,6 +999,11 @@ def write_params(ps, tps):
     return tmps
 
 def write_top_func(f, ps, body):
+    lcl = env(LOCALS)
+    if not env(DECLSONLY):
+        # XXX Stupid hack
+        lcl.entryBlock.needsTerminator = True
+
     tps, tret = match(extrinsic(TypeOf, f),
         ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
     assert len(ps) == len(tps)
@@ -1041,13 +1037,12 @@ def write_top_func(f, ps, body):
 
     write_body(body)
 
-    # Clean up, discard unused pending block if any
-    lcl = env(LOCALS)
-    if isJust(lcl.pendingBlock):
-        last_block = fromJust(lcl.pendingBlock)
-        if last_block.label.used:
-            out('ret void')
-            term()
+    # Clean up
+    last = lcl.currentBlock
+    if last.used and last.needsTerminator:
+        assert matches(tret, 'IVoid()'), "No terminator for non-void return?"
+        out('ret void')
+        term()
     lcl.chunks.append(IRStr('}\n\n'))
 
 def write_return(expr):
