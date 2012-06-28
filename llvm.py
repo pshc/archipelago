@@ -85,6 +85,10 @@ def _new_block(lbl):
         state.shouldTerm = lbl.needsTerminator
         return s
     else:
+        # Even though we'll omit this label, it might have
+        # a terminator after it that the preceeding block didn't notice
+        if not lbl.needsTerminator:
+            env(FLUSH).shouldTerm = False
         return ''
 
 def out_chunk(chunk):
