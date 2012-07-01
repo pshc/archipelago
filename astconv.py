@@ -213,6 +213,15 @@ def _make_dt(dt_nm, *args, **opts):
         identifier(ctor, export=True)
     return [TopDT(dt)]
 
+@special_assignment('cdecl')
+def make_cdecl(nm, t):
+    var = Var()
+    identifier(var, nm.value, export=True)
+    tvars = {}
+    t = conv_type(conv_special(t), tvars)
+    add_extrinsic(TypeOf, var, t)
+    return [TopCDecl(var)]
+
 @special_assignment('ADT')
 def make_adt(*args):
     return _make_dt(*args, **(dict(maker=ADT)))

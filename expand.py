@@ -262,6 +262,7 @@ def ex_dt(dt):
 
 def ex_top_level(s):
     match(s,
+        ("TopCDecl(_)", nop),
         ("TopDefn(v, FuncExpr(f))", ex_top_func),
         ("TopDefn(_, e)", ex_top_defn),
         ("TopDT(dt)", ex_dt),

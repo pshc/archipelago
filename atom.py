@@ -95,8 +95,9 @@ Stmt, AddExtrinsic, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'ReturnNothing',
         'While', ('test', Expr), ('body', Body))
 
-TopLevel, TopDefn, TopDT, TopExtrinsic, TopEnv = \
+TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',
+        'TopCDecl', ('var', Var),
         'TopDefn', ('var', Var), ('expr', Expr),
         'TopDT', ('form', 'DataType'),
         'TopExtrinsic', ('extrinsic', Extrinsic),

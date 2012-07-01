@@ -220,6 +220,7 @@ DtList = DT('DtList', ('dts', [DataType]))
 def load_files(files):
     load_builtins()
     load_forms()
+    load_module('runtime.py')
     load_module('bedrock.py')
     for filename in files:
         load_module(filename)

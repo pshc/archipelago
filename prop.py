@@ -438,6 +438,7 @@ def prop_body(body):
 
 def prop_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
+        ("TopCDecl(_)", nop),
         ("TopDT(form)", prop_DT),
         ("TopEnv(environ)", prop_new_env),
         ("TopDefn(var, e)", prop_defn),

@@ -1002,29 +1002,33 @@ def write_params(ps, tps):
     out(')')
     return tmps
 
+def write_top_func_decl(v):
+    tps, tret = match(extrinsic(TypeOf, v),
+        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+    clear_indent()
+    out('declare ')
+    out_t(tret)
+    out_func_ref(v)
+    write_param_types(tps)
+    newline()
+
 def write_top_func(f, ps, body):
+    assert not env(DECLSONLY)
     lcl = env(LOCALS)
-    if not env(DECLSONLY):
-        # XXX Stupid hack
-        lcl.entryBlock.needsTerminator = True
+
+    # XXX Stupid hack
+    lcl.entryBlock.needsTerminator = True
 
     tps, tret = match(extrinsic(TypeOf, f),
         ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
     assert len(ps) == len(tps)
 
     clear_indent()
-    if env(DECLSONLY):
-        out('declare ')
-    else:
-        out('define ')
-        if not env(EXPORTSYMS):
-            out('internal ')
+    out('define ')
+    if not env(EXPORTSYMS):
+        out('internal ')
     out_t(tret)
     out_func_ref(f)
-    if env(DECLSONLY):
-        write_param_types(tps)
-        newline()
-        return
     tmps = write_params(ps, tps)
     out(' {')
     newline()
@@ -1092,10 +1096,16 @@ def write_stmt(stmt):
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))
 
+def write_top_cdecl(v):
+    if env(DECLSONLY):
+        write_top_func_decl(v)
+
 def write_top_var_func(v, f):
-    if not env(DECLSONLY):
+    if env(DECLSONLY):
+        write_top_func_decl(v)
+    else:
         check_static_replacement(v, f)
-    write_top_func(f, f.params, f.body)
+        write_top_func(f, f.params, f.body)
 
 def write_top_strlit(var, s):
     ir = env(IR)
@@ -1120,6 +1130,7 @@ def escape_strlit(s):
 
 def write_top(top):
     match(top,
+        ("TopCDecl(v)", write_top_cdecl),
         ("TopDefn(v, FuncExpr(f))", write_top_var_func),
         ("TopDefn(v, e)", write_defn),
         ("TopDT(form)", write_dtstmt),
@@ -1147,7 +1158,6 @@ def write_unit_decls(unit):
 
 prelude = """; prelude
 %Type = type opaque
-declare i8* @malloc(i32)
 declare void @fail(i8*) noreturn
 
 """
@@ -1167,6 +1177,10 @@ def write_ir(mod):
 
     def go():
         imm_out(prelude)
+        runtime = loaded_modules['runtime']
+        if runtime is not None:
+            write_imports(runtime)
+
         walk_deps(write_imports, mod)
         newline()
         imm_out('; main')
