@@ -257,6 +257,14 @@ def conv_in_env(environ, val, f):
 def conv_get_extrinsic(ext, e):
     return GetExtrinsic(refs_symbol(ext), conv_expr(e))
 
+@special_call('add_extrinsic')
+def conv_add_extrinsic(ext, e, val):
+    return AddExtrinsic(refs_symbol(ext), conv_expr(e), conv_expr(val))
+
+@special_call('scope_extrinsic')
+def conv_scope_extrinsic(ext, f):
+    return ScopeExtrinsic(refs_symbol(ext), conv_byneed(f))
+
 @special_call('hint', 'kwargs')
 def conv_hint(e, **kwargs):
     e = conv_expr(e)
@@ -602,7 +610,14 @@ def conv_continue(s):
 def conv_discard(s):
     if isinstance(s.expr, ast.Const) and s.expr.value is None:
         return []
-    return [ExprStmt(conv_expr(s.expr))]
+    e = conv_expr(s.expr)
+
+    # Dumb special case
+    if isinstance(e, Stmt):
+        assert isinstance(e, AddExtrinsic)
+        return [e]
+
+    return [ExprStmt(e)]
 
 # ast lhs -> Maybe Lhs
 def conv_ass(s):

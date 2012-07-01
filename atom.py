@@ -39,7 +39,8 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
 Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
-        GetEnv, GetExtrinsic, HaveEnv, InEnv, \
+        GetEnv, HaveEnv, InEnv, \
+        GetExtrinsic, ScopeExtrinsic, \
         IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
@@ -51,9 +52,10 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
         'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
                    ('listExpr', 'Expr'), ('preds', '[Expr]'),
         'GetEnv', ('env', '*Env'),
-        'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'HaveEnv', ('env', '*Env'),
         'InEnv', ('env', '*Env'), ('init', 'Expr'), ('expr', 'Expr'),
+        'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
+        'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
         'IntLit', ('val', int),
         'ListLit', ('vals', '[Expr]'),
         'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
@@ -76,9 +78,11 @@ Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsAttr', ('sub', Expr), ('attr', '*Field'),
         'LhsTuple', ('vals', '[Lhs]'))
 
-Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
+Stmt, AddExtrinsic, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
     ExprStmt, Return, ReturnNothing, While = \
     ADT('Stmt',
+        'AddExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
+                        ('val', 'Expr'),
         'Assert', ('test', Expr), ('message', Expr),
         'Assign', ('lhs', Lhs), ('expr', Expr),
         'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', Expr),

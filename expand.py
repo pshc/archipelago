@@ -146,6 +146,8 @@ def ex_expr(e):
         ("GetEnv(environ)", ex_getenv),
         ("HaveEnv(_)", nop),
         ("InEnv(environ, i, e)", ex_inenv),
+        ("GetExtrinsic(_, node)", ex_expr),
+        ("ScopeExtrinsic(_, f)", ex_expr),
         ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
         ("otherwise", ex_unknown_expr))
@@ -159,6 +161,10 @@ def ex_defn(v, e):
     add_extrinsic(LocalVar, v, VarInfo(env(EXFUNC)))
     env(EXSCOPE).localVars[v] = FuncLocal()
     ex_expr(e)
+
+def ex_addextrinsic(node, val):
+    ex_expr(node)
+    ex_expr(val)
 
 def ex_assign(a, e):
     ex_expr(e) # Must come first!
@@ -227,6 +233,7 @@ def ex_stmt(s):
         ("ExprStmt(e)", ex_expr),
         ("Defn(var, e==FuncExpr(f))", ex_func_defn),
         ("Defn(var, e)", ex_defn),
+        ("AddExtrinsic(_, node, val)", ex_addextrinsic),
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
         ("Break() or Continue()", nop),

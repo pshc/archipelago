@@ -281,6 +281,11 @@ def prop_inenv(e, t, init, f):
     check_expr(instantiate_type(e, t), init)
     return prop_expr(f)
 
+def prop_getextrinsic(e, extr, node):
+    t = prop_expr(node)
+    assert matches(t, "CData(_, _)"), "Can't get extr from %s" % (nodet,)
+    return instantiate_type(e, extr.type)
+
 def unknown_prop(a):
     assert False, with_context('Unknown prop case:', a)
 
@@ -302,6 +307,8 @@ def _prop_expr(e):
         ("GetEnv(Env(t))", lambda t: instantiate_type(e, t)),
         ("HaveEnv(_)", lambda: CPrim(PBool())),
         ("e==InEnv(Env(t), init, f)", prop_inenv),
+        ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
+        ("ScopeExtrinsic(_, f)", prop_expr),
         ("ref==Bind(b)", prop_binding),
         ("otherwise", unknown_prop))
     if env(GENOPTS).dumpTypes:
@@ -375,6 +382,12 @@ def prop_defn(a, e):
     else:
         set_type(a, generalize_type(prop_expr(e)))
 
+def prop_addextrinsic(extr, node, val):
+    nodet = prop_expr(node)
+    assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
+    t = instantiate_type(env(STMTCTXT), extr.type)
+    check_expr(t, val)
+
 def prop_assign(a, e):
     t = prop_lhs(a)
     check_expr(t, e)
@@ -407,6 +420,7 @@ def prop_returnnothing():
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(var, e)", prop_defn),
+        ("AddExtrinsic(extr, node, val)", prop_addextrinsic),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),

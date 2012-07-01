@@ -40,10 +40,7 @@ def scan_attr(s, f):
     # Can't resolve f without type info. Deferred to prop for now.
     scan_expr(s)
 
-def scan_getenv(e):
-    pass
-
-def scan_inenv(e, init, f):
+def scan_inenv(init, f):
     scan_expr(init)
     scan_expr(f)
 
@@ -113,9 +110,11 @@ def _scan_expr(e):
         ("FuncExpr(f==Func(ps, b))", scan_func),
         ("Match(_, _)", scan_match),
         ("Attr(s, f)", scan_attr),
-        ("GetEnv(env)", scan_getenv),
+        ("GetEnv(_)", nop),
         ("HaveEnv(_)", nop),
-        ("InEnv(env, init, f)", scan_inenv),
+        ("InEnv(_, init, f)", scan_inenv),
+        ("GetExtrinsic(_, e)", scan_expr),
+        ("ScopeExtrinsic(_, f)", scan_expr),
         ("Bind(b)", scan_binding)))
 
 def scan_lhs_attr(e, f):
@@ -127,6 +126,10 @@ def scan_lhs(lhs):
         ("lhs==LhsVar(v)", instantiate),
         ("LhsAttr(e, f)", scan_lhs_attr),
         ("LhsTuple(ss)", lambda ss: map_(scan_lhs, ss)))
+
+def scan_addextrinsic(e, val):
+    scan_expr(e)
+    scan_expr(val)
 
 def scan_assign(lhs, e):
     scan_lhs(lhs)
@@ -154,6 +157,7 @@ def scan_assert(t, m):
 def scan_stmt(stmt):
     in_env(STMTCTXT, stmt, lambda: match(stmt,
         ("Defn(var, e)", scan_defn),
+        ("AddExtrinsic(_, e, val)", scan_addextrinsic),
         ("Assign(lhs, e)", scan_assign),
         ("AugAssign(_, lhs, e)", scan_augassign),
         ("Break() or Continue()", nop),
