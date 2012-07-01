@@ -31,6 +31,7 @@ loaded_module_export_names = {}
 valueNamespace = 'value'
 typeNamespace = 'type'
 symbolNamespace = 'symbol'
+cNamespace = 'C'
 
 def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
@@ -216,7 +217,7 @@ def _make_dt(dt_nm, *args, **opts):
 @special_assignment('cdecl')
 def make_cdecl(nm, t):
     var = Var()
-    identifier(var, nm.value, export=True)
+    identifier(var, nm.value, export=True, namespace=cNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
     add_extrinsic(TypeOf, var, t)

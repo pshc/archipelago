@@ -274,7 +274,8 @@ def malloc(t):
     newline()
     mem = temp_reg()
     out_xpr(mem)
-    out(' = call i8* @malloc')
+    out(' = call i8* ')
+    out_func_ref(runtime_decl('malloc'))
     write_args([(IInt(), sizeof)])
     newline()
     inst = temp_reg_named('inst')
@@ -352,6 +353,19 @@ def cast(xpr, src, dest):
     out_t_nospace(dest)
     newline()
     return tmp
+
+_cached_runtime_refs = {}
+def runtime_decl(name):
+    # "Proper" impl of this module will just point at the decls directly
+    ref = _cached_runtime_refs.get(name)
+    if ref is not None:
+        return ref
+    runtime = loaded_modules['runtime']
+    from astconv import loaded_module_export_names, cNamespace
+    symbolTable = loaded_module_export_names[runtime]
+    ref, bindType = symbolTable[(name, cNamespace)]
+    _cached_runtime_refs[name] = ref
+    return ref
 
 # TYPES
 
