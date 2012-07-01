@@ -163,7 +163,8 @@ def xpr_str(x):
                     ('Global(name)', lambda name: '@%s' % (name,)),
                     ('ConstStruct(vals)', conststruct_str),
                     ('Const(s)', identity),
-                    ('ConstOp(f, args)', constop_str))
+                    ('ConstOp(f, args)', constop_str),
+                    ('ConstCast(kind, val, t)', constcast_str))
 
 def constop_str(f, args):
     ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in args)
@@ -172,6 +173,9 @@ def constop_str(f, args):
 def conststruct_str(vals):
     ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in vals)
     return '{ %s }' % (', '.join(ss),)
+
+def constcast_str(kind, val, t):
+    return '%s (%s to %s)' % (kind, xpr_str(val), t_str(t))
 
 def clear_indent():
     env(LOCALS).needIndent = False
@@ -351,7 +355,7 @@ def cast(xpr, src, dest):
     d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
     kind = match((s, d),
         ('(IInt(), IVoidPtr())', lambda: 'inttoptr'),
-        ('(IVoidPtr(), IInt(_))', lambda: 'ptrtoint'),
+        ('(IVoidPtr(), IInt())', lambda: 'ptrtoint'),
         ('(IVoidPtr(), IVoidPtr())', lambda: 'bitcast'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
