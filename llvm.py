@@ -612,6 +612,15 @@ def write_call(f, args, rett):
     tmp = call(frett, fx, argxs)
     return cast(tmp, frett, rett)
 
+def write_runtime_call(name, args, rett):
+    # Ugh, what a mess to reuse write_call.
+    # Should just use separate path instead.
+    decl = runtime_decl(name)
+    b = Bind(BindVar(decl))
+    add_extrinsic(TypeOf, b, extrinsic(TypeOf, decl))
+    add_extrinsic(Replacement, decl, func_ref(decl))
+    return write_call(b, args, rett)
+
 def expr_call(e, f, args):
     t = typeof(e)
     m = match(f)
@@ -705,6 +714,17 @@ def expr_inenv_void(environ, init, e):
     write_void_stmt(e)
     env_teardown(environ, old)
 
+def expr_getextrinsic(extr, e):
+    return write_runtime_call('_getextrinsic', [e], convert_type(extr.type))
+
+def expr_scopeextrinsic(extr, e):
+    out('; enter %s' % (extrinsic(Name, extr),))
+    newline()
+    ret = express(e)
+    out('; exit %s' % (extrinsic(Name, extr),))
+    newline()
+    return ret
+
 def expr_match(m, e, cs):
     return Const('undef ;match')
     #for c in cs:
@@ -750,6 +770,8 @@ def express(expr):
         ('GetEnv(environ)', expr_getenv),
         ('HaveEnv(environ)', expr_haveenv),
         ('InEnv(environ, init, e)', expr_inenv),
+        ('GetExtrinsic(extr, e)', expr_getextrinsic),
+        ('ScopeExtrinsic(extr, e)', expr_scopeextrinsic),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('Or(l, r)', expr_or),
@@ -759,6 +781,10 @@ def express(expr):
         ('lit==TupleLit(es)', expr_tuple_lit))
 
 # STATEMENTS
+
+def write_addextrinsic(extr, node, val):
+    write_runtime_call('_addextrinsic', [node, val], IVoid())
+    newline()
 
 def write_assert(e, msg):
     ex = express(e)
@@ -1103,6 +1129,7 @@ def write_while(cond, body):
 
 def write_stmt(stmt):
     match(stmt,
+        ("AddExtrinsic(extr, node, val)", write_addextrinsic),
         ("Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
