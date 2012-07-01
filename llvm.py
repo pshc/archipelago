@@ -127,13 +127,13 @@ def out_name_reg(a):
 def func_ref(f):
     if not has_extrinsic(Name, f):
         add_extrinsic(Name, f, "unnamed_func")
-    return '@%s' % (extrinsic(Name, f),)
+    return global_ref(f)
 
 def global_ref(v):
     return Global(extrinsic(Name, v))
 
 def out_func_ref(f):
-    out(func_ref(f))
+    out_xpr(func_ref(f))
 
 def out_global_ref(v):
     out_xpr(global_ref(v))
@@ -376,7 +376,7 @@ def runtime_decl(name):
     from astconv import loaded_module_export_names, cNamespace
     symbolTable = loaded_module_export_names[runtime]
     sym, bindType = symbolTable[(name, cNamespace)]
-    ref = Const(func_ref(sym))
+    ref = func_ref(sym)
     _cached_runtime_refs[name] = ref
     return ref
 
@@ -525,9 +525,6 @@ def expr_bind_builtin(b):
         ('key("True")', lambda: Const('true')),
         ('key("False")', lambda: Const('false')))
 
-def expr_bind_ctor(c):
-    return Const(func_ref(c))
-
 def expr_bind_var(v):
     if has_extrinsic(Replacement, v):
         return extrinsic(Replacement, v)
@@ -634,7 +631,7 @@ def expr_call(e, f, args):
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
     assert not clos.isClosure, "TODO"
-    return Const(func_ref(clos.func))
+    return func_ref(clos.func)
 
 def env_type(environ):
     return ITuple([convert_type(environ.type), IBool()])
@@ -742,7 +739,7 @@ def express(expr):
     return match(expr,
         ('And(l, r)', expr_and),
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
-        ('Bind(BindCtor(c))', expr_bind_ctor),
+        ('Bind(BindCtor(c))', func_ref),
         ('Bind(BindVar(v))', expr_bind_var),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
@@ -863,7 +860,7 @@ def check_static_replacement(v, f):
     if has_extrinsic(expand.VarUsage, v):
         if extrinsic(expand.VarUsage, v).isReassigned:
             return False
-    add_extrinsic(Replacement, v, Const(func_ref(f)))
+    add_extrinsic(Replacement, v, func_ref(f))
     return True
 
 def write_func_defn(v, e, f):
