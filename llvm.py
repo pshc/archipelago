@@ -582,24 +582,31 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
-def write_call(tmp, f, args, t):
+def write_call(f, args, rett):
     fx = express(f)
-    paramts = match(typeof(f), ("IFunc(paramts, _)", identity))
+    paramts, frett = match(typeof(f), ("IFunc(pts, rt)", tuple2))
     argxs = []
     for arg, paramt in zip(args, paramts):
         argt = typeof(arg)
         argx = cast(express(arg), argt, paramt)
         argxs.append((argt, argx))
 
-    if isJust(tmp):
-        out_xpr(fromJust(tmp))
-        out(' = call ')
-    else:
+    if matches(frett, "IVoid()"):
         out('call ')
-    out_t(t)
+        out_t(frett)
+        out_xpr(fx)
+        write_args(argxs)
+        newline()
+        return Nothing()
+
+    tmp = temp_reg()
+    out_xpr(tmp)
+    out(' = call ')
+    out_t(frett)
     out_xpr(fx)
     write_args(argxs)
     newline()
+    return cast(tmp, frett, rett)
 
 def expr_call(e, f, args):
     t = typeof(e)
@@ -617,15 +624,8 @@ def expr_call(e, f, args):
             left = express(args[0])
             right = express(args[1])
             m.ret(expr_binop(op, left, right, typeof(args[0])))
-    elif m('Bind(BindVar(v))'):
-        v = m.arg
-        tmp = temp_reg_named(extrinsic(Name, v))
-        write_call(Just(tmp), f, args, t)
-        m.ret(tmp)
     else:
-        tmp = temp_reg()
-        write_call(Just(tmp), f, args, t)
-        m.ret(tmp)
+        m.ret(write_call(f, args, t))
     return m.result()
 
 def expr_func(f, ps, body):
@@ -961,9 +961,13 @@ def write_dtstmt(form):
         clear_indent()
         newline()
 
+def write_void_call(f, a):
+    t = write_call(f, a, IVoid())
+    assert isNothing(t)
+
 def write_void_stmt(e):
     match(e,
-        ('Call(f, a)', lambda f, a: write_call(Nothing(), f, a, IVoid())),
+        ('Call(f, a)', write_void_call),
         ('InEnv(environ, init, e)', expr_inenv_void))
 
 def write_expr_stmt(e):
