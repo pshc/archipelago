@@ -272,7 +272,8 @@ def malloc(t):
     out_t_ptr(t)
     out('null, i32 1) to i32')
     newline()
-    mem = call(IVoidPtr(), runtime_decl('malloc'), [(IInt(), sizeof)])
+    f = func_ref(runtime_decl('malloc'))
+    mem = call(IVoidPtr(), f, [(IInt(), sizeof)])
     inst = temp_reg_named('inst')
     out_xpr(inst)
     out(' = bitcast i8* ')
@@ -375,8 +376,7 @@ def runtime_decl(name):
     runtime = loaded_modules['runtime']
     from astconv import loaded_module_export_names, cNamespace
     symbolTable = loaded_module_export_names[runtime]
-    sym, bindType = symbolTable[(name, cNamespace)]
-    ref = func_ref(sym)
+    ref, bindType = symbolTable[(name, cNamespace)]
     _cached_runtime_refs[name] = ref
     return ref
 
