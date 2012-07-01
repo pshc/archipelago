@@ -272,12 +272,7 @@ def malloc(t):
     out_t_ptr(t)
     out('null, i32 1) to i32')
     newline()
-    mem = temp_reg()
-    out_xpr(mem)
-    out(' = call i8* ')
-    out_func_ref(runtime_decl('malloc'))
-    write_args([(IInt(), sizeof)])
-    newline()
+    mem = call(IVoidPtr(), runtime_decl('malloc'), [(IInt(), sizeof)])
     inst = temp_reg_named('inst')
     out_xpr(inst)
     out(' = bitcast i8* ')
@@ -286,6 +281,23 @@ def malloc(t):
     out_t_nospace(IPtr(t))
     newline()
     return inst
+
+def call(rett, fx, argxs):
+    tmp = temp_reg()
+    out_xpr(tmp)
+    out(' = call ')
+    out_t(rett)
+    out_xpr(fx)
+    write_args(argxs)
+    newline()
+    return tmp
+
+def call_void(fx, argxs):
+    out('call ')
+    out_t(IVoid())
+    out_xpr(fx)
+    write_args(argxs)
+    newline()
 
 def write_args(args):
     out('(')
@@ -363,7 +375,8 @@ def runtime_decl(name):
     runtime = loaded_modules['runtime']
     from astconv import loaded_module_export_names, cNamespace
     symbolTable = loaded_module_export_names[runtime]
-    ref, bindType = symbolTable[(name, cNamespace)]
+    sym, bindType = symbolTable[(name, cNamespace)]
+    ref = Const(func_ref(sym))
     _cached_runtime_refs[name] = ref
     return ref
 
@@ -592,20 +605,10 @@ def write_call(f, args, rett):
         argxs.append((argt, argx))
 
     if matches(frett, "IVoid()"):
-        out('call ')
-        out_t(frett)
-        out_xpr(fx)
-        write_args(argxs)
-        newline()
+        call_void(fx, argxs)
         return Nothing()
 
-    tmp = temp_reg()
-    out_xpr(tmp)
-    out(' = call ')
-    out_t(frett)
-    out_xpr(fx)
-    write_args(argxs)
-    newline()
+    tmp = call(frett, fx, argxs)
     return cast(tmp, frett, rett)
 
 def expr_call(e, f, args):
