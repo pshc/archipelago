@@ -614,13 +614,22 @@ def write_call(f, args, rett):
     return Just(cast(tmp, frett, rett))
 
 def write_runtime_call(name, args, rett):
-    # Ugh, what a mess to reuse write_call.
-    # Should just use separate path instead.
     decl = runtime_decl(name)
-    b = Bind(BindVar(decl))
-    add_extrinsic(TypeOf, b, extrinsic(TypeOf, decl))
-    add_extrinsic(Replacement, decl, func_ref(decl))
-    return fromJust(write_call(b, args, rett))
+    t = extrinsic(TypeOf, decl)
+    paramts, frett = match(convert_type(t), ("IFunc(pts, rt)", tuple2))
+    argxs = []
+    for argtxpr, paramt in zip(args, paramts):
+        argt, argxpr = match(argtxpr, ("TypedXpr(t, xpr)", tuple2))
+        argx = cast(argxpr, argt, paramt)
+        argxs.append((argt, argx))
+
+    fx = func_ref(decl)
+    if matches(frett, "IVoid()"):
+        call_void(fx, argxs)
+        return Nothing()
+
+    tmp = call(frett, fx, argxs)
+    return Just(cast(tmp, frett, rett))
 
 def expr_call(e, f, args):
     t = typeof(e)
@@ -716,7 +725,9 @@ def expr_inenv_void(environ, init, e):
     env_teardown(environ, old)
 
 def expr_getextrinsic(extr, e):
-    return write_runtime_call('_getextrinsic', [e], convert_type(extr.type))
+    t = convert_type(extr.type)
+    ex = express_typed(e)
+    return fromJust(write_runtime_call('_getextrinsic', [ex], t))
 
 def expr_scopeextrinsic(extr, e):
     out('; enter %s' % (extrinsic(Name, extr),))
@@ -781,10 +792,16 @@ def express(expr):
         ('Ternary(c, l, r)', expr_ternary),
         ('lit==TupleLit(es)', expr_tuple_lit))
 
+def express_typed(expr):
+    return TypedXpr(typeof(expr), express(expr))
+
 # STATEMENTS
 
 def write_addextrinsic(extr, node, val):
-    write_runtime_call('_addextrinsic', [node, val], IVoid())
+    n = express_typed(node)
+    v = express_typed(val)
+    r = write_runtime_call('_addextrinsic', [n, v], IVoid())
+    assert isNothing(r)
 
 def write_assert(e, msg):
     ex = express(e)
