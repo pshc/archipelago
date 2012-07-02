@@ -269,23 +269,19 @@ def store_xpr(t, val, dest):
 
 def malloc(t):
     sizeof = temp_reg_named('sizeof')
+    sizeoft = IInt()
     out_xpr(sizeof)
     out(' = ptrtoint ')
     out_t_ptr(t)
-    out('getelementptr(')
-    out_t_ptr(t)
-    out('null, i32 1) to i32')
+    out('getelementptr')
+    write_args([(IPtr(t), Const("null")), (IInt(), Const("1"))])
+    out(' to ')
+    out_t_nospace(sizeoft)
     newline()
     f = func_ref(runtime_decl('malloc'))
-    mem = call(IVoidPtr(), f, [(IInt(), sizeof)])
-    inst = temp_reg_named('inst')
-    out_xpr(inst)
-    out(' = bitcast i8* ')
-    out_xpr(mem)
-    out(' to ')
-    out_t_nospace(IPtr(t))
-    newline()
-    return inst
+    memt = IVoidPtr()
+    mem = call(memt, f, [(IInt(), sizeof)])
+    return cast(mem, memt, IPtr(t))
 
 def call(rett, fx, argxs):
     tmp = temp_reg()
