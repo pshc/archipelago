@@ -783,7 +783,6 @@ def express(expr):
 
 def write_addextrinsic(extr, node, val):
     write_runtime_call('_addextrinsic', [node, val], IVoid())
-    newline()
 
 def write_assert(e, msg):
     ex = express(e)
