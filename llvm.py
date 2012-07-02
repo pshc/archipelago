@@ -121,6 +121,9 @@ def flush(lcl):
 # LATE-BOUND OUTPUT
 
 def out(s):
+    if not have_env(LOCALS):
+        imm_out(s)
+        return
     lcl = env(LOCALS)
     if lcl.unreachable:
         return
@@ -920,6 +923,8 @@ def write_field_specs(fields, layout):
 
     n = len(specs)
     for i, (t, nm) in enumerate(specs):
+        if verbose:
+            out('  ')
         out_t_nospace(t)
         if i < n - 1:
             comma()
@@ -929,14 +934,12 @@ def write_field_specs(fields, layout):
             out('; %s' % (nm,))
             newline()
     if verbose:
-        clear_indent()
         out('}')
     else:
         out(' }')
 
 def write_ctor(ctor, dt, layout):
     dtt = IData(dt)
-    inst = temp_reg_named(extrinsic(Name, dt))
 
     clear_indent()
     out('declare ' if env(DECLSONLY) else 'define ')
@@ -981,19 +984,16 @@ def write_ctor(ctor, dt, layout):
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
     if layout.discrimSlot:
-        clear_indent()
         out_name_reg(form)
         out(' = type opaque')
         newline()
     for ctor in form.ctors:
-        clear_indent()
         out_name_reg(ctor)
         out(' = type ')
         write_field_specs(ctor.fields, layout)
         newline()
-        write_ctor(ctor, form, layout)
+        as_local(lambda: write_ctor(ctor, form, layout))
     if not env(DECLSONLY):
-        clear_indent()
         newline()
 
 def write_void_call(f, a):
@@ -1014,7 +1014,6 @@ def write_expr_stmt(e):
 
 def write_new_env(e):
     decl = env(DECLSONLY)
-    clear_indent()
     out_global_ref(e)
     out(' = %sglobal ' % ('external ' if decl else '',))
     out_t_nospace(env_type(e))
@@ -1023,7 +1022,6 @@ def write_new_env(e):
     newline()
 
 def write_new_extrinsic(extr):
-    clear_indent()
     out('; extrinsic ')
     out(extrinsic(Name, extr))
     newline()
@@ -1058,17 +1056,17 @@ def write_params(ps, tps):
 def write_top_func_decl(v):
     tps, tret = match(extrinsic(TypeOf, v),
         ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
-    clear_indent()
     out('declare ')
     out_t(tret)
     out_func_ref(v)
     write_param_types(tps)
     newline()
 
-def write_top_func(f, ps, body):
-    assert not env(DECLSONLY)
-    lcl = env(LOCALS)
+def write_top_func(f):
+    as_local(lambda: _write_top_func(f, f.params, f.body))
 
+def _write_top_func(f, ps, body):
+    lcl = env(LOCALS)
     # XXX Stupid hack
     lcl.entryBlock.needsTerminator = True
 
@@ -1159,14 +1157,13 @@ def write_top_var_func(v, f):
         write_top_func_decl(v)
     else:
         check_static_replacement(v, f)
-        write_top_func(f, f.params, f.body)
+        write_top_func(f)
 
 def write_top_strlit(var, s):
     ir = env(IR)
     add_extrinsic(Name, var, '.LC%d' % (ir.lcCtr,))
     ir.lcCtr += 1
 
-    clear_indent()
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
     out_global_ref(var)
@@ -1200,15 +1197,14 @@ def write_unit(unit):
     for top in unit.tops:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
-                in_env(EXPORTSYMS, False, lambda: as_local(lambda: match(ex,
+                in_env(EXPORTSYMS, False, lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
-                    ("ExSurfacedFunc(f==Func(ps, body))", write_top_func))))
+                    ("ExSurfacedFunc(f)", write_top_func)))
             newline()
-        in_env(EXPORTSYMS, True, lambda: as_local(lambda: write_top(top)))
+        in_env(EXPORTSYMS, True, lambda: write_top(top))
 
 def write_unit_decls(unit):
-    for top in unit.tops:
-        as_local(lambda: write_top(top))
+    map_(write_top, unit.tops)
 
 prelude = """; prelude
 %Type = type opaque
