@@ -118,7 +118,7 @@ def flush(lcl):
     in_env(FLUSH, state, lambda: map_(out_chunk, chunks))
     assert not state.shouldTerm, "Last block not terminated?"
 
-# LATE-BOUND OUTPUT
+# GLOBAL OUTPUT
 
 def out(s):
     if not have_env(LOCALS):
@@ -133,12 +133,6 @@ def out(s):
     else:
         lcl.chunks.append(IRStr(s))
 
-def out_name(a):
-    out(extrinsic(Name, a))
-
-def out_name_reg(a):
-    out('%%%s' % (extrinsic(Name, a),))
-
 def func_ref(f):
     if not has_extrinsic(Name, f):
         add_extrinsic(Name, f, "unnamed_func")
@@ -152,6 +146,23 @@ def out_func_ref(f):
 
 def out_global_ref(v):
     out_xpr(global_ref(v))
+
+def newline():
+    if have_env(LOCALS):
+        if env(LOCALS).unreachable:
+            return
+        out('\n')
+        env(LOCALS).needIndent = True
+    else:
+        imm_out('\n')
+
+def comma():
+    out(', ')
+
+# FUNCTION-LOCAL OUTPUT
+
+def out_name_reg(a):
+    out('%%%s' % (extrinsic(Name, a),))
 
 def out_label(label):
     lcl = env(LOCALS)
@@ -196,22 +207,10 @@ def constcast_str(kind, src, dest):
 def clear_indent():
     env(LOCALS).needIndent = False
 
-def newline():
-    if have_env(LOCALS):
-        if env(LOCALS).unreachable:
-            return
-        out('\n')
-        env(LOCALS).needIndent = True
-    else:
-        imm_out('\n')
-
 def term():
     env(LOCALS).currentBlock.needsTerminator = False
     newline()
     env(LOCALS).unreachable = True
-
-def comma():
-    out(', ')
 
 def temp_reg():
     lcl = env(LOCALS)
