@@ -906,7 +906,7 @@ def write_defn(v, e):
     newline()
     store_named(t, ex, v)
 
-def write_field_specs(fields, discrim):
+def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
     if verbose:
         out('{')
@@ -915,9 +915,10 @@ def write_field_specs(fields, discrim):
         out('{ ')
 
     specs = [(convert_type(f.type), extrinsic(Name, f)) for f in fields]
-    if discrim:
+    if layout.discrimSlot:
         specs.insert(0, (IInt(), "discrim"))
-    specs.insert(0, (IVoidPtr(), "extrinsics"))
+    if layout.extrSlot:
+        specs.insert(0, (IVoidPtr(), "extrinsics"))
 
     n = len(specs)
     for i, (t, nm) in enumerate(specs):
@@ -935,7 +936,7 @@ def write_field_specs(fields, discrim):
     else:
         out(' }')
 
-def write_ctor(ctor, dt, discrim):
+def write_ctor(ctor, dt, layout):
     dtt = IData(dt)
     inst = temp_reg_named(extrinsic(Name, dt))
 
@@ -955,13 +956,14 @@ def write_ctor(ctor, dt, discrim):
     ctort = IData(ctor)
     inst = malloc(ctort)
 
+    discrim = layout.discrimSlot
     if discrim:
-        fts = [IInt()] + fts
-        tmps = [Const(str(extrinsic(expand.CtorIndex, ctor)))] + tmps
+        fts.insert(0, IInt())
+        tmps.insert(0, Const(str(extrinsic(expand.CtorIndex, ctor))))
 
-    # Extrinsic slot
-    fts = [IVoidPtr()] + fts
-    tmps = [Const("null")] + tmps
+    if layout.extrSlot:
+        fts.insert(0, IVoidPtr())
+        tmps.insert(0, Const("null"))
 
     assert len(fts) == len(tmps)
     struct = build_struct(ctort, zip(fts, tmps))
@@ -979,8 +981,8 @@ def write_ctor(ctor, dt, discrim):
     newline()
 
 def write_dtstmt(form):
-    discrim = len(form.ctors) > 1
-    if discrim:
+    layout = extrinsic(expand.DataLayout, form)
+    if layout.discrimSlot:
         clear_indent()
         out_name_reg(form)
         out(' = type opaque')
@@ -989,9 +991,9 @@ def write_dtstmt(form):
         clear_indent()
         out_name_reg(ctor)
         out(' = type ')
-        write_field_specs(ctor.fields, discrim)
+        write_field_specs(ctor.fields, layout)
         newline()
-        write_ctor(ctor, form, discrim)
+        write_ctor(ctor, form, layout)
     if not env(DECLSONLY):
         clear_indent()
         newline()

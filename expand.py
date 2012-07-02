@@ -47,6 +47,10 @@ LocalVar = new_extrinsic('LocalVar', VarInfo)
 CtorIndex = new_extrinsic('CtorIndex', int)
 FieldIndex = new_extrinsic('FieldIndex', int)
 
+LayoutInfo = DT('LayoutInfo', ('extrSlot', bool),
+                              ('discrimSlot', bool))
+DataLayout = new_extrinsic('DataLayout', LayoutInfo)
+
 def top_scope():
     return ExScope(new_flow(), [], {}, Nothing())
 
@@ -255,6 +259,7 @@ def ex_top_defn(e):
 
 def ex_dt(dt):
     discrim = len(dt.ctors) > 1
+    add_extrinsic(DataLayout, dt, LayoutInfo(True, discrim))
     for i, ctor in enumerate(dt.ctors):
         add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):
@@ -269,9 +274,14 @@ def ex_top_level(s):
         ("TopEnv(_)", nop),
         ("TopExtrinsic(_)", nop))
 
-def in_expansion_env(func):
+def in_intramodule_env(func):
     captures = {}
-    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, CtorIndex, FieldIndex]
+    extrs = [Expansion, Closure, ExpandedDecl, VarUsage]
+    return capture_scoped(extrs, captures, func)
+
+def in_intermodule_env(func):
+    captures = {}
+    extrs = [DataLayout, CtorIndex, FieldIndex]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(mod):

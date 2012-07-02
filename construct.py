@@ -68,7 +68,7 @@ def load_module_dep(src, deps):
     names_mod = extrinsic_mod(Name, names, mod)
     native.serialize(names_mod)
 
-    return expand.in_expansion_env(lambda: _do_mod(mod, test))
+    return expand.in_intramodule_env(lambda: _do_mod(mod, test))
 
 def _do_mod(mod, test):
     expand.expand_module(mod)
@@ -251,9 +251,11 @@ def main():
                 assert False, "Unknown option: %s" % (arg,)
         else:
             files.append(arg)
-    in_env(GENOPTS, options, lambda: in_construct_env(
+    in_env(GENOPTS, options,
+            lambda: in_construct_env(
+            lambda: expand.in_intermodule_env(
             lambda: llvm.in_llvm_env(
-            lambda: load_files(files))))
+            lambda: load_files(files)))))
 
 if __name__ == '__main__':
     main()
