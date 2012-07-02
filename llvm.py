@@ -725,9 +725,10 @@ def expr_inenv_void(environ, init, e):
     env_teardown(environ, old)
 
 def expr_getextrinsic(extr, e):
+    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
     t = convert_type(extr.type)
     ex = express_typed(e)
-    return fromJust(write_runtime_call('_getextrinsic', [ex], t))
+    return fromJust(write_runtime_call('_getextrinsic', [extrx, ex], t))
 
 def expr_scopeextrinsic(extr, e):
     out('; enter %s' % (extrinsic(Name, extr),))
@@ -798,9 +799,10 @@ def express_typed(expr):
 # STATEMENTS
 
 def write_addextrinsic(extr, node, val):
+    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
     n = express_typed(node)
     v = express_typed(val)
-    r = write_runtime_call('_addextrinsic', [n, v], IVoid())
+    r = write_runtime_call('_addextrinsic', [extrx, n, v], IVoid())
     assert isNothing(r)
 
 def write_assert(e, msg):
@@ -1038,8 +1040,11 @@ def write_new_env(e):
     newline()
 
 def write_new_extrinsic(extr):
-    out('; extrinsic ')
-    out(extrinsic(Name, extr))
+    decl = env(DECLSONLY)
+    out_global_ref(extr)
+    out(' = %sglobal i8' % ('external ' if decl else '',))
+    if not decl:
+        out(' zeroinitializer')
     newline()
 
 def write_param_types(tps):
