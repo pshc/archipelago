@@ -40,14 +40,26 @@ def setup_locals():
     entry = Label(':entry:', -1, True, False)
     return IRLocals([], False, False, 0, entry, entry, {}, Nothing())
 
+IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
+        'IInt',
+        'IBool',
+        'IVoid',
+        'ITuple', ('types', ['IType']),
+        'IData', ('datatype', '*DataType'),
+        'IFunc', ('params', ['IType']), ('ret', 'IType'),
+        'IPtr', ('type', 'IType'),
+        'IVoidPtr')
+
+TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
+
 Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'Global', ('name', str),
-        'ConstStruct', ('vals', ['(IType, Xpr)']),
+        'ConstStruct', ('vals', [TypedXpr]),
         'Const', ('frag', 'str'),
-        'ConstOp', ('op', 'str'), ('args', ['(IType, Xpr)']),
-        'ConstCast', ('kind', str), ('val', 'Xpr'), ('type', 'IType'))
+        'ConstOp', ('op', 'str'), ('args', [TypedXpr]),
+        'ConstCast', ('kind', str), ('src', TypedXpr), ('dest', IType))
 
 def is_const(x):
     return match(x,
@@ -164,18 +176,19 @@ def xpr_str(x):
                     ('ConstStruct(vals)', conststruct_str),
                     ('Const(s)', identity),
                     ('ConstOp(f, args)', constop_str),
-                    ('ConstCast(kind, val, t)', constcast_str))
+                    ('ConstCast(kind, src, dest)', constcast_str))
+
+def txpr_str(txpr):
+    return '%s %s' % (t_str(txpr.type), xpr_str(txpr.xpr))
 
 def constop_str(f, args):
-    ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in args)
-    return '%s (%s)' % (f, ', '.join(ss))
+    return '%s (%s)' % (f, ', '.join(map(txpr_str, args)))
 
 def conststruct_str(vals):
-    ss = ('%s %s' % (t_str(t), xpr_str(x)) for t, x in vals)
-    return '{ %s }' % (', '.join(ss),)
+    return '{ %s }' % (', '.join(map(txpr_str, vals)),)
 
-def constcast_str(kind, val, t):
-    return '%s (%s to %s)' % (kind, xpr_str(val), t_str(t))
+def constcast_str(kind, src, dest):
+    return '%s (%s to %s)' % (kind, txpr_str(src), t_str(dest))
 
 def clear_indent():
     env(LOCALS).needIndent = False
@@ -356,7 +369,7 @@ def cast(xpr, src, dest):
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
     if is_const(xpr):
-        return ConstCast(kind, xpr, dest)
+        return ConstCast(kind, TypedXpr(src, xpr), dest)
     tmp = temp_reg_named(kind)
     out_xpr(tmp)
     out(' = %s ' % (kind,))
@@ -381,16 +394,6 @@ def runtime_decl(name):
     return ref
 
 # TYPES
-
-IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
-        'IInt',
-        'IBool',
-        'IVoid',
-        'ITuple', ('types', ['IType']),
-        'IData', ('datatype', '*DataType'),
-        'IFunc', ('params', ['IType']), ('ret', 'IType'),
-        'IPtr', ('type', 'IType'),
-        'IVoidPtr')
 
 APPS = new_env('APPS', {TypeVar: IType})
 
@@ -566,7 +569,7 @@ def expr_unary(op, arg, t):
     assert op == 'not' or op == 'negate'
     pivot = Const('1' if op == 'not' else '0')
     if is_const(arg):
-        return ConstOp('sub', [(t, pivot), (t, arg)])
+        return ConstOp('sub', [TypedXpr(t, pivot), TypedXpr(t, arg)])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
@@ -580,7 +583,7 @@ def expr_unary(op, arg, t):
 
 def expr_binop(op, left, right, t):
     if is_const(left) and is_const(right):
-        return ConstOp(op, [(t, left), (t, right)])
+        return ConstOp(op, [TypedXpr(t, left), TypedXpr(t, right)])
     else:
         tmp = temp_reg_named(op.split(' ')[-1])
         out_xpr(tmp)
@@ -686,7 +689,7 @@ def env_setup(environ, init):
     newline()
     i = express(init)
     envt = match(t, ("ITuple([envt, IBool()])", identity))
-    info = ConstStruct([(envt, i), (IBool(), Const('true'))])
+    info = ConstStruct([TypedXpr(envt, i), TypedXpr(IBool(), Const('true'))])
     store_xpr(t, info, envref)
     return old
 
