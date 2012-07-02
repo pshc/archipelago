@@ -258,7 +258,7 @@ def ex_dt(dt):
     for i, ctor in enumerate(dt.ctors):
         add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):
-            add_extrinsic(FieldIndex, field, ix + 1 if discrim else ix)
+            add_extrinsic(FieldIndex, field, ix + 2 if discrim else ix + 1)
 
 def ex_top_level(s):
     match(s,

@@ -914,20 +914,20 @@ def write_field_specs(fields, discrim):
     else:
         out('{ ')
 
+    specs = [(convert_type(f.type), extrinsic(Name, f)) for f in fields]
     if discrim:
-        ix = Field(TInt())
-        add_extrinsic(Name, ix, "discrim")
-        fields = [ix] + fields
+        specs.insert(0, (IInt(), "discrim"))
+    specs.insert(0, (IVoidPtr(), "extrinsics"))
 
-    n = len(fields)
-    for i, f in enumerate(fields):
-        out_t_nospace(convert_type(f.type))
+    n = len(specs)
+    for i, (t, nm) in enumerate(specs):
+        out_t_nospace(t)
         if i < n - 1:
             comma()
         elif verbose:
             out('  ')
         if verbose:
-            out('; %s' % (extrinsic(Name, f),))
+            out('; %s' % (nm,))
             newline()
     if verbose:
         clear_indent()
@@ -958,6 +958,11 @@ def write_ctor(ctor, dt, discrim):
     if discrim:
         fts = [IInt()] + fts
         tmps = [Const(str(extrinsic(expand.CtorIndex, ctor)))] + tmps
+
+    # Extrinsic slot
+    fts = [IVoidPtr()] + fts
+    tmps = [Const("null")] + tmps
+
     assert len(fts) == len(tmps)
     struct = build_struct(ctort, zip(fts, tmps))
     store_xpr(ctort, struct, inst)
