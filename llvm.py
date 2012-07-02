@@ -611,7 +611,7 @@ def write_call(f, args, rett):
         return Nothing()
 
     tmp = call(frett, fx, argxs)
-    return cast(tmp, frett, rett)
+    return Just(cast(tmp, frett, rett))
 
 def write_runtime_call(name, args, rett):
     # Ugh, what a mess to reuse write_call.
@@ -620,7 +620,7 @@ def write_runtime_call(name, args, rett):
     b = Bind(BindVar(decl))
     add_extrinsic(TypeOf, b, extrinsic(TypeOf, decl))
     add_extrinsic(Replacement, decl, func_ref(decl))
-    return write_call(b, args, rett)
+    return fromJust(write_call(b, args, rett))
 
 def expr_call(e, f, args):
     t = typeof(e)
@@ -639,7 +639,7 @@ def expr_call(e, f, args):
             right = express(args[1])
             m.ret(expr_binop(op, left, right, typeof(args[0])))
     else:
-        m.ret(write_call(f, args, t))
+        m.ret(fromJust(write_call(f, args, t)))
     return m.result()
 
 def expr_func(f, ps, body):
