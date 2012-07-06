@@ -114,44 +114,44 @@ def unification_failure(src, dest, msg):
             type(src), src, type(dest), dest)
     assert False, with_context(desc, msg)
 
-def unify_tuples(src, list1, dest, list2):
+def try_unite_tuples(src, list1, dest, list2):
     if len(list1) != len(list2):
         unification_failure(src, dest, "length mismatch")
     for s, d in zip(list1, list2):
-        _unify(s, d)
+        try_unite(s, d)
 
-def unify_funcs(sf, sargs, sret, df, dargs, dret):
-    unify_tuples(sf, sargs, df, dargs)
-    _unify(sret, dret)
+def try_unite_funcs(sf, sargs, sret, df, dargs, dret):
+    try_unite_tuples(sf, sargs, df, dargs)
+    try_unite(sret, dret)
 
-def unify_datas(src, a, ats, dest, b, bts):
+def try_unite_datas(src, a, ats, dest, b, bts):
     if a is not b:
         unification_failure(src, dest, "mismatched datatypes")
     assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
     assert len(ats) == len(bts), "%s typevar count mismatch" % (a,)
     for at, bt in zip(ats, bts):
-        _unify(at, bt)
+        try_unite(at, bt)
 
-def unify_prims(src, sp, dest, dp):
+def try_unite_prims(src, sp, dest, dp):
     if not prim_equal(sp, dp):
         unification_failure(src, dest, "primitive types")
 
-def unify_typevars(src, stv, dest, dtv):
+def try_unite_typevars(src, stv, dest, dtv):
     if stv is not dtv:
         unification_failure(src, dest, "typevars")
 
 def unify(src, dest):
-    in_env(UNIFYCTXT, (src, dest), lambda: _unify(src, dest))
+    in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
 
-def _unify(src, dest):
+def try_unite(src, dest):
     fail = lambda m: unification_failure(src, dest, m)
     match((src, dest),
-        ("(src==CVar(stv), dest==CVar(dtv))", unify_typevars),
-        ("(src==CTuple(t1), dest==CTuple(t2))", unify_tuples),
-        ("(CArray(t1), CArray(t2))", unify),
-        ("(sf==CFunc(sa, sr), df==CFunc(da, dr))", unify_funcs),
-        ("(src==CData(a, ats), dest==CData(b, bts))", unify_datas),
-        ("(src==CPrim(sp), dest==CPrim(dp))", unify_prims),
+        ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
+        ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
+        ("(CArray(t1), CArray(t2))", try_unite),
+        ("(sf==CFunc(sa, sr), df==CFunc(da, dr))", try_unite_funcs),
+        ("(src==CData(a, ats), dest==CData(b, bts))", try_unite_datas),
+        ("(src==CPrim(sp), dest==CPrim(dp))", try_unite_prims),
         ("(CVoid(), CVoid())", nop),
         ("_", lambda: fail("type mismatch")))
 
