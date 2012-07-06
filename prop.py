@@ -53,14 +53,14 @@ def CStr(): return CPrim(PStr())
 # instantiation lookup for this site
 INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
-SUBST = new_env('SUBST', None)
+SUBST = new_env('SUBST', {'*TypeVar': Type})
 
 def instantiate_tvar(tv):
     if have_env(SUBST):
-        return CVar(tv)
+        return env(SUBST).get(tv, CVar(tv))
     t = env(INST).get(tv)
     if t is not None:
-        return in_env(SUBST, None, lambda: _inst_type(t))
+        return ctype(t)
     else:
         return CVar(tv) # free
 
@@ -89,6 +89,12 @@ def instantiate_type(site, t):
 def instantiate(site, v):
     t = extrinsic(TypeOf, v)
     return instantiate_type(site, t)
+
+def ctype(t):
+    return in_env(SUBST, {}, lambda: _inst_type(t))
+
+def ctype_replaced(t, substs):
+    return in_env(SUBST, substs, lambda: _inst_type(t))
 
 def gen_tdata(dt, ats):
     assert len(ats) == len(dt.tvars)
@@ -223,12 +229,12 @@ def prop_ternary(c, t, f):
     check_expr(tt, f)
     return tt
 
-def prop_func(e, f, ps, b):
+def prop_func(f, ps, b):
     tvars = {}
     ft = extrinsic(TypeOf, f)
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
-    cft = instantiate_type(e, ft)
+    cft = ctype(ft)
     cret = match(cft, ('CFunc(_, cret)', Just))
     def inside_func_scope():
         closed = env(PROPSCOPE).closedVars
@@ -259,16 +265,12 @@ def prop_match(m, e, cs):
 
 def prop_attr(e, s, f):
     t = prop_expr(s)
-    dt, ts = match(t, ('CData(dt, ts)', tuple2))
-
     # TEMP: resolve the field name now that we have type info
-    e.field = resolve_field_by_name(dt, f)
+    e.field = resolve_field_by_name(t, f)
+    return resolve_field_type(t, e.field.type)
 
-    # TODO: Take tvs into account
-    return instantiate_type(e, e.field.type)
-
-def prop_inenv(e, t, init, f):
-    check_expr(instantiate_type(e, t), init)
+def prop_inenv(t, init, f):
+    check_expr(ctype(t), init)
     return prop_expr(f)
 
 def prop_getextrinsic(e, extr, node):
@@ -291,12 +293,12 @@ def _prop_expr(e):
         ("Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
         ("Ternary(c, t, f)", prop_ternary),
-        ("e==FuncExpr(f==Func(ps, b))", prop_func),
+        ("FuncExpr(f==Func(ps, b))", prop_func),
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
-        ("GetEnv(Env(t))", lambda t: instantiate_type(e, t)),
+        ("e==GetEnv(Env(t))", instantiate_type),
         ("HaveEnv(_)", lambda: CPrim(PBool())),
-        ("e==InEnv(Env(t), init, f)", prop_inenv),
+        ("InEnv(Env(t), init, f)", prop_inenv),
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),
         ("ref==Bind(b)", prop_binding),
@@ -310,7 +312,8 @@ def _prop_expr(e):
 def check_expr(t, e):
     in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
 
-def resolve_field_by_name(dt, f):
+def resolve_field_by_name(t, f):
+    dt = match(t, ("CData(t, _)", identity))
     real_field = None
     for ctor in dt.ctors:
         for field in ctor.fields:
@@ -320,15 +323,19 @@ def resolve_field_by_name(dt, f):
     assert real_field is not None, "%s is not a field in %s" % (f, dt)
     return real_field
 
+def resolve_field_type(t, ft):
+    dt, ts = match(t, ('CData(dt, ts)', tuple2))
+    tmap = {}
+    assert len(ts) == len(dt.tvars)
+    for tvar, t in zip(dt.tvars, ts):
+        tmap[tvar] = t
+    return ctype_replaced(ft, tmap)
+
 def prop_lhs_attr(lhs, s, f):
     t = prop_expr(s)
-    dt, ts = match(t, ('CData(dt, ts)', tuple2))
-
     # TEMP: resolve the field name now that we have type info
-    lhs.attr = resolve_field_by_name(dt, f)
-
-    # TODO: Take tvs into account
-    return instantiate_type(lhs, lhs.attr.type)
+    lhs.attr = resolve_field_by_name(t, f)
+    return resolve_field_type(t, lhs.attr.type)
 
 def prop_lhs_tuple(lhs, ss):
     t = CTuple(map(prop_lhs, ss))
@@ -337,7 +344,7 @@ def prop_lhs_tuple(lhs, ss):
 
 def prop_lhs(lhs):
     return match(lhs,
-        ("lhs==LhsVar(v)", instantiate),
+        ("LhsVar(v)", lambda v: ctype(extrinsic(TypeOf, v))),
         ("lhs==LhsAttr(s, f)", prop_lhs_attr),
         ("lhs==LhsTuple(ss)", prop_lhs_tuple))
 
@@ -368,15 +375,14 @@ def prop_defn(a, e):
         f = m.arg
         t = extrinsic(TypeOf, f)
         set_type(a, t)
-        check_expr(instantiate_type(e, t), e)
+        check_expr(ctype(t), e)
     else:
         set_type(a, generalize_type(prop_expr(e)))
 
 def prop_addextrinsic(extr, node, val):
     nodet = prop_expr(node)
     assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
-    t = instantiate_type(env(STMTCTXT), extr.type)
-    check_expr(t, val)
+    check_expr(ctype(extr.type), val)
 
 def prop_assign(a, e):
     t = prop_lhs(a)
