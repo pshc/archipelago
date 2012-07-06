@@ -160,11 +160,25 @@ def capture_extrinsic(ext, cap, func):
     return ret
 
 def capture_scoped(exts, captures, func):
-    def step(f, ext):
-        captures[ext] = {}
-        return lambda: scope_extrinsic(ext,
-                lambda: capture_extrinsic(ext, captures[ext], f))
-    return reduce(step, exts, func)()
+    # Inlined to avoid polluting stack trace
+    check = []
+    for ext in exts:
+        assert ext not in captures
+        cap = captures[ext] = {}
+        ext.captures.append(cap)
+        new = ext.stack[-1].copy() if len(ext.stack) else {}
+        ext.stack.append(new)
+        check.append((cap, new))
+
+    ret = func()
+
+    for ext, (offcap, offnew) in zip(exts[::-1], check[::-1]):
+        cap = ext.captures.pop()
+        assert offcap is cap, "Imbalanced capture"
+        n = ext.stack.pop()
+        assert offnew is n, "Extrinsic stack imbalance"
+
+    return ret
 
 def in_extrinsic_scope(ext):
     return bool(ext.stack)
