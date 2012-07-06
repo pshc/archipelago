@@ -12,7 +12,7 @@ CHECK = new_env('CHECK', '*Type')
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
 PropScope = DT('PropScope', ('level', int),
-                            ('retType', 'Maybe(CType)'),
+                            ('retType', 'Maybe(Type)'),
                             ('closedVars', {str: TypeVar}))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
@@ -219,15 +219,16 @@ def prop_call(f, s):
     return ft.funcRet
 
 def prop_logic(l, r):
-    check_expr(CBool(), l)
-    check_expr(CBool(), r)
+    consume_value_as(TBool(), l)
+    consume_value_as(TBool(), r)
     return CBool()
 
 def prop_ternary(c, t, f):
-    check_expr(CBool(), c)
+    consume_value_as(TBool(), c)
     tt = prop_expr(t)
-    check_expr(tt, f)
-    return tt
+    tf = prop_expr(f)
+    unify(tt, tf)
+    return tf
 
 def prop_func(f, ps, b):
     tvars = {}
@@ -235,7 +236,6 @@ def prop_func(f, ps, b):
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     cft = ctype(ft)
-    cret = match(cft, ('CFunc(_, cret)', Just))
     def inside_func_scope():
         closed = env(PROPSCOPE).closedVars
         for tvar in tvars.itervalues():
@@ -244,7 +244,7 @@ def prop_func(f, ps, b):
             set_type(p, tp)
         prop_body(b)
         return cft
-    return in_new_scope(cret, inside_func_scope)
+    return in_new_scope(Just(tret), inside_func_scope)
 
 def prop_match(m, e, cs):
     et = prop_expr(e)
@@ -256,7 +256,7 @@ def prop_match(m, e, cs):
             rt = prop_expr(ce)
             retT = env(PROPSCOPE).retType
             if isJust(retT):
-                unify(rt, fromJust(retT))
+                unify(rt, ctype(fromJust(retT)))
             else:
                 retT = Just(rt)
             return retT
@@ -270,7 +270,7 @@ def prop_attr(e, s, f):
     return resolve_field_type(t, e.field.type)
 
 def prop_inenv(t, init, f):
-    check_expr(ctype(t), init)
+    consume_value_as(t, init)
     return prop_expr(f)
 
 def prop_getextrinsic(e, extr, node):
@@ -286,8 +286,8 @@ def prop_expr(e):
 
 def _prop_expr(e):
     rt = match(e,
-        ("IntLit(_)", lambda: CPrim(PInt())),
-        ("StrLit(_)", lambda: CPrim(PStr())),
+        ("IntLit(_)", CInt),
+        ("StrLit(_)", CStr),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
         ("ListLit(ss)", lambda ts: CList(map(prop_expr, ts))),
         ("Call(f, s)", prop_call),
@@ -309,8 +309,9 @@ def _prop_expr(e):
     set_type(e, generalize_type(rt))
     return rt
 
-def check_expr(t, e):
-    in_env(EXPRCTXT, e, lambda: unify(t, _prop_expr(e)))
+def consume_value_as(t, e):
+    ct = ctype(t)
+    in_env(EXPRCTXT, e, lambda: unify(ct, _prop_expr(e)))
 
 def resolve_field_by_name(t, f):
     dt = match(t, ("CData(t, _)", identity))
@@ -335,16 +336,16 @@ def prop_lhs_attr(lhs, s, f):
     t = prop_expr(s)
     # TEMP: resolve the field name now that we have type info
     lhs.attr = resolve_field_by_name(t, f)
-    return resolve_field_type(t, lhs.attr.type)
+    return generalize_type(resolve_field_type(t, lhs.attr.type))
 
 def prop_lhs_tuple(lhs, ss):
-    t = CTuple(map(prop_lhs, ss))
-    set_type(lhs, generalize_type(t))
+    t = TTuple(map(prop_lhs, ss))
+    set_type(lhs, t)
     return t
 
 def prop_lhs(lhs):
     return match(lhs,
-        ("LhsVar(v)", lambda v: ctype(extrinsic(TypeOf, v))),
+        ("LhsVar(v)", lambda v: extrinsic(TypeOf, v)),
         ("lhs==LhsAttr(s, f)", prop_lhs_attr),
         ("lhs==LhsTuple(ss)", prop_lhs_tuple))
 
@@ -375,40 +376,39 @@ def prop_defn(a, e):
         f = m.arg
         t = extrinsic(TypeOf, f)
         set_type(a, t)
-        check_expr(ctype(t), e)
+        consume_value_as(t, e)
     else:
         set_type(a, generalize_type(prop_expr(e)))
 
 def prop_addextrinsic(extr, node, val):
     nodet = prop_expr(node)
     assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
-    check_expr(ctype(extr.type), val)
+    consume_value_as(extr.type, val)
 
 def prop_assign(a, e):
-    t = prop_lhs(a)
-    check_expr(t, e)
+    consume_value_as(prop_lhs(a), e)
 
 def prop_augassign(a, e):
-    check_lhs(CInt(), a)
-    check_expr(CInt(), e)
+    unify(ctype(prop_lhs(a)), CInt())
+    consume_value_as(TInt(), e)
 
 def prop_cond(cases, else_):
     for case in cases:
-        check_expr(CBool(), case.test)
+        consume_value_as(TBool(), case.test)
         prop_body(case.body)
     if isJust(else_):
         prop_body(fromJust(else_))
 
 def prop_while(test, body):
-    check_expr(CBool(), test)
+    consume_value_as(TBool(), test)
     prop_body(body)
 
 def prop_assert(tst, msg):
-    check_expr(CBool(), tst)
-    check_expr(CStr(), msg)
+    consume_value_as(TBool(), tst)
+    consume_value_as(TStr(), msg)
 
 def prop_return(e):
-    check_expr(env(PROPSCOPE).retType.just, e)
+    consume_value_as(env(PROPSCOPE).retType.just, e)
 
 def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
