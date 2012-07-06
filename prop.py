@@ -19,8 +19,8 @@ PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
 def with_context(desc, msg):
     if have_env(UNIFYCTXT):
-        t1, t2 = env(UNIFYCTXT)
-        desc = fmtcol("^DG^Types:^N {0} ^DG&^N {1}\n{2}", t1, t2, desc)
+        src, dest = env(UNIFYCTXT)
+        desc = fmtcol("^DG^Types:^N {0} ^DG==>^N {1}\n{2}", src, dest, desc)
     if have_env(EXPRCTXT):
         desc = fmtcol("^DG^Expr:^N {0}\n{1}", env(EXPRCTXT), desc)
     desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
@@ -118,50 +118,49 @@ def _gen_type(s):
 def generalize_type(t):
     return _gen_type(t)
 
-def unification_failure(e1, e2, msg):
+def unification_failure(src, dest, msg):
     desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
-            type(e1), e1, type(e2), e2)
+            type(src), src, type(dest), dest)
     assert False, with_context(desc, msg)
 
-def unify_tuples(t1, list1, t2, list2, desc):
+def unify_tuples(src, list1, dest, list2):
     if len(list1) != len(list2):
-        unification_failure(t1, t2, "%s length mismatch" % (desc,))
-    for a1, a2 in zip(list1, list2):
-        _unify(a1, a2)
+        unification_failure(src, dest, "length mismatch")
+    for s, d in zip(list1, list2):
+        _unify(s, d)
 
-def unify_funcs(f1, args1, ret1, f2, args2, ret2):
-    unify_tuples(f1, args1, f2, args2, "func params")
-    _unify(ret1, ret2)
+def unify_funcs(sf, sargs, sret, df, dargs, dret):
+    unify_tuples(sf, sargs, df, dargs)
+    _unify(sret, dret)
 
-def unify_datas(da, a, ats, db, b, bts):
+def unify_datas(src, a, ats, dest, b, bts):
     if a is not b:
-        unification_failure(da, db, "mismatched datatypes")
+        unification_failure(src, dest, "mismatched datatypes")
     assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
     assert len(ats) == len(bts), "%s typevar count mismatch" % (a,)
     for at, bt in zip(ats, bts):
         _unify(at, bt)
 
-def unify_prims(p1, p2, e1, e2):
-    if not prim_equal(p1, p2):
-        unification_failure(e1, e2, "primitive types")
+def unify_prims(src, sp, dest, dp):
+    if not prim_equal(sp, dp):
+        unification_failure(src, dest, "primitive types")
 
-def unify_typevars(e1, tv1, e2, tv2):
-    if tv1 is not tv2:
-        unification_failure(e1, e2, "typevars")
+def unify_typevars(src, stv, dest, dtv):
+    if stv is not dtv:
+        unification_failure(src, dest, "typevars")
 
-def unify(e1, e2):
-    in_env(UNIFYCTXT, (e1, e2), lambda: _unify(e1, e2))
+def unify(src, dest):
+    in_env(UNIFYCTXT, (src, dest), lambda: _unify(src, dest))
 
-def _unify(e1, e2):
-    fail = lambda m: unification_failure(e1, e2, m)
-    match((e1, e2),
-        ("(e1==CVar(tv1), e2==CVar(tv2))", unify_typevars),
-        ("(CTuple(t1), CTuple(t2))",
-            lambda t1, t2: unify_tuples(e1, t1, e2, t2, "tuple")),
+def _unify(src, dest):
+    fail = lambda m: unification_failure(src, dest, m)
+    match((src, dest),
+        ("(src==CVar(stv), dest==CVar(dtv))", unify_typevars),
+        ("(src==CTuple(t1), dest==CTuple(t2))", unify_tuples),
         ("(CArray(t1), CArray(t2))", unify),
-        ("(f1==CFunc(a1, r1), f2==CFunc(a2, r2))", unify_funcs),
-        ("(da==CData(a, ats), db==CData(b, bts))", unify_datas),
-        ("(CPrim(p1), CPrim(p2))", lambda p1, p2: unify_prims(p1, p2, e1, e2)),
+        ("(sf==CFunc(sa, sr), df==CFunc(da, dr))", unify_funcs),
+        ("(src==CData(a, ats), dest==CData(b, bts))", unify_datas),
+        ("(src==CPrim(sp), dest==CPrim(dp))", unify_prims),
         ("(CVoid(), CVoid())", nop),
         ("_", lambda: fail("type mismatch")))
 
