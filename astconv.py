@@ -104,7 +104,7 @@ def type_ref(nm):
     if nm in types_by_name:
         return types_by_name[nm]()
     ref = ident_exists(nm, typeNamespace)
-    return maybe_(TForward(nm), ref)
+    return maybe_(TForward(nm, []), ref)
 
 def destroy_forward_ref(ref):
     if not isinstance(ref.refAtom, basestring):

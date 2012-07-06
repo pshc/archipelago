@@ -64,13 +64,11 @@ def instantiate_tvar(tv):
     else:
         return CVar(tv) # free
 
-def instantiate_tapply(dt, tvar, t):
-    assert len(dt.tvars) == 1 # TEMP
-    assert dt.tvars[0] is tvar
-    return CData(dt, [_inst_type(t)])
-
-def instantiate_tdata(dt):
-    return CData(dt, [instantiate_tvar(tv) for tv in dt.tvars])
+def instantiate_tdata(dt, ts):
+    insts = []
+    for i, tvar in enumerate(dt.tvars):
+        insts.append(_inst_type(ts[i]) if i < len(ts) else CVar(tvar))
+    return CData(dt, insts)
 
 def _inst_type(s):
     return match(s,
@@ -80,8 +78,7 @@ def _inst_type(s):
         ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
         ('TFunc(ps, r)', lambda ps, r:
                 CFunc(map(_inst_type, ps), _inst_type(r))),
-        ('TApply(TData(dt), tvar, t)', instantiate_tapply),
-        ('TData(dt)', instantiate_tdata),
+        ('TData(dt, ts)', instantiate_tdata),
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
 
@@ -95,13 +92,7 @@ def instantiate(site, v):
 
 def gen_tdata(dt, ats):
     assert len(ats) == len(dt.tvars)
-    t = TData(dt)
-    for at, v in zip(ats, dt.tvars):
-        same = match(at, ('CVar(tv)', lambda tv: tv is v),
-                         ('_', lambda: False))
-        if not same:
-            t = TApply(t, v, generalize_type(at))
-    return t
+    return TData(dt, [generalize_type(at) for at in ats])
 
 def _gen_type(s):
     return match(s,
@@ -354,7 +345,7 @@ def check_lhs(t, lhs):
     unify(t, prop_lhs(lhs))
 
 def prop_DT(form):
-    dtT = TData(form)
+    dtT = TData(form, [])
     for c in form.ctors:
         fieldTs = []
         for f in c.fields:

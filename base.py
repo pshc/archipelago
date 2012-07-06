@@ -259,16 +259,14 @@ PrimType, PInt, PStr, PChar, PBool = ADT('PrimType',
         'PInt', 'PStr', 'PChar', 'PBool')
 
 Type, TVar, TPrim, TVoid, \
-    TTuple, TFunc, TData, TApply, TArray, TWeak \
+    TTuple, TFunc, TData, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TPrim', ('primType', PrimType),
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
         'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
-        'TData', ('data', '*DataType'),
-        'TApply', ('appTarget', 'Type'), ('appVar', '*TypeVar'),
-                                         ('appArg', 'Type'),
+        'TData', ('data', '*DataType'), ('appTypes', ['Type']),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
 
@@ -292,7 +290,7 @@ def parse_type(t):
         form = t.__form__
         if isinstance(form, Ctor):
             form = t.__dt__.__form__
-        return TData(form)
+        return TData(form, [])
     elif isinstance(t, basestring):
         key = t.replace('->', '>').replace('*', '-')
         t = _parsed_type_cache.get(key)
@@ -332,12 +330,9 @@ def realize_type(t):
     if isinstance(t, ast.CallFunc):
         if isinstance(t.node, ast.Name) and t.node.name == 't':
             return TTuple(map(realize_type, t.args))
-        assert len(t.args) == 1
         dt = realize_type(t.node)
-        tvar = 'a'
-        if not isinstance(dt, TForward):
-            tvar = dt.data.tvars[0]
-        return TApply(dt, tvar, realize_type(t.args[0]))
+        dt.appTypes = [realize_type(a) for a in t.args]
+        return dt
     elif isinstance(t, ast.Compare):
         tuplify = lambda x: x.nodes if isinstance(x, ast.Tuple) else [x]
         ops = [tuplify(t.expr)]
@@ -371,35 +366,31 @@ def realize_type(t):
                 tvars[t] = tvar
             return TVar(tvar)
         elif t in DATATYPES:
-            return TData(DATATYPES[t].__form__)
+            return TData(DATATYPES[t].__form__, [])
         elif t in types_by_name:
             return types_by_name[t]()
         else:
-            return TForward(t)
+            return TForward(t, [])
     elif isinstance(t, ast.UnarySub):
         return TWeak(realize_type(t.expr))
     assert False, "Unknown type ast repr: %r" % (t,)
 
-TForward = DT('TForward', ('name', str))
+TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
 def t_DT(dt):
-    return TData(dt.__dt__.__form__)
+    return TData(dt.__dt__.__form__, [])
 
 def _apply_list_type(t):
     listT = parse_type('List')
-    return TApply(listT, 'a', t)
+    return TData(listT, [t])
 
 def _apply_set_type(t):
     setT = parse_type('Set')
-    return TApply(setT, 'a', t)
+    return TData(setT, [t])
 
 def _apply_dict_type(k, v):
     dictT = parse_type('Dict')
-    keyVar, valVar = 'k', 'v'
-    if not isinstance(dictT, TForward):
-        keyVar = dictT.data.tvars[0]
-        valVar = dictT.data.tvars[1]
-    return TApply(TApply(dictT, valVar, v), keyVar, k)
+    return TData(dictT, [k, v])
 
 # Parse the types in TypeVar, Type fields
 def _parse_deferred():

@@ -397,30 +397,17 @@ def runtime_decl(name):
 
 # TYPES
 
-APPS = new_env('APPS', {TypeVar: IType})
-
 def convert_type(t):
     return match(t,
         ("TPrim(PInt())", IInt),
         ("TPrim(PBool())", IBool),
         ("TVoid()", IVoid),
-        ("TVar(tvar)", _conv_tvar),
+        ("TVar(_)", IVoidPtr),
         ("TFunc(ps, r)", lambda ps, r:
                          IFunc(map(convert_type, ps), convert_type(r))),
-        ("TData(dt)", lambda dt: IPtr(IData(dt))),
-        ("TApply(t, tvar, a)", _conv_apply),
+        ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
-
-def _conv_apply(target, tvar, app):
-    apps = env(APPS) if have_env(APPS) else {}
-    apps[tvar] = in_env(APPS, {}, lambda: convert_type(target))
-    return in_env(APPS, apps, lambda: convert_type(target))
-
-def _conv_tvar(tvar):
-    if have_env(APPS):
-        return env(APPS).get(tvar, IVoidPtr())
-    return IVoidPtr()
 
 def types_equal(src, dest):
     same = lambda: True
@@ -1234,7 +1221,7 @@ declare void @fail(i8*) noreturn
 """
 
 def write_imports(dep):
-    dt = match(dep.rootType, ('TData(dt)', identity))
+    dt = match(dep.rootType, ('TData(dt, _)', identity))
     if dt is DATATYPES['CompilationUnit'].__form__:
         imm_out('; %s' % (extrinsic(Name, dep),))
         newline()

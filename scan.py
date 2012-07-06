@@ -56,14 +56,17 @@ def record_tvar(tv):
         if it is not None:
             insts[tv] = in_env(TVARS, {nm: tv}, lambda: parse_type(it))
 
+def scan_inst_data(tvs, apps):
+    map_(record_tvar, tvs)
+    map_(scan_inst, apps)
+
 def scan_inst(s):
     match(s,
         ('TVar(tv)', record_tvar),
         ('TPrim(_) or TVoid()', nop),
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
         ('TFunc(ps, r)', lambda ps, r: map_(scan_inst, ps + [r])),
-        ('TApply(_, _, t)', scan_inst),
-        ('TData(DataType(_, tvs))', lambda tvs: map_(record_tvar, tvs)),
+        ('TData(DataType(_, tvs), apps)', scan_inst_data),
         ('TArray(t)', scan_inst),
         ('TWeak(t)', scan_inst))
 

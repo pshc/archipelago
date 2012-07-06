@@ -14,8 +14,6 @@ SerialState = DT('SerialState',
 
 Serialize = new_env('Serialize', SerialState)
 
-SAPPS = new_env('SAPPS', {TypeVar: Type})
-
 def _write(b):
     state = env(Serialize)
     state.file.write(b)
@@ -67,15 +65,12 @@ def _encode_str(s):
 
 def _serialize_node(node, t):
     if isinstance(node, Structured):
+        assert isinstance(t, TData), "%r is not a datatype" % (t,)
         env(Serialize).count += 1
         # Collect instantiations
-        apps = env(SAPPS).copy()
-        while isinstance(t, TApply):
-            target, var, arg = match(t, ("TApply(t, v, a)", tuple3))
-            assert var not in apps
-            apps[var] = arg
-            t = target
-        assert isinstance(t, TData), "%r is not a datatype" % (t,)
+        apps = {}
+        for var, app in zip(t.data.tvars, t.appTypes):
+            apps[var] = app
         adt = extrinsic(FormBacking, t.data)
         assert isinstance(node, adt), "%r is not a %s" % (node, adt)
         # Possibly write discriminator
@@ -100,7 +95,7 @@ def _serialize_node(node, t):
             if isinstance(ft, TWeak):
                 _write_ref(sub, ft.refType)
             else:
-                in_env(SAPPS, apps, lambda: _serialize_node(sub, ft))
+                _serialize_node(sub, ft)
     elif isinstance(node, basestring):
         assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))
@@ -158,8 +153,7 @@ def serialize(module):
     depmap = {module: 0}
     state = SerialState(f, hash, 0, depmap)
     in_env(Serialize, state,
-            lambda: in_env(SAPPS, {},
-            lambda: _serialize_node(module.root, module.rootType)))
+            lambda: _serialize_node(module.root, module.rootType))
     f.close()
 
     hex = hash.digest().encode('hex')
@@ -178,8 +172,7 @@ def serialize(module):
     meta = ModuleMeta(state.count, [extrinsic(ModDigest, d) for d in deps])
     f = file('opt/%s_meta' % (hex,), 'wb')
     in_env(Serialize, SerialState(f, sha256(), 0, None),
-            lambda: in_env(SAPPS, {},
-            lambda: _serialize_node(meta, t_DT(ModuleMeta))))
+            lambda: _serialize_node(meta, t_DT(ModuleMeta)))
     f.close()
     system('ln -sf -- %s_meta opt/%s_meta' % (hex, name))
 
