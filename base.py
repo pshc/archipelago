@@ -461,7 +461,8 @@ def pretty_brief(name, o):
     elif name == 'StrLit':
         return fmtcol('^Cyan^s{0!r}^N', o.val)
     elif name == 'TPrim' or name == 'CPrim':
-        return col('Cyan', repr(o.primType))
+        c = 'Cyan' if name == 'TPrim' else 'LightCyan'
+        return col(c, repr(o.primType))
     elif name == 'TupleLit':
         return 't%r' % (tuple(o.vals),)
     elif name == 'DataType':
