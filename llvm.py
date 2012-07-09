@@ -591,7 +591,7 @@ def write_call(f, args, rett):
     for arg, paramt in zip(args, paramts):
         argt = typeof(arg)
         argx = cast(express(arg), argt, paramt)
-        argxs.append((argt, argx))
+        argxs.append((paramt, argx))
 
     if matches(frett, "IVoid()"):
         call_void(fx, argxs)
@@ -608,7 +608,7 @@ def write_runtime_call(name, args, rett):
     for argtxpr, paramt in zip(args, paramts):
         argt, argxpr = match(argtxpr, ("TypedXpr(t, xpr)", tuple2))
         argx = cast(argxpr, argt, paramt)
-        argxs.append((argt, argx))
+        argxs.append((paramt, argx))
 
     fx = func_ref(decl)
     if matches(frett, "IVoid()"):
