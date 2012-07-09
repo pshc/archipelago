@@ -20,12 +20,12 @@ def _type_func_equal(as1, r1, as2, r2):
             return False
     return type_equal(r1, r2)
 
-def _type_apply_equal(t1, a1, t2, a2):
-    # XXX: Compare vars, use scheme
-    if not type_equal(t1, t2):
+def _type_data_equal(d1, ts1, d2, ts2):
+    if d1 is not d2:
         return False
-    if not type_equal(a1, a2):
-        return False
+    for t1, t2 in zip(ts1, ts2):
+        if not type_equal(t1, t2):
+            return False
     return True
 
 def type_equal(a, b):
@@ -37,8 +37,7 @@ def type_equal(a, b):
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TFunc(args1, r1), TFunc(args2, r2))", _type_func_equal),
-        ("(TData(a), TData(b))", lambda: a is b),
-        ("(TApply(t1, _, a1), TApply(t2, _, a2))", _type_apply_equal),
+        ("(TData(d1, ts1), TData(d2, ts2))", _type_data_equal),
         ("(TArray(a), TArray(b))", type_equal),
         ("(TWeak(a), TWeak(b))", type_equal),
         ("_", lambda: False))
@@ -69,9 +68,7 @@ def _type_repr(t):
                         (', '.join(_type_repr(t) for t in ts),)),
                     ("TFunc(s, r)", lambda s, r: '(%s)' %
                         (' -> '.join(_type_repr(t) for t in s + [r]),)),
-                    ("TData(d)", _get_name),
-                    ("TApply(t, vs)", lambda t, vs: '%s %s.' % (_type_repr(t),
-                                '.'.join(map(_type_repr, vs)))),
+                    ("TData(d, [])", _get_name),
                     ("_", lambda: '<bad type %s>' % type(t)))
     REPR_ENV.remove(t)
     return rstr
@@ -98,6 +95,8 @@ def map_type_vars(f, t):
                               map_type_vars(f, ret))),
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
+                    ("TArray(t)", lambda t: TArray(map_type_vars(f, t))),
+                    ("TWeak(t)", lambda t: TWeak(map_type_vars(f, t))),
                     ("_", lambda: t))
 
 def _var(n): return TVar(n)
