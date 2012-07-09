@@ -117,6 +117,7 @@ def _scan_expr(e):
         ("HaveEnv(_)", nop),
         ("InEnv(_, init, f)", scan_inenv),
         ("GetExtrinsic(_, e)", scan_expr),
+        ("HasExtrinsic(_, e)", scan_expr),
         ("ScopeExtrinsic(_, f)", scan_expr),
         ("Bind(b)", scan_binding)))
 
@@ -129,10 +130,6 @@ def scan_lhs(lhs):
         ("lhs==LhsVar(v)", instantiate),
         ("LhsAttr(e, f)", scan_lhs_attr),
         ("LhsTuple(ss)", lambda ss: map_(scan_lhs, ss)))
-
-def scan_addextrinsic(e, val):
-    scan_expr(e)
-    scan_expr(val)
 
 def scan_assign(lhs, e):
     scan_lhs(lhs)
@@ -157,10 +154,13 @@ def scan_assert(t, m):
     scan_expr(t)
     scan_expr(m)
 
+def scan_writeextrinsic(e, val):
+    scan_expr(e)
+    scan_expr(val)
+
 def scan_stmt(stmt):
     in_env(STMTCTXT, stmt, lambda: match(stmt,
         ("Defn(var, e)", scan_defn),
-        ("AddExtrinsic(_, e, val)", scan_addextrinsic),
         ("Assign(lhs, e)", scan_assign),
         ("AugAssign(_, lhs, e)", scan_augassign),
         ("Break() or Continue()", nop),
@@ -169,7 +169,8 @@ def scan_stmt(stmt):
         ("While(t, b)", scan_while),
         ("Assert(t, m)", scan_assert),
         ("Return(e)", scan_expr),
-        ("ReturnNothing()", nop)))
+        ("ReturnNothing()", nop),
+        ("WriteExtrinsic(_, e, val, _)", scan_writeextrinsic)))
 
 def scan_body(body):
     map_(scan_stmt, body.stmts)

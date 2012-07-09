@@ -711,11 +711,12 @@ def expr_inenv_void(environ, init, e):
     write_void_stmt(e)
     env_teardown(environ, old)
 
-def expr_getextrinsic(extr, e):
+def expr_getextrinsic(extr, e, exists):
+    sym = '_hasextrinsic' if exists else '_getextrinsic'
     extrx = TypedXpr(IVoidPtr(), global_ref(extr))
-    t = convert_type(extr.type)
+    t = IBool() if exists else convert_type(extr.type)
     ex = express_typed(e)
-    return fromJust(write_runtime_call('_getextrinsic', [extrx, ex], t))
+    return fromJust(write_runtime_call(sym, [extrx, ex], t))
 
 def expr_scopeextrinsic(extr, e):
     out('; enter %s' % (extrinsic(Name, extr),))
@@ -770,7 +771,8 @@ def express(expr):
         ('GetEnv(environ)', expr_getenv),
         ('HaveEnv(environ)', expr_haveenv),
         ('InEnv(environ, init, e)', expr_inenv),
-        ('GetExtrinsic(extr, e)', expr_getextrinsic),
+        ('GetExtrinsic(x, e)', lambda x, e: expr_getextrinsic(x, e, False)),
+        ('HasExtrinsic(x, e)', lambda x, e: expr_getextrinsic(x, e, True)),
         ('ScopeExtrinsic(extr, e)', expr_scopeextrinsic),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
@@ -784,13 +786,6 @@ def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
 
 # STATEMENTS
-
-def write_addextrinsic(extr, node, val):
-    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
-    n = express_typed(node)
-    v = express_typed(val)
-    r = write_runtime_call('_addextrinsic', [extrx, n, v], IVoid())
-    assert isNothing(r)
 
 def write_assert(e, msg):
     ex = express(e)
@@ -1138,9 +1133,16 @@ def write_while(cond, body):
 
     env(LOCALS).loopLabels = old_labels
 
+def write_writeextrinsic(extr, node, val, isNew):
+    sym = '_addextrinsic' if isNew else '_updateextrinsic'
+    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
+    n = express_typed(node)
+    v = express_typed(val)
+    r = write_runtime_call(sym, [extrx, n, v], IVoid())
+    assert isNothing(r)
+
 def write_stmt(stmt):
     match(stmt,
-        ("AddExtrinsic(extr, node, val)", write_addextrinsic),
         ("Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
@@ -1151,7 +1153,8 @@ def write_stmt(stmt):
         ("Defn(v, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
-        ("While(c, b)", write_while))
+        ("While(c, b)", write_while),
+        ("WriteExtrinsic(extr, node, val, isNew)", write_writeextrinsic))
 
 def write_body(body):
     map_(write_stmt, match(body, ('Body(ss)', identity)))

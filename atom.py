@@ -40,7 +40,7 @@ MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
 Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
         GetEnv, HaveEnv, InEnv, \
-        GetExtrinsic, ScopeExtrinsic, \
+        GetExtrinsic, HasExtrinsic, ScopeExtrinsic, \
         IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
@@ -55,6 +55,7 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
         'HaveEnv', ('env', '*Env'),
         'InEnv', ('env', '*Env'), ('init', 'Expr'), ('expr', 'Expr'),
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
+        'HasExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
         'IntLit', ('val', int),
         'ListLit', ('vals', '[Expr]'),
@@ -78,11 +79,9 @@ Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
         'LhsAttr', ('sub', Expr), ('attr', '*Field'),
         'LhsTuple', ('vals', '[Lhs]'))
 
-Stmt, AddExtrinsic, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
-    ExprStmt, Return, ReturnNothing, While = \
+Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
+    ExprStmt, Return, ReturnNothing, While, WriteExtrinsic = \
     ADT('Stmt',
-        'AddExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
-                        ('val', 'Expr'),
         'Assert', ('test', Expr), ('message', Expr),
         'Assign', ('lhs', Lhs), ('expr', Expr),
         'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', Expr),
@@ -93,7 +92,9 @@ Stmt, AddExtrinsic, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'ExprStmt', ('expr', Expr),
         'Return', ('expr', Expr),
         'ReturnNothing',
-        'While', ('test', Expr), ('body', Body))
+        'While', ('test', Expr), ('body', Body),
+        'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
+                          ('val', 'Expr'), ('isNew', bool))
 
 TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',

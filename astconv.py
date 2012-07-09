@@ -267,9 +267,17 @@ def conv_in_env(environ, val, f):
 def conv_get_extrinsic(ext, e):
     return GetExtrinsic(refs_symbol(ext), conv_expr(e))
 
+@special_call('has_extrinsic')
+def conv_has_extrinsic(ext, e):
+    return HasExtrinsic(refs_symbol(ext), conv_expr(e))
+
 @special_call('add_extrinsic')
 def conv_add_extrinsic(ext, e, val):
-    return AddExtrinsic(refs_symbol(ext), conv_expr(e), conv_expr(val))
+    return WriteExtrinsic(refs_symbol(ext), conv_expr(e), conv_expr(val), True)
+
+@special_call('update_extrinsic')
+def conv_update_extrinsic(ext, e, val):
+    return WriteExtrinsic(refs_symbol(ext), conv_expr(e), conv_expr(val),False)
 
 @special_call('scope_extrinsic')
 def conv_scope_extrinsic(ext, f):
@@ -624,7 +632,7 @@ def conv_discard(s):
 
     # Dumb special case
     if isinstance(e, Stmt):
-        assert isinstance(e, AddExtrinsic)
+        assert isinstance(e, WriteExtrinsic)
         return [e]
 
     return [ExprStmt(e)]

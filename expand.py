@@ -151,6 +151,7 @@ def ex_expr(e):
         ("HaveEnv(_)", nop),
         ("InEnv(environ, i, e)", ex_inenv),
         ("GetExtrinsic(_, node)", ex_expr),
+        ("HasExtrinsic(_, node)", ex_expr),
         ("ScopeExtrinsic(_, f)", ex_expr),
         ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
@@ -165,10 +166,6 @@ def ex_defn(v, e):
     add_extrinsic(LocalVar, v, VarInfo(env(EXFUNC)))
     env(EXSCOPE).localVars[v] = FuncLocal()
     ex_expr(e)
-
-def ex_addextrinsic(node, val):
-    ex_expr(node)
-    ex_expr(val)
 
 def ex_assign(a, e):
     ex_expr(e) # Must come first!
@@ -232,12 +229,15 @@ def ex_return(e):
 def ex_returnnothing():
     cur_flow().returns = True
 
+def ex_writeextrinsic(node, val):
+    ex_expr(node)
+    ex_expr(val)
+
 def ex_stmt(s):
     match(s,
         ("ExprStmt(e)", ex_expr),
         ("Defn(var, e==FuncExpr(f))", ex_func_defn),
         ("Defn(var, e)", ex_defn),
-        ("AddExtrinsic(_, node, val)", ex_addextrinsic),
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
         ("Break() or Continue()", nop),
@@ -245,7 +245,8 @@ def ex_stmt(s):
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
         ("Return(e)", ex_return),
-        ("ReturnNothing()", ex_returnnothing))
+        ("ReturnNothing()", ex_returnnothing),
+        ("WriteExtrinsic(_, node, val, _)", ex_writeextrinsic))
 
 def ex_body(body):
     map_(ex_stmt, body.stmts)

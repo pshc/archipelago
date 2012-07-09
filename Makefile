@@ -3,6 +3,8 @@ TEST_BINS := $(TESTS:tests/%.py=bin/%)
 DIRS = bin ir mods opt views
 OPTS = --color -q
 CODEGEN = ./construct.py $(OPTS) --
+CC = cc
+CFLAGS = -ansi -pedantic -W -Wall -Werror
 
 all: test
 
@@ -14,7 +16,7 @@ $(DIRS):
 	mkdir $@
 
 ir/z.o: z.c
-	cc -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 bin/%: tests/%.py dirs
 	$(CODEGEN) $<

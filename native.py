@@ -99,6 +99,9 @@ def _serialize_node(node, t):
     elif isinstance(node, basestring):
         assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))
+    elif isinstance(node, bool):
+        assert isinstance(t, TPrim) and isinstance(t.primType, PBool)
+        _write(_encode_int(1 if node else 0))
     elif isinstance(node, int):
         assert isinstance(t, TPrim) and isinstance(t.primType, PInt)
         _write(_encode_int(node))

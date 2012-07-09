@@ -324,6 +324,11 @@ def prop_getextrinsic(e, extr, node):
     assert matches(t, "CData(_, _)"), "Can't get extr from %s" % (nodet,)
     return instantiate_type(e, extr.type)
 
+def prop_hasextrinsic(e, node):
+    t = prop_expr(node)
+    assert matches(t, "CData(_, _)"), "Can't check for extr from %s" % (nodet,)
+    return CBool()
+
 def unknown_prop(a):
     assert False, with_context('Unknown prop case:', a)
 
@@ -346,6 +351,7 @@ def _prop_expr(e):
         ("HaveEnv(_)", lambda: CPrim(PBool())),
         ("InEnv(Env(t), init, f)", prop_inenv),
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
+        ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),
         ("ref==Bind(b)", prop_binding),
         ("otherwise", unknown_prop))
@@ -426,11 +432,6 @@ def prop_defn(a, e):
     else:
         set_type(a, generalize_type(prop_expr(e)))
 
-def prop_addextrinsic(extr, node, val):
-    nodet = prop_expr(node)
-    assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
-    consume_value_as(extr.type, val)
-
 def prop_assign(a, e):
     consume_value_as(prop_lhs(a), e)
 
@@ -459,10 +460,14 @@ def prop_return(e):
 def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
 
+def prop_writeextrinsic(extr, node, val):
+    nodet = prop_expr(node)
+    assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
+    consume_value_as(extr.type, val)
+
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(var, e)", prop_defn),
-        ("AddExtrinsic(extr, node, val)", prop_addextrinsic),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
@@ -472,6 +477,7 @@ def prop_stmt(a):
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),
         ("ReturnNothing()", prop_returnnothing),
+        ("WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic),
         ("otherwise", unknown_prop)))
 
 def prop_body(body):
