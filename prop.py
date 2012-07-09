@@ -12,10 +12,12 @@ CHECK = new_env('CHECK', '*Type')
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
 PropScope = DT('PropScope', ('level', int),
-                            ('retType', 'Maybe(Type)'),
-                            ('closedVars', {str: TypeVar}))
+                            ('retType', 'Maybe(CType)'),
+                            ('localVars', {'*Var': 'CType'}))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
+
+MetaVar = new_extrinsic('MetaVar', {'*TypeVar': 'CType'})
 
 def with_context(desc, msg):
     if have_env(UNIFYCTXT):
@@ -31,11 +33,13 @@ def global_scope():
 
 def in_new_scope(retT, f):
     last = env(PROPSCOPE)
-    new_scope = PropScope(last.level+1, retT, last.closedVars.copy())
+    new_scope = PropScope(last.level+1, retT, last.localVars.copy())
     return in_env(PROPSCOPE, new_scope, f)
 
+MetaCell = DT('MetaCell', ('type', 'Maybe(CType)'))
+
 # instantiated types
-CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak \
+CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
     = ADT('CType',
         'CVar', ('typeVar', '*TypeVar'),
         'CPrim', ('primType', '*PrimType'),
@@ -44,7 +48,9 @@ CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak \
         'CFunc', ('funcArgs', ['CType']), ('funcRet', 'CType'),
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
-        'CWeak', ('refType', 'CType'))
+        'CWeak', ('refType', 'CType'),
+        'CMeta', ('cell', MetaCell),
+                 ('originalTypeVar', '*TypeVar'))
 
 def CInt(): return CPrim(PInt())
 def CBool(): return CPrim(PBool())
@@ -55,16 +61,18 @@ INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', {'*TypeVar': Type})
 
-def instantiate_tvar(tv):
+def inst_tvar(tv):
     if have_env(SUBST):
         return env(SUBST).get(tv, CVar(tv))
     t = env(INST).get(tv)
     if t is not None:
         return ctype(t)
     else:
-        return CVar(tv) # free
+        if not has_extrinsic(MetaVar, tv):
+            add_extrinsic(MetaVar, tv, CMeta(MetaCell(Nothing()), tv))
+        return extrinsic(MetaVar, tv)
 
-def instantiate_tdata(dt, ts):
+def inst_tdata(dt, ts):
     insts = []
     for i, tvar in enumerate(dt.tvars):
         insts.append(_inst_type(ts[i]) if i < len(ts) else CVar(tvar))
@@ -72,19 +80,20 @@ def instantiate_tdata(dt, ts):
 
 def _inst_type(s):
     return match(s,
-        ('TVar(tv)', instantiate_tvar),
+        ('TVar(tv)', inst_tvar),
         ('TPrim(p)', CPrim),
         ('TVoid()', CVoid),
         ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
         ('TFunc(ps, r)', lambda ps, r:
                 CFunc(map(_inst_type, ps), _inst_type(r))),
-        ('TData(dt, ts)', instantiate_tdata),
+        ('TData(dt, ts)', inst_tdata),
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
 
 def instantiate_type(site, t):
     inst = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
-    return in_env(INST, inst, lambda: _inst_type(t))
+    return scope_extrinsic(MetaVar, lambda:
+            in_env(INST, inst, lambda: _inst_type(t)))
 
 def instantiate(site, v):
     t = extrinsic(TypeOf, v)
@@ -110,7 +119,9 @@ def _gen_type(s):
                 TFunc(map(_gen_type, ps), _gen_type(r))),
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
-        ('CWeak(t)', lambda t: TWeak(_gen_type(t))))
+        ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
+        ('CMeta(MetaCell(Nothing()), origTVar)', TVar),
+        ('CMeta(MetaCell(Just(s)), _)', _gen_type))
 
 def generalize_type(t):
     return _gen_type(t)
@@ -119,6 +130,28 @@ def unification_failure(src, dest, msg):
     desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
             type(src), src, type(dest), dest)
     assert False, with_context(desc, msg)
+
+def try_unite_two_metas(src, scell, dest, dcell):
+    if scell is dcell:
+        pass
+    elif isJust(scell.type) and isJust(dcell.type):
+        try_unite(fromJust(scell.type), fromJust(dcell.type))
+    elif isJust(scell.type):
+        # XXX ought to narrow properly
+        dest.cell = scell
+    else:
+        src.cell = dcell
+
+def try_unite_meta(m, mcell, dest):
+    if isJust(mcell.type):
+        try_unite(fromJust(mcell.type), dest)
+    else:
+        # zonking dest might be a good idea
+        mcell.type = Just(dest)
+
+def try_unite_meta_backwards(dest, m, mcell):
+    # XXX ought to narrow properly
+    try_unite_meta(m, mcell, dest)
 
 def try_unite_tuples(src, list1, dest, list2):
     if len(list1) != len(list2):
@@ -152,6 +185,9 @@ def unify(src, dest):
 def try_unite(src, dest):
     fail = lambda m: unification_failure(src, dest, m)
     match((src, dest),
+        ("(src==CMeta(scell, _), dest==CMeta(dcell, _))", try_unite_two_metas),
+        ("(m==CMeta(mcell, _), dest)", try_unite_meta),
+        ("(dest, m==CMeta(mcell, _))", try_unite_meta_backwards),
         ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
         ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
         ("(CArray(t1), CArray(t2))", try_unite),
@@ -167,6 +203,10 @@ def unify_m(e):
 def set_type(e, t):
     assert isinstance(t, Type), "%s is not a type" % (t,)
     add_extrinsic(TypeOf, e, t)
+
+def set_ctype(e, ct):
+    assert isinstance(t, CType), "%s is not a ctype" % (ct,)
+    add_extrinsic(InstType, e, ct)
 
 def pat_tuple(ps):
     ts = match(env(CHECK), ("CTuple(ps)", identity))
@@ -203,9 +243,15 @@ def _prop_pat(p):
         ("PatCapture(v, p)", pat_capture),
         ("p==PatCtor(c, args)", pat_ctor))
 
+def prop_binding_var(b, v):
+    ct = env(PROPSCOPE).localVars.get(v)
+    if ct is not None:
+        return ct
+    return instantiate(b, v)
+
 def prop_binding(ref, binding):
     return match(binding,
-        ("s==BindVar(v)", instantiate),
+        ("s==BindVar(v)", prop_binding_var),
         ("s==BindCtor(v)", instantiate),
         ("s==BindBuiltin(v)", instantiate)
     )
@@ -214,8 +260,8 @@ def prop_call(f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
     assert len(ft.funcArgs) == len(argts), "Arg count mismatch"
-    for t1, t2 in zip(ft.funcArgs, argts):
-        unify(t1, t2)
+    for arg, param in zip(argts, ft.funcArgs):
+        unify(arg, param)
     return ft.funcRet
 
 def prop_logic(l, r):
@@ -231,18 +277,18 @@ def prop_ternary(c, t, f):
     return tf
 
 def prop_func(f, ps, b):
-    tvars = {}
     ft = extrinsic(TypeOf, f)
-    tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
-    assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     cft = ctype(ft)
+    tps, tret = match(cft, ('CFunc(ps, ret)', tuple2))
+    assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     def inside_func_scope():
-        closed = env(PROPSCOPE).closedVars
-        for tvar in tvars.itervalues():
-            closed[extrinsic(Name, tvar)] = tvar
-        for p, tp in zip(ps, tps):
-            set_type(p, tp)
+        localVars = env(PROPSCOPE).localVars
+        for p, ctp in zip(ps, tps):
+            assert p not in localVars
+            localVars[p] = ctp
         prop_body(b)
+        for p, ctp in zip(ps, tps):
+            set_type(p, generalize_type(ctp))
         return cft
     return in_new_scope(Just(tret), inside_func_scope)
 
@@ -256,7 +302,7 @@ def prop_match(m, e, cs):
             rt = prop_expr(ce)
             retT = env(PROPSCOPE).retType
             if isJust(retT):
-                unify(rt, ctype(fromJust(retT)))
+                unify(rt, fromJust(retT))
             else:
                 retT = Just(rt)
             return retT
@@ -408,7 +454,7 @@ def prop_assert(tst, msg):
     consume_value_as(TStr(), msg)
 
 def prop_return(e):
-    consume_value_as(env(PROPSCOPE).retType.just, e)
+    unify(prop_expr(e), env(PROPSCOPE).retType.just)
 
 def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
