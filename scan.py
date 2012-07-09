@@ -76,8 +76,8 @@ def instantiate_type(site, t):
     for k in insts.keys():
         if insts[k] is None:
             del insts[k]
-    if insts:
-        add_extrinsic(InstMap, site, insts)
+    #if insts:
+    #    add_extrinsic(InstMap, site, insts)
 
 def instantiate(site, v):
     if has_extrinsic(TypeOf, v):
