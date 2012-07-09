@@ -23,8 +23,10 @@ remake_tests: dirs ir/z.o
 	$(CODEGEN) $(TESTS)
 
 test: remake_tests
-	@echo -n Running tests
-	@for bin in $(TEST_BINS); do $$bin; done
+	@echo Running tests...
+	@for bin in $(TEST_BINS); do \
+	  $$bin || echo $$bin returned $$?.; \
+	done
 	@echo
 	@echo Done.
 
