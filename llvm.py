@@ -584,9 +584,14 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
+def original_definition(f):
+    return match(f, ("Bind(BindVar(v))", identity),
+                    ("Bind(BindCtor(c))", identity))
+
 def write_call(f, args, rett):
     fx = express(f)
-    paramts, frett = match(typeof(f), ("IFunc(pts, rt)", tuple2))
+    t = typeof(original_definition(f))
+    paramts, frett = match(t, ("IFunc(pts, rt)", tuple2))
     argxs = []
     for arg, paramt in zip(args, paramts):
         argt = typeof(arg)
