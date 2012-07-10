@@ -153,14 +153,22 @@ def ex_expr(e):
         ("Bind(BindVar(v))", ex_bind_var),
         ("Bind(BindCtor(_) or BindBuiltin(_))", nop))
 
-def ex_func_defn(v, e, f):
-    add_extrinsic(Name, f, extrinsic(Name, v))
-    ex_defn(v, e)
-
-def ex_defn(v, e):
+def ex_pat_var(v):
     # a little redundant...
     add_extrinsic(LocalVar, v, VarInfo(env(EXFUNC)))
     env(EXSCOPE).localVars[v] = FuncLocal()
+
+def ex_pat(pat):
+    match(pat, ("PatVar(v)", ex_pat_var),
+               ("PatTuple(ps)", lambda ps: map_(ex_pat, ps)))
+
+def ex_func_defn(v, e, f):
+    add_extrinsic(Name, f, extrinsic(Name, v))
+    ex_pat_var(v)
+    ex_expr(e)
+
+def ex_defn(pat, e):
+    ex_pat(pat)
     ex_expr(e)
 
 def ex_assign(a, e):
@@ -170,8 +178,7 @@ def ex_assign(a, e):
 def ex_lhs(a):
     match(a,
         ("LhsVar(v)", ex_lhs_var),
-        ("LhsAttr(s, _)", ex_expr),
-        ("LhsTuple(ss)", lambda ss: map_(ex_lhs, ss)))
+        ("LhsAttr(s, _)", ex_expr))
 
 def ex_lhs_var(v):
     # close over in this scope
@@ -232,8 +239,8 @@ def ex_writeextrinsic(node, val):
 def ex_stmt(s):
     match(s,
         ("ExprStmt(e)", ex_expr),
-        ("Defn(var, e==FuncExpr(f))", ex_func_defn),
-        ("Defn(var, e)", ex_defn),
+        ("Defn(PatVar(v), e==FuncExpr(f))", ex_func_defn),
+        ("Defn(pat, e)", ex_defn),
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
         ("Break() or Continue()", nop),
@@ -265,7 +272,7 @@ def ex_dt(dt):
 def ex_top_level(s):
     match(s,
         ("TopCDecl(_)", nop),
-        ("TopDefn(v, FuncExpr(f))", ex_top_func),
+        ("TopDefn(PatVar(v), FuncExpr(f))", ex_top_func),
         ("TopDefn(_, e)", ex_top_defn),
         ("TopDT(dt)", ex_dt),
         ("TopEnv(_)", nop),

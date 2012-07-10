@@ -74,10 +74,9 @@ CondCase = DT('CondCase', ('test', Expr), ('body', Body))
 
 Func = DT('Func', ('params', [Var]), ('body', Body))
 
-Lhs, LhsVar, LhsAttr, LhsTuple = ADT('Lhs',
+Lhs, LhsVar, LhsAttr = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
-        'LhsAttr', ('sub', Expr), ('attr', '*Field'),
-        'LhsTuple', ('vals', '[Lhs]'))
+        'LhsAttr', ('sub', Expr), ('attr', '*Field'))
 
 Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
     ExprStmt, Return, ReturnNothing, While, WriteExtrinsic = \
@@ -88,7 +87,7 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'Break',
         'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
         'Continue',
-        'Defn', ('var', 'Var'), ('expr', Expr),
+        'Defn', ('pat', Pat), ('expr', Expr),
         'ExprStmt', ('expr', Expr),
         'Return', ('expr', Expr),
         'ReturnNothing',
@@ -99,7 +98,7 @@ Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
 TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',
         'TopCDecl', ('var', Var),
-        'TopDefn', ('var', Var), ('expr', Expr),
+        'TopDefn', ('pat', Pat), ('expr', Expr),
         'TopDT', ('form', 'DataType'),
         'TopExtrinsic', ('extrinsic', Extrinsic),
         'TopEnv', ('env', Env))

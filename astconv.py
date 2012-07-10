@@ -479,7 +479,6 @@ def conv_genexprinner(e):
     assert len(e.quals) == 1
     ea = conv_expr(e.expr)
     comp = e.quals[0]
-    # TODO: Ought to be a pattern. Unify?
     assa = fromJust(conv_ass(comp.assign))
     lista = conv_expr(comp.iter if hasattr(comp, 'iter') else comp.list)
     preds = [conv_expr(if_.test) for if_ in comp.ifs]
@@ -577,20 +576,16 @@ def conv_assign(s):
             right = right.value
         assert left.name == right, "Name mismatch %s, %s" % (left.name, right)
         return expra.func(*expra.args)
-    # XXX Distinguish between defn and binding earlier
-    m = match(conv_ass(left))
+
     global_scope = is_top_level()
-    if m('Just(lefta)'):
-        assert not global_scope
-        lefta = m.arg
-        m.ret(Assign(lefta, expra))
+    reass = conv_try_reass(left)
+    if isJust(reass):
+        assert not global_scope, "Can't reassign in global scope"
+        return [Assign(fromJust(reass), expra)]
     else:
-        assert isinstance(left, ast.AssName), "Simple assignment only"
-        var = Var()
-        identifier(var, left.name, export=global_scope)
-        m.ret(TopDefn(var, expra) if global_scope else Defn(var, expra))
-    ass = m.result()
-    return [ass]
+        pat = conv_ass(left)
+        ass = TopDefn(pat, expra) if global_scope else Defn(pat, expra)
+        return [ass]
 
 @stmt(ast.AssList)
 def conv_asslist(s):
@@ -613,7 +608,7 @@ def op_to_aug(op):
 
 @stmt(ast.AugAssign)
 def conv_augassign(s):
-    lhs = fromJust(conv_ass(s.node))
+    lhs = fromJust(conv_try_reass(s.node))
     return [AugAssign(op_to_aug(s.op), lhs, conv_expr(s.expr))]
 
 @stmt(ast.Break)
@@ -637,24 +632,29 @@ def conv_discard(s):
 
     return [ExprStmt(e)]
 
-# ast lhs -> Maybe Lhs
 def conv_ass(s):
-    if isinstance(s, (ast.AssName, ast.Name)):
-        ref = ident_exists(s.name)
-        if isJust(ref):
-            assert isinstance(ref.just, BindVar)
-            ref = Just(LhsVar(ref.just.var))
-        return ref
+    if isinstance(s, ast.AssName):
+        assert not isJust(ident_exists(s.name)), \
+                "Unexpected reassignment of %s" % (s.name,)
+        var = Var()
+        identifier(var, s.name, export=is_top_level())
+        return PatVar(var)
     elif isinstance(s, ast.AssTuple):
-        ss = [conv_ass(n) for n in s.nodes]
-        assert all(map(isJust, ss)), "Can't destructure tuple into new vars"
-        return Just(LhsTuple(map(fromJust, ss)))
-    elif isinstance(s, ast.AssAttr):
-        expra = conv_expr(s.expr)
-        # Don't know the type, have to look up the field later...
-        return Just(LhsAttr(expra, s.attrname))
+        return PatTuple(map(conv_ass, s.nodes))
     else:
         assert False, "Can't convert %s" % (s,)
+
+def conv_try_reass(s):
+    if isinstance(s, (ast.AssName, ast.Name)):
+        ref = ident_exists(s.name)
+        if isNothing(ref):
+            return Nothing()
+        return Just(LhsVar(fromJust(ref).var))
+    elif isinstance(s, (ast.AssAttr, ast.Getattr)):
+        expra = conv_expr(s.expr)
+        return Just(LhsAttr(expra, s.attrname))
+    else:
+        return Nothing()
 
 @stmt(ast.For)
 @inside_scope
@@ -706,7 +706,7 @@ def conv_function(s):
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    f = (TopDefn if glob else Defn)(var, FuncExpr(rest()))
+    f = (TopDefn if glob else Defn)(PatVar(var), FuncExpr(rest()))
     return [f]
 
 @stmt(ast.If)

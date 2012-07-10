@@ -128,8 +128,7 @@ def scan_lhs_attr(e, f):
 def scan_lhs(lhs):
     match(lhs,
         ("lhs==LhsVar(v)", instantiate),
-        ("LhsAttr(e, f)", scan_lhs_attr),
-        ("LhsTuple(ss)", lambda ss: map_(scan_lhs, ss)))
+        ("LhsAttr(e, f)", scan_lhs_attr))
 
 def scan_assign(lhs, e):
     scan_lhs(lhs)
@@ -160,7 +159,7 @@ def scan_writeextrinsic(e, val):
 
 def scan_stmt(stmt):
     in_env(STMTCTXT, stmt, lambda: match(stmt,
-        ("Defn(var, e)", scan_defn),
+        ("Defn(_, e)", scan_expr),
         ("Assign(lhs, e)", scan_assign),
         ("AugAssign(_, lhs, e)", scan_augassign),
         ("Break() or Continue()", nop),
@@ -175,12 +174,9 @@ def scan_stmt(stmt):
 def scan_body(body):
     map_(scan_stmt, body.stmts)
 
-def scan_defn(var, e):
-    scan_expr(e)
-
 def scan_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
-        ("TopDefn(var, e)", scan_defn),
+        ("TopDefn(_, e)", scan_expr),
         ("_", nop)))
 
 def scan_compilation_unit(unit):

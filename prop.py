@@ -385,34 +385,36 @@ def prop_lhs_attr(lhs, s, f):
     lhs.attr = resolve_field_by_name(t, f)
     return generalize_type(resolve_field_type(t, lhs.attr.type))
 
-def prop_lhs_tuple(lhs, ss):
-    t = TTuple(map(prop_lhs, ss))
-    set_type(lhs, t)
-    return t
-
 def prop_lhs(lhs):
     return match(lhs,
         ("LhsVar(v)", lambda v: extrinsic(TypeOf, v)),
-        ("lhs==LhsAttr(s, f)", prop_lhs_attr),
-        ("lhs==LhsTuple(ss)", prop_lhs_tuple))
-
-def check_lhs(t, lhs):
-    unify(t, prop_lhs(lhs))
+        ("lhs==LhsAttr(s, f)", prop_lhs_attr))
 
 def prop_DT(form):
     dtT = TData(form, [])
     for c in form.ctors:
         set_type(c, TFunc([f.type for f in c.fields], dtT))
 
-def prop_defn(a, e):
+def destructure_tuple(ps, t):
+    ts = match(t, ("TTuple(ts)", identity))
+    assert len(ps) == len(ts)
+    for p, t in zip(ps, ts):
+        destructure_pat(p, t)
+
+def destructure_pat(pat, t):
+    match(pat, ("PatVar(v)", lambda v: set_type(v, t)),
+               ("PatTuple(ps)", lambda ps: destructure_tuple(ps, t)))
+
+def prop_defn(pat, e):
     m = match(e)
     if m("FuncExpr(f)"):
         f = m.arg
         t = extrinsic(TypeOf, f)
-        set_type(a, t)
+        v = match(pat, ("PatVar(v)", identity))
+        set_type(v, t)
         consume_value_as(t, e)
     else:
-        set_type(a, generalize_type(prop_expr(e)))
+        destructure_pat(pat, generalize_type(prop_expr(e)))
 
 def prop_assign(a, e):
     consume_value_as(prop_lhs(a), e)
@@ -449,7 +451,7 @@ def prop_writeextrinsic(extr, node, val):
 
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
-        ("Defn(var, e)", prop_defn),
+        ("Defn(pat, e)", prop_defn),
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
@@ -470,7 +472,7 @@ def prop_top_level(a):
         ("TopCDecl(_)", nop),
         ("TopDT(form)", prop_DT),
         ("TopEnv(_)", nop),
-        ("TopDefn(var, e)", prop_defn),
+        ("TopDefn(pat, e)", prop_defn),
         ("TopExtrinsic(_)", nop)))
 
 def prop_compilation_unit(unit):

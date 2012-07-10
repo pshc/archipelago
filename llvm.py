@@ -264,12 +264,12 @@ def phi2(reg, t, e1, lbl1, e2, lbl2):
     out(' ]')
     newline()
 
-def store_named(t, xpr, named):
+def store_named(txpr, named):
     out('store ')
-    out_t(t)
-    out_xpr(xpr)
+    out_t(txpr.type)
+    out_xpr(txpr.xpr)
     comma()
-    out_t_ptr(t)
+    out_t_ptr(txpr.type)
     out_name_reg(named)
     newline()
 
@@ -801,23 +801,36 @@ def write_assert(e, msg):
     out_label(pass_)
 
 def store_var(v, xpr):
-    store_named(typeof(v), xpr, v)
+    store_named(TypedXpr(typeof(v), xpr), v)
 
 def store_attr(dest, f, val):
     ex = express(dest)
     fieldptr = get_field_ptr(ex, typeof(dest), f)
     store_xpr(convert_type(f.type), val, fieldptr)
 
-def destructure_tuple(lhs, ss, xpr):
-    tupt = match(typeof(lhs), ('IPtr(t==ITuple(_))', identity))
+def store_lhs(lhs, x):
+    match(lhs,
+        ('LhsVar(v)', lambda v: store_var(v, x)),
+        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
+
+def destructure_var(pat, v, txpr):
+    out_name_reg(v)
+    out(' = alloca ')
+    out_t_nospace(txpr.type)
+    newline()
+    store_named(txpr, v)
+
+def destructure_tuple(pat, ps, txpr):
+    tupt, tts = match(txpr.type, ('IPtr(t==ITuple(tts))', tuple2))
     tupval = temp_reg_named('tuple')
     out_xpr(tupval)
     out(' = load ')
     out_t_ptr(tupt)
-    out_xpr(xpr)
+    out_xpr(txpr.xpr)
     newline()
     i = 0
-    for s in ss:
+    assert len(ps) == len(tts)
+    for p, tt in zip(ps, tts):
         val = temp_reg()
         out_xpr(val)
         out(' = extractvalue ')
@@ -827,17 +840,18 @@ def destructure_tuple(lhs, ss, xpr):
         out(str(i))
         i += 1
         newline()
-        store_lhs(s, val)
+        destructure_pat(p, TypedXpr(tt, val))
 
-def store_lhs(lhs, x):
-    match(lhs,
-        ('LhsVar(v)', lambda v: store_var(v, x)),
-        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)),
-        ('lhs==LhsTuple(ss)', lambda lhs, ss: destructure_tuple(lhs, ss, x)))
+def destructure_pat(pat, txpr):
+    # Really there ought to be TypeOfs on the pats rather than propagating
+    # the typedxpr I think.
+    match((pat, txpr), ('(pat==PatVar(v), txpr)', destructure_var),
+                       ('(pat==PatTuple(ps), txpr)', destructure_tuple))
 
 def load_lhs(lhs):
     return match(lhs,
-        ('LhsVar(v)', expr_bind_var))
+        ('LhsVar(v)', expr_bind_var),
+        ('LhsAttr(e, a)', expr_attr))
 
 def write_assign(lhs, e):
     ex = express(e)
@@ -898,14 +912,9 @@ def write_func_defn(v, e, f):
     if not check_static_replacement(v, f):
         write_defn(v, e)
 
-def write_defn(v, e):
+def write_defn(pat, e):
     ex = express(e)
-    out_name_reg(v)
-    out(' = alloca ')
-    t = typeof(e)
-    out_t_nospace(t)
-    newline()
-    store_named(t, ex, v)
+    destructure_pat(pat, TypedXpr(typeof(e), ex))
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
@@ -1094,7 +1103,7 @@ def _write_top_func(f, ps, body):
             out(' = alloca ')
             out_t(tp)
             newline()
-            store_named(tp, tmp, p)
+            store_named(TypedXpr(tp, tmp), p)
         newline()
 
     write_body(body)
@@ -1149,8 +1158,8 @@ def write_stmt(stmt):
         ("Break()", write_break),
         ("Continue()", write_continue),
         ("Cond(cs, else_)", write_cond),
-        ("Defn(v, e==FuncExpr(f))", write_func_defn),
-        ("Defn(v, e)", write_defn),
+        ("Defn(PatVar(v), e==FuncExpr(f))", write_func_defn),
+        ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
         ("While(c, b)", write_while),
@@ -1193,8 +1202,7 @@ def escape_strlit(s):
 def write_top(top):
     match(top,
         ("TopCDecl(v)", write_top_cdecl),
-        ("TopDefn(v, FuncExpr(f))", write_top_var_func),
-        ("TopDefn(v, e)", write_defn),
+        ("TopDefn(PatVar(v), FuncExpr(f))", write_top_var_func),
         ("TopDT(form)", write_dtstmt),
         ("TopEnv(environ)", write_new_env),
         ("TopExtrinsic(extr)", write_new_extrinsic))
