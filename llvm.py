@@ -914,8 +914,7 @@ def write_func_defn(v, e, f):
         write_defn(v, e)
 
 def write_defn(pat, e):
-    ex = express(e)
-    store_pat(pat, TypedXpr(typeof(e), ex))
+    store_pat(pat, express_typed(e))
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
