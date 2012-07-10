@@ -23,6 +23,10 @@ def scan_ternary(c, t, f):
     scan_expr(f)
 
 def scan_func(f, ps, b):
+    if not has_extrinsic(AstType, f):
+        scan_body(b)
+        return
+
     tvars = {}
     ft = parse_new_type(extrinsic(AstType, f), tvars)
     tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))

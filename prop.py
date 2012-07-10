@@ -10,11 +10,17 @@ CHECK = new_env('CHECK', '*Type')
 
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
-PropScope = DT('PropScope', ('level', int),
-                            ('retType', 'Maybe(CType)'),
+PropScope = DT('PropScope', ('retType', 'Maybe(CType)'),
                             ('localVars', {'*Var': 'CType'}))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
+
+PropTop = DT('PropTop', ('top', '*TopLevel'),
+                        ('deferredExprTypes', {'*Expr': 'CType'}),
+                        ('deferredFuncTypes', {'*Func': 'CType'}),
+                        ('deferredVarTypes', {'*Var': 'CType'}))
+
+PROPTOP = new_env('PROPTOP', 'PropTop')
 
 MetaVar = new_extrinsic('MetaVar', {'*TypeVar': 'CType'})
 
@@ -27,12 +33,11 @@ def with_context(desc, msg):
     desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
-def global_scope():
-    return PropScope(0, Nothing(), {})
-
 def in_new_scope(retT, f):
-    last = env(PROPSCOPE)
-    new_scope = PropScope(last.level+1, retT, last.localVars.copy())
+    localVars = {}
+    if have_env(PROPSCOPE):
+        localVars = env(PROPSCOPE).localVars.copy()
+    new_scope = PropScope(retT, localVars)
     return in_env(PROPSCOPE, new_scope, f)
 
 MetaCell = DT('MetaCell', ('type', 'Maybe(CType)'))
@@ -48,8 +53,7 @@ CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
         'CWeak', ('refType', 'CType'),
-        'CMeta', ('cell', MetaCell),
-                 ('originalTypeVar', '*TypeVar'))
+        'CMeta', ('cell', MetaCell))
 
 def CInt(): return CPrim(PInt())
 def CBool(): return CPrim(PBool())
@@ -60,6 +64,9 @@ INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', {'*TypeVar': Type})
 
+def fresh():
+    return CMeta(MetaCell(Nothing()))
+
 def inst_tvar(tv):
     if have_env(SUBST):
         return env(SUBST).get(tv, CVar(tv))
@@ -68,7 +75,7 @@ def inst_tvar(tv):
         return ctype(t)
     else:
         if not has_extrinsic(MetaVar, tv):
-            add_extrinsic(MetaVar, tv, CMeta(MetaCell(Nothing()), tv))
+            add_extrinsic(MetaVar, tv, fresh())
         return extrinsic(MetaVar, tv)
 
 def inst_tdata(dt, ts):
@@ -108,6 +115,15 @@ def gen_tdata(dt, ats):
     assert len(ats) == len(dt.tvars)
     return TData(dt, [generalize_type(at) for at in ats])
 
+def gen_new_tvar(cell):
+    # XXX need to look for existing annot tvar and use it instead if present
+    top = env(PROPTOP).top
+    tvar = TypeVar()
+    cell.type = Just(CVar(tvar))
+    if not has_extrinsic(top, TypeVars):
+        add_extrinsic(top, TypeVars, [])
+    extrinsic(top, TypeVars).append(tvar)
+
 def _gen_type(s):
     return match(s,
         ('CVar(tv)', TVar),
@@ -119,8 +135,8 @@ def _gen_type(s):
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
-        ('CMeta(MetaCell(Nothing()), origTVar)', TVar),
-        ('CMeta(MetaCell(Just(s)), _)', _gen_type))
+        ('CMeta(cell==MetaCell(Nothing()))', gen_new_tvar),
+        ('CMeta(MetaCell(Just(s)))', _gen_type))
 
 def generalize_type(t):
     return _gen_type(t)
@@ -184,9 +200,9 @@ def unify(src, dest):
 def try_unite(src, dest):
     fail = lambda m: unification_failure(src, dest, m)
     match((src, dest),
-        ("(src==CMeta(scell, _), dest==CMeta(dcell, _))", try_unite_two_metas),
-        ("(m==CMeta(mcell, _), dest)", try_unite_meta),
-        ("(dest, m==CMeta(mcell, _))", try_unite_meta_backwards),
+        ("(src==CMeta(scell), dest==CMeta(dcell))", try_unite_two_metas),
+        ("(m==CMeta(mcell), dest)", try_unite_meta),
+        ("(dest, m==CMeta(mcell))", try_unite_meta_backwards),
         ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
         ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
         ("(CArray(t1), CArray(t2))", try_unite),
@@ -203,9 +219,12 @@ def set_type(e, t):
     assert isinstance(t, Type), "%s is not a type" % (t,)
     add_extrinsic(TypeOf, e, t)
 
-def set_ctype(e, ct):
-    assert isinstance(t, CType), "%s is not a ctype" % (ct,)
-    add_extrinsic(InstType, e, ct)
+def set_var_ctype(v, ct):
+    env(PROPSCOPE).localVars[v] = ct
+    env(PROPTOP).deferredVarTypes[v] = ct
+
+def set_expr_ctype(e, ct):
+    env(PROPTOP).deferredExprTypes[e] = ct
 
 def pat_tuple(ps):
     ts = match(env(CHECK), ("CTuple(ps)", identity))
@@ -214,7 +233,7 @@ def pat_tuple(ps):
         in_env(CHECK, t, lambda: prop_pat(p))
 
 def pat_var(v):
-    set_type(v, generalize_type(env(CHECK)))
+    set_var_ctype(v, env(CHECK))
 
 def pat_capture(v, p):
     pat_var(v)
@@ -264,30 +283,48 @@ def prop_call(f, s):
     return ft.funcRet
 
 def prop_logic(l, r):
-    consume_value_as(TBool(), l)
-    consume_value_as(TBool(), r)
+    consume_value_as(CBool(), l)
+    consume_value_as(CBool(), r)
     return CBool()
 
 def prop_ternary(c, t, f):
-    consume_value_as(TBool(), c)
+    consume_value_as(CBool(), c)
     tt = prop_expr(t)
     tf = prop_expr(f)
     unify(tt, tf)
     return tf
 
+def infer_func(f, ps, b):
+    rt = fresh()
+    def inside_func():
+        localVars = env(PROPSCOPE).localVars
+        pts = []
+        for p in ps:
+            assert p not in localVars
+            pt = fresh()
+            set_var_ctype(p, pt)
+            pts.append(pt)
+
+        cft = CFunc(pts, rt)
+        # lambdas can't recurse, but this (sort of thing) would be nice
+        #localVars[f] = cft
+        prop_body(b)
+
+        env(PROPTOP).deferredFuncTypes[f] = cft
+        return cft
+    return in_new_scope(Just(rt), inside_func)
+
 def prop_func(f, ps, b):
+    if not has_extrinsic(TypeOf, f):
+        return infer_func(f, ps, b)
     ft = extrinsic(TypeOf, f)
     cft = ctype(ft)
     tps, tret = match(cft, ('CFunc(ps, ret)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     def inside_func_scope():
-        localVars = env(PROPSCOPE).localVars
         for p, ctp in zip(ps, tps):
-            assert p not in localVars
-            localVars[p] = ctp
+            set_var_ctype(p, ctp)
         prop_body(b)
-        for p, ctp in zip(ps, tps):
-            set_type(p, generalize_type(ctp))
         return cft
     return in_new_scope(Just(tret), inside_func_scope)
 
@@ -315,7 +352,7 @@ def prop_attr(e, s, f):
     return resolve_field_type(t, e.field.type)
 
 def prop_inenv(t, init, f):
-    consume_value_as(t, init)
+    consume_value_as(ctype(t), init)
     return prop_expr(f)
 
 def prop_getextrinsic(e, extr, node):
@@ -353,11 +390,10 @@ def _prop_expr(e):
     if env(GENOPTS).dumpTypes:
         if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
-    set_type(e, generalize_type(rt))
+    set_expr_ctype(e, rt)
     return rt
 
-def consume_value_as(t, e):
-    ct = ctype(t)
+def consume_value_as(ct, e):
     in_env(EXPRCTXT, e, lambda: unify(ct, _prop_expr(e)))
 
 def resolve_field_by_name(t, f):
@@ -379,15 +415,18 @@ def resolve_field_type(t, ft):
         tmap[tvar] = t
     return ctype_replaced(ft, tmap)
 
+def prop_lhs_var(lhs, v):
+    return prop_binding_var(lhs, v)
+
 def prop_lhs_attr(lhs, s, f):
     t = prop_expr(s)
     # TEMP: resolve the field name now that we have type info
     lhs.attr = resolve_field_by_name(t, f)
-    return generalize_type(resolve_field_type(t, lhs.attr.type))
+    return resolve_field_type(t, lhs.attr.type)
 
 def prop_lhs(lhs):
     return match(lhs,
-        ("LhsVar(v)", lambda v: extrinsic(TypeOf, v)),
+        ("LhsVar(v)", lambda v: env(PROPSCOPE).localVars[v]),
         ("lhs==LhsAttr(s, f)", prop_lhs_attr))
 
 def prop_DT(form):
@@ -396,47 +435,53 @@ def prop_DT(form):
         set_type(c, TFunc([f.type for f in c.fields], dtT))
 
 def destructure_tuple(ps, t):
-    ts = match(t, ("TTuple(ts)", identity))
+    ts = match(t, ("CTuple(ts)", identity))
     assert len(ps) == len(ts)
     for p, t in zip(ps, ts):
         destructure_pat(p, t)
 
 def destructure_pat(pat, t):
-    match(pat, ("PatVar(v)", lambda v: set_type(v, t)),
+    match(pat, ("PatVar(v)", lambda v: set_var_ctype(v, t)),
                ("PatTuple(ps)", lambda ps: destructure_tuple(ps, t)))
 
 def prop_defn(pat, e):
     m = match(e)
     if m("FuncExpr(f)"):
         f = m.arg
-        t = extrinsic(TypeOf, f)
-        v = match(pat, ("PatVar(v)", identity))
-        set_type(v, t)
-        consume_value_as(t, e)
+        if has_extrinsic(TypeOf, f):
+            t = extrinsic(TypeOf, f)
+            v = match(pat, ("PatVar(v)", identity))
+            set_type(v, t)
+            consume_value_as(ctype(t), e)
+            return
+
+    ct = prop_expr(e)
+    if have_env(PROPSCOPE):
+        destructure_pat(pat, ct)
     else:
-        destructure_pat(pat, generalize_type(prop_expr(e)))
+        set_var_ctype(var, ct)
 
 def prop_assign(a, e):
     consume_value_as(prop_lhs(a), e)
 
 def prop_augassign(a, e):
-    unify(ctype(prop_lhs(a)), CInt())
-    consume_value_as(TInt(), e)
+    unify(prop_lhs(a), CInt())
+    consume_value_as(CInt(), e)
 
 def prop_cond(cases, else_):
     for case in cases:
-        consume_value_as(TBool(), case.test)
+        consume_value_as(CBool(), case.test)
         prop_body(case.body)
     if isJust(else_):
         prop_body(fromJust(else_))
 
 def prop_while(test, body):
-    consume_value_as(TBool(), test)
+    consume_value_as(CBool(), test)
     prop_body(body)
 
 def prop_assert(tst, msg):
-    consume_value_as(TBool(), tst)
-    consume_value_as(TStr(), msg)
+    consume_value_as(CBool(), tst)
+    consume_value_as(CStr(), msg)
 
 def prop_return(e):
     unify(prop_expr(e), env(PROPSCOPE).retType.just)
@@ -444,10 +489,10 @@ def prop_return(e):
 def prop_returnnothing():
     assert isNothing(env(PROPSCOPE).retType), "Returned nothing"
 
-def prop_writeextrinsic(extr, node, val):
+def prop_writeextrinsic(s, extr, node, val):
     nodet = prop_expr(node)
     assert matches(nodet, "CData(_, _)"), "Can't add extr to %s" % (nodet,)
-    consume_value_as(extr.type, val)
+    consume_value_as(instantiate_type(s, extr.type), val)
 
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
@@ -461,18 +506,30 @@ def prop_stmt(a):
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),
         ("ReturnNothing()", prop_returnnothing),
-        ("WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic)))
+        ("s==WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic)))
 
 def prop_body(body):
     for s in body.stmts:
         prop_stmt(s)
+
+def prop_top_defn(topDefn, pat, e):
+    top = PropTop(topDefn, {}, {}, {})
+    def go(pat, e):
+        prop_defn(pat, e)
+        for v, ct in top.deferredVarTypes.iteritems():
+            set_type(v, generalize_type(ct))
+        for e, ct in top.deferredExprTypes.iteritems():
+            set_type(e, generalize_type(ct))
+        for f, ct in top.deferredFuncTypes.iteritems():
+            set_type(f, generalize_type(ct))
+    in_env(PROPTOP, top, lambda: go(pat, e))
 
 def prop_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("TopCDecl(_)", nop),
         ("TopDT(form)", prop_DT),
         ("TopEnv(_)", nop),
-        ("TopDefn(pat, e)", prop_defn),
+        ("top==TopDefn(pat, e)", prop_top_defn),
         ("TopExtrinsic(_)", nop)))
 
 def prop_compilation_unit(unit):
@@ -481,11 +538,9 @@ def prop_compilation_unit(unit):
 def prop_types(root):
     captures = {}
     annots = {}
-    in_env(PROPSCOPE, global_scope(),
-        lambda: capture_scoped([TypeCast], captures,
+    capture_scoped([TypeCast], captures,
         lambda: capture_extrinsic(TypeOf, annots,
-        lambda: in_new_scope(Nothing(),
         lambda: prop_compilation_unit(root)
-    ))))
+    ))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

@@ -211,7 +211,9 @@ def load_files(files):
         load_module(filename)
 
 def in_construct_env(func):
-    extrs = [Filename, Location, ModIndex, ModDigest, ModDeps, TypeOf]
+    extrs = [Filename, Location,
+            ModIndex, ModDigest, ModDeps,
+            TypeOf, TypeVars]
     return capture_scoped(extrs, {}, func)
 
 def main():

@@ -8,6 +8,7 @@ Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
 Location = base.new_extrinsic('Location', Pos)
 
 TypeOf = base.new_extrinsic('TypeOf', base.Type)
+TypeVars = base.new_extrinsic('TypeVars', [base.TypeVar])
 
 InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})
 
