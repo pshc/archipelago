@@ -132,9 +132,6 @@ def ex_bind_var(v):
             if info.function != f:
                 closVars.add(v)
 
-def ex_unknown_expr(e):
-    assert False, 'Unknown expr for expansion:\n' + repr(e)
-
 def ex_expr(e):
     match(e,
         ("IntLit(_)", nop),
@@ -154,8 +151,7 @@ def ex_expr(e):
         ("HasExtrinsic(_, node)", ex_expr),
         ("ScopeExtrinsic(_, f)", ex_expr),
         ("Bind(BindVar(v))", ex_bind_var),
-        ("Bind(BindCtor(_) or BindBuiltin(_))", nop),
-        ("otherwise", ex_unknown_expr))
+        ("Bind(BindCtor(_) or BindBuiltin(_))", nop))
 
 def ex_func_defn(v, e, f):
     add_extrinsic(Name, f, extrinsic(Name, v))

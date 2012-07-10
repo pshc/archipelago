@@ -328,9 +328,6 @@ def prop_hasextrinsic(e, node):
     assert matches(t, "CData(_, _)"), "Can't check for extr from %s" % (nodet,)
     return CBool()
 
-def unknown_prop(a):
-    assert False, with_context('Unknown prop case:', a)
-
 def prop_expr(e):
     return in_env(EXPRCTXT, e, lambda: _prop_expr(e))
 
@@ -352,8 +349,7 @@ def _prop_expr(e):
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),
-        ("ref==Bind(b)", prop_binding),
-        ("otherwise", unknown_prop))
+        ("ref==Bind(b)", prop_binding))
     if env(GENOPTS).dumpTypes:
         if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
@@ -463,8 +459,7 @@ def prop_stmt(a):
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),
         ("ReturnNothing()", prop_returnnothing),
-        ("WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic),
-        ("otherwise", unknown_prop)))
+        ("WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic)))
 
 def prop_body(body):
     for s in body.stmts:
@@ -476,8 +471,7 @@ def prop_top_level(a):
         ("TopDT(form)", prop_DT),
         ("TopEnv(_)", nop),
         ("TopDefn(var, e)", prop_defn),
-        ("TopExtrinsic(_)", nop),
-        ("otherwise", unknown_prop)))
+        ("TopExtrinsic(_)", nop)))
 
 def prop_compilation_unit(unit):
     map_(prop_top_level, unit.tops)
