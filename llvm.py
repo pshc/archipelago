@@ -817,14 +817,14 @@ def store_lhs(lhs, x):
         ('LhsVar(v)', lambda v: store_var(v, x)),
         ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
-def destructure_var(pat, v, txpr):
+def store_pat_var(pat, v, txpr):
     out_name_reg(v)
     out(' = alloca ')
     out_t_nospace(txpr.type)
     newline()
     store_named(txpr, v)
 
-def destructure_tuple(pat, ps, txpr):
+def store_pat_tuple(pat, ps, txpr):
     tupt, tts = match(txpr.type, ('IPtr(t==ITuple(tts))', tuple2))
     tupval = temp_reg_named('tuple')
     out_xpr(tupval)
@@ -844,13 +844,13 @@ def destructure_tuple(pat, ps, txpr):
         out(str(i))
         i += 1
         newline()
-        destructure_pat(p, TypedXpr(tt, val))
+        store_pat(p, TypedXpr(tt, val))
 
-def destructure_pat(pat, txpr):
+def store_pat(pat, txpr):
     # Really there ought to be TypeOfs on the pats rather than propagating
     # the typedxpr I think.
-    match((pat, txpr), ('(pat==PatVar(v), txpr)', destructure_var),
-                       ('(pat==PatTuple(ps), txpr)', destructure_tuple))
+    match((pat, txpr), ('(pat==PatVar(v), txpr)', store_pat_var),
+                       ('(pat==PatTuple(ps), txpr)', store_pat_tuple))
 
 def load_lhs(lhs):
     return match(lhs,
@@ -918,7 +918,7 @@ def write_func_defn(v, e, f):
 
 def write_defn(pat, e):
     ex = express(e)
-    destructure_pat(pat, TypedXpr(typeof(e), ex))
+    store_pat(pat, TypedXpr(typeof(e), ex))
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
