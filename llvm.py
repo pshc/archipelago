@@ -247,21 +247,18 @@ def br_cond(cond, true, false):
     out_label_ref(false)
     term()
 
-def phi2(reg, t, e1, lbl1, e2, lbl2):
+def phi(reg, t, srcs):
     out_xpr(reg)
     out(' = phi ')
     out_t(t)
-    out('[ ')
-    out_xpr(e1)
-    comma()
-    out_naked_label_ref(lbl1, True)
-    out(' ]')
-    comma()
-    out('[ ')
-    out_xpr(e2)
-    comma()
-    out_naked_label_ref(lbl2, True)
-    out(' ]')
+    for i, (xpr, lbl) in enumerate(srcs):
+        if i > 0:
+            comma()
+        out('[ ')
+        out_xpr(xpr)
+        comma()
+        out_naked_label_ref(lbl, True)
+        out(' ]')
     newline()
 
 def store_named(txpr, named):
@@ -472,7 +469,7 @@ def expr_and(l, r):
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('and')
-    phi2(truth, IBool(), right, both, Const('false'), entry)
+    phi(truth, IBool(), [(right, both), (Const('false'), entry)])
     return truth
 
 def expr_or(l, r):
@@ -489,7 +486,7 @@ def expr_or(l, r):
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('or')
-    phi2(truth, IBool(), right, both, Const('true'), entry)
+    phi(truth, IBool(), [(right, both), (Const('true'), entry)])
     return truth
 
 def expr_ternary(c, t, f):
@@ -509,7 +506,7 @@ def expr_ternary(c, t, f):
 
     out_label(end)
     result = temp_reg_named('either')
-    phi2(result, typeof(t), true, yes, false, no)
+    phi(result, typeof(t), [(true, yes), (false, no)])
     return result
 
 def expr_bind_builtin(b):
