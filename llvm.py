@@ -602,8 +602,7 @@ def write_call(f, args, rett):
 
 def write_runtime_call(name, args, rett):
     decl = runtime_decl(name)
-    t = extrinsic(TypeOf, decl)
-    paramts, frett = match(convert_type(t), ("IFunc(pts, rt)", tuple2))
+    paramts, frett = match(typeof(decl), ("IFunc(pts, rt)", tuple2))
     argxs = []
     for argtxpr, paramt in zip(args, paramts):
         argt, argxpr = match(argtxpr, ("TypedXpr(t, xpr)", tuple2))
