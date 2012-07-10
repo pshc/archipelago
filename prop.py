@@ -5,7 +5,6 @@ from types_builtin import *
 from globs import TypeOf
 
 TypeCast = new_extrinsic('TypeCast', (Type, Type))
-FieldDT = new_extrinsic('FieldDT', '*DataType')
 
 CHECK = new_env('CHECK', '*Type')
 
@@ -407,20 +406,7 @@ def check_lhs(t, lhs):
 def prop_DT(form):
     dtT = TData(form, [])
     for c in form.ctors:
-        fieldTs = []
-        for f in c.fields:
-            add_extrinsic(FieldDT, f, form)
-            fieldTs.append(f.type)
-        set_type(c, TFunc(fieldTs, dtT))
-
-def prop_new_env(environ):
-    # TODO
-    pass
-
-def prop_new_extrinsic(ext):
-    # XXX: Should have a declarative area for this kind of stuff
-    #      so I can unify all this lookup business
-    pass
+        set_type(c, TFunc([f.type for f in c.fields], dtT))
 
 def prop_defn(a, e):
     m = match(e)
@@ -488,23 +474,13 @@ def prop_top_level(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("TopCDecl(_)", nop),
         ("TopDT(form)", prop_DT),
-        ("TopEnv(environ)", prop_new_env),
+        ("TopEnv(_)", nop),
         ("TopDefn(var, e)", prop_defn),
-        ("TopExtrinsic(extr)", prop_new_extrinsic),
+        ("TopExtrinsic(_)", nop),
         ("otherwise", unknown_prop)))
 
 def prop_compilation_unit(unit):
     map_(prop_top_level, unit.tops)
-
-def with_fields(func):
-    def go():
-        # Ought to just do this globally.
-        """
-        for dt in DATATYPES.itervalues():
-            prop_DT(dt.__form__)
-        """
-        return func()
-    return scope_extrinsic(FieldDT, go)
 
 def prop_types(root):
     captures = {}
@@ -513,8 +489,7 @@ def prop_types(root):
         lambda: capture_scoped([TypeCast], captures,
         lambda: capture_extrinsic(TypeOf, annots,
         lambda: in_new_scope(Nothing(),
-        lambda: with_fields(
         lambda: prop_compilation_unit(root)
-    )))))
+    ))))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
