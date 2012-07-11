@@ -47,8 +47,8 @@ LocalVar = new_extrinsic('LocalVar', VarInfo)
 CtorIndex = new_extrinsic('CtorIndex', int)
 FieldIndex = new_extrinsic('FieldIndex', int)
 
-LayoutInfo = DT('LayoutInfo', ('extrSlot', bool),
-                              ('discrimSlot', bool))
+LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
+                              ('discrimSlot', 'Maybe(int)'))
 DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
 def top_scope():
@@ -263,11 +263,13 @@ def ex_top_defn(e):
 
 def ex_dt(dt):
     discrim = len(dt.ctors) > 1
-    add_extrinsic(DataLayout, dt, LayoutInfo(True, discrim))
+    info = LayoutInfo(Just(0), Just(1) if discrim else Nothing())
+    add_extrinsic(DataLayout, dt, info)
+    base = 2 if discrim else 1
     for i, ctor in enumerate(dt.ctors):
         add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):
-            add_extrinsic(FieldIndex, field, ix + 2 if discrim else ix + 1)
+            add_extrinsic(FieldIndex, field, ix + base)
 
 def ex_top_level(s):
     match(s,

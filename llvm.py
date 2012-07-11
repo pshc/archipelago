@@ -324,8 +324,7 @@ def write_args(args):
         out_xpr(arg)
     out(')')
 
-def get_discrim_ptr(ex, t):
-    tmp = temp_reg()
+def get_element_ptr(tmp, ex, t, index):
     out_xpr(tmp)
     out(' = getelementptr ')
     out_t(t)
@@ -333,22 +332,13 @@ def get_discrim_ptr(ex, t):
     comma()
     out('i32 0')
     comma()
-    out('i32 1')
+    out('i32 %d' % (index,))
     newline()
-    return tmp
 
 def get_field_ptr(ex, t, f):
-    fieldptr = temp_reg_named(extrinsic(Name, f))
-    out_xpr(fieldptr)
-    out(' = getelementptr ')
-    out_t(t)
-    out_xpr(ex)
-    comma()
-    out('i32 0')
-    comma()
-    out('i32 %d' % (extrinsic(expand.FieldIndex, f),))
-    newline()
-    return fieldptr
+    tmp = temp_reg_named(extrinsic(Name, f))
+    get_element_ptr(tmp, ex, t, extrinsic(expand.FieldIndex, f))
+    return tmp
 
 def build_struct(t, args):
     i = 0
@@ -827,33 +817,32 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 MATCH = new_env('MATCH', MatchState)
 
 def match_pat_ctor(ctor, ps, tx):
-    dtt, form, ex = match(tx, ("TypedXpr(t==IPtr(IData(form)), ex)", tuple3))
-
-    # Pretty dumb
+    t, form, ex = match(tx, ("TypedXpr(IPtr(t==IData(form)), ex)", tuple3))
     layout = extrinsic(expand.DataLayout, form)
-    assert layout.extrSlot and layout.discrimSlot
+    if isJust(layout.discrimSlot):
+        pdtt = IPtr(t)
+        t = IData(ctor)
+        pt = IPtr(t)
+        ex = cast(ex, pdtt, pt)
+        ixptr = temp_reg()
+        get_element_ptr(ixptr, ex, pt, fromJust(layout.discrimSlot))
+        ix = temp_reg_named('ix')
+        out_xpr(ix)
+        out(' = load ')
+        out_t_ptr(IInt())
+        out_xpr(ixptr)
+        newline()
+        index = Const(str(extrinsic(expand.CtorIndex, ctor)))
+        m = expr_binop('icmp eq', ix, index, IInt())
+        correctIx = new_label('got.' + extrinsic(Name, ctor))
+        br_cond(m, correctIx, env(MATCH).failureBlock)
+        out_label(correctIx)
 
-    t = IData(ctor)
-    pt = IPtr(t)
-    ctorptr = cast(ex, dtt, pt)
-    ixptr = get_discrim_ptr(ctorptr, pt)
-    ix = temp_reg()
-    out_xpr(ix)
-    out(' = load ')
-    out_t_ptr(IInt())
-    out_xpr(ixptr)
-    newline()
-    index = Const(str(extrinsic(expand.CtorIndex, ctor)))
-    m = expr_binop('icmp eq', ix, index, IInt())
-    read_fields = new_label('got.' + extrinsic(Name, ctor))
-    br_cond(m, read_fields, env(MATCH).failureBlock)
-
-    out_label(read_fields)
     ctorval = temp_reg_named(extrinsic(Name, ctor))
     out_xpr(ctorval)
     out(' = load ')
-    out_t(pt)
-    out_xpr(ctorptr)
+    out_t_ptr(t)
+    out_xpr(ex)
     newline()
 
     assert len(ps) == len(ctor.fields)
@@ -1021,9 +1010,11 @@ def write_field_specs(fields, layout):
         out('{ ')
 
     specs = [(convert_type(f.type), extrinsic(Name, f)) for f in fields]
-    if layout.discrimSlot:
+    if isJust(layout.discrimSlot):
+        assert fromJust(layout.discrimSlot) == 1
         specs.insert(0, (IInt(), "discrim"))
-    if layout.extrSlot:
+    if isJust(layout.extrSlot):
+        assert fromJust(layout.extrSlot) == 0
         specs.insert(0, (IVoidPtr(), "extrinsics"))
 
     n = len(specs)
@@ -1062,12 +1053,14 @@ def write_ctor(ctor, dt, layout):
     ctort = IData(ctor)
     inst = malloc(ctort)
 
-    discrim = layout.discrimSlot
+    discrim = isJust(layout.discrimSlot)
     if discrim:
+        assert fromJust(layout.discrimSlot) == 1
         fts.insert(0, IInt())
         tmps.insert(0, Const(str(extrinsic(expand.CtorIndex, ctor))))
 
-    if layout.extrSlot:
+    if isJust(layout.extrSlot):
+        assert fromJust(layout.extrSlot) == 0
         fts.insert(0, IVoidPtr())
         tmps.insert(0, Const("null"))
 
@@ -1088,7 +1081,7 @@ def write_ctor(ctor, dt, layout):
 
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
-    if layout.discrimSlot:
+    if isJust(layout.discrimSlot):
         out_name_reg(form)
         out(' = type opaque')
         newline()
