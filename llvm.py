@@ -261,6 +261,15 @@ def phi(reg, t, srcs):
         out(' ]')
     newline()
 
+def load(regname, t, xpr):
+    tmp = temp_reg_named(regname)
+    out_xpr(tmp)
+    out(' = load ')
+    out_t_ptr(t)
+    out_xpr(xpr)
+    newline()
+    return TypedXpr(t, tmp)
+
 def store_named(txpr, named):
     out('store ')
     out_txpr(txpr)
@@ -520,6 +529,8 @@ def expr_bind_builtin(b):
 def expr_bind_var(v):
     if has_extrinsic(Replacement, v):
         return extrinsic(Replacement, v)
+    # Would be nice: (need name_reg)
+    #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
     tmp = temp_reg_named(extrinsic(Name, v))
     out_xpr(tmp)
     out(' = load ')
@@ -642,18 +653,10 @@ def env_type(environ):
     return ITuple([convert_type(environ.type), IBool()])
 
 def read_env_state(environ, index, reg):
-    tmp = temp_reg()
-    t = env_type(environ)
-    out_xpr(tmp)
-    out(' = load ')
-    out_t_ptr(t)
-    out_global_ref(environ)
-    newline()
-
+    tmp = load('env', env_type(environ), global_ref(environ))
     out_xpr(reg)
     out(' = extractvalue ')
-    out_t(t)
-    out_xpr(tmp)
+    out_txpr(tmp)
     comma()
     out(index)
     newline()
@@ -674,17 +677,12 @@ def env_setup(environ, init):
 
     out('; push env %s' % (name,))
     newline()
-    old = temp_reg_named('old.%s' % (name,))
-    out_xpr(old)
-    out(' = load ')
-    out_t_ptr(t)
-    out_xpr(envref)
-    newline()
+    old = load('old.%s' % (name,), t, envref)
     i = express(init)
     envt = match(t, ("ITuple([envt, IBool()])", identity))
     info = ConstStruct([TypedXpr(envt, i), TypedXpr(IBool(), Const('true'))])
     store_xpr(TypedXpr(t, info), envref)
-    return TypedXpr(t, old)
+    return old
 
 def env_teardown(environ, old):
     out('; pop env %s' % (extrinsic(Name, environ),))
@@ -746,13 +744,7 @@ def expr_match(m, e, cs):
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
-    val = temp_reg_named(extrinsic(Name, f))
-    out_xpr(val)
-    out(' = load ')
-    out_t_ptr(convert_type(f.type))
-    out_xpr(fieldptr)
-    newline()
-    return val
+    return load(extrinsic(Name, f), convert_type(f.type), fieldptr).xpr
 
 def expr_strlit(lit):
     info = extrinsic(expand.ExpandedDecl, lit)
@@ -804,38 +796,28 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 MATCH = new_env('MATCH', MatchState)
 
 def match_pat_ctor(ctor, ps, tx):
-    form = match(tx, ("TypedXpr(IPtr(IData(form)), _)", identity))
+    form = match(tx.type, ("IPtr(IData(form))", identity))
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
         tx = cast(tx, IPtr(IData(ctor)))
         ixptr = temp_reg()
         get_element_ptr(ixptr, tx, fromJust(layout.discrimSlot))
-        ix = temp_reg_named('ix')
-        out_xpr(ix)
-        out(' = load ')
-        out_t_ptr(IInt())
-        out_xpr(ixptr)
-        newline()
+        ix = load('ix', IInt(), ixptr)
         index = Const(str(extrinsic(expand.CtorIndex, ctor)))
-        m = expr_binop('icmp eq', ix, index, IInt())
+        m = expr_binop('icmp eq', ix.xpr, index, ix.type)
         correctIx = new_label('got.' + extrinsic(Name, ctor))
         br_cond(m, correctIx, env(MATCH).failureBlock)
         out_label(correctIx)
 
-    ctorval = temp_reg_named(extrinsic(Name, ctor))
-    out_xpr(ctorval)
-    out(' = load ')
-    out_txpr(tx)
-    newline()
+    datat = match(tx.type, ("IPtr(t==IData(_))", identity))
+    ctorval = load(extrinsic(Name, ctor), datat, tx.xpr)
 
-    t = match(tx, ("TypedXpr(IPtr(t), _)", identity))
-    ctortx = TypedXpr(t, ctorval)
     assert len(ps) == len(ctor.fields)
     for p, f in zip(ps, ctor.fields):
         val = temp_reg_named(extrinsic(Name, f))
         out_xpr(val)
         out(' = extractvalue ')
-        out_txpr(ctortx)
+        out_txpr(ctorval)
         comma()
         out(str(extrinsic(expand.FieldIndex, f)))
         newline()
@@ -891,20 +873,17 @@ def store_pat_tuple(ps, txpr):
     with_pat_tuple(ps, txpr, store_pat)
 
 def with_pat_tuple(ps, txpr, func):
+    # This silliness would disappear if we were using TypeOfs on the pats
     tupt, tts = match(txpr.type, ('IPtr(t==ITuple(tts))', tuple2))
-    tupval = temp_reg_named('tuple')
-    out_xpr(tupval)
-    out(' = load ')
-    out_txpr(txpr)
-    newline()
+
+    tupval = load('tuple', tupt, txpr.xpr)
     i = 0
     assert len(ps) == len(tts)
     for p, tt in zip(ps, tts):
         val = temp_reg()
         out_xpr(val)
         out(' = extractvalue ')
-        out_t(tupt)
-        out_xpr(tupval)
+        out_txpr(tupval)
         comma()
         out(str(i))
         i += 1
