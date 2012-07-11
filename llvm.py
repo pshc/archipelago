@@ -324,6 +324,19 @@ def write_args(args):
         out_xpr(arg)
     out(')')
 
+def get_discrim_ptr(ex, t):
+    tmp = temp_reg()
+    out_xpr(tmp)
+    out(' = getelementptr ')
+    out_t(t)
+    out_xpr(ex)
+    comma()
+    out('i32 0')
+    comma()
+    out('i32 1')
+    newline()
+    return tmp
+
 def get_field_ptr(ex, t, f):
     fieldptr = temp_reg_named(extrinsic(Name, f))
     out_xpr(fieldptr)
@@ -728,9 +741,30 @@ def expr_scopeextrinsic(extr, e):
     return ret
 
 def expr_match(m, e, cs):
-    return Const('undef ;match')
-    #for c in cs:
-    #cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
+    tx = express_typed(e)
+    next_case = new_label('match')
+    success = new_label('matchresult')
+    phi_srcs = []
+    for i, c in enumerate(cs):
+        out_label(next_case)
+        cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
+        next_case = new_label('nextcase' if i < len(cs) - 1 else 'failed')
+        info = MatchState(next_case)
+        in_env(MATCH, info, lambda: match_pat(cp, tx))
+        x = express(ce)
+        phi_srcs.append((x, env(LOCALS).currentBlock))
+        br(success)
+
+    out_label(next_case)
+    out('call void @match_fail() noreturn')
+    newline()
+    out('unreachable')
+    term()
+
+    out_label(success)
+    tmp = temp_reg_named('match')
+    phi(tmp, typeof(e), phi_srcs)
+    return tmp
 
 def expr_attr(e, f):
     ex = express(e)
@@ -786,6 +820,65 @@ def express(expr):
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
 
+# PATTERN MATCHES
+
+MatchState = DT('MatchState', ('failureBlock', Label))
+
+MATCH = new_env('MATCH', MatchState)
+
+def match_pat_ctor(ctor, ps, tx):
+    dtt, form, ex = match(tx, ("TypedXpr(t==IPtr(IData(form)), ex)", tuple3))
+
+    # Pretty dumb
+    layout = extrinsic(expand.DataLayout, form)
+    assert layout.extrSlot and layout.discrimSlot
+
+    t = IData(ctor)
+    pt = IPtr(t)
+    ctorptr = cast(ex, dtt, pt)
+    ixptr = get_discrim_ptr(ctorptr, pt)
+    ix = temp_reg()
+    out_xpr(ix)
+    out(' = load ')
+    out_t_ptr(IInt())
+    out_xpr(ixptr)
+    newline()
+    index = Const(str(extrinsic(expand.CtorIndex, ctor)))
+    m = expr_binop('icmp eq', ix, index, IInt())
+    read_fields = new_label('got.' + extrinsic(Name, ctor))
+    br_cond(m, read_fields, env(MATCH).failureBlock)
+
+    out_label(read_fields)
+    ctorval = temp_reg_named(extrinsic(Name, ctor))
+    out_xpr(ctorval)
+    out(' = load ')
+    out_t(pt)
+    out_xpr(ctorptr)
+    newline()
+
+    assert len(ps) == len(ctor.fields)
+    for p, f in zip(ps, ctor.fields):
+        val = temp_reg_named(extrinsic(Name, f))
+        out_xpr(val)
+        out(' = extractvalue ')
+        out_t(t)
+        out_xpr(ctorval)
+        comma()
+        out(str(extrinsic(expand.FieldIndex, f)))
+        newline()
+        ft = convert_type(f.type)
+        match_pat(p, TypedXpr(ft, val))
+
+def match_pat_tuple(ps, tx):
+    with_pat_tuple(ps, tx, match_pat)
+
+def match_pat(pat, tx):
+    match((pat, tx),
+        ("(PatCtor(c, ps), tx)", match_pat_ctor),
+        ("(PatTuple(ps), tx)", match_pat_tuple),
+        ("(PatVar(v), tx)", store_pat_var),
+        ("(PatWild(), _)", nop))
+
 # STATEMENTS
 
 def write_assert(e, msg):
@@ -814,14 +907,17 @@ def store_lhs(lhs, x):
         ('LhsVar(v)', lambda v: store_var(v, x)),
         ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
-def store_pat_var(pat, v, txpr):
+def store_pat_var(v, txpr):
     out_name_reg(v)
     out(' = alloca ')
     out_t_nospace(txpr.type)
     newline()
     store_named(txpr, v)
 
-def store_pat_tuple(pat, ps, txpr):
+def store_pat_tuple(ps, txpr):
+    with_pat_tuple(ps, txpr, store_pat)
+
+def with_pat_tuple(ps, txpr, func):
     tupt, tts = match(txpr.type, ('IPtr(t==ITuple(tts))', tuple2))
     tupval = temp_reg_named('tuple')
     out_xpr(tupval)
@@ -841,13 +937,13 @@ def store_pat_tuple(pat, ps, txpr):
         out(str(i))
         i += 1
         newline()
-        store_pat(p, TypedXpr(tt, val))
+        func(p, TypedXpr(tt, val))
 
 def store_pat(pat, txpr):
     # Really there ought to be TypeOfs on the pats rather than propagating
     # the typedxpr I think.
-    match((pat, txpr), ('(pat==PatVar(v), txpr)', store_pat_var),
-                       ('(pat==PatTuple(ps), txpr)', store_pat_tuple))
+    match((pat, txpr), ('(PatVar(v), txpr)', store_pat_var),
+                       ('(PatTuple(ps), txpr)', store_pat_tuple))
 
 def load_lhs(lhs):
     return match(lhs,
@@ -1228,6 +1324,7 @@ def write_unit_decls(unit):
 prelude = """; prelude
 %Type = type opaque
 declare void @fail(i8*) noreturn
+declare void @match_fail() noreturn
 
 """
 

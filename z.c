@@ -12,6 +12,11 @@ __dead2 void fail(const char *err) {
 	exit(1);
 }
 
+__dead2 void match_fail() {
+	fputs("Match failure.\n", stderr);
+	exit(1);
+}
+
 static int extrinsic_index(intptr_t *table, intptr_t count, intptr_t extr) {
 	intptr_t i;
 	for (i = 0; i < count; i++)
