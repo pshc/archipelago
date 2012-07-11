@@ -738,7 +738,7 @@ def expr_match(m, e, cs):
 
     out_label(success)
     tmp = temp_reg_named('match')
-    phi(tmp, typeof(e), phi_srcs)
+    phi(tmp, typeof(m), phi_srcs)
     return tmp
 
 def expr_attr(e, f):
