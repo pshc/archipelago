@@ -354,8 +354,10 @@ def conv_byneed_rebound(f, bs):
     if special:
         e = special(lambda i: Bind(BindVar(bs[i])))
     else:
-        e = match(f, ('FuncExpr(Func(params, b))', lambda params, b:
-                         replace_refs(dict(zip(params, bs)), extract_ret(b))),
+        def rebind_func(params, b):
+            assert len(params) == len(bs), "Match param count mismatch"
+            return replace_refs(dict(zip(params, bs)), extract_ret(b))
+        e = match(f, ('FuncExpr(Func(params, b))', rebind_func),
                      ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
     return e
 
@@ -406,8 +408,12 @@ def conv_match_try(node, bs):
         bs.append(i)
         return PatVar(i)
     elif isinstance(node, ast.Const):
-        va, vt = conv_const(node)
-        return va
+        val = node.value
+        if isinstance(val, int):
+            return PatInt(val)
+        elif isinstance(val, str):
+            return PatStr(val)
+        assert False
     elif isinstance(node, ast.Tuple):
         return PatTuple([conv_match_try(n,bs) for n in node.nodes])
     elif isinstance(node, ast.Or):
