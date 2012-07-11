@@ -263,19 +263,17 @@ def phi(reg, t, srcs):
 
 def store_named(txpr, named):
     out('store ')
-    out_t(txpr.type)
-    out_xpr(txpr.xpr)
+    out_txpr(txpr)
     comma()
     out_t_ptr(txpr.type)
     out_name_reg(named)
     newline()
 
-def store_xpr(t, val, dest):
+def store_xpr(txpr, dest):
     out('store ')
-    out_t(t)
-    out_xpr(val)
+    out_txpr(txpr)
     comma()
-    out_t_ptr(t)
+    out_t_ptr(txpr.type)
     out_xpr(dest)
     newline()
 
@@ -357,7 +355,7 @@ def build_struct(t, args):
         newline()
         i += 1
         accum = new_val
-    return accum
+    return TypedXpr(t, accum)
 
 def cast(xpr, src, dest):
     if types_equal(src, dest):
@@ -455,6 +453,10 @@ def out_t_ptr(t):
     out('%s* ' % (t_str(t),))
 def out_t_nospace(t):
     out(t_str(t))
+
+def out_txpr(tx):
+    out_t(tx.type)
+    out_xpr(tx.xpr)
 
 # EXPRESSIONS
 
@@ -556,29 +558,28 @@ def aug_op(b):
 
 def expr_unary(op, arg, t):
     assert op == 'not' or op == 'negate'
-    pivot = Const('1' if op == 'not' else '0')
+    pivot = TypedXpr(t, Const('1' if op == 'not' else '0'))
     if is_const(arg):
-        return ConstOp('sub', [TypedXpr(t, pivot), TypedXpr(t, arg)])
+        return ConstOp('sub', [pivot, TypedXpr(t, arg)])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
         out(' = sub ')
-        out_t(t)
-        out_xpr(pivot)
+        out_txpr(pivot)
         comma()
         out_xpr(arg)
         newline()
         return tmp
 
 def expr_binop(op, left, right, t):
+    tleft = TypedXpr(t, left)
     if is_const(left) and is_const(right):
-        return ConstOp(op, [TypedXpr(t, left), TypedXpr(t, right)])
+        return ConstOp(op, [tleft, TypedXpr(t, right)])
     else:
         tmp = temp_reg_named(op.split(' ')[-1])
         out_xpr(tmp)
         out(' = %s ' % (op,))
-        out_t(t)
-        out_xpr(left)
+        out_txpr(tleft)
         comma()
         out_xpr(right)
         newline()
@@ -609,9 +610,8 @@ def write_runtime_call(name, args, rett):
     decl = runtime_decl(name)
     paramts, frett = match(typeof(decl), ("IFunc(pts, rt)", tuple2))
     argxs = []
-    for argtxpr, paramt in zip(args, paramts):
-        argt, argxpr = match(argtxpr, ("TypedXpr(t, xpr)", tuple2))
-        argx = cast(argxpr, argt, paramt)
+    for arg, paramt in zip(args, paramts):
+        argx = cast(arg.xpr, arg.type, paramt)
         argxs.append((paramt, argx))
 
     fx = func_ref(decl)
@@ -692,17 +692,13 @@ def env_setup(environ, init):
     i = express(init)
     envt = match(t, ("ITuple([envt, IBool()])", identity))
     info = ConstStruct([TypedXpr(envt, i), TypedXpr(IBool(), Const('true'))])
-    store_xpr(t, info, envref)
-    return old
+    store_xpr(TypedXpr(t, info), envref)
+    return TypedXpr(t, old)
 
 def env_teardown(environ, old):
-    name = extrinsic(Name, environ)
-    t = env_type(environ)
-    envref = global_ref(environ)
-
-    out('; pop env %s' % (name,))
+    out('; pop env %s' % (extrinsic(Name, environ),))
     newline()
-    store_xpr(t, old, envref)
+    store_xpr(old, global_ref(environ))
 
 def expr_inenv(environ, init, e):
     old = env_setup(environ, init)
@@ -782,7 +778,7 @@ def expr_tuple_lit(lit, ts):
     tmp = malloc(tt)
     xs = [(typeof(t), express(t)) for t in ts]
     struct = build_struct(tt, xs)
-    store_xpr(tt, struct, tmp)
+    store_xpr(struct, tmp)
     return tmp
 
 def express(expr):
@@ -889,7 +885,7 @@ def store_var(v, xpr):
 def store_attr(dest, f, val):
     ex = express(dest)
     fieldptr = get_field_ptr(ex, typeof(dest), f)
-    store_xpr(convert_type(f.type), val, fieldptr)
+    store_xpr(TypedXpr(convert_type(f.type), val), fieldptr)
 
 def store_lhs(lhs, x):
     match(lhs,
@@ -1066,7 +1062,7 @@ def write_ctor(ctor, dt, layout):
 
     assert len(fts) == len(tmps)
     struct = build_struct(ctort, zip(fts, tmps))
-    store_xpr(ctort, struct, inst)
+    store_xpr(struct, inst)
 
     ret = inst
     if discrim:
@@ -1206,10 +1202,9 @@ def _write_top_func(f, ps, body):
     lcl.chunks.append(IRStr('}\n\n'))
 
 def write_return(expr):
-    ex = express(expr)
+    xt = express_typed(expr)
     out('ret ')
-    out_t(typeof(expr))
-    out_xpr(ex)
+    out_txpr(xt)
     term()
 
 def write_while(cond, body):
