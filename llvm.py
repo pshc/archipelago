@@ -346,6 +346,17 @@ def get_field_ptr(tx, f):
     get_element_ptr(tmp, tx, extrinsic(expand.FieldIndex, f))
     return tmp
 
+def extractvalue(regname, tx, index):
+    # Const version would be fairly pointless
+    tmp = temp_reg_named(regname)
+    out_xpr(tmp)
+    out(' = extractvalue ')
+    out_txpr(tx)
+    comma()
+    out(str(index))
+    newline()
+    return tmp
+
 def build_struct(t, args):
     i = 0
     accum = Const('undef')
@@ -653,23 +664,15 @@ def expr_func(f, ps, body):
 def env_type(environ):
     return ITuple([convert_type(environ.type), IBool()])
 
-def read_env_state(environ, index, reg):
+def read_env_state(environ, index, regname):
     tmp = load('env', env_type(environ), global_ref(environ))
-    out_xpr(reg)
-    out(' = extractvalue ')
-    out_txpr(tmp)
-    comma()
-    out(index)
-    newline()
-    return reg
+    return extractvalue(regname, tmp, index)
 
 def expr_getenv(environ):
-    val = temp_reg_named(extrinsic(Name, environ))
-    return read_env_state(environ, '0', val)
+    return read_env_state(environ, 0, extrinsic(Name, environ))
 
 def expr_haveenv(environ):
-    have = temp_reg_named('have.%s' % (extrinsic(Name, environ)))
-    return read_env_state(environ, '1', have)
+    return read_env_state(environ, 1, 'have.%s' % (extrinsic(Name, environ)))
 
 def env_setup(environ, init):
     name = extrinsic(Name, environ)
@@ -818,13 +821,8 @@ def match_pat_ctor(ctor, ps, tx):
 
     assert len(ps) == len(ctor.fields)
     for p, f in zip(ps, ctor.fields):
-        val = temp_reg_named(extrinsic(Name, f))
-        out_xpr(val)
-        out(' = extractvalue ')
-        out_txpr(ctorval)
-        comma()
-        out(str(extrinsic(expand.FieldIndex, f)))
-        newline()
+        index = extrinsic(expand.FieldIndex, f)
+        val = extractvalue(extrinsic(Name, f), ctorval, index)
         ft = convert_type(f.type)
         match_pat(p, TypedXpr(ft, val))
 
@@ -884,14 +882,8 @@ def with_pat_tuple(ps, txpr, func):
     i = 0
     assert len(ps) == len(tts)
     for p, tt in zip(ps, tts):
-        val = temp_reg()
-        out_xpr(val)
-        out(' = extractvalue ')
-        out_txpr(tupval)
-        comma()
-        out(str(i))
+        val = extractvalue('t%d' % (i,), tupval, i)
         i += 1
-        newline()
         func(p, TypedXpr(tt, val))
 
 def store_pat(pat, txpr):
