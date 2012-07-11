@@ -248,6 +248,7 @@ def br_cond(cond, true, false):
     term()
 
 def phi(reg, t, srcs):
+    assert len(srcs) > 1
     out_xpr(reg)
     out(' = phi ')
     out_t(t)
@@ -737,6 +738,9 @@ def expr_match(m, e, cs):
     term()
 
     out_label(success)
+    if len(phi_srcs) < 2:
+        x, lbl = phi_srcs[0]
+        return x
     tmp = temp_reg_named('match')
     phi(tmp, typeof(m), phi_srcs)
     return tmp
