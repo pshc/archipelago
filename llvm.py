@@ -284,14 +284,14 @@ def malloc(t):
     out(' = ptrtoint ')
     out_t_ptr(t)
     out('getelementptr')
-    write_args([(IPtr(t), Const("null")), (IInt(), Const("1"))])
+    nullx = TypedXpr(IPtr(t), Const("null"))
+    write_args([nullx, TypedXpr(IInt(), Const("1"))])
     out(' to ')
     out_t_nospace(sizeoft)
     newline()
     f = func_ref(runtime_decl('malloc'))
-    memt = IVoidPtr()
-    mem = call(memt, f, [(IInt(), sizeof)])
-    return cast(mem, memt, IPtr(t))
+    mem = call(IVoidPtr(), f, [TypedXpr(IInt(), sizeof)])
+    return cast(mem, IPtr(t))
 
 def call(rett, fx, argxs):
     tmp = temp_reg()
@@ -301,7 +301,7 @@ def call(rett, fx, argxs):
     out_xpr(fx)
     write_args(argxs)
     newline()
-    return tmp
+    return TypedXpr(rett, tmp)
 
 def call_void(fx, argxs):
     out('call ')
@@ -313,43 +313,40 @@ def call_void(fx, argxs):
 def write_args(args):
     out('(')
     first = True
-    for t, arg in args:
+    for tx in args:
         if first:
             first = False
         else:
             comma()
-        out_t(t)
-        out_xpr(arg)
+        out_txpr(tx)
     out(')')
 
-def get_element_ptr(tmp, ex, t, index):
+def get_element_ptr(tmp, tx, index):
     out_xpr(tmp)
     out(' = getelementptr ')
-    out_t(t)
-    out_xpr(ex)
+    out_txpr(tx)
     comma()
     out('i32 0')
     comma()
     out('i32 %d' % (index,))
     newline()
 
-def get_field_ptr(ex, t, f):
+def get_field_ptr(tx, f):
     tmp = temp_reg_named(extrinsic(Name, f))
-    get_element_ptr(tmp, ex, t, extrinsic(expand.FieldIndex, f))
+    get_element_ptr(tmp, tx, extrinsic(expand.FieldIndex, f))
     return tmp
 
 def build_struct(t, args):
     i = 0
     accum = Const('undef')
-    for ft, tmp in args:
+    for argx in args:
         new_val = temp_reg()
         out_xpr(new_val)
         out(' = insertvalue ')
         out_t(t)
         out_xpr(accum)
         comma()
-        out_t(ft)
-        out_xpr(tmp)
+        out_txpr(argx)
         comma()
         out(str(i))
         newline()
@@ -357,9 +354,10 @@ def build_struct(t, args):
         accum = new_val
     return TypedXpr(t, accum)
 
-def cast(xpr, src, dest):
+def cast(txpr, dest):
+    src = txpr.type
     if types_equal(src, dest):
-        return xpr
+        return txpr
     s = IVoidPtr() if matches(src, 'IPtr(_)') else src
     d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
     kind = match((s, d),
@@ -368,17 +366,17 @@ def cast(xpr, src, dest):
         ('(IVoidPtr(), IVoidPtr())', lambda: 'bitcast'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
+    xpr = txpr.xpr
     if is_const(xpr):
-        return ConstCast(kind, TypedXpr(src, xpr), dest)
+        return TypedXpr(dest, ConstCast(kind, txpr, dest))
     tmp = temp_reg_named(kind)
     out_xpr(tmp)
     out(' = %s ' % (kind,))
-    out_t(src)
-    out_xpr(xpr)
+    out_txpr(txpr)
     out(' to ')
     out_t_nospace(dest)
     newline()
-    return tmp
+    return TypedXpr(dest, tmp)
 
 _cached_runtime_refs = {}
 def runtime_decl(name):
@@ -556,18 +554,18 @@ def aug_op(b):
         ('AugDivide()', lambda: 'sdiv'), # or udiv...
         ('AugModulo()', lambda: 'srem')) # or urem...
 
-def expr_unary(op, arg, t):
+def expr_unary(op, arg):
     assert op == 'not' or op == 'negate'
-    pivot = TypedXpr(t, Const('1' if op == 'not' else '0'))
-    if is_const(arg):
-        return ConstOp('sub', [pivot, TypedXpr(t, arg)])
+    pivot = TypedXpr(arg.type, Const('1' if op == 'not' else '0'))
+    if is_const(arg.xpr):
+        return ConstOp('sub', [pivot, arg])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
         out(' = sub ')
         out_txpr(pivot)
         comma()
-        out_xpr(arg)
+        out_xpr(arg.xpr)
         newline()
         return tmp
 
@@ -593,26 +591,19 @@ def write_call(f, args, rett):
     fx = express(f)
     t = typeof(original_definition(f))
     paramts, frett = match(t, ("IFunc(pts, rt)", tuple2))
-    argxs = []
-    for arg, paramt in zip(args, paramts):
-        argt = typeof(arg)
-        argx = cast(express(arg), argt, paramt)
-        argxs.append((paramt, argx))
+    argxs = [cast(express_typed(arg), pt) for arg, pt in zip(args, paramts)]
 
     if matches(frett, "IVoid()"):
         call_void(fx, argxs)
         return Nothing()
 
     tmp = call(frett, fx, argxs)
-    return Just(cast(tmp, frett, rett))
+    return Just(cast(tmp, rett))
 
 def write_runtime_call(name, args, rett):
     decl = runtime_decl(name)
     paramts, frett = match(typeof(decl), ("IFunc(pts, rt)", tuple2))
-    argxs = []
-    for arg, paramt in zip(args, paramts):
-        argx = cast(arg.xpr, arg.type, paramt)
-        argxs.append((paramt, argx))
+    argxs = [cast(arg, pt) for arg, pt in zip(args, paramts)]
 
     fx = func_ref(decl)
     if matches(frett, "IVoid()"):
@@ -620,7 +611,7 @@ def write_runtime_call(name, args, rett):
         return Nothing()
 
     tmp = call(frett, fx, argxs)
-    return Just(cast(tmp, frett, rett))
+    return Just(cast(tmp, rett))
 
 def expr_call(e, f, args):
     t = typeof(e)
@@ -630,8 +621,8 @@ def expr_call(e, f, args):
         op = una_op(b)
         if op != '':
             assert len(args) == 1, '%s is unary' % (op,)
-            arg = express(args[0])
-            m.ret(expr_unary(op, arg, typeof(args[0])))
+            arg = express_typed(args[0])
+            m.ret(expr_unary(op, arg))
         else:
             op = bin_op(b)
             assert len(args) == 2, '%s requires two args' % (op,)
@@ -639,7 +630,7 @@ def expr_call(e, f, args):
             right = express(args[1])
             m.ret(expr_binop(op, left, right, typeof(args[0])))
     else:
-        m.ret(fromJust(write_call(f, args, t)))
+        m.ret(fromJust(write_call(f, args, t)).xpr)
     return m.result()
 
 def expr_func(f, ps, body):
@@ -716,7 +707,7 @@ def expr_getextrinsic(extr, e, exists):
     extrx = TypedXpr(IVoidPtr(), global_ref(extr))
     t = IBool() if exists else convert_type(extr.type)
     ex = express_typed(e)
-    return fromJust(write_runtime_call(sym, [extrx, ex], t))
+    return fromJust(write_runtime_call(sym, [extrx, ex], t)).xpr
 
 def expr_scopeextrinsic(extr, e):
     out('; enter %s' % (extrinsic(Name, extr),))
@@ -753,8 +744,8 @@ def expr_match(m, e, cs):
     return tmp
 
 def expr_attr(e, f):
-    ex = express(e)
-    fieldptr = get_field_ptr(ex, typeof(e), f)
+    tx = express_typed(e)
+    fieldptr = get_field_ptr(tx, f)
     val = temp_reg_named(extrinsic(Name, f))
     out_xpr(val)
     out(' = load ')
@@ -775,9 +766,9 @@ def expr_strlit(lit):
 
 def expr_tuple_lit(lit, ts):
     tt = match(typeof(lit), ("IPtr(tt==ITuple(_))", identity))
-    tmp = malloc(tt)
-    xs = [(typeof(t), express(t)) for t in ts]
-    struct = build_struct(tt, xs)
+    tmp = malloc(tt).xpr
+    txs = map(express_typed, ts)
+    struct = build_struct(tt, txs)
     store_xpr(struct, tmp)
     return tmp
 
@@ -813,15 +804,12 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 MATCH = new_env('MATCH', MatchState)
 
 def match_pat_ctor(ctor, ps, tx):
-    t, form, ex = match(tx, ("TypedXpr(IPtr(t==IData(form)), ex)", tuple3))
+    form = match(tx, ("TypedXpr(IPtr(IData(form)), _)", identity))
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
-        pdtt = IPtr(t)
-        t = IData(ctor)
-        pt = IPtr(t)
-        ex = cast(ex, pdtt, pt)
+        tx = cast(tx, IPtr(IData(ctor)))
         ixptr = temp_reg()
-        get_element_ptr(ixptr, ex, pt, fromJust(layout.discrimSlot))
+        get_element_ptr(ixptr, tx, fromJust(layout.discrimSlot))
         ix = temp_reg_named('ix')
         out_xpr(ix)
         out(' = load ')
@@ -837,17 +825,17 @@ def match_pat_ctor(ctor, ps, tx):
     ctorval = temp_reg_named(extrinsic(Name, ctor))
     out_xpr(ctorval)
     out(' = load ')
-    out_t_ptr(t)
-    out_xpr(ex)
+    out_txpr(tx)
     newline()
 
+    t = match(tx, ("TypedXpr(IPtr(t), _)", identity))
+    ctortx = TypedXpr(t, ctorval)
     assert len(ps) == len(ctor.fields)
     for p, f in zip(ps, ctor.fields):
         val = temp_reg_named(extrinsic(Name, f))
         out_xpr(val)
         out(' = extractvalue ')
-        out_t(t)
-        out_xpr(ctorval)
+        out_txpr(ctortx)
         comma()
         out(str(extrinsic(expand.FieldIndex, f)))
         newline()
@@ -883,8 +871,8 @@ def store_var(v, xpr):
     store_named(TypedXpr(typeof(v), xpr), v)
 
 def store_attr(dest, f, val):
-    ex = express(dest)
-    fieldptr = get_field_ptr(ex, typeof(dest), f)
+    tx = express_typed(dest)
+    fieldptr = get_field_ptr(tx, f)
     store_xpr(TypedXpr(convert_type(f.type), val), fieldptr)
 
 def store_lhs(lhs, x):
@@ -907,8 +895,7 @@ def with_pat_tuple(ps, txpr, func):
     tupval = temp_reg_named('tuple')
     out_xpr(tupval)
     out(' = load ')
-    out_t_ptr(tupt)
-    out_xpr(txpr.xpr)
+    out_txpr(txpr)
     newline()
     i = 0
     assert len(ps) == len(tts)
@@ -1031,18 +1018,18 @@ def write_field_specs(fields, layout):
         out(' }')
 
 def write_ctor(ctor, dt, layout):
-    dtt = IData(dt)
+    dtt = IPtr(IData(dt))
 
     clear_indent()
     out('declare ' if env(DECLSONLY) else 'define ')
-    out_t_ptr(dtt)
+    out_t(dtt)
     out_func_ref(ctor)
     fts = [convert_type(f.type) for f in ctor.fields]
     if env(DECLSONLY):
         write_param_types(fts)
         newline()
         return
-    tmps = write_params(ctor.fields, fts)
+    txs = write_params(ctor.fields, fts)
     out(' {')
     newline()
 
@@ -1052,24 +1039,20 @@ def write_ctor(ctor, dt, layout):
     discrim = isJust(layout.discrimSlot)
     if discrim:
         assert fromJust(layout.discrimSlot) == 1
-        fts.insert(0, IInt())
-        tmps.insert(0, Const(str(extrinsic(expand.CtorIndex, ctor))))
+        index = extrinsic(expand.CtorIndex, ctor)
+        txs.insert(0, TypedXpr(IInt(), Const(str(index))))
 
     if isJust(layout.extrSlot):
         assert fromJust(layout.extrSlot) == 0
-        fts.insert(0, IVoidPtr())
-        tmps.insert(0, Const("null"))
+        txs.insert(0, TypedXpr(IVoidPtr(), Const("null")))
 
-    assert len(fts) == len(tmps)
-    struct = build_struct(ctort, zip(fts, tmps))
-    store_xpr(struct, inst)
+    struct = build_struct(ctort, txs)
+    store_xpr(struct, inst.xpr)
 
-    ret = inst
     if discrim:
-        ret = cast(ret, IPtr(ctort), IPtr(dtt))
+        inst = cast(inst, dtt)
     out('ret ')
-    out_t_ptr(dtt)
-    out_xpr(ret)
+    out_txpr(inst)
     newline()
     clear_indent()
     out('}')
@@ -1137,18 +1120,18 @@ def write_param_types(tps):
 def write_params(ps, tps):
     out('(')
     first = True
-    tmps = []
+    txs = []
     for p, tp in zip(ps, tps):
         if first:
             first = False
         else:
             comma()
-        out_t(tp)
         tmp = temp_reg_named(extrinsic(Name, p))
-        out_xpr(tmp)
-        tmps.append(tmp)
+        tx = TypedXpr(tp, tmp)
+        out_txpr(tx)
+        txs.append(tx)
     out(')')
-    return tmps
+    return txs
 
 def write_top_func_decl(v):
     tps, tret = match(extrinsic(TypeOf, v),
@@ -1177,18 +1160,18 @@ def _write_top_func(f, ps, body):
         out('internal ')
     out_t(tret)
     out_func_ref(f)
-    tmps = write_params(ps, tps)
+    txs = write_params(ps, tps)
     out(' {')
     newline()
 
     if len(ps) > 0:
         # write params to mem
-        for p, tmp, tp in zip(ps, tmps, tps):
+        for p, tx in zip(ps, txs):
             out_name_reg(p)
             out(' = alloca ')
-            out_t(tp)
+            out_t(tx.type)
             newline()
-            store_named(TypedXpr(tp, tmp), p)
+            store_named(tx, p)
         newline()
 
     write_body(body)
