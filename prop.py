@@ -397,7 +397,7 @@ def _prop_expr(e):
     return rt
 
 def consume_value_as(ct, e):
-    in_env(EXPRCTXT, e, lambda: unify(ct, _prop_expr(e)))
+    in_env(EXPRCTXT, e, lambda: unify(_prop_expr(e), ct))
 
 def resolve_field_by_name(t, f):
     dt = match(t, ("CData(t, _)", identity))
