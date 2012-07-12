@@ -30,7 +30,7 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    entry = Label(':entry:', True, False)
+    entry = Label(':entry:', True, True)
     return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
 IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
@@ -964,8 +964,6 @@ def write_field_specs(fields, layout):
 
 def write_ctor(ctor, dt, layout):
     dtt = IPtr(IData(dt))
-
-    clear_indent()
     out('declare ' if env(DECLSONLY) else 'define ')
     out_t(dtt)
     out_func_ref(ctor)
@@ -973,7 +971,11 @@ def write_ctor(ctor, dt, layout):
     if env(DECLSONLY):
         write_param_types(fts)
         newline()
-        return
+    else:
+        as_local(lambda: _write_ctor_body(ctor, layout, dtt, fts))
+        out('}\n')
+
+def _write_ctor_body(ctor, layout, dtt, fts):
     txs = write_params(ctor.fields, fts)
     out(' {')
     newline()
@@ -999,7 +1001,6 @@ def write_ctor(ctor, dt, layout):
     out('ret ')
     out_txpr(inst)
     term()
-    imm_out('}\n')
 
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
@@ -1012,7 +1013,7 @@ def write_dtstmt(form):
         out(' = type ')
         write_field_specs(ctor.fields, layout)
         newline()
-        as_local(lambda: write_ctor(ctor, form, layout))
+        write_ctor(ctor, form, layout)
     if not env(DECLSONLY):
         newline()
 
@@ -1064,6 +1065,7 @@ def write_params(ps, tps):
     out('(')
     first = True
     txs = []
+    assert len(ps) == len(tps)
     for p, tp in zip(ps, tps):
         if first:
             first = False
@@ -1076,33 +1078,26 @@ def write_params(ps, tps):
     out(')')
     return txs
 
-def write_top_func_decl(v):
-    tps, tret = match(extrinsic(TypeOf, v),
-        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
-    out('declare ')
-    out_t(tret)
-    out_func_ref(v)
-    write_param_types(tps)
-    newline()
-
 def write_top_func(f):
-    as_local(lambda: _write_top_func(f, f.params, f.body))
-
-def _write_top_func(f, ps, body):
-    lcl = env(LOCALS)
-    # XXX Stupid hack
-    lcl.entryBlock.needsTerminator = True
-
     tps, tret = match(extrinsic(TypeOf, f),
         ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
-    assert len(ps) == len(tps)
 
-    clear_indent()
-    out('define ')
-    if not env(EXPORTSYMS):
-        out('internal ')
+    if env(DECLSONLY):
+        out('declare ')
+    elif env(EXPORTSYMS):
+        out('define ')
+    else:
+        out('define internal ')
     out_t(tret)
     out_func_ref(f)
+
+    if env(DECLSONLY):
+        write_param_types(tps)
+        newline()
+    else:
+        as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
+
+def _write_top_func(f, ps, body, tps, tret):
     txs = write_params(ps, tps)
     out(' {')
     newline()
@@ -1120,7 +1115,7 @@ def _write_top_func(f, ps, body):
     write_body(body)
 
     # Clean up
-    last = lcl.currentBlock
+    last = env(LOCALS).currentBlock
     if last.used and last.needsTerminator:
         assert matches(tret, 'IVoid()'), "No terminator for non-void return?"
         out('ret void')
@@ -1182,14 +1177,12 @@ def write_body(body):
 
 def write_top_cdecl(v):
     if env(DECLSONLY):
-        write_top_func_decl(v)
+        write_top_func(v)
 
 def write_top_var_func(v, f):
-    if env(DECLSONLY):
-        write_top_func_decl(v)
-    else:
+    if not env(DECLSONLY):
         check_static_replacement(v, f)
-        write_top_func(f)
+    write_top_func(f)
 
 def write_top_strlit(var, s):
     ir = env(IR)
