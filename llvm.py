@@ -725,6 +725,8 @@ def expr_match(m, e, cs):
     success = new_label('matchresult', msrs)
     phi_srcs = []
     for i, c in enumerate(cs):
+        if i > 0:
+            assert next_case.used, "Unreachable match case"
         out_label(next_case)
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         if i + 1 < len(cs):
@@ -734,8 +736,11 @@ def expr_match(m, e, cs):
         info = MatchState(next_case)
         in_env(MATCH, info, lambda: match_pat(cp, tx))
         x = express(ce)
-        phi_srcs.append((x, env(LOCALS).currentBlock))
-        br(success)
+        here = env(LOCALS).currentBlock
+        phi_srcs.append((x, here))
+        here.used = True
+        if not env(LOCALS).unreachable:
+            br(success)
 
     if next_case.used:
         out_label(next_case)
@@ -744,6 +749,7 @@ def expr_match(m, e, cs):
         out('unreachable')
         term()
 
+    assert success.used
     out_label(success)
     if len(phi_srcs) < 2:
         x, lbl = phi_srcs[0]
@@ -776,6 +782,7 @@ def expr_tuple_lit(lit, ts):
     return tmp
 
 def express(expr):
+    assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
     return match(expr,
         ('e==And(l, r)', expr_and),
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
@@ -934,21 +941,25 @@ def write_cond(stmt, cs, else_):
         ex = express(case.test)
         then = new_label('then', csrs)
         e = endif
+        haveAnotherCase = True
         if i + 1 < n:
             csrs = new_series(cs[i + 1])
             e = new_label('elif', csrs)
             elif_ = Just(e)
         elif haveElse:
             e = fromJust(else_label)
+        else:
+            haveAnotherCase = False
         br_cond(ex, then, e)
         out_label(then)
         write_body(case.body)
-        if i < n - 1 or haveElse:
+        if haveAnotherCase and not env(LOCALS).unreachable:
             br(endif)
     if haveElse:
         out_label(fromJust(else_label))
         write_body(fromJust(else_))
-    out_label(endif)
+    if endif.used:
+        out_label(endif)
 
 def check_static_replacement(v, f):
     if has_extrinsic(Replacement, v):
@@ -1187,7 +1198,8 @@ def write_while(stmt, cond, body):
     br_cond(ex, body_label, exit)
     out_label(body_label)
     write_body(body)
-    br(begin)
+    if not env(LOCALS).unreachable:
+        br(begin)
     out_label(exit)
 
     env(LOCALS).loopLabels = old_labels
