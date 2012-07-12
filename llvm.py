@@ -7,8 +7,7 @@ Label = DT('Label', ('name', str),
                     ('used', bool),
                     ('needsTerminator', bool))
 
-IRInfo = DT('IRInfo', ('stream', None),
-                      ('lcCtr', int))
+IRInfo = DT('IRInfo', ('stream', None))
 IR = new_env('IR', IRInfo)
 
 IRLocals = DT('IRLocals', ('needIndent', bool),
@@ -27,7 +26,7 @@ DECLSONLY = new_env('DECLSONLY', bool)
 
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
-    return IRInfo(stream, 0)
+    return IRInfo(stream)
 
 def setup_locals():
     entry = Label(':entry:', True, True)
@@ -1185,10 +1184,6 @@ def write_top_var_func(v, f):
     write_top_func(f)
 
 def write_top_strlit(var, s):
-    ir = env(IR)
-    add_extrinsic(Name, var, '.LC%d' % (ir.lcCtr,))
-    ir.lcCtr += 1
-
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
     out_global_ref(var)

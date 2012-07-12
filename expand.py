@@ -86,6 +86,7 @@ def push_expansion(ex):
 
 def ex_strlit(lit, s):
     v = Var()
+    add_extrinsic(Name, v, '.LC%d' % (extrinsic(Location, lit).index,))
     push_expansion(ExStrLit(v, s))
     add_extrinsic(ExpandedDecl, lit, ExpandedDeclInfo(v))
 
