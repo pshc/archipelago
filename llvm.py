@@ -7,17 +7,11 @@ Label = DT('Label', ('name', str),
                     ('used', bool),
                     ('needsTerminator', bool))
 
-IRChunk, IRStr, IRLabel, IRLabelRef = ADT('IRChunk',
-        'IRStr', ('str', str),
-        'IRLabel', ('label', '*Label'),
-        'IRLabelRef', ('label', '*Label'), ('naked', bool))
-
 IRInfo = DT('IRInfo', ('stream', None),
                       ('lcCtr', int))
 IR = new_env('IR', IRInfo)
 
-IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
-                          ('needIndent', bool),
+IRLocals = DT('IRLocals', ('needIndent', bool),
                           ('unreachable', bool),
                           ('tempCtr', int),
                           ('entryBlock', Label),
@@ -37,7 +31,7 @@ def setup_ir(filename):
 
 def setup_locals():
     entry = Label(':entry:', True, False)
-    return IRLocals([], False, False, 0, entry, entry, set(), Nothing())
+    return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
 IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
@@ -70,60 +64,19 @@ Replacement = new_extrinsic('Replacement', Xpr)
 
 LiteralSize = new_extrinsic('LiteralSize', int)
 
-# IMMEDIATE OUTPUT
-
-FlushState = DT('FlushState', ('shouldTerm', bool))
-FLUSH = new_env('FLUSH', FlushState)
+# GLOBAL OUTPUT
 
 def imm_out(s):
     env(IR).stream.write(s)
     if not env(GENOPTS).quiet:
         sys.stdout.write(s)
 
-def _new_block(lbl):
-    if lbl.used:
-        s = '\n%s:\n' % (lbl.name,)
-        state = env(FLUSH)
-        if state.shouldTerm:
-            s = '  br label %%%s\n%s' % (lbl.name, s)
-        state.shouldTerm = lbl.needsTerminator
-        return s
-    else:
-        # Even though we'll omit this label, it might have
-        # a terminator after it that the preceeding block didn't notice
-        if not lbl.needsTerminator:
-            env(FLUSH).shouldTerm = False
-        return ''
-
-def out_chunk(chunk):
-    imm_out(match(chunk,
-        ('IRStr(s)', identity),
-        ('IRLabel(lbl)', _new_block),
-        ('IRLabelRef(l, True)', lambda l: '%%%s' % (l.name,)),
-        ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (l.name,))
-    ))
-
-def flush(lcl):
-    chunks = lcl.chunks
-    lcl.chunks = []
-    state = FlushState(lcl.entryBlock.needsTerminator)
-    in_env(FLUSH, state, lambda: map_(out_chunk, chunks))
-    assert not state.shouldTerm, "Last block not terminated?"
-
-# GLOBAL OUTPUT
-
 def out(s):
-    if not have_env(LOCALS):
-        imm_out(s)
-        return
-    lcl = env(LOCALS)
-    if lcl.unreachable:
-        return
-    if lcl.needIndent:
-        lcl.chunks.append(IRStr('  %s' % (s,)))
+    if have_env(LOCALS) and env(LOCALS).needIndent:
+        imm_out('  %s' % (s,))
         clear_indent()
     else:
-        lcl.chunks.append(IRStr(s))
+        imm_out(s)
 
 def func_ref(f):
     if not has_extrinsic(Name, f):
@@ -141,8 +94,6 @@ def out_global_ref(v):
 
 def newline():
     if have_env(LOCALS):
-        if env(LOCALS).unreachable:
-            return
         out('\n')
         env(LOCALS).needIndent = True
     else:
@@ -158,16 +109,17 @@ def out_name_reg(a):
 
 def out_label(label):
     lcl = env(LOCALS)
-    lcl.chunks.append(IRLabel(label))
+    if lcl.currentBlock.needsTerminator:
+        imm_out('  br label %%%s\n\n%s:\n' % (label.name, label.name))
+    else:
+        imm_out('\n%s:\n' % (label.name,))
     lcl.currentBlock = label
     lcl.needIndent = True
     lcl.unreachable = False
 
 def out_naked_label_ref(label, naked):
-    lcl = env(LOCALS)
-    if not lcl.unreachable:
-        lcl.chunks.append(IRLabelRef(label, naked))
-        label.used = True
+    imm_out(('%%%s' if naked else 'label %%%s') % (label.name,))
+    label.used = True
 
 def out_label_ref(label):
     out_naked_label_ref(label, False)
@@ -1046,10 +998,8 @@ def write_ctor(ctor, dt, layout):
         inst = cast(inst, dtt)
     out('ret ')
     out_txpr(inst)
-    newline()
-    clear_indent()
-    out('}')
-    newline()
+    term()
+    imm_out('}\n')
 
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
@@ -1175,7 +1125,7 @@ def _write_top_func(f, ps, body):
         assert matches(tret, 'IVoid()'), "No terminator for non-void return?"
         out('ret void')
         term()
-    lcl.chunks.append(IRStr('}\n\n'))
+    imm_out('}\n\n')
 
 def write_return(expr):
     xt = express_typed(expr)
@@ -1272,7 +1222,7 @@ def write_top(top):
 def as_local(f):
     lcl = setup_locals()
     in_env(LOCALS, lcl, f)
-    flush(lcl)
+    assert not lcl.currentBlock.needsTerminator, "Last block not terminated?"
 
 def write_unit(unit):
     for top in unit.tops:
