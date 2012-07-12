@@ -6,6 +6,7 @@ import types_builtin
 import native
 import atom
 import astconv
+import check
 import expand
 import scan
 import prop
@@ -68,9 +69,14 @@ def load_module_dep(src, deps):
     names_mod = extrinsic_mod(Name, names, mod)
     native.serialize(names_mod)
 
-    return expand.in_intramodule_env(lambda: _do_mod(mod, test))
+    return expand.in_intramodule_env(
+        lambda: check.in_check_env(
+        lambda: _do_mod(mod, test)
+    ))
 
 def _do_mod(mod, test):
+    casts = check.check_types(mod.root)
+
     expand.expand_module(mod)
 
     llvm.write_ir(mod)

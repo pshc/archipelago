@@ -105,8 +105,18 @@ TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')
+UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
 CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
+
+def with_context(desc, msg):
+    if have_env(UNIFYCTXT):
+        src, dest = env(UNIFYCTXT)
+        desc = fmtcol("^DG^Types:^N {0} ^DG==>^N {1}\n{2}", src, dest, desc)
+    if have_env(EXPRCTXT):
+        desc = fmtcol("^DG^Expr:^N {0}\n{1}", env(EXPRCTXT), desc)
+    desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
+    return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
 def symcall(name, params):
     return Call(Bind(BindBuiltin(BUILTINS[name])), params)
