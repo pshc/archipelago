@@ -220,8 +220,11 @@ def set_type(e, t):
     add_extrinsic(TypeOf, e, t)
 
 def set_var_ctype(v, ct):
-    env(PROPSCOPE).localVars[v] = ct
-    env(PROPTOP).deferredVarTypes[v] = ct
+    if have_env(PROPSCOPE):
+        env(PROPSCOPE).localVars[v] = ct
+        env(PROPTOP).deferredVarTypes[v] = ct
+    else:
+        set_type(v, generalize_type(ct))
 
 def set_expr_ctype(e, ct):
     env(PROPTOP).deferredExprTypes[e] = ct
@@ -456,10 +459,7 @@ def prop_defn(pat, e):
             return
 
     ct = prop_expr(e)
-    if have_env(PROPSCOPE):
-        destructure_pat(pat, ct)
-    else:
-        set_var_ctype(var, ct)
+    destructure_pat(pat, ct)
 
 def prop_assign(a, e):
     consume_value_as(prop_lhs(a), e)
