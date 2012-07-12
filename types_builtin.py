@@ -9,13 +9,17 @@ def prim_equal(p1, p2):
         ("_", lambda: False))
 
 def _type_tuple_equal(ts1, ts2):
-    for t1, t2 in zip(ts1, ts2):
+    if len(ts1) != len(ts2):
+        return False
+    for t1, t2 in ezip(ts1, ts2):
         if not type_equal(t1, t2):
             return False
     return True
 
 def _type_func_equal(as1, r1, as2, r2):
-    for a1, a2 in zip(as1, as2):
+    if len(as1) != len(as2):
+        return False
+    for a1, a2 in ezip(as1, as2):
         if not type_equal(a1, a2):
             return False
     return type_equal(r1, r2)
@@ -23,7 +27,9 @@ def _type_func_equal(as1, r1, as2, r2):
 def _type_data_equal(d1, ts1, d2, ts2):
     if d1 is not d2:
         return False
-    for t1, t2 in zip(ts1, ts2):
+    if len(ts1) != len(ts2):
+        return False
+    for t1, t2 in ezip(ts1, ts2):
         if not type_equal(t1, t2):
             return False
     return True

@@ -169,9 +169,7 @@ def try_unite_meta_backwards(dest, m, mcell):
     try_unite_meta(m, mcell, dest)
 
 def try_unite_tuples(src, list1, dest, list2):
-    if len(list1) != len(list2):
-        unification_failure(src, dest, "length mismatch")
-    for s, d in zip(list1, list2):
+    for s, d in ezip(list1, list2):
         try_unite(s, d)
 
 def try_unite_funcs(sf, sargs, sret, df, dargs, dret):
@@ -182,8 +180,7 @@ def try_unite_datas(src, a, ats, dest, b, bts):
     if a is not b:
         unification_failure(src, dest, "mismatched datatypes")
     assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
-    assert len(ats) == len(bts), "%s typevar count mismatch" % (a,)
-    for at, bt in zip(ats, bts):
+    for at, bt in ezip(ats, bts):
         try_unite(at, bt)
 
 def try_unite_prims(src, sp, dest, dp):
@@ -231,8 +228,7 @@ def set_expr_ctype(e, ct):
 
 def pat_tuple(ps):
     ts = match(env(CHECK), ("CTuple(ps)", identity))
-    assert len(ps) == len(ts), "Tuple pattern length mismatch"
-    for p, t in zip(ps, ts):
+    for p, t in ezip(ps, ts):
         in_env(CHECK, t, lambda: prop_pat(p))
 
 def pat_var(v):
@@ -246,8 +242,7 @@ def pat_ctor(ref, ctor, args):
     ctorT = instantiate(ref, ctor)
     fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
     unify_m(dt)
-    assert len(args) == len(fieldTs), "Wrong ctor param count"
-    for arg, fieldT in zip(args, fieldTs):
+    for arg, fieldT in ezip(args, fieldTs):
         in_env(CHECK, fieldT, lambda: prop_pat(arg))
 
 def prop_pat(p):
@@ -280,8 +275,7 @@ def prop_binding(ref, binding):
 def prop_call(f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
-    assert len(ft.funcArgs) == len(argts), "Arg count mismatch"
-    for arg, param in zip(argts, ft.funcArgs):
+    for arg, param in ezip(argts, ft.funcArgs):
         unify(arg, param)
     return ft.funcRet
 
@@ -323,9 +317,8 @@ def prop_func(f, ps, b):
     ft = extrinsic(TypeOf, f)
     cft = ctype(ft)
     tps, tret = match(cft, ('CFunc(ps, ret)', tuple2))
-    assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     def inside_func_scope():
-        for p, ctp in zip(ps, tps):
+        for p, ctp in ezip(ps, tps):
             set_var_ctype(p, ctp)
         prop_body(b)
         return cft
@@ -413,8 +406,7 @@ def resolve_field_by_name(t, f):
 def resolve_field_type(t, ft):
     dt, ts = match(t, ('CData(dt, ts)', tuple2))
     tmap = {}
-    assert len(ts) == len(dt.tvars)
-    for tvar, t in zip(dt.tvars, ts):
+    for tvar, t in ezip(dt.tvars, ts):
         tmap[tvar] = t
     return ctype_replaced(ft, tmap)
 
@@ -439,8 +431,7 @@ def prop_DT(form):
 
 def destructure_tuple(ps, t):
     ts = match(t, ("CTuple(ts)", identity))
-    assert len(ps) == len(ts)
-    for p, t in zip(ps, ts):
+    for p, t in ezip(ps, ts):
         destructure_pat(p, t)
 
 def destructure_pat(pat, t):

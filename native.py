@@ -69,7 +69,7 @@ def _serialize_node(node, t):
         env(Serialize).count += 1
         # Collect instantiations
         apps = {}
-        for var, app in zip(t.data.tvars, t.appTypes):
+        for var, app in orig_zip(t.data.tvars, t.appTypes):
             apps[var] = app
         adt = extrinsic(FormBacking, t.data)
         assert isinstance(node, adt), "%r is not a %s" % (node, adt)

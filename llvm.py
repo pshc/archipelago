@@ -382,7 +382,7 @@ def types_equal(src, dest):
         ('(IData(a), IData(b))', lambda a, b: a is b),
         ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
             len(ps1) == len(ps2) and
-            all(types_equal(a, b) for a, b in zip(ps1, ps2)) and
+            all(types_equal(a, b) for a, b in ezip(ps1, ps2)) and
             types_equal(r1, r2)),
         ('(IPtr(a), IPtr(b))', types_equal),
         ('(IVoidPtr(), IVoidPtr())', same),
@@ -564,7 +564,7 @@ def write_call(f, args, rett):
     fx = express(f)
     t = typeof(original_definition(f))
     paramts, frett = match(t, ("IFunc(pts, rt)", tuple2))
-    argxs = [cast(express_typed(arg), pt) for arg, pt in zip(args, paramts)]
+    argxs = [cast(express_typed(arg), pt) for arg, pt in ezip(args, paramts)]
 
     if matches(frett, "IVoid()"):
         call_void(fx, argxs)
@@ -576,7 +576,7 @@ def write_call(f, args, rett):
 def write_runtime_call(name, args, rett):
     decl = runtime_decl(name)
     paramts, frett = match(typeof(decl), ("IFunc(pts, rt)", tuple2))
-    argxs = [cast(arg, pt) for arg, pt in zip(args, paramts)]
+    argxs = [cast(arg, pt) for arg, pt in ezip(args, paramts)]
 
     fx = func_ref(decl)
     if matches(frett, "IVoid()"):
@@ -781,8 +781,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
     datat = match(tx.type, ("IPtr(t==IData(_))", identity))
     ctorval = load(extrinsic(Name, ctor), datat, tx.xpr)
 
-    assert len(ps) == len(ctor.fields)
-    for p, f in zip(ps, ctor.fields):
+    for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(Name, f), ctorval, index)
         ft = convert_type(f.type)
@@ -843,8 +842,7 @@ def with_pat_tuple(ps, txpr, func):
 
     tupval = load('tuple', tupt, txpr.xpr)
     i = 0
-    assert len(ps) == len(tts)
-    for p, tt in zip(ps, tts):
+    for p, tt in ezip(ps, tts):
         val = extractvalue('t%d' % (i,), tupval, i)
         i += 1
         func(p, TypedXpr(tt, val))
@@ -1064,8 +1062,7 @@ def write_params(ps, tps):
     out('(')
     first = True
     txs = []
-    assert len(ps) == len(tps)
-    for p, tp in zip(ps, tps):
+    for p, tp in ezip(ps, tps):
         if first:
             first = False
         else:
@@ -1104,7 +1101,7 @@ def _write_top_func(f, ps, body, tps, tret):
 
     if len(ps) > 0:
         # write params to mem
-        for p, tx in zip(ps, txs):
+        for p, tx in ezip(ps, txs):
             out_name_reg(p)
             out(' = alloca ')
             out_t(tx.type)

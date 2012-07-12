@@ -355,8 +355,7 @@ def conv_byneed_rebound(f, bs):
         e = special(lambda i: Bind(BindVar(bs[i])))
     else:
         def rebind_func(params, b):
-            assert len(params) == len(bs), "Match param count mismatch"
-            return replace_refs(dict(zip(params, bs)), extract_ret(b))
+            return replace_refs(dict(ezip(params, bs)), extract_ret(b))
         e = match(f, ('FuncExpr(Func(params, b))', rebind_func),
                      ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
     return e

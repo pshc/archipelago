@@ -172,7 +172,7 @@ def capture_scoped(exts, captures, func):
 
     ret = func()
 
-    for ext, (offcap, offnew) in zip(exts[::-1], check[::-1]):
+    for ext, (offcap, offnew) in ezip(exts[::-1], check[::-1]):
         cap = ext.captures.pop()
         assert offcap is cap, "Imbalanced capture"
         n = ext.stack.pop()
@@ -222,7 +222,9 @@ del _dt_form
 
 def _ctor_form(ctor):
     fields = []
-    for nm, t in zip(ctor.__slots__, ctor.__types__):
+    for i in xrange(len(ctor.__types__)):
+        nm = ctor.__slots__[i]
+        t = ctor.__types__[i]
         if _deferred_type_parses is None:
             t = in_env(NEWTYPEVARS, None, lambda: parse_type(t))
         field = Field(t)
@@ -522,7 +524,7 @@ def match_try(atom, ast):
             # Found a matching constructor; now match its args recursively
             # Unlike the main match loop, if any fail here everything fails
             ctor_args = []
-            for (arg_ast, attrname) in zip(ast.args, slots):
+            for arg_ast, attrname in ezip(ast.args, slots):
                 sub_args = match_try(getattr(atom, attrname), arg_ast)
                 if sub_args is None:
                     return None
@@ -549,7 +551,7 @@ def match_try(atom, ast):
         if not isinstance(atom, t) or len(atom) != len(ast.nodes):
             return None
         tuple_args = []
-        for a, node in zip(atom, ast.nodes):
+        for a, node in ezip(atom, ast.nodes):
             args = match_try(a, node)
             if args is None:
                 return None
@@ -732,6 +734,13 @@ def concat_map(f, xs):
 def map_(f, xs):
     for x in xs:
         f(x)
+
+orig_zip = zip
+zip = None
+def ezip(first, second):
+    assert len(first) == len(second), "Length mismatch between:\n%s\n%s" % (
+            first, second)
+    return orig_zip(first, second)
 
 def unzip(list):
     first = []
