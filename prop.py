@@ -120,9 +120,9 @@ def gen_new_tvar(cell):
     top = env(PROPTOP).top
     tvar = TypeVar()
     cell.type = Just(CVar(tvar))
-    if not has_extrinsic(top, TypeVars):
-        add_extrinsic(top, TypeVars, [])
-    extrinsic(top, TypeVars).append(tvar)
+    if not has_extrinsic(TypeVars, top):
+        add_extrinsic(TypeVars, top, [])
+    extrinsic(TypeVars, top).append(tvar)
 
 def _gen_type(s):
     return match(s,
