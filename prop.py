@@ -227,7 +227,7 @@ def set_expr_ctype(e, ct):
     env(PROPTOP).deferredExprTypes[e] = ct
 
 def pat_tuple(ps):
-    ts = match(env(CHECK), ("CTuple(ps)", identity))
+    ts = match(env(CHECK), "CTuple(ps)")
     for p, t in ezip(ps, ts):
         in_env(CHECK, t, lambda: prop_pat(p))
 
@@ -393,7 +393,7 @@ def consume_value_as(ct, e):
     in_env(EXPRCTXT, e, lambda: unify(_prop_expr(e), ct))
 
 def resolve_field_by_name(t, f):
-    dt = match(t, ("CData(t, _)", identity))
+    dt = match(t, "CData(t, _)")
     real_field = None
     for ctor in dt.ctors:
         for field in ctor.fields:
@@ -430,7 +430,7 @@ def prop_DT(form):
         set_type(c, TFunc([f.type for f in c.fields], dtT))
 
 def destructure_tuple(ps, t):
-    ts = match(t, ("CTuple(ts)", identity))
+    ts = match(t, "CTuple(ts)")
     for p, t in ezip(ps, ts):
         destructure_pat(p, t)
 
@@ -444,7 +444,7 @@ def prop_defn(pat, e):
         f = m.arg
         if has_extrinsic(TypeOf, f):
             t = extrinsic(TypeOf, f)
-            v = match(pat, ("PatVar(v)", identity))
+            v = match(pat, "PatVar(v)")
             set_type(v, t)
             consume_value_as(ctype(t), e)
             return

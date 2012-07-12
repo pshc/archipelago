@@ -334,7 +334,7 @@ def replace_refs(mapping, e):
 
 def extract_ret(b):
     # dumb
-    return match(b, ("Body([Return(e)])", identity))
+    return match(b, "Body([Return(e)])")
 
 SPECIAL_CASES = {
     'identity': lambda r: r(0),

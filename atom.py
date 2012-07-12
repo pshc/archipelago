@@ -112,7 +112,7 @@ def symcall(name, params):
     return Call(Bind(BindBuiltin(BUILTINS[name])), params)
 
 def getname(sym):
-    return match(sym, ('named(nm)', identity))
+    return match(sym, 'named(nm)')
 
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
@@ -129,7 +129,7 @@ def make_builtin_scheme(name, t):
     else:
         t = _fix_type(t)
     def builtin_typevar(v):
-        index = match(v, ('TVar(n)', identity))
+        index = match(v, 'TVar(n)')
         if index not in tvars:
             tvar = TypeVar()
             add_extrinsic(Name, tvar, chr(96 + index))

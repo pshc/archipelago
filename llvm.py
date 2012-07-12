@@ -633,7 +633,7 @@ def env_setup(environ, init):
     newline()
     old = load('old.%s' % (name,), t, envref)
     i = express(init)
-    envt = match(t, ("ITuple([envt, IBool()])", identity))
+    envt = match(t, "ITuple([envt, IBool()])")
     info = ConstStruct([TypedXpr(envt, i), TypedXpr(IBool(), Const('true'))])
     store_xpr(TypedXpr(t, info), envref)
     return old
@@ -725,7 +725,7 @@ def expr_strlit(lit):
     return tmp
 
 def expr_tuple_lit(lit, ts):
-    tt = match(typeof(lit), ("IPtr(tt==ITuple(_))", identity))
+    tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
     tmp = malloc(tt).xpr
     txs = map(express_typed, ts)
     struct = build_struct(tt, txs)
@@ -765,7 +765,7 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 MATCH = new_env('MATCH', MatchState)
 
 def match_pat_ctor(pat, ctor, ps, tx):
-    form = match(tx.type, ("IPtr(IData(form))", identity))
+    form = match(tx.type, "IPtr(IData(form))")
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
         tx = cast(tx, IPtr(IData(ctor)))
@@ -778,7 +778,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
         br_cond(m, correctIx, env(MATCH).failureBlock)
         out_label(correctIx)
 
-    datat = match(tx.type, ("IPtr(t==IData(_))", identity))
+    datat = match(tx.type, "IPtr(t==IData(_))")
     ctorval = load(extrinsic(Name, ctor), datat, tx.xpr)
 
     for p, f in ezip(ps, ctor.fields):
@@ -1169,7 +1169,7 @@ def write_stmt(stmt):
         ("WriteExtrinsic(extr, node, val, isNew)", write_writeextrinsic))
 
 def write_body(body):
-    map_(write_stmt, match(body, ('Body(ss)', identity)))
+    map_(write_stmt, match(body, 'Body(ss)'))
 
 def write_top_cdecl(v):
     if env(DECLSONLY):
@@ -1230,7 +1230,7 @@ declare void @match_fail() noreturn
 """
 
 def write_imports(dep):
-    dt = match(dep.rootType, ('TData(dt, _)', identity))
+    dt = match(dep.rootType, 'TData(dt, _)')
     if dt is DATATYPES['CompilationUnit'].__form__:
         out('; %s' % (extrinsic(Name, dep),))
         newline()
