@@ -4,7 +4,6 @@ import os
 import sys
 
 Label = DT('Label', ('name', str),
-                    ('index', int),
                     ('used', bool),
                     ('needsTerminator', bool))
 
@@ -23,7 +22,7 @@ IRLocals = DT('IRLocals', ('chunks', [IRChunk]),
                           ('tempCtr', int),
                           ('entryBlock', Label),
                           ('currentBlock', Label),
-                          ('labelCtrs', {str: int}),
+                          ('labelsUsed', set([str])),
                           ('loopLabels', 'Maybe((Label, Label))'))
 
 LOCALS = new_env('LOCALS', IRLocals)
@@ -37,8 +36,8 @@ def setup_ir(filename):
     return IRInfo(stream, 0)
 
 def setup_locals():
-    entry = Label(':entry:', -1, True, False)
-    return IRLocals([], False, False, 0, entry, entry, {}, Nothing())
+    entry = Label(':entry:', True, False)
+    return IRLocals([], False, False, 0, entry, entry, set(), Nothing())
 
 IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
@@ -73,7 +72,7 @@ LiteralSize = new_extrinsic('LiteralSize', int)
 
 # IMMEDIATE OUTPUT
 
-FlushState = DT('FlushState', ('labelCtrs', {str: int}), ('shouldTerm', bool))
+FlushState = DT('FlushState', ('shouldTerm', bool))
 FLUSH = new_env('FLUSH', FlushState)
 
 def imm_out(s):
@@ -81,19 +80,12 @@ def imm_out(s):
     if not env(GENOPTS).quiet:
         sys.stdout.write(s)
 
-def label_str(label):
-    # Unique labels don't need an index
-    if label.index == 0 and env(FLUSH).labelCtrs[label.name] == 1:
-        return label.name
-    else:
-        return '%s_%d' % (label.name, label.index)
-
 def _new_block(lbl):
     if lbl.used:
-        s = '\n%s:\n' % (label_str(lbl),)
+        s = '\n%s:\n' % (lbl.name,)
         state = env(FLUSH)
         if state.shouldTerm:
-            s = '  br label %%%s\n%s' % (label_str(lbl), s)
+            s = '  br label %%%s\n%s' % (lbl.name, s)
         state.shouldTerm = lbl.needsTerminator
         return s
     else:
@@ -107,14 +99,14 @@ def out_chunk(chunk):
     imm_out(match(chunk,
         ('IRStr(s)', identity),
         ('IRLabel(lbl)', _new_block),
-        ('IRLabelRef(l, True)', lambda l: '%%%s' % (label_str(l),)),
-        ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (label_str(l),))
+        ('IRLabelRef(l, True)', lambda l: '%%%s' % (l.name,)),
+        ('IRLabelRef(l, False)', lambda l: 'label %%%s' % (l.name,))
     ))
 
 def flush(lcl):
     chunks = lcl.chunks
     lcl.chunks = []
-    state = FlushState(lcl.labelCtrs, lcl.entryBlock.needsTerminator)
+    state = FlushState(lcl.entryBlock.needsTerminator)
     in_env(FLUSH, state, lambda: map_(out_chunk, chunks))
     assert not state.shouldTerm, "Last block not terminated?"
 
@@ -224,11 +216,15 @@ def temp_reg_named(nm):
     lcl.tempCtr += 1
     return reg
 
-def new_label(nm):
+def new_series(atom):
+    return extrinsic(Location, atom).index
+
+def new_label(nm, series):
     lcl = env(LOCALS)
-    ctr = lcl.labelCtrs.get(nm, 0)
-    label = Label(nm, ctr, False, True)
-    lcl.labelCtrs[nm] = ctr + 1
+    nm = '%s.%d' % (nm, series)
+    assert nm not in lcl.labelsUsed, "Repeated label %s" % (nm,)
+    lcl.labelsUsed.add(nm)
+    label = Label(nm, False, True)
     return label
 
 # INSTRUCTIONS
@@ -479,12 +475,13 @@ def out_txpr(tx):
 
 # EXPRESSIONS
 
-def expr_and(l, r):
-    entry = new_label('and')
+def expr_and(e, l, r):
+    srs = new_series(e)
+    entry = new_label('and', srs)
     out_label(entry)
     left = express(l)
-    both = new_label('both')
-    end = new_label('endand')
+    both = new_label('both', srs)
+    end = new_label('endand', srs)
     br_cond(left, both, end)
     # left was true
     out_label(both)
@@ -496,12 +493,13 @@ def expr_and(l, r):
     phi(truth, IBool(), [(right, both), (Const('false'), entry)])
     return truth
 
-def expr_or(l, r):
-    entry = new_label('or')
+def expr_or(e, l, r):
+    srs = new_series(e)
+    entry = new_label('or', srs)
     out_label(entry)
     left = express(l)
-    both = new_label('both')
-    end = new_label('endor')
+    both = new_label('both', srs)
+    end = new_label('endor', srs)
     br_cond(left, end, both)
     # left was false
     out_label(both)
@@ -513,11 +511,12 @@ def expr_or(l, r):
     phi(truth, IBool(), [(right, both), (Const('true'), entry)])
     return truth
 
-def expr_ternary(c, t, f):
+def expr_ternary(e, c, t, f):
     cond = express(c)
-    yes = new_label('yes')
-    no = new_label('no')
-    end = new_label('endternary')
+    srs = new_series(e)
+    yes = new_label('yes', srs)
+    no = new_label('no', srs)
+    end = new_label('endternary', srs)
     br_cond(cond, yes, no)
 
     out_label(yes)
@@ -721,24 +720,29 @@ def expr_scopeextrinsic(extr, e):
 
 def expr_match(m, e, cs):
     tx = express_typed(e)
-    next_case = new_label('match')
-    success = new_label('matchresult')
+    msrs = new_series(m)
+    next_case = new_label('case', new_series(cs[0]))
+    success = new_label('matchresult', msrs)
     phi_srcs = []
     for i, c in enumerate(cs):
         out_label(next_case)
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
-        next_case = new_label('nextcase' if i < len(cs) - 1 else 'failed')
+        if i + 1 < len(cs):
+            next_case = new_label('case', new_series(cs[i+1]))
+        else:
+            next_case = new_label('failed', msrs)
         info = MatchState(next_case)
         in_env(MATCH, info, lambda: match_pat(cp, tx))
         x = express(ce)
         phi_srcs.append((x, env(LOCALS).currentBlock))
         br(success)
 
-    out_label(next_case)
-    out('call void @match_fail() noreturn')
-    newline()
-    out('unreachable')
-    term()
+    if next_case.used:
+        out_label(next_case)
+        out('call void @match_fail() noreturn')
+        newline()
+        out('unreachable')
+        term()
 
     out_label(success)
     if len(phi_srcs) < 2:
@@ -773,7 +777,7 @@ def expr_tuple_lit(lit, ts):
 
 def express(expr):
     return match(expr,
-        ('And(l, r)', expr_and),
+        ('e==And(l, r)', expr_and),
         ('Bind(BindBuiltin(b))', expr_bind_builtin),
         ('Bind(BindCtor(c))', func_ref),
         ('Bind(BindVar(v))', expr_bind_var),
@@ -787,10 +791,10 @@ def express(expr):
         ('ScopeExtrinsic(extr, e)', expr_scopeextrinsic),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
-        ('Or(l, r)', expr_or),
+        ('e==Or(l, r)', expr_or),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('lit==StrLit(_)', expr_strlit),
-        ('Ternary(c, l, r)', expr_ternary),
+        ('e==Ternary(c, l, r)', expr_ternary),
         ('lit==TupleLit(es)', expr_tuple_lit))
 
 def express_typed(expr):
@@ -802,7 +806,7 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 
 MATCH = new_env('MATCH', MatchState)
 
-def match_pat_ctor(ctor, ps, tx):
+def match_pat_ctor(pat, ctor, ps, tx):
     form = match(tx.type, ("IPtr(IData(form))", identity))
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
@@ -812,7 +816,7 @@ def match_pat_ctor(ctor, ps, tx):
         ix = load('ix', IInt(), ixptr)
         index = Const(str(extrinsic(expand.CtorIndex, ctor)))
         m = expr_binop('icmp eq', ix.xpr, index, ix.type)
-        correctIx = new_label('got.' + extrinsic(Name, ctor))
+        correctIx = new_label('got.' + extrinsic(Name, ctor), new_series(pat))
         br_cond(m, correctIx, env(MATCH).failureBlock)
         out_label(correctIx)
 
@@ -831,17 +835,18 @@ def match_pat_tuple(ps, tx):
 
 def match_pat(pat, tx):
     match((pat, tx),
-        ("(PatCtor(c, ps), tx)", match_pat_ctor),
+        ("(pat==PatCtor(c, ps), tx)", match_pat_ctor),
         ("(PatTuple(ps), tx)", match_pat_tuple),
         ("(PatVar(v), tx)", store_pat_var),
         ("(PatWild(), _)", nop))
 
 # STATEMENTS
 
-def write_assert(e, msg):
+def write_assert(stmt, e, msg):
     ex = express(e)
-    pass_ = new_label('pass')
-    fail_ = new_label('fail')
+    srs = new_series(stmt)
+    pass_ = new_label('pass', srs)
+    fail_ = new_label('fail', srs)
     br_cond(ex, pass_, fail_)
     out_label(fail_)
     m = express(msg)
@@ -915,24 +920,26 @@ def write_continue():
     begin, end = env(LOCALS).loopLabels
     br(begin)
 
-def write_cond(cs, else_):
+def write_cond(stmt, cs, else_):
     n = len(cs)
     haveElse = isJust(else_)
+    srs = new_series(stmt)
+    csrs = new_series(cs[0])
     elif_ = Nothing()
-    else_label = Nothing()
-    endif = new_label('endif')
+    else_label = Just(new_label('else', srs)) if haveElse else Nothing()
+    endif = new_label('endif', srs)
     for i, case in enumerate(cs):
         if isJust(elif_):
             out_label(fromJust(elif_))
         ex = express(case.test)
-        then = new_label('then')
+        then = new_label('then', csrs)
         e = endif
         if i + 1 < n:
-            e = new_label('elif')
+            csrs = new_series(cs[i + 1])
+            e = new_label('elif', csrs)
             elif_ = Just(e)
         elif haveElse:
-            e = new_label('else')
-            else_label = Just(e)
+            e = fromJust(else_label)
         br_cond(ex, then, e)
         out_label(then)
         write_body(case.body)
@@ -1165,10 +1172,11 @@ def write_return(expr):
     out_txpr(xt)
     term()
 
-def write_while(cond, body):
-    begin = new_label('loop')
-    body_label = new_label('body')
-    exit = new_label('exit')
+def write_while(stmt, cond, body):
+    srs = new_series(stmt)
+    begin = new_label('loop', srs)
+    body_label = new_label('body', srs)
+    exit = new_label('exit', srs)
 
     # for break and continue
     old_labels = env(LOCALS).loopLabels
@@ -1194,17 +1202,17 @@ def write_writeextrinsic(extr, node, val, isNew):
 
 def write_stmt(stmt):
     match(stmt,
-        ("Assert(e, m)", write_assert),
+        ("stmt==Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Break()", write_break),
         ("Continue()", write_continue),
-        ("Cond(cs, else_)", write_cond),
+        ("stmt==Cond(cs, else_)", write_cond),
         ("Defn(PatVar(v), e==FuncExpr(f))", write_func_defn),
         ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
-        ("While(c, b)", write_while),
+        ("stmt==While(c, b)", write_while),
         ("WriteExtrinsic(extr, node, val, isNew)", write_writeextrinsic))
 
 def write_body(body):
