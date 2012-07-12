@@ -123,6 +123,7 @@ def gen_new_tvar(cell):
     if not has_extrinsic(TypeVars, top):
         add_extrinsic(TypeVars, top, [])
     extrinsic(TypeVars, top).append(tvar)
+    return TVar(tvar)
 
 def _gen_type(s):
     return match(s,
