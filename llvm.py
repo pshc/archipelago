@@ -94,10 +94,10 @@ def out_global_ref(v):
 
 def newline():
     if have_env(LOCALS):
-        out('\n')
+        imm_out('\n')
         env(LOCALS).needIndent = True
     else:
-        imm_out('\n')
+        out('\n')
 
 def comma():
     out(', ')
@@ -110,7 +110,7 @@ def out_name_reg(a):
 def out_label(label):
     lcl = env(LOCALS)
     if lcl.currentBlock.needsTerminator:
-        imm_out('  br label %%%s\n\n%s:\n' % (label.name, label.name))
+        out('br label %%%s\n\n%s:\n' % (label.name, label.name))
     else:
         imm_out('\n%s:\n' % (label.name,))
     lcl.currentBlock = label
@@ -118,7 +118,7 @@ def out_label(label):
     lcl.unreachable = False
 
 def out_naked_label_ref(label, naked):
-    imm_out(('%%%s' if naked else 'label %%%s') % (label.name,))
+    out(('%%%s' if naked else 'label %%%s') % (label.name,))
     label.used = True
 
 def out_label_ref(label):
@@ -1096,6 +1096,7 @@ def write_top_func(f):
         newline()
     else:
         as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
+        out('}\n\n')
 
 def _write_top_func(f, ps, body, tps, tret):
     txs = write_params(ps, tps)
@@ -1120,7 +1121,6 @@ def _write_top_func(f, ps, body, tps, tret):
         assert matches(tret, 'IVoid()'), "No terminator for non-void return?"
         out('ret void')
         term()
-    imm_out('}\n\n')
 
 def write_return(expr):
     xt = express_typed(expr)
@@ -1240,7 +1240,7 @@ declare void @match_fail() noreturn
 def write_imports(dep):
     dt = match(dep.rootType, ('TData(dt, _)', identity))
     if dt is DATATYPES['CompilationUnit'].__form__:
-        imm_out('; %s' % (extrinsic(Name, dep),))
+        out('; %s' % (extrinsic(Name, dep),))
         newline()
         in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
 
@@ -1251,14 +1251,14 @@ def write_ir(mod):
     filename = 'ir/' + extrinsic(Filename, mod) + '.ll'
 
     def go():
-        imm_out(prelude)
+        out(prelude)
         runtime = loaded_modules['runtime']
         if runtime is not None:
             write_imports(runtime)
 
         walk_deps(write_imports, mod)
         newline()
-        imm_out('; main')
+        out('; main')
         newline()
         in_env(DECLSONLY, False, lambda: write_unit(mod.root))
 
