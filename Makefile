@@ -11,9 +11,11 @@ all: test
 debug: CODEGEN = ipdb construct.py $(OPTS) --
 debug: remake_tests
 
-dirs: $(DIRS)
+dirs: $(DIRS) ir/Makefile
 $(DIRS):
 	mkdir $@
+ir/Makefile: .irMakefile
+	@cp $< $@
 
 ir/z.o: z.c
 	$(CC) $(CFLAGS) -c -o $@ $^

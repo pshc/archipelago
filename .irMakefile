@@ -1,0 +1,7 @@
+MEM2REGS := $(patsubst %.ll,%.ll.mem2reg,$(wildcard *.ll))
+
+all: $(MEM2REGS)
+
+%.ll.mem2reg: %.ll
+	@echo mem2reg $<
+	@llvm-as $< -o - | opt -mem2reg | llvm-dis -o $@
