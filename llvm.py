@@ -365,6 +365,7 @@ def convert_type(t):
     return match(t,
         ("TPrim(PInt())", IInt),
         ("TPrim(PBool())", IBool),
+        ("TPrim(PStr())", IVoidPtr),
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
         ("TFunc(ps, r)", lambda ps, r:
