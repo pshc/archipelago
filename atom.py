@@ -229,7 +229,6 @@ def _do_repr(s):
             return
         c.seen.add(s)
         name = dt.__name__
-        brief = pretty_brief(name, s)
         if s in c.weakIndices:
             name = '%s #%d' % (name, c.weakIndices[s])
         for ext in c.exts:
