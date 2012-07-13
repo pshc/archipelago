@@ -324,7 +324,7 @@ def build_struct(t, args):
 
 def cast(txpr, dest):
     src = txpr.type
-    if types_equal(src, dest):
+    if itypes_equal(src, dest):
         return txpr
     s = IVoidPtr() if matches(src, 'IPtr(_)') else src
     d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
@@ -373,7 +373,7 @@ def convert_type(t):
         ("TArray(t)", lambda t: IPtr(convert_type(t))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
-def types_equal(src, dest):
+def itypes_equal(src, dest):
     same = lambda: True
     return match((src, dest),
         ('(IInt(), IInt())', same),
@@ -382,9 +382,9 @@ def types_equal(src, dest):
         ('(IData(a), IData(b))', lambda a, b: a is b),
         ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
             len(ps1) == len(ps2) and
-            all(types_equal(a, b) for a, b in ezip(ps1, ps2)) and
-            types_equal(r1, r2)),
-        ('(IPtr(a), IPtr(b))', types_equal),
+            all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
+            itypes_equal(r1, r2)),
+        ('(IPtr(a), IPtr(b))', itypes_equal),
         ('(IVoidPtr(), IVoidPtr())', same),
         ('_', lambda: False))
 
