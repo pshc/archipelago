@@ -89,12 +89,14 @@ def check_pat_as(t, p):
     # bad type, meh
     in_env(CHECK, t, lambda: in_env(EXPRCTXT, p, lambda: _check_pat(p)))
 
-def check_binding(ref, binding):
-    match(binding,
-        ("BindVar(v)", lambda v: check(extrinsic(TypeOf, v))),
-        ("BindCtor(c)", lambda c: check(extrinsic(TypeOf, c))),
-        ("BindBuiltin(b)", lambda b: check(extrinsic(TypeOf, b)))
-    )
+def subst(mapping, t):
+    return map_type_vars(lambda tv: mapping.get(tv.typeVar, tv), t)
+
+def check_binding(bind, binding):
+    t = binding_typeof(binding)
+    if has_extrinsic(Instantiation, bind):
+        t = subst(extrinsic(Instantiation, bind), t)
+    check(t)
 
 def check_tuplelit(es):
     ts = match(env(CHECK), "TTuple(ts)")
@@ -192,7 +194,7 @@ def _check_expr(e):
         ("GetExtrinsic(Extrinsic(t), node)", check_getextrinsic),
         ("HasExtrinsic(_, node)", check_hasextrinsic),
         ("ScopeExtrinsic(_, f)", check_same),
-        ("ref==Bind(b)", check_binding))
+        ("bind==Bind(b)", check_binding))
 
 def check_contains_field(t, f):
     # XXX will want to check instantiation
