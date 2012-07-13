@@ -11,9 +11,13 @@ PropScope = DT('PropScope', ('retType', 'Maybe(CType)'),
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
-PROPTOP = new_env('PROPTOP', '*TopLevel')
+PropTop = DT('PropTop', ('topLevel', '*TopLevel'),
+                        ('binds', ['*Expr']))
 
-MetaVar = new_extrinsic('MetaVar', {'*TypeVar': 'CType'})
+PROPTOP = new_env('PROPTOP', PropTop)
+
+InstMeta = new_extrinsic('InstMeta', 'CType')
+InstSite = new_extrinsic('InstSite', {'*TypeVar': 'CType'})
 
 def in_new_scope(retT, f):
     localVars = {}
@@ -58,9 +62,9 @@ def inst_tvar(tv):
     if t is not None:
         return ctype(t)
     else:
-        if not has_extrinsic(MetaVar, tv):
-            add_extrinsic(MetaVar, tv, fresh())
-        return extrinsic(MetaVar, tv)
+        if not has_extrinsic(InstMeta, tv):
+            add_extrinsic(InstMeta, tv, fresh())
+        return extrinsic(InstMeta, tv)
 
 def inst_tdata(dt, ts):
     insts = []
@@ -82,12 +86,11 @@ def _inst_type(s):
 
 def instantiate_type(site, t):
     inst = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
-    return scope_extrinsic(MetaVar, lambda:
-            in_env(INST, inst, lambda: _inst_type(t)))
-
-def instantiate(site, v):
-    t = extrinsic(TypeOf, v)
-    return instantiate_type(site, t)
+    captures = {}
+    ct = capture_scoped([InstMeta], captures,
+            lambda: in_env(INST, inst, lambda: _inst_type(t)))
+    add_extrinsic(InstSite, site, captures[InstMeta])
+    return ct
 
 def ctype(t):
     return in_env(SUBST, {}, lambda: _inst_type(t))
@@ -101,7 +104,7 @@ def gen_tdata(dt, ats):
 
 def gen_new_tvar(cell):
     # XXX need to look for existing annot tvar and use it instead if present
-    top = env(PROPTOP)
+    top = env(PROPTOP).topLevel
     tvar = TypeVar()
     cell.type = Just(CVar(tvar))
     if not has_extrinsic(TypeVars, top):
@@ -219,7 +222,7 @@ def pat_capture(v, p):
     _prop_pat(p)
 
 def pat_ctor(ref, ctor, args):
-    ctorT = instantiate(ref, ctor)
+    ctorT = instantiate_type(ref, extrinsic(TypeOf, ctor))
     fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
     unify_m(dt)
     for arg, fieldT in ezip(args, fieldTs):
@@ -243,15 +246,18 @@ def _prop_pat(p):
 def prop_binding_var(b, v):
     ct = env(PROPSCOPE).localVars.get(v)
     if ct is not None:
+        # XXX might still need to attach instantiation context here?
         return ct
-    return instantiate(b, v)
+    return instantiate_type(b, extrinsic(TypeOf, v))
 
-def prop_binding(ref, binding):
-    return match(binding,
-        ("s==BindVar(v)", prop_binding_var),
-        ("s==BindCtor(v)", instantiate),
-        ("s==BindBuiltin(v)", instantiate)
-    )
+def prop_binding(bind):
+    env(PROPTOP).binds.append(bind)
+    return match(bind,
+        ("bind==Bind(BindVar(v))", prop_binding_var),
+        ("Bind(BindCtor(c))", lambda c:
+            instantiate_type(bind, extrinsic(TypeOf, c))),
+        ("Bind(BindBuiltin(v))", lambda v:
+            instantiate_type(bind, extrinsic(TypeOf, v))))
 
 def prop_call(f, s):
     ft = prop_expr(f)
@@ -363,7 +369,7 @@ def _prop_expr(e):
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),
-        ("ref==Bind(b)", prop_binding))
+        ("bind==Bind(_)", prop_binding))
     if env(GENOPTS).dumpTypes:
         if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
@@ -476,15 +482,32 @@ def prop_body(body):
 
 def prop_top_defn(topDefn, pat, e):
 
-    def go(pat, e, captures):
+    def go(pat, e, captures, top):
         prop_defn(pat, e)
+        # Finalize inferred types
         for v, ct in captures[PendingType].iteritems():
             set_type(v, generalize_type(ct))
+        # Record instantiations
+        sites = captures[InstSite]
+        for bind in top.binds:
 
+            # This type comparison shouldn't really be necessary.
+            # Will want to just check for an inst map instead.
+            # (Assuming there are no extraneous typevars; needs enforcing)
+            origT = binding_typeof(bind.binding)
+            instT = extrinsic(TypeOf, bind)
+            if not type_equal(instT, origT):
+
+                insts = {}
+                for tv, ct in sites[bind].iteritems():
+                    insts[tv] = generalize_type(ct)
+                add_extrinsic(Instantiation, bind, insts)
+
+    top = PropTop(topDefn, [])
     captures = {}
-    capture_scoped([PendingType], captures,
-        lambda: in_env(PROPTOP, topDefn,
-        lambda: go(pat, e, captures)))
+    capture_scoped([PendingType, InstSite], captures,
+        lambda: in_env(PROPTOP, top,
+        lambda: go(pat, e, captures, top)))
 
 
 def prop_top_level(a):

@@ -127,6 +127,11 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
 
+def binding_typeof(b):
+    return match(b, ("BindBuiltin(b)", lambda b: extrinsic(TypeOf, b)),
+                    ("BindCtor(c)", lambda c: extrinsic(TypeOf, c)),
+                    ("BindVar(v)", lambda v: extrinsic(TypeOf, v)))
+
 def make_builtin_scheme(name, t):
     tvars = {}
     if t is None:
