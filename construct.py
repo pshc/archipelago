@@ -117,7 +117,7 @@ def _resolve_walk(node, path):
         assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
         form = DATATYPES[nm].__form__
         assert isinstance(form, DataType), "Bad form %s" % (form,)
-        dest = TData(form, [])
+        dest = vanilla_tdata(form)
         # Assign using path
         assert len(path) == 2
         node, last = path

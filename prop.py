@@ -414,7 +414,7 @@ def prop_lhs(lhs):
     return t
 
 def prop_DT(form):
-    dtT = TData(form, [])
+    dtT = vanilla_tdata(form)
     for c in form.ctors:
         set_type(c, TFunc([f.type for f in c.fields], dtT))
 

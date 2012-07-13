@@ -221,7 +221,7 @@ def check_lhs_as_itself(a):
     return t
 
 def check_DT(form):
-    dtT = TData(form, [])
+    dtT = vanilla_tdata(form)
     # TODO: check ctor types? shouldn't really be relying on their TypeOfs?
 
 def destructure_tuple(ps, t):

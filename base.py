@@ -287,12 +287,15 @@ def parse_new_type(t, tvars):
     return in_env(NEWTYPEVARS, None, lambda:
             in_env(TVARS, tvars, lambda: parse_type(t)))
 
+def vanilla_tdata(form):
+    return TData(form, map(TVar, form.tvars))
+
 def parse_type(t):
     if type(t) is type and issubclass(t, Structured):
         form = t.__form__
         if isinstance(form, Ctor):
             form = t.__dt__.__form__
-        return TData(form, [])
+        return vanilla_tdata(form)
     elif isinstance(t, basestring):
         key = t.replace('->', '>').replace('*', '-')
         t = _parsed_type_cache.get(key)
@@ -368,7 +371,7 @@ def realize_type(t):
                 tvars[t] = tvar
             return TVar(tvar)
         elif t in DATATYPES:
-            return TData(DATATYPES[t].__form__, [])
+            return vanilla_tdata(DATATYPES[t].__form__)
         elif t in types_by_name:
             return types_by_name[t]()
         else:
@@ -380,7 +383,7 @@ def realize_type(t):
 TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
 def t_DT(dt):
-    return TData(dt.__dt__.__form__, [])
+    return vanilla_tdata(dt.__dt__.__form__)
 
 def _apply_list_type(t):
     listT = parse_type('List')
