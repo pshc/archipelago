@@ -222,7 +222,9 @@ def check_lhs_as_itself(a):
 
 def check_DT(form):
     dtT = vanilla_tdata(form)
-    # TODO: check ctor types? shouldn't really be relying on their TypeOfs?
+    for ctor in form.ctors:
+        ctorT = TFunc([f.type for f in ctor.fields], dtT)
+        typecheck(extrinsic(TypeOf, ctor), ctorT)
 
 def destructure_tuple(ps, t):
     ts = match(t, "CTuple(ts)")
