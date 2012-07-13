@@ -212,15 +212,10 @@ MODREPR = new_env('MODREPR', ModRepr)
 
 def write_mod_repr(filename, m, exts):
     with file(filename, 'w') as f:
-        had_color = env(GENOPTS).color
-        env(GENOPTS).color = False
-
         def write(x):
             f.write('%s%s\n' % ('  ' * env(MODREPR).indent, x))
         init = ModRepr(write, 0, exts, set(), {}, 0)
         in_env(MODREPR, init, lambda: _do_repr(m.root))
-
-        env(GENOPTS).color = had_color
 
 def _do_repr(s):
     c = env(MODREPR)

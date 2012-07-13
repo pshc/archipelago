@@ -51,7 +51,7 @@ def load_module_dep(src, deps):
             lambda: astconv.convert_file(src, name, deps))
         add_extrinsic(Filename, mod, name)
 
-        view = 'views/%s.txt' % (name,)
+        view = 'views/%s' % (name,)
         atom.write_mod_repr(view, mod, [Name])
 
         scan.scan_root(mod.root)
@@ -154,7 +154,7 @@ def load_builtins():
         exports[name] = sym
     astconv.loaded_module_export_names[mod] = exports
 
-    atom.write_mod_repr('views/symbols.txt', mod, [Name])
+    atom.write_mod_repr('views/symbols', mod, [Name])
 
     native.serialize(mod)
 
@@ -200,7 +200,7 @@ def load_forms():
 
     mod = Module(t_DT(DtList), DtList(forms))
     add_extrinsic(Name, mod, 'forms')
-    atom.write_mod_repr('views/forms.txt', mod, [Name])
+    atom.write_mod_repr('views/forms', mod, [Name])
     native.serialize(mod)
 
     names_mod = extrinsic_mod(Name, names, mod)
