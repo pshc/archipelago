@@ -96,6 +96,8 @@ _inject_type_reprs()
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
     return match(t, ("tv==TVar(_)", f),
+                    ("TData(dt, ts)", lambda dt, ts:
+                        TData(dt, [map_type_vars(f, t) for t in ts])),
                     ("TFunc(args, ret)", lambda args, ret:
                         TFunc([map_type_vars(f, a) for a in args],
                               map_type_vars(f, ret))),
