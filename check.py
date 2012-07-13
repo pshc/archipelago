@@ -69,8 +69,8 @@ def pat_capture(v, p):
     _check_pat(p)
 
 def pat_ctor(ref, ctor, args):
-    ctorT = instantiate(ref, ctor)
-    fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
+    ctorT = extrinsic(TypeOf, ctor)
+    fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
     check(dt)
     for arg, fieldT in ezip(args, fieldTs):
         in_env(CHECK, fieldT, lambda: _check_pat(arg))
