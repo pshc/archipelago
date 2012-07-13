@@ -501,6 +501,11 @@ def prop_top_defn(topDefn, pat, e):
                 insts = {}
                 for tv, ct in sites[bind].iteritems():
                     insts[tv] = generalize_type(ct)
+                if env(GENOPTS).dumpInsts:
+                    print fmtcol('^Purple^inst ^N{0} ^Purple^w/ types^N {1}',
+                            bind, insts)
+                    print '  ', origT
+                    print mark('->'), instT
                 add_extrinsic(Instantiation, bind, insts)
 
     top = PropTop(topDefn, [])

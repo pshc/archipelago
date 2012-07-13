@@ -226,7 +226,7 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    options = GenOpts(False, None, False)
+    options = GenOpts(False, None, False, False)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
@@ -240,6 +240,8 @@ def main():
                 options.color = TermColors
             elif arg == '-t':
                 options.dumpTypes = True
+            elif arg == '-i':
+                options.dumpInsts = True
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:

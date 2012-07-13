@@ -409,7 +409,10 @@ _parse_deferred()
 
 # Global options
 
-GenOpts = DT('GenOpts', ('quiet', bool), ('color', None), ('dumpTypes', bool))
+GenOpts = DT('GenOpts', ('quiet', bool),
+                        ('color', None),
+                        ('dumpTypes', bool),
+                        ('dumpInsts', bool))
 GENOPTS = new_env('GENOPTS', GenOpts)
 
 import re
