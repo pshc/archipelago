@@ -26,7 +26,10 @@ def in_new_scope(retT, f):
     new_scope = PropScope(retT, localVars)
     return in_env(PROPSCOPE, new_scope, f)
 
-MetaCell = DT('MetaCell', ('type', 'Maybe(CType)'))
+MetaCell, Free, Mono, Subst = ADT('MetaCell',
+    'Free', ('origTypeVar', '*TypeVar'),
+    'Mono',
+    'Subst', ('type', 'CType'))
 
 # instantiated types
 CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
@@ -52,8 +55,11 @@ INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', {'*TypeVar': Type})
 
-def fresh():
-    return CMeta(MetaCell(Nothing()))
+def fresh(tv):
+    return CMeta(Free(tv))
+
+def fresh_monotype():
+    return CMeta(Mono())
 
 def inst_tvar(tv):
     if have_env(SUBST):
@@ -63,7 +69,7 @@ def inst_tvar(tv):
         return ctype(t)
     else:
         if not has_extrinsic(InstMeta, tv):
-            add_extrinsic(InstMeta, tv, fresh())
+            add_extrinsic(InstMeta, tv, fresh(tv))
         return extrinsic(InstMeta, tv)
 
 def inst_tdata(dt, ts):
@@ -89,7 +95,9 @@ def instantiate_type(site, t):
     captures = {}
     ct = capture_scoped([InstMeta], captures,
             lambda: in_env(INST, inst, lambda: _inst_type(t)))
-    add_extrinsic(InstSite, site, captures[InstMeta])
+    insts = captures[InstMeta]
+    if len(insts) > 0:
+        add_extrinsic(InstSite, site, insts)
     return ct
 
 def ctype(t):
@@ -100,7 +108,7 @@ def ctype_replaced(t, substs):
 
 def gen_tdata(dt, ats):
     assert len(ats) == len(dt.tvars)
-    return TData(dt, [generalize_type(at) for at in ats])
+    return TData(dt, [_gen_type(at) for at in ats])
 
 def gen_new_tvar(cell):
     # XXX need to look for existing annot tvar and use it instead if present
@@ -111,6 +119,9 @@ def gen_new_tvar(cell):
         add_extrinsic(TypeVars, top, [])
     extrinsic(TypeVars, top).append(tvar)
     return TVar(tvar)
+
+def free_monotype():
+    assert False, with_context("Can't infer param type", "monotypes only")
 
 def _gen_type(s):
     return match(s,
@@ -123,38 +134,17 @@ def _gen_type(s):
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
-        ('CMeta(cell==MetaCell(Nothing()))', gen_new_tvar),
-        ('CMeta(MetaCell(Just(s)))', _gen_type))
+        ('CMeta(Free(tv))', TVar),
+        ('CMeta(Mono())', free_monotype),
+        ('CMeta(Subst(s))', _gen_type))
 
-def generalize_type(t):
+def finalize_type(t):
     return _gen_type(t)
 
 def unification_failure(src, dest, msg):
     desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
             type(src), src, type(dest), dest)
     assert False, with_context(desc, msg)
-
-def try_unite_two_metas(src, scell, dest, dcell):
-    if scell is dcell:
-        pass
-    elif isJust(scell.type) and isJust(dcell.type):
-        try_unite(fromJust(scell.type), fromJust(dcell.type))
-    elif isJust(scell.type):
-        # XXX ought to narrow properly
-        dest.cell = scell
-    else:
-        src.cell = dcell
-
-def try_unite_meta(m, mcell, dest):
-    if isJust(mcell.type):
-        try_unite(fromJust(mcell.type), dest)
-    else:
-        # zonking dest might be a good idea
-        mcell.type = Just(dest)
-
-def try_unite_meta_backwards(dest, m, mcell):
-    # XXX ought to narrow properly
-    try_unite_meta(m, mcell, dest)
 
 def try_unite_tuples(src, list1, dest, list2):
     for s, d in ezip(list1, list2):
@@ -179,15 +169,57 @@ def try_unite_typevars(src, stv, dest, dtv):
     if stv is not dtv:
         unification_failure(src, dest, "typevars")
 
-def unify(src, dest):
-    in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
+def try_unite_two_metas(src, dest):
+    if src is dest:
+        return
+    srcType = match(src.cell.meta, ('Subst(t)', Just), ('_', Nothing))
+    destType = match(dest.cell.meta, ('Subst(t)', Just), ('_', Nothing))
+    if isJust(srcType) and isJust(destType):
+        try_unite(fromJust(srcType), fromJust(destType))
+    elif isJust(srcType):
+        # XXX ought to narrow properly
+        dest.cell = Subst(src)
+    else:
+        src.cell = Subst(dest)
+
+def set_meta_subst(src, dest):
+    src.cell = Subst(dest)
+
+def copy_mono_subst(src, dest):
+    # mono modifier may be too viral?
+    dest.cell = Mono()
+    src.cell = Subst(dest)
+
+def try_unite_meta(m, cell, dest):
+    m.cell = Subst(dest)
+    if isJust(mcell.type):
+        try_unite(fromJust(mcell.type), dest)
+    else:
+        # zonking dest might be a good idea
+        mcell.type = Just(dest)
+
+def try_unite_meta_backwards(dest, meta):
+    # XXX ought to narrow properly
+    try_unite(meta, dest)
 
 def try_unite(src, dest):
+    if src is dest:
+        return
     fail = lambda m: unification_failure(src, dest, m)
     match((src, dest),
-        ("(src==CMeta(scell), dest==CMeta(dcell))", try_unite_two_metas),
-        ("(m==CMeta(mcell), dest)", try_unite_meta),
-        ("(dest, m==CMeta(mcell))", try_unite_meta_backwards),
+        ("(CMeta(Subst(s)), CMeta(Subst(d)))", try_unite),
+        # two free vars
+        ("(src==CMeta(Free(_)), t==CMeta(Free(_) or Mono()))", set_meta_subst),
+        ("(src==CMeta(Mono()), t==CMeta(Mono()))", set_meta_subst),
+        ("(src==CMeta(Mono()), t==CMeta(Free(_)))", copy_mono_subst),
+        # free -> some type (direct unification)
+        ("(CMeta(Subst(src)), dest)", try_unite),
+        ("(CMeta(Mono()), CVar(_))", lambda:
+            fail("Can't infer polytype for func params/ret; provide annot")),
+        ("(m==CMeta(_), dest)", set_meta_subst),
+        # some type -> free (possible generalization)
+        ("(dest, m==CMeta(_))", try_unite_meta_backwards),
+
         ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
         ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
         ("(CArray(t1), CArray(t2))", try_unite),
@@ -196,6 +228,9 @@ def try_unite(src, dest):
         ("(src==CPrim(sp), dest==CPrim(dp))", try_unite_prims),
         ("(CVoid(), CVoid())", nop),
         ("_", lambda: fail("type mismatch")))
+
+def unify(src, dest):
+    in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
 
 def unify_m(e):
     unify(env(INPAT), e)
@@ -279,13 +314,13 @@ def prop_ternary(c, t, f):
     return tf
 
 def infer_func(f, ps, b):
-    rt = fresh()
+    rt = fresh_monotype()
     def inside_func():
         localVars = env(PROPSCOPE).localVars
         pts = []
         for p in ps:
             assert p not in localVars
-            pt = fresh()
+            pt = fresh_monotype()
             set_var_ctype(p, pt)
             pts.append(pt)
 
@@ -480,33 +515,38 @@ def prop_body(body):
     for s in body.stmts:
         prop_stmt(s)
 
+def original_typeof(site):
+    # XXX Need typeclasses!
+    return match(site,
+        ("PatCtor(ctor, _)", lambda ctor:
+                vanilla_tdata(extrinsic(TypeOf, ctor).funcRet.data)),
+        ("Bind(binding)", binding_typeof))
+
 def prop_top_defn(topDefn, pat, e):
 
     def go(pat, e, captures, top):
         prop_defn(pat, e)
         # Finalize inferred types
         for v, ct in captures[PendingType].iteritems():
-            set_type(v, generalize_type(ct))
+            set_type(v, finalize_type(ct))
         # Record instantiations
         sites = captures[InstSite]
-        for bind in top.binds:
 
-            # This type comparison shouldn't really be necessary.
-            # Will want to just check for an inst map instead.
-            # (Assuming there are no extraneous typevars; needs enforcing)
-            origT = binding_typeof(bind.binding)
-            instT = extrinsic(TypeOf, bind)
-            if not type_equal(instT, origT):
+        for site, mapping in sites.iteritems():
+            insts = {}
+            for tv, ct in mapping.iteritems():
+                insts[tv] = finalize_type(ct)
+            origT = original_typeof(site)
+            instT = extrinsic(TypeOf, site)
+            assert not type_equal(instT, origT), with_context("Impotent inst",
+                    "Type %s unaffected by %s" % (origT, insts))
 
-                insts = {}
-                for tv, ct in sites[bind].iteritems():
-                    insts[tv] = generalize_type(ct)
-                if env(GENOPTS).dumpInsts:
-                    print fmtcol('^Purple^inst ^N{0} ^Purple^w/ types^N {1}',
-                            bind, insts)
-                    print '  ', origT
-                    print mark('->'), instT
-                add_extrinsic(Instantiation, bind, insts)
+            if env(GENOPTS).dumpInsts:
+                print fmtcol('^Purple^inst ^N{0} ^Purple^w/ types^N {1}',
+                        site, insts)
+                print '  ', origT
+                print mark('->'), instT
+            add_extrinsic(Instantiation, site, insts)
 
     top = PropTop(topDefn, [])
     captures = {}

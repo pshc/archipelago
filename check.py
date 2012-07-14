@@ -68,8 +68,10 @@ def pat_capture(v, p):
     pat_var(v)
     _check_pat(p)
 
-def pat_ctor(ref, ctor, args):
+def pat_ctor(pat, ctor, args):
     ctorT = extrinsic(TypeOf, ctor)
+    if has_extrinsic(Instantiation, pat):
+        ctorT = subst(extrinsic(Instantiation, pat), ctorT)
     fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
     check(dt)
     for arg, fieldT in ezip(args, fieldTs):
@@ -83,7 +85,7 @@ def _check_pat(p):
         ("PatTuple(ps)", pat_tuple),
         ("PatVar(v)", pat_var),
         ("PatCapture(v, p)", pat_capture),
-        ("p==PatCtor(c, args)", pat_ctor))
+        ("pat==PatCtor(c, args)", pat_ctor))
 
 def check_pat_as(t, p):
     # bad type, meh
