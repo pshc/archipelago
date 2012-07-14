@@ -58,7 +58,7 @@ def load_module_dep(src, deps):
         atom.write_mod_repr(view, mod, [Name, TypeOf, InstMap])
 
         prop.prop_types(mod.root)
-        atom.write_mod_repr(view, mod, [Name, TypeOf])
+        atom.write_mod_repr(view, mod, [Name, TypeOf, Instantiation])
 
         return mod
     mod = scope_extrinsic(InstMap,

@@ -258,12 +258,12 @@ def _do_repr(s):
     elif isinstance(s, (tuple, list)):
         l, r = '()' if isinstance(s, tuple) else '[]'
         if not s:
-            c.write(l + r)
+            c.write(fmtcol('^Blue{0}{1}^N', l, r))
         else:
-            c.write(l)
+            c.write(fmtcol('^Blue{0}^N', l))
             for o in s:
                 _do_repr(o)
-            c.write(r)
+            c.write(fmtcol('^Blue{0}^N', r))
     elif isinstance(s, value_types):
         c.write(repr(s))
     else:
