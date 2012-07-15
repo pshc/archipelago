@@ -132,6 +132,9 @@ def binding_typeof(b):
                     ("BindCtor(c)", lambda c: extrinsic(TypeOf, c)),
                     ("BindVar(v)", lambda v: extrinsic(TypeOf, v)))
 
+def ctor_dt_typeof(ctor):
+    return vanilla_tdata(extrinsic(TypeOf, ctor).funcRet.data)
+
 def make_builtin_scheme(name, t):
     tvars = {}
     if t is None:

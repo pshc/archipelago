@@ -557,35 +557,26 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
-def original_definition(f):
-    return match(f, ("Bind(BindVar(v))", identity),
-                    ("Bind(BindCtor(c))", identity))
-
 def write_call(f, args, rett):
-    fx = express(f)
-    t = typeof(original_definition(f))
-    paramts, frett = match(t, ("IFunc(pts, rt)", tuple2))
-    argxs = [cast(express_typed(arg), pt) for arg, pt in ezip(args, paramts)]
+    fx = express_casted(f)
+    argxs = [express_casted(arg) for arg in args]
 
-    if matches(frett, "IVoid()"):
-        call_void(fx, argxs)
+    if matches(rett, "IVoid()"):
+        call_void(fx.xpr, argxs)
         return Nothing()
 
-    tmp = call(frett, fx, argxs)
-    return Just(cast(tmp, rett))
+    return Just(call(rett, fx.xpr, argxs))
 
-def write_runtime_call(name, args, rett):
+def write_runtime_call(name, argxs, rett):
     decl = runtime_decl(name)
-    paramts, frett = match(typeof(decl), ("IFunc(pts, rt)", tuple2))
-    argxs = [cast(arg, pt) for arg, pt in ezip(args, paramts)]
 
     fx = func_ref(decl)
-    if matches(frett, "IVoid()"):
+    if matches(rett, "IVoid()"):
         call_void(fx, argxs)
         return Nothing()
 
-    tmp = call(frett, fx, argxs)
-    return Just(cast(tmp, rett))
+    tmp = call(rett, fx, argxs)
+    return Just(tmp)
 
 def expr_call(e, f, args):
     t = typeof(e)
@@ -659,7 +650,7 @@ def expr_getextrinsic(extr, e, exists):
     sym = '_hasextrinsic' if exists else '_getextrinsic'
     extrx = TypedXpr(IVoidPtr(), global_ref(extr))
     t = IBool() if exists else convert_type(extr.type)
-    ex = express_typed(e)
+    ex = express_casted(e)
     return fromJust(write_runtime_call(sym, [extrx, ex], t)).xpr
 
 def expr_scopeextrinsic(extr, e):
@@ -759,6 +750,13 @@ def express(expr):
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
 
+def express_casted(expr):
+    if not has_extrinsic(TypeCast, expr):
+        return express_typed(expr)
+    ex = express(expr)
+    src, dest = extrinsic(TypeCast, expr)
+    return cast(TypedXpr(convert_type(src), ex), convert_type(dest))
+
 # PATTERN MATCHES
 
 MatchState = DT('MatchState', ('failureBlock', Label))
@@ -785,8 +783,13 @@ def match_pat_ctor(pat, ctor, ps, tx):
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(Name, f), ctorval, index)
-        ft = convert_type(f.type)
-        match_pat(p, TypedXpr(ft, val))
+        if has_extrinsic(TypeCast, p):
+            # DT instantiation affects this field
+            src, dest = extrinsic(TypeCast, p)
+            ptx = cast(TypedXpr(convert_type(src), val), convert_type(dest))
+        else:
+            ptx = TypedXpr(convert_type(f.type), val)
+        match_pat(p, ptx)
 
 def match_pat_tuple(ps, tx):
     with_pat_tuple(ps, tx, match_pat)
@@ -1149,8 +1152,8 @@ def write_while(stmt, cond, body):
 def write_writeextrinsic(extr, node, val, isNew):
     sym = '_addextrinsic' if isNew else '_updateextrinsic'
     extrx = TypedXpr(IVoidPtr(), global_ref(extr))
-    n = express_typed(node)
-    v = express_typed(val)
+    n = express_casted(node)
+    v = express_casted(val)
     r = write_runtime_call(sym, [extrx, n, v], IVoid())
     assert isNothing(r)
 

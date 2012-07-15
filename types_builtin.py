@@ -107,6 +107,23 @@ def map_type_vars(f, t):
                     ("TWeak(t)", lambda t: TWeak(map_type_vars(f, t))),
                     ("_", lambda: t))
 
+def visit_type_vars(f, t):
+    visit = lambda t: visit_type_vars(f, t)
+    visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
+    return match(t, ("TVar(tv)", f),
+                    ("TData(_, ts)", visit_many),
+                    ("TFunc(args, ret)", lambda args, ret:
+                        visit_many(args) and visit(ret)),
+                    ("TTuple(ts)", visit_many),
+                    ("TArray(t)", visit),
+                    ("TWeak(t)", visit),
+                    ("_", lambda: True))
+
+def collect_type_vars(t):
+    seen = set()
+    visit_type_vars(lambda tv: seen.add(tv.typeVar) or True, t)
+    return seen
+
 def _var(n): return TVar(n)
 
 # Tuples are a shortcut for functions

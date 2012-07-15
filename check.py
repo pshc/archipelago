@@ -6,8 +6,6 @@ from globs import TypeOf
 
 CHECKSCOPE = new_env('CHECKSCOPE', Type)
 
-TypeCast = new_extrinsic('TypeCast', (Type, Type))
-
 CHECK = new_env('CHECK', Type)
 
 def unification_failure(src, dest, msg):
@@ -70,12 +68,23 @@ def pat_capture(v, p):
 
 def pat_ctor(pat, ctor, args):
     ctorT = extrinsic(TypeOf, ctor)
-    if has_extrinsic(Instantiation, pat):
-        ctorT = subst(extrinsic(Instantiation, pat), ctorT)
     fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
-    check(dt)
-    for arg, fieldT in ezip(args, fieldTs):
-        in_env(CHECK, fieldT, lambda: _check_pat(arg))
+    if has_extrinsic(Instantiation, pat):
+        inst = extrinsic(Instantiation, pat)
+        ctorT = checked_subst(inst, ctorT)
+        paramTs, pdt = match(ctorT, ("TFunc(ps, pdt)", tuple2))
+        check(pdt)
+        # Check whether each field is affected by instantiation or not
+        for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
+            if subst_affects(inst, fieldT):
+                # both these types are pretty obvious from the context...
+                typecast = (fieldT, paramT)
+                add_extrinsic(TypeCast, arg, typecast)
+            in_env(CHECK, paramT, lambda: _check_pat(arg))
+    else:
+        check(dt)
+        for arg, fieldT in ezip(args, fieldTs):
+            in_env(CHECK, fieldT, lambda: _check_pat(arg))
 
 def _check_pat(p):
     match(p,
@@ -91,14 +100,69 @@ def check_pat_as(t, p):
     # bad type, meh
     in_env(CHECK, t, lambda: in_env(EXPRCTXT, p, lambda: _check_pat(p)))
 
-def subst(mapping, t):
-    return map_type_vars(lambda tv: mapping.get(tv.typeVar, tv), t)
+def occurs(typeVar, t):
+    return not visit_type_vars(lambda tv: tv is not typeVar, t)
+
+def subst_affects(mapping, t):
+    return not visit_type_vars(lambda tv: tv not in mapping, t)
+
+# Make sure the input is sane and non-redundant
+def checked_subst(mapping, t):
+    for tvar, rt in mapping.iteritems():
+        assert not occurs(tvar, rt), "%s occurs in replacement %s" % (tvar, rt)
+    unseen = set(mapping)
+    assert len(unseen) > 0, "Empty substitution for %s" % (t,)
+    def app(st):
+        tvar = st.typeVar
+        if tvar in mapping:
+            st = mapping[tvar]
+            if tvar in unseen:
+                unseen.remove(tvar)
+        return st
+    s = map_type_vars(app, t)
+    assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
+    return s
 
 def check_binding(bind, binding):
     t = binding_typeof(binding)
     if has_extrinsic(Instantiation, bind):
-        t = subst(extrinsic(Instantiation, bind), t)
+        newT = checked_subst(extrinsic(Instantiation, bind), t)
+        add_extrinsic(TypeCast, bind, (t, newT))
+        t = newT
     check(t)
+
+def check_inst_call(e, inst, f, args):
+    # Instead of typecasting f, typecast its args backwards
+    origT = binding_typeof(match(f, 'Bind(binding)'))
+    origArgTs, origRetT = match(origT, ("TFunc(args, ret)", tuple2))
+    t = checked_subst(inst, origT)
+
+    # Avoid check_expr_as() here to avoid check_binding(), which would conflict
+    typecheck(t, extrinsic(TypeOf, f))
+
+    argTs, retT = match(t, ("TFunc(args, ret)", tuple2))
+    if subst_affects(inst, origRetT):
+        # XXX this is going to clobber other casts... need to be able to
+        # compose them? or do this differently?
+        #add_extrinsic(TypeCast, e, (origRetT, retT))
+        pass
+    check(retT)
+
+    for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
+        if subst_affects(inst, origT):
+            # cast back into the field spec type
+            add_extrinsic(TypeCast, arg, (newT, origT))
+        check_expr_as(newT, arg)
+
+def check_call(e, f, args):
+    if has_extrinsic(Instantiation, f):
+        check_inst_call(e, extrinsic(Instantiation, f), f, args)
+        return
+    t = check_expr_as_itself(f)
+    argts, rett = match(t, ("TFunc(args, ret)", tuple2))
+    check(rett)
+    for arg, t in ezip(args, argts):
+        check_expr_as(t, arg)
 
 def check_tuplelit(es):
     ts = match(env(CHECK), "TTuple(ts)")
@@ -109,13 +173,6 @@ def check_listlit(es):
     ts = match(env(CHECK), "TArray(ts)")
     for t, e in ezip(ts, es):
         check_expr_as(t, e)
-
-def check_call(f, args):
-    t = check_expr_as_itself(f)
-    argts, rett = match(t, ("TFunc(args, ret)", tuple2))
-    check(rett)
-    for arg, t in ezip(args, argts):
-        check_expr_as(t, arg)
 
 def check_logic(l, r):
     check_expr_as(TBool(), l)
@@ -182,9 +239,9 @@ def _check_expr(e):
     match(e,
         ("IntLit(_)", lambda: check(TInt())),
         ("StrLit(_)", lambda: check(TStr())),
+        ("e==Call(f, args)", check_call),
         ("TupleLit(es)", check_tuplelit),
         ("ListLit(es)", check_listlit),
-        ("Call(f, args)", check_call),
         ("And(l, r) or Or(l, r)", check_logic),
         ("Ternary(c, t, f)", check_ternary),
         ("FuncExpr(f==Func(ps, b))", check_func),

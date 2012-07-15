@@ -278,21 +278,22 @@ def _prop_pat(p):
         ("p==PatCtor(c, args)", pat_ctor))
     add_extrinsic(PendingType, p, env(INPAT))
 
+def inst_binding(bind, v):
+    t = extrinsic(TypeOf, v)
+    return instantiate_type(bind, extrinsic(TypeOf, v))
+
 def prop_binding_var(b, v):
     ct = env(PROPSCOPE).localVars.get(v)
     if ct is not None:
-        # XXX might still need to attach instantiation context here?
         return ct
-    return instantiate_type(b, extrinsic(TypeOf, v))
+    return inst_binding(b, v)
 
 def prop_binding(bind):
     env(PROPTOP).binds.append(bind)
     return match(bind,
         ("bind==Bind(BindVar(v))", prop_binding_var),
-        ("Bind(BindCtor(c))", lambda c:
-            instantiate_type(bind, extrinsic(TypeOf, c))),
-        ("Bind(BindBuiltin(v))", lambda v:
-            instantiate_type(bind, extrinsic(TypeOf, v))))
+        ("bind==Bind(BindCtor(c))", inst_binding),
+        ("bind==Bind(BindBuiltin(v))", inst_binding))
 
 def prop_call(f, s):
     ft = prop_expr(f)
@@ -516,10 +517,9 @@ def prop_body(body):
         prop_stmt(s)
 
 def original_typeof(site):
-    # XXX Need typeclasses!
+    # XXX Need typeclasses! (this is debug-only at least)
     return match(site,
-        ("PatCtor(ctor, _)", lambda ctor:
-                vanilla_tdata(extrinsic(TypeOf, ctor).funcRet.data)),
+        ("PatCtor(ctor, _)", ctor_dt_typeof),
         ("Bind(binding)", binding_typeof))
 
 def prop_top_defn(topDefn, pat, e):
@@ -536,16 +536,18 @@ def prop_top_defn(topDefn, pat, e):
             insts = {}
             for tv, ct in mapping.iteritems():
                 insts[tv] = finalize_type(ct)
+
+            # For debugging only (this check is done by the typechecker)
             origT = original_typeof(site)
             instT = extrinsic(TypeOf, site)
             assert not type_equal(instT, origT), with_context("Impotent inst",
                     "Type %s unaffected by %s" % (origT, insts))
-
             if env(GENOPTS).dumpInsts:
                 print fmtcol('^Purple^inst ^N{0} ^Purple^w/ types^N {1}',
                         site, insts)
                 print '  ', origT
                 print mark('->'), instT
+
             add_extrinsic(Instantiation, site, insts)
 
     top = PropTop(topDefn, [])
