@@ -11,10 +11,7 @@ PropScope = DT('PropScope', ('retType', 'Maybe(CType)'),
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
-PropTop = DT('PropTop', ('topLevel', '*TopLevel'),
-                        ('binds', ['*Expr']))
-
-PROPTOP = new_env('PROPTOP', PropTop)
+PROPTOP = new_env('PROPTOP', '*TopLevel')
 
 InstMeta = new_extrinsic('InstMeta', 'CType')
 InstSite = new_extrinsic('InstSite', {'*TypeVar': 'CType'})
@@ -111,8 +108,7 @@ def gen_tdata(dt, ats):
     return TData(dt, [_gen_type(at) for at in ats])
 
 def gen_new_tvar(cell):
-    # XXX need to look for existing annot tvar and use it instead if present
-    top = env(PROPTOP).topLevel
+    top = env(PROPTOP)
     tvar = TypeVar()
     cell.type = Just(CVar(tvar))
     if not has_extrinsic(TypeVars, top):
@@ -289,7 +285,6 @@ def prop_binding_var(b, v):
     return inst_binding(b, v)
 
 def prop_binding(bind):
-    env(PROPTOP).binds.append(bind)
     return match(bind,
         ("bind==Bind(BindVar(v))", prop_binding_var),
         ("bind==Bind(BindCtor(c))", inst_binding),
@@ -524,7 +519,7 @@ def original_typeof(site):
 
 def prop_top_defn(topDefn, pat, e):
 
-    def go(pat, e, captures, top):
+    def go(pat, e, captures):
         prop_defn(pat, e)
         # Finalize inferred types
         for v, ct in captures[PendingType].iteritems():
@@ -550,11 +545,10 @@ def prop_top_defn(topDefn, pat, e):
 
             add_extrinsic(Instantiation, site, insts)
 
-    top = PropTop(topDefn, [])
     captures = {}
     capture_scoped([PendingType, InstSite], captures,
-        lambda: in_env(PROPTOP, top,
-        lambda: go(pat, e, captures, top)))
+        lambda: in_env(PROPTOP, topDefn,
+        lambda: go(pat, e, captures)))
 
 
 def prop_top_level(a):
