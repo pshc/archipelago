@@ -78,8 +78,7 @@ def pat_ctor(pat, ctor, args):
         for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
             if subst_affects(inst, fieldT):
                 # both these types are pretty obvious from the context...
-                typecast = (fieldT, paramT)
-                add_extrinsic(TypeCast, arg, typecast)
+                add_typecast(arg, fieldT, paramT)
             in_env(CHECK, paramT, lambda: _check_pat(arg))
     else:
         check(dt)
@@ -123,11 +122,18 @@ def checked_subst(mapping, t):
     assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
     return s
 
+def add_typecast(e, src, dest):
+    if match((src, dest), ('(TData(a, _), TData(b, _))', lambda a, b: a is b),
+                          ('_', lambda: False)):
+        # LLVM repr doesn't distinguish this case, so don't bother
+        return
+    add_extrinsic(TypeCast, e, (src, dest))
+
 def check_binding(bind, binding):
     t = binding_typeof(binding)
     if has_extrinsic(Instantiation, bind):
         newT = checked_subst(extrinsic(Instantiation, bind), t)
-        add_extrinsic(TypeCast, bind, (t, newT))
+        add_typecast(bind, t, newT)
         t = newT
     check(t)
 
@@ -144,14 +150,14 @@ def check_inst_call(e, inst, f, args):
     if subst_affects(inst, origRetT):
         # XXX this is going to clobber other casts... need to be able to
         # compose them? or do this differently?
-        #add_extrinsic(TypeCast, e, (origRetT, retT))
+        #add_typecast(e, origRetT, retT)
         pass
     check(retT)
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
         if subst_affects(inst, origT):
             # cast back into the field spec type
-            add_extrinsic(TypeCast, arg, (newT, origT))
+            add_typecast(arg, newT, origT)
         check_expr_as(newT, arg)
 
 def check_call(e, f, args):

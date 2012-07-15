@@ -324,8 +324,9 @@ def build_struct(t, args):
 
 def cast(txpr, dest):
     src = txpr.type
-    if itypes_equal(src, dest):
+    if matches((src, dest), '(IVoidPtr(), IVoidPtr())'):
         return txpr
+    assert not itypes_equal(src, dest), "Pointless %s cast to itself" % (src,)
     s = IVoidPtr() if matches(src, 'IPtr(_)') else src
     d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
     kind = match((s, d),
