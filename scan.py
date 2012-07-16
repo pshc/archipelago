@@ -88,7 +88,7 @@ def instantiate(site, v):
         instantiate_type(site, extrinsic(TypeOf, v))
 
 def scan_binding(b):
-    # Typeclasses would be nice
+    # fmap would be nice, but this is going to change anyway
     match(b,
         ("s==BindVar(v)", instantiate),
         ("s==BindCtor(c)", instantiate),

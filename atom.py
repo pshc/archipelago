@@ -127,12 +127,18 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
 
-def binding_typeof(b):
+Binder = new_typeclass('Binder', ('typeof', 'a -> Type'))
+
+@impl(Binder, Expr)
+def Expr_typeof(bind):
+    b = match(bind, "Bind(binding)")
     return match(b, ("BindBuiltin(b)", lambda b: extrinsic(TypeOf, b)),
                     ("BindCtor(c)", lambda c: extrinsic(TypeOf, c)),
                     ("BindVar(v)", lambda v: extrinsic(TypeOf, v)))
 
-def ctor_dt_typeof(ctor):
+@impl(Binder, Pat)
+def Pat_typeof(p):
+    ctor = match(p, "PatCtor(ctor, _)")
     return vanilla_tdata(extrinsic(TypeOf, ctor).funcRet.data)
 
 def make_builtin_scheme(name, t):

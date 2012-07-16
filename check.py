@@ -130,7 +130,7 @@ def add_typecast(e, src, dest):
     add_extrinsic(TypeCast, e, (src, dest))
 
 def check_binding(bind, binding):
-    t = binding_typeof(binding)
+    t = Binder.typeof(bind)
     if has_extrinsic(Instantiation, bind):
         newT = checked_subst(extrinsic(Instantiation, bind), t)
         add_typecast(bind, t, newT)
@@ -139,7 +139,7 @@ def check_binding(bind, binding):
 
 def check_inst_call(e, inst, f, args):
     # Instead of typecasting f, typecast its args backwards
-    origT = binding_typeof(match(f, 'Bind(binding)'))
+    origT = Binder.typeof(f)
     origArgTs, origRetT = match(origT, ("TFunc(args, ret)", tuple2))
     t = checked_subst(inst, origT)
 

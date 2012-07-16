@@ -410,6 +410,51 @@ def _parse_deferred():
     _deferred_type_parses = None
 _parse_deferred()
 
+# Typeclasses
+
+TypeClassInfo = DT('TypeClassInfo', ('name', str),
+                                    ('spec', {str: (int, Type)}),
+                                    ('impls', {'*DataType': ['a']}))
+
+def new_typeclass(name, *args):
+    spec = {}
+    impls = {}
+    info = TypeClassInfo(name, spec, impls)
+    def make_impl(i, nm):
+        # Very basic; only supports one-param functions right now
+        def lookup(obj):
+            t = type(obj)
+            if t not in impls:
+                t = t.__dt__
+            tnm = t.__name__
+            assert t in impls, "%s is not a part of %s" % (tnm, name)
+            func = impls[t][i]
+            assert func is not None, "%s.%s.%s has no impl" % (name, tnm, nm)
+            return func(obj)
+        lookup.__name__ = '_' + nm + '_typeclass_lookup'
+        return lookup
+    for i, (nm, t) in enumerate(args):
+        assert nm not in spec
+        tvars = {}
+        spec[nm] = (i, parse_new_type(t, tvars))
+        setattr(info, nm, make_impl(i, nm))
+    return info
+
+def impl(cls, t):
+    def decorator(func):
+        fnm = func.__name__
+        prefix = t.__name__ + '_'
+        assert fnm.startswith(prefix), "%s impl for %s must be named %s*" % (
+                cls.name, t, prefix)
+        fnm = fnm[len(prefix):]
+        assert fnm in cls.spec, "Unknown impl method: %s" % (fnm,)
+        i, specT = cls.spec[fnm]
+        if t not in cls.impls:
+            cls.impls[t] = [None] * len(cls.spec)
+        cls.impls[t][i] = func
+        return None
+    return decorator
+
 # Global options
 
 GenOpts = DT('GenOpts', ('quiet', bool),

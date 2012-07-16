@@ -511,12 +511,6 @@ def prop_body(body):
     for s in body.stmts:
         prop_stmt(s)
 
-def original_typeof(site):
-    # XXX Need typeclasses! (this is debug-only at least)
-    return match(site,
-        ("PatCtor(ctor, _)", ctor_dt_typeof),
-        ("Bind(binding)", binding_typeof))
-
 def prop_top_defn(topDefn, pat, e):
 
     def go(pat, e, captures):
@@ -533,7 +527,7 @@ def prop_top_defn(topDefn, pat, e):
                 insts[tv] = finalize_type(ct)
 
             # For debugging only (this check is done by the typechecker)
-            origT = original_typeof(site)
+            origT = Binder.typeof(site)
             instT = extrinsic(TypeOf, site)
             assert not type_equal(instT, origT), with_context("Impotent inst",
                     "Type %s unaffected by %s" % (origT, insts))
