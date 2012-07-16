@@ -452,10 +452,10 @@ def new_typeclass(name, *args):
 def impl(cls, targetT):
     def decorator(func):
         fnm = func.__name__
-        prefix = t.__name__ + '_'
-        assert fnm.startswith(prefix), "%s impl for %s must be named %s*" % (
-                cls.name, t, prefix)
-        fnm = fnm[len(prefix):]
+        suffix = '_' + targetT.__name__
+        assert fnm.endswith(suffix), "%s impl for %s must be named *%s" % (
+                cls.name, targetT, suffix)
+        fnm = fnm[:-len(suffix)]
         assert fnm in cls.spec, "Unknown impl method: %s" % (fnm,)
         if targetT not in cls.impls:
             default_impl(cls, targetT)
@@ -513,18 +513,14 @@ PrettyPrinted = new_extrinsic('PrettyPrinted', None)
 
 def pretty_brief(name, o):
     if name == 'Bind':
-        o = o.binding
+        o = o.target
         name = type(o).__name__
-        pb = pretty_brief(name, o)
-        if pb is not None:
-            return "'%s" % (pb,)
-
-    if name == 'BindBuiltin':
-        return col('Yellow', extrinsic(Name, o.builtin))
-    elif name == 'BindCtor':
-        return fmtcol('^Brown{0}^N', extrinsic(Name, o.ctor))
-    elif name == 'BindVar':
-        return repr(o.var)
+        if name == 'Builtin':
+            return col('Yellow', extrinsic(Name, o))
+        elif name == 'Ctor':
+            return fmtcol('^Brown{0}^N', extrinsic(Name, o))
+        elif name == 'Var':
+            return repr(o)
     elif name == 'IntLit':
         return col('Cyan', 'i%d' % (o.val,))
     elif name == 'StrLit':

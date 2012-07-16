@@ -20,12 +20,6 @@ Extrinsic = DT('Extrinsic', ('type', Type))
 
 Var = DT('Var')
 
-Binding, BindBuiltin, BindCtor, BindVar = \
-    ADT('Binding',
-        'BindBuiltin', ('builtin', '*Builtin'),
-        'BindCtor', ('ctor', '*Ctor'),
-        'BindVar', ('var', '*Var'))
-
 Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
     ADT('Pat',
         'PatCtor', ('ctor', '*Ctor'), ('args', '[Pat]'),
@@ -45,7 +39,7 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
     ADT('Expr',
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'Attr', ('expr', 'Expr'), ('field', '*Field'),
-        'Bind', ('binding', 'Binding'),
+        'Bind', ('target', '*a'), # Binder a => a
         'Call', ('func', 'Expr'), ('args', '[Expr]'),
         'DictLit', ('vals', '[(Expr, Expr)]'),
         'FuncExpr', ('func', 'Func'),
@@ -119,7 +113,7 @@ def with_context(desc, msg):
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
 def symcall(name, params):
-    return Call(Bind(BindBuiltin(BUILTINS[name])), params)
+    return Call(Bind(BUILTINS[name]), params)
 
 def getname(sym):
     return match(sym, 'named(nm)')
@@ -127,19 +121,19 @@ def getname(sym):
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
 
-Binder = new_typeclass('Binder', ('typeof', 'a -> Type'))
+Bindable = new_typeclass('Bindable',
+        ('isVar', 'a -> Var', lambda v: Nothing()))
 
-@impl(Binder, Expr)
-def Expr_typeof(bind):
-    b = match(bind, "Bind(binding)")
-    return match(b, ("BindBuiltin(b)", lambda b: extrinsic(TypeOf, b)),
-                    ("BindCtor(c)", lambda c: extrinsic(TypeOf, c)),
-                    ("BindVar(v)", lambda v: extrinsic(TypeOf, v)))
+# This is silly
+# Maybe can have types opt-in to RTTI?
+# Or just use Bindable a => a in prop and expand
 
-@impl(Binder, Pat)
-def Pat_typeof(p):
-    ctor = match(p, "PatCtor(ctor, _)")
-    return vanilla_tdata(extrinsic(TypeOf, ctor).funcRet.data)
+@impl(Bindable, Var)
+def isVar_Var(var):
+    return Just(var)
+
+default_impl(Bindable, Builtin)
+default_impl(Bindable, Ctor)
 
 def make_builtin_scheme(name, t):
     tvars = {}

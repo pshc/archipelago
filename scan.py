@@ -87,13 +87,6 @@ def instantiate(site, v):
     if has_extrinsic(TypeOf, v):
         instantiate_type(site, extrinsic(TypeOf, v))
 
-def scan_binding(b):
-    # fmap would be nice, but this is going to change anyway
-    match(b,
-        ("s==BindVar(v)", instantiate),
-        ("s==BindCtor(c)", instantiate),
-        ("s==BindBuiltin(b)", instantiate))
-
 def scan_expr(e):
     if has_extrinsic(AstHint, e):
         old = env(INWARD).closedVars
@@ -123,7 +116,7 @@ def _scan_expr(e):
         ("GetExtrinsic(_, e)", scan_expr),
         ("HasExtrinsic(_, e)", scan_expr),
         ("ScopeExtrinsic(_, f)", scan_expr),
-        ("Bind(b)", scan_binding)))
+        ("e==Bind(b)", instantiate)))
 
 def scan_lhs_attr(e, f):
     scan_expr(e)

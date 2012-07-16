@@ -44,11 +44,9 @@ def identifier(obj, name=None, namespace=valueNamespace,
             "Symbol '%s' already in %s env\n%s" % (
             name, namespace,
             '\n'.join('\t'+str(s) for s, ns in scope.syms if ns == namespace)))
-    try:
-        b = bind_kind(obj)
-    except ValueError:
-        assert False, "Can't bind %s %r to %r" % (namespace, obj, name)
-    scope.syms[key] = (obj, b)
+    assert check_bind_kind(obj), "Can't bind %s %r to %r" % (namespace, obj,
+            name)
+    scope.syms[key] = obj
     if not already_Named:
         add_extrinsic(Name, obj, name)
 
@@ -56,10 +54,10 @@ def identifier(obj, name=None, namespace=valueNamespace,
     missing_binds = omni.missingRefs.get(key)
     if missing_binds is not None:
         for bind in missing_binds:
-            bind.binding = b(obj)
+            bind.target = obj
         del omni.missingRefs[key]
     if export:
-        omni.exports[key] = (obj, b)
+        omni.exports[key] = obj
 
 def ident_exists(nm, namespace=valueNamespace):
     scope = env(SCOPE)
@@ -67,14 +65,12 @@ def ident_exists(nm, namespace=valueNamespace):
     while scope is not None:
         o = scope.syms.get(key)
         if o is not None:
-            var, b = o
-            return Just(b(var))
+            return Just(o)
         scope = scope.prevContext
 
     ext = env(OMNI).imports.get(key)
     if ext is not None:
-        var, b = ext
-        return Just(b(var))
+        return Just(ext)
 
     return Nothing()
 
@@ -88,17 +84,13 @@ def refs_existing(nm, namespace=valueNamespace):
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
     return fwd_ref
 
-def bind_kind(v):
-    if isinstance(v, Var):
-        return BindVar
-    elif isinstance(v, Builtin):
-        return BindBuiltin
-    elif isinstance(v, Ctor):
-        return BindCtor
+def check_bind_kind(v):
+    if isinstance(v, (Var, Builtin, Ctor)):
+        return True
     elif isinstance(v, (DataType, Env, Extrinsic)):
-        return identity
+        return True
     else:
-        raise ValueError("Can't bind to %r" % (v,))
+        return False
 
 def type_ref(nm):
     if nm in types_by_name:
@@ -160,7 +152,7 @@ def conv_type(t, tvars, dt=None):
         destroy_forward_ref(t)
         return type_ref(type_nm)
     return match(t,
-        ("BindBuiltin(_)", lambda: t),
+        ("Builtin(_)", lambda: t),
         ("TPrim(_)", lambda: t),
         ("StrLit(s)", lambda s: parse_new_type(s, tvars)),
         ("ListLit([t])",
@@ -246,7 +238,7 @@ def make_extrinsic(nm, t):
     return [TopExtrinsic(extr)]
 
 def refs_symbol(e):
-    return refs_existing(e.name, namespace=symbolNamespace).binding
+    return refs_existing(e.name, namespace=symbolNamespace).target
 
 @special_call('env')
 def conv_get_env(environ):
@@ -319,9 +311,9 @@ def conv_special(e):
 
 def replace_refs(mapping, e):
     # TODO: Need an expression walker
-    if isinstance(e, BindVar):
-        if e.var in mapping:
-            e.var = mapping[e.var]
+    if isinstance(e, Bind):
+        if e.target in mapping:
+            e.target = mapping[e.target]
     elif isinstance(e, Structured):
         for field in e.__form__.fields:
             if not isinstance(field.type, TWeak):
@@ -348,16 +340,16 @@ def conv_byneed(f):
     return conv_byneed_rebound(conv_expr(f), [])
 
 def conv_byneed_rebound(f, bs):
-    bname = match(f, ('Bind(BindVar(v))', lambda v: extrinsic(Name, v)),
+    bname = match(f, ('Bind(v)', lambda v: extrinsic(Name, v)),
                      ('_', lambda: None))
     special = bname and SPECIAL_CASES.get(bname)
     if special:
-        e = special(lambda i: Bind(BindVar(bs[i])))
+        e = special(lambda i: Bind(bs[i]))
     else:
         def rebind_func(params, b):
             return replace_refs(dict(ezip(params, bs)), extract_ret(b))
         e = match(f, ('FuncExpr(Func(params, b))', rebind_func),
-                     ('_', lambda: Call(f, [Bind(BindVar(b)) for b in bs])))
+                     ('_', lambda: Call(f, map(Bind, bs))))
     return e
 
 @inside_scope
@@ -397,8 +389,8 @@ def conv_match_try(node, bs):
             return symref("%s%d" % (nm, len(args)), args)
         else:
             b = refs_existing(nm)
-            assert isinstance(b.binding, BindCtor), "Can't bind to %s" % (b,)
-            return PatCtor(b.binding.ctor, args)
+            assert isinstance(b.target, Ctor), "Can't bind to %s" % (b,)
+            return PatCtor(b.target, args)
     elif isinstance(node, ast.Name):
         if node.name == '_':
             return PatWild()
@@ -654,7 +646,7 @@ def conv_try_reass(s):
         ref = ident_exists(s.name)
         if isNothing(ref):
             return Nothing()
-        return Just(LhsVar(fromJust(ref).var))
+        return Just(LhsVar(fromJust(ref)))
     elif isinstance(s, (ast.AssAttr, ast.Getattr)):
         expra = conv_expr(s.expr)
         return Just(LhsAttr(expra, s.attrname))
@@ -786,7 +778,7 @@ def convert_file(filename, name, deps):
     omni.loadedModules = deps
     def go():
         for name, b in BUILTINS.iteritems():
-            scope.syms[(name, valueNamespace)] = (b, BindBuiltin)
+            scope.syms[(name, valueNamespace)] = b
         root = []
         for top in tops:
             root += conv_top_level(top)
@@ -798,7 +790,7 @@ def convert_file(filename, name, deps):
         if key in omni.imports:
             obj, b = omni.imports[key]
             for bind in binds:
-                bind.binding = b(obj)
+                bind.target = obj
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
                 '%s %s' % (t, s) for s, t in missing)

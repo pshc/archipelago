@@ -354,7 +354,7 @@ def runtime_decl(name):
     runtime = loaded_modules['runtime']
     from astconv import loaded_module_export_names, cNamespace
     symbolTable = loaded_module_export_names[runtime]
-    ref, bindType = symbolTable[(name, cNamespace)]
+    ref = symbolTable[(name, cNamespace)]
     _cached_runtime_refs[name] = ref
     return ref
 
@@ -483,12 +483,20 @@ def expr_ternary(e, c, t, f):
     phi(result, typeof(t), [(true, yes), (false, no)])
     return result
 
-def expr_bind_builtin(b):
+# Ought to specify a dependency on Bindable somehow
+LLVMBindable = new_typeclass('LLVMBindable',
+        ('express', 'a -> Xpr'),
+        ('express_called', '(a, [Expr]) -> Maybe(Xpr)',
+                         lambda target, args: Nothing()))
+
+@impl(LLVMBindable, Builtin)
+def express_Builtin(b):
     return match(b,
         ('key("True")', lambda: Const('true')),
         ('key("False")', lambda: Const('false')))
 
-def expr_bind_var(v):
+@impl(LLVMBindable, Var)
+def express_Var(v):
     if has_extrinsic(Replacement, v):
         return extrinsic(Replacement, v)
     # Would be nice: (need name_reg)
@@ -500,6 +508,10 @@ def expr_bind_var(v):
     out_name_reg(v)
     newline()
     return tmp
+
+@impl(LLVMBindable, Ctor)
+def express_Ctor(c):
+    return func_ref(c)
 
 def una_op(b):
     # grr boilerplate
@@ -578,24 +590,25 @@ def write_runtime_call(name, argxs, rett):
     return Just(tmp)
 
 def expr_call(e, f, args):
-    t = typeof(e)
-    m = match(f)
-    if m('Bind(BindBuiltin(b))'):
-        b = m.arg
-        op = una_op(b)
-        if op != '':
-            assert len(args) == 1, '%s is unary' % (op,)
-            arg = express_typed(args[0])
-            m.ret(expr_unary(op, arg))
-        else:
-            op = bin_op(b)
-            assert len(args) == 2, '%s requires two args' % (op,)
-            left = express(args[0])
-            right = express(args[1])
-            m.ret(expr_binop(op, left, right, typeof(args[0])))
+    if matches(f, 'Bind(_)'):
+        mret = LLVMBindable.express_called(f.target, args)
+        if isJust(mret):
+            return fromJust(mret)
+    return fromJust(write_call(f, args, typeof(e))).xpr
+
+@impl(LLVMBindable, Builtin)
+def express_called_Builtin(target, args):
+    op = una_op(target)
+    if op != '':
+        assert len(args) == 1, '%s is unary' % (op,)
+        arg = express_typed(args[0])
+        return Just(expr_unary(op, arg))
     else:
-        m.ret(fromJust(write_call(f, args, t)).xpr)
-    return m.result()
+        op = bin_op(target)
+        assert len(args) == 2, '%s requires two args' % (op,)
+        left = express(args[0])
+        right = express(args[1])
+        return Just(expr_binop(op, left, right, typeof(args[0])))
 
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
@@ -727,9 +740,7 @@ def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
     return match(expr,
         ('e==And(l, r)', expr_and),
-        ('Bind(BindBuiltin(b))', expr_bind_builtin),
-        ('Bind(BindCtor(c))', func_ref),
-        ('Bind(BindVar(v))', expr_bind_var),
+        ('Bind(v)', LLVMBindable.express),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('GetEnv(environ)', expr_getenv),
@@ -858,7 +869,7 @@ def store_pat(pat, txpr):
 
 def load_lhs(lhs):
     return match(lhs,
-        ('LhsVar(v)', expr_bind_var),
+        ('LhsVar(v)', LLVMBindable.express),
         ('LhsAttr(e, a)', expr_attr))
 
 def write_assign(lhs, e):

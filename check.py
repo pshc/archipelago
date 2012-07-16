@@ -129,8 +129,8 @@ def add_typecast(e, src, dest):
         return
     add_extrinsic(TypeCast, e, (src, dest))
 
-def check_binding(bind, binding):
-    t = Binder.typeof(bind)
+def check_bind(bind, target):
+    t = extrinsic(TypeOf, target)
     if has_extrinsic(Instantiation, bind):
         newT = checked_subst(extrinsic(Instantiation, bind), t)
         add_typecast(bind, t, newT)
@@ -139,11 +139,11 @@ def check_binding(bind, binding):
 
 def check_inst_call(e, inst, f, args):
     # Instead of typecasting f, typecast its args backwards
-    origT = Binder.typeof(f)
+    origT = extrinsic(TypeOf, f.target)
     origArgTs, origRetT = match(origT, ("TFunc(args, ret)", tuple2))
     t = checked_subst(inst, origT)
 
-    # Avoid check_expr_as() here to avoid check_binding(), which would conflict
+    # Avoid check_expr_as() here to avoid check_bind(), which would conflict
     typecheck(t, extrinsic(TypeOf, f))
 
     argTs, retT = match(t, ("TFunc(args, ret)", tuple2))
@@ -259,7 +259,7 @@ def _check_expr(e):
         ("GetExtrinsic(Extrinsic(t), node)", check_getextrinsic),
         ("HasExtrinsic(_, node)", check_hasextrinsic),
         ("ScopeExtrinsic(_, f)", check_same),
-        ("bind==Bind(b)", check_binding))
+        ("bind==Bind(target)", check_bind))
 
 def check_contains_field(t, f):
     # XXX will want to check instantiation

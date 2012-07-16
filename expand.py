@@ -124,11 +124,17 @@ def ex_inenv(environ, init, f):
     ex_expr(init)
     ex_expr(f)
 
+def ex_bind(target):
+    v = Bindable.isVar(target)
+    if isJust(v):
+        ex_bind_var(fromJust(v))
+
 def ex_bind_var(v):
     m = match(env(EXFUNC))
     if m('f==ExInnerFunc(closVars, _)'):
         f, closVars = m.args
         if has_extrinsic(LocalVar, v):
+            assert isinstance(v, Var)
             info = extrinsic(LocalVar, v)
             if info.function != f:
                 closVars.add(v)
@@ -151,8 +157,7 @@ def ex_expr(e):
         ("GetExtrinsic(_, node)", ex_expr),
         ("HasExtrinsic(_, node)", ex_expr),
         ("ScopeExtrinsic(_, f)", ex_expr),
-        ("Bind(BindVar(v))", ex_bind_var),
-        ("Bind(BindCtor(_) or BindBuiltin(_))", nop))
+        ("Bind(target)", ex_bind))
 
 def ex_pat_var(v):
     # a little redundant...

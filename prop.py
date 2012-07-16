@@ -274,21 +274,22 @@ def _prop_pat(p):
         ("p==PatCtor(c, args)", pat_ctor))
     add_extrinsic(PendingType, p, env(INPAT))
 
-def inst_binding(bind, v):
+def inst_bind(bind, v):
     t = extrinsic(TypeOf, v)
     return instantiate_type(bind, extrinsic(TypeOf, v))
 
-def prop_binding_var(b, v):
+def prop_bind(b, target):
+    v = Bindable.isVar(target)
+    if isJust(v):
+        return prop_bind_var(b, fromJust(v))
+    else:
+        return inst_bind(b, target)
+
+def prop_bind_var(b, v):
     ct = env(PROPSCOPE).localVars.get(v)
     if ct is not None:
         return ct
-    return inst_binding(b, v)
-
-def prop_binding(bind):
-    return match(bind,
-        ("bind==Bind(BindVar(v))", prop_binding_var),
-        ("bind==Bind(BindCtor(c))", inst_binding),
-        ("bind==Bind(BindBuiltin(v))", inst_binding))
+    return inst_bind(b, v)
 
 def prop_call(f, s):
     ft = prop_expr(f)
@@ -400,7 +401,7 @@ def _prop_expr(e):
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),
-        ("bind==Bind(_)", prop_binding))
+        ("bind==Bind(target)", prop_bind))
     if env(GENOPTS).dumpTypes:
         if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
@@ -429,7 +430,7 @@ def resolve_field_type(t, ft):
     return ctype_replaced(ft, tmap)
 
 def prop_lhs_var(lhs, v):
-    return prop_binding_var(lhs, v)
+    return prop_bind_var(lhs, v)
 
 def prop_lhs_attr(lhs, s, f):
     t = prop_expr(s)
@@ -511,6 +512,12 @@ def prop_body(body):
     for s in body.stmts:
         prop_stmt(s)
 
+def site_target_typeof(site):
+    if isinstance(site, Expr):
+        return extrinsic(TypeOf, site.target)
+    elif isinstance(site, Pat):
+        return vanilla_tdata(extrinsic(TypeOf, site.ctor).funcRet.data)
+
 def prop_top_defn(topDefn, pat, e):
 
     def go(pat, e, captures):
@@ -527,7 +534,7 @@ def prop_top_defn(topDefn, pat, e):
                 insts[tv] = finalize_type(ct)
 
             # For debugging only (this check is done by the typechecker)
-            origT = Binder.typeof(site)
+            origT = site_target_typeof(site)
             instT = extrinsic(TypeOf, site)
             assert not type_equal(instT, origT), with_context("Impotent inst",
                     "Type %s unaffected by %s" % (origT, insts))
