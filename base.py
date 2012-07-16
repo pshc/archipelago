@@ -420,17 +420,19 @@ def new_typeclass(name, *args):
     spec = {}
     impls = {}
     info = TypeClassInfo(name, spec, impls)
-    def make_impl(i, nm):
-        # Very basic; only supports one-param functions right now
-        def lookup(obj):
-            t = type(obj)
+    def make_impl(i, specT, nm):
+        # Limitation: First argument :: 'a to do the lookup
+        # Really ought to use specT to figure it out
+        def lookup(*args):
+            assert len(args) == len(specT.funcArgs)
+            t = type(args[0])
             if t not in impls:
                 t = t.__dt__
             tnm = t.__name__
             assert t in impls, "%s is not a part of %s" % (tnm, name)
             func = impls[t][i]
             assert func is not None, "%s.%s.%s has no impl" % (name, tnm, nm)
-            return func(obj)
+            return func(*args)
         lookup.__name__ = '_' + nm + '_typeclass_lookup'
         return lookup
     for i, entry in enumerate(args):
@@ -441,8 +443,10 @@ def new_typeclass(name, *args):
             default = None
         assert nm not in spec
         tvars = {}
-        spec[nm] = (i, parse_new_type(t, tvars), default)
-        setattr(info, nm, make_impl(i, nm))
+        t = parse_new_type(t, tvars)
+        assert match(t.funcArgs[0], ("TVar(tv)", lambda tv: tv is tvars['a']))
+        spec[nm] = (i, t, default)
+        setattr(info, nm, make_impl(i, t, nm))
     return info
 
 def impl(cls, targetT):
