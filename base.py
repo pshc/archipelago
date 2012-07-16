@@ -433,14 +433,19 @@ def new_typeclass(name, *args):
             return func(obj)
         lookup.__name__ = '_' + nm + '_typeclass_lookup'
         return lookup
-    for i, (nm, t) in enumerate(args):
+    for i, entry in enumerate(args):
+        if len(entry) == 3:
+            nm, t, default = entry
+        else:
+            nm, t = entry
+            default = None
         assert nm not in spec
         tvars = {}
-        spec[nm] = (i, parse_new_type(t, tvars))
+        spec[nm] = (i, parse_new_type(t, tvars), default)
         setattr(info, nm, make_impl(i, nm))
     return info
 
-def impl(cls, t):
+def impl(cls, targetT):
     def decorator(func):
         fnm = func.__name__
         prefix = t.__name__ + '_'
@@ -448,12 +453,19 @@ def impl(cls, t):
                 cls.name, t, prefix)
         fnm = fnm[len(prefix):]
         assert fnm in cls.spec, "Unknown impl method: %s" % (fnm,)
-        i, specT = cls.spec[fnm]
-        if t not in cls.impls:
-            cls.impls[t] = [None] * len(cls.spec)
-        cls.impls[t][i] = func
+        if targetT not in cls.impls:
+            default_impl(cls, targetT)
+        i, specT, default = cls.spec[fnm]
+        cls.impls[targetT][i] = func
         return None
     return decorator
+
+def default_impl(cls, targetT):
+    assert targetT not in cls.impls, "default_impl() would clobber existing"
+    vtable = [None] * len(cls.spec)
+    for i, t, default in cls.spec.itervalues():
+        vtable[i] = default
+    cls.impls[targetT] = vtable
 
 # Global options
 
