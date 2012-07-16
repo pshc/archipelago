@@ -327,12 +327,10 @@ def cast(txpr, dest):
     if matches((src, dest), '(IVoidPtr(), IVoidPtr())'):
         return txpr
     assert not itypes_equal(src, dest), "Pointless %s cast to itself" % (src,)
-    s = IVoidPtr() if matches(src, 'IPtr(_)') else src
-    d = IVoidPtr() if matches(dest, 'IPtr(_)') else dest
-    kind = match((s, d),
-        ('(IInt(), IVoidPtr())', lambda: 'inttoptr'),
-        ('(IVoidPtr(), IInt())', lambda: 'ptrtoint'),
-        ('(IVoidPtr(), IVoidPtr())', lambda: 'bitcast'),
+    kind = match((src, dest),
+        ('(IInt() or IBool(), IVoidPtr())', lambda: 'inttoptr'),
+        ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
+        ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
     xpr = txpr.xpr
