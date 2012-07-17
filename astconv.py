@@ -77,9 +77,9 @@ def ident_exists(nm, namespace=valueNamespace):
 def refs_existing(nm, namespace=valueNamespace):
     ref = ident_exists(nm, namespace)
     if isJust(ref):
-        return Bind(fromJust(ref))
+        return E.Bind(fromJust(ref))
     key = (nm, namespace)
-    fwd_ref = Bind(key)
+    fwd_ref = E.Bind(key)
     omni = env(OMNI)
     omni.missingRefs.setdefault(key, []).append(fwd_ref)
     return fwd_ref
@@ -299,19 +299,19 @@ def conv_special(e):
         return type_ref(e.name)
     elif c is ast.Const:
         assert isinstance(e.value, basestring), 'Bad type repr: %s' % e.value
-        return StrLit(e.value)
+        return E.StrLit(e.value)
     elif c is ast.Tuple:
         assert len(e.nodes) == 2
         assert isinstance(e.nodes[0], ast.Const)
         nm = e.nodes[0].value
         assert isinstance(nm, basestring), 'Expected field name: %s' % nm
-        return TupleLit([StrLit(nm), conv_special(e.nodes[1])])
+        return E.TupleLit([E.StrLit(nm), conv_special(e.nodes[1])])
     else:
         assert False, 'Unexpected %s' % c
 
 def replace_refs(mapping, e):
     # TODO: Need an expression walker
-    if isinstance(e, Bind):
+    if isinstance(e, E.Bind):
         if e.target in mapping:
             e.target = mapping[e.target]
     elif isinstance(e, Structured):
@@ -330,10 +330,10 @@ def extract_ret(b):
 
 SPECIAL_CASES = {
     'identity': lambda r: r(0),
-    'tuple2': lambda r: TupleLit([r(0), r(1)]),
-    'tuple3': lambda r: TupleLit([r(0), r(1), r(2)]),
-    'tuple4': lambda r: TupleLit([r(0), r(1), r(2), r(3)]),
-    'tuple5': lambda r: TupleLit([r(0),r(1),r(2),r(3),r(4)]),
+    'tuple2': lambda r: E.TupleLit([r(0), r(1)]),
+    'tuple3': lambda r: E.TupleLit([r(0), r(1), r(2)]),
+    'tuple4': lambda r: E.TupleLit([r(0), r(1), r(2), r(3)]),
+    'tuple5': lambda r: E.TupleLit([r(0), r(1), r(2), r(3), r(4)]),
 }
 
 def conv_byneed(f):
@@ -344,12 +344,12 @@ def conv_byneed_rebound(f, bs):
                      ('_', lambda: None))
     special = bname and SPECIAL_CASES.get(bname)
     if special:
-        e = special(lambda i: Bind(bs[i]))
+        e = special(lambda i: E.Bind(bs[i]))
     else:
         def rebind_func(params, b):
             return replace_refs(dict(ezip(params, bs)), extract_ret(b))
         e = match(f, ('FuncExpr(Func(params, b))', rebind_func),
-                     ('_', lambda: Call(f, map(Bind, bs))))
+                     ('_', lambda: E.Call(f, map(E.Bind, bs))))
     return e
 
 @inside_scope
@@ -443,7 +443,7 @@ def conv_callfunc(e):
                         info[arg.name] = conv_expr(arg.expr)
                 return spec(*normal_args, **info)
             return spec(*normal_args)
-    return Call(conv_expr(e.node), map(conv_expr, normal_args))
+    return E.Call(conv_expr(e.node), map(conv_expr, normal_args))
 
 @expr(ast.Compare)
 def conv_compare(e):
@@ -457,14 +457,14 @@ def conv_compare(e):
 def conv_const(e):
     v = e.value
     if isinstance(v, int):
-        return IntLit(v)
+        return E.IntLit(v)
     elif isinstance(v, str):
-        return StrLit(v)
+        return E.StrLit(v)
     assert False, 'Unknown literal %s' % (e,)
 
 @expr(ast.Dict)
 def conv_dict(e):
-    return DictLit([TupleLit([conv_expr(a), conv_expr(b)])
+    return DictLit([E.TupleLit([conv_expr(a), conv_expr(b)])
                     for (a, b) in e.items])
 
 @expr(ast.GenExpr)
@@ -484,11 +484,11 @@ def conv_genexprinner(e):
 @expr(ast.Getattr)
 def conv_getattr(e):
     # Resolve field name later
-    return Attr(conv_expr(e.expr), e.attrname)
+    return E.Attr(conv_expr(e.expr), e.attrname)
 
 @expr(ast.IfExp)
 def conv_ifexp(e):
-    return Ternary(conv_expr(e.test), conv_expr(e.then), conv_expr(e.else_))
+    return E.Ternary(conv_expr(e.test), conv_expr(e.then), conv_expr(e.else_))
 
 def extract_arglist(s):
     names = s.argnames[:]
@@ -550,13 +550,13 @@ def conv_subscript(e):
 @expr(ast.Tuple)
 def conv_tuple(e):
     itemsa = conv_exprs(e.nodes)
-    return TupleLit(conv_exprs(e.nodes))
+    return E.TupleLit(conv_exprs(e.nodes))
 
 # STATEMENTS
 
 @stmt(ast.Assert)
 def conv_assert(s):
-    fail = conv_expr(s.fail) if s.fail else StrLit('')
+    fail = conv_expr(s.fail) if s.fail else E.StrLit('')
     return [Assert(conv_expr(s.test), fail)]
 
 @stmt(ast.Assign)
@@ -730,10 +730,10 @@ def conv_printnl(s):
     assert s.dest is None
     node = s.nodes[0]
     if isinstance(node, ast.Const):
-        exprsa = [StrLit(node.value+'\n'), TupleLit([])]
+        exprsa = [E.StrLit(node.value+'\n'), E.TupleLit([])]
     elif isinstance(node, ast.Mod):
         format = s.nodes[0].left.value
-        exprsa = [StrLit(format+'\n'), conv_expr(s.nodes[0].right)]
+        exprsa = [E.StrLit(format+'\n'), conv_expr(s.nodes[0].right)]
     else:
         assert False, "Unexpected print form: %s" % s
     return [ExprStmt(symcall('printf', exprsa))]

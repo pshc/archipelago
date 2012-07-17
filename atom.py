@@ -32,15 +32,23 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
-Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
+CoreExpr, Attr, Bind, Call, IntLit, StrLit, Ternary, TupleLit = \
+    ADT('CoreExpr',
+        'Attr', ('expr', 'CoreExpr'), ('field', '*Field'),
+        'Bind', ('target', '*a'), # Binder a => a
+        'Call', ('func', 'CoreExpr'), ('args', '[CoreExpr]'),
+        'IntLit', ('val', int),
+        'StrLit', ('val', str),
+        'Ternary', ('test', 'CoreExpr'), ('then', 'CoreExpr'),
+                   ('else_', 'CoreExpr'),
+        'TupleLit', ('vals', '[CoreExpr]'))
+
+Expr, E, And, DictLit, FuncExpr, GenExpr, \
         GetEnv, HaveEnv, InEnv, \
         GetExtrinsic, HasExtrinsic, ScopeExtrinsic, \
-        IntLit, ListLit, Match, Or, StrLit, Ternary, TupleLit = \
-    ADT('Expr',
+        ListLit, Match, Or = \
+    ADT(('Expr', CoreExpr),
         'And', ('left', 'Expr'), ('right', 'Expr'),
-        'Attr', ('expr', 'Expr'), ('field', '*Field'),
-        'Bind', ('target', '*a'), # Binder a => a
-        'Call', ('func', 'Expr'), ('args', '[Expr]'),
         'DictLit', ('vals', '[(Expr, Expr)]'),
         'FuncExpr', ('func', 'Func'),
         'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
@@ -51,13 +59,9 @@ Expr, And, Attr, Bind, Call, DictLit, FuncExpr, GenExpr, \
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'HasExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
-        'IntLit', ('val', int),
         'ListLit', ('vals', '[Expr]'),
         'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
-        'Or', ('left', 'Expr'), ('right', 'Expr'),
-        'StrLit', ('val', str),
-        'Ternary', ('test', 'Expr'), ('then', 'Expr'), ('else_', 'Expr'),
-        'TupleLit', ('vals', '[Expr]'))
+        'Or', ('left', 'Expr'), ('right', 'Expr'))
 
 AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
         'AugAdd', 'AugSubtract', 'AugMultiply', 'AugDivide', 'AugModulo')
@@ -113,7 +117,7 @@ def with_context(desc, msg):
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
 def symcall(name, params):
-    return Call(Bind(BUILTINS[name]), params)
+    return E.Call(E.Bind(BUILTINS[name]), params)
 
 def getname(sym):
     return match(sym, 'named(nm)')
