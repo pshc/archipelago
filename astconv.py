@@ -504,7 +504,7 @@ def extract_arglist(s):
 @inside_scope
 def conv_lambda(e):
     params = extract_arglist(e)
-    body = Body([Return(conv_expr(e.code))])
+    body = Body([S.Return(conv_expr(e.code))])
     return FuncExpr(Func(params, body))
 
 @expr(ast.List)
@@ -578,10 +578,10 @@ def conv_assign(s):
     reass = conv_try_reass(left)
     if isJust(reass):
         assert not global_scope, "Can't reassign in global scope"
-        return [Assign(fromJust(reass), expra)]
+        return [S.Assign(fromJust(reass), expra)]
     else:
         pat = conv_ass(left)
-        ass = TopDefn(pat, expra) if global_scope else Defn(pat, expra)
+        ass = TopDefn(pat, expra) if global_scope else S.Defn(pat, expra)
         return [ass]
 
 @stmt(ast.AssList)
@@ -606,15 +606,15 @@ def op_to_aug(op):
 @stmt(ast.AugAssign)
 def conv_augassign(s):
     lhs = fromJust(conv_try_reass(s.node))
-    return [AugAssign(op_to_aug(s.op), lhs, conv_expr(s.expr))]
+    return [S.AugAssign(op_to_aug(s.op), lhs, conv_expr(s.expr))]
 
 @stmt(ast.Break)
 def conv_break(s):
-    return [Break()]
+    return [S.Break()]
 
 @stmt(ast.Continue)
 def conv_continue(s):
-    return [Continue()]
+    return [S.Continue()]
 
 @stmt(ast.Discard)
 def conv_discard(s):
@@ -627,7 +627,7 @@ def conv_discard(s):
         assert isinstance(e, WriteExtrinsic)
         return [e]
 
-    return [ExprStmt(e)]
+    return [S.ExprStmt(e)]
 
 def conv_ass(s):
     if isinstance(s, ast.AssName):
@@ -703,7 +703,7 @@ def conv_function(s):
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    f = (TopDefn if glob else Defn)(PatVar(var), FuncExpr(rest()))
+    f = (TopDefn if glob else S.Defn)(PatVar(var), FuncExpr(rest()))
     return [f]
 
 @stmt(ast.If)
@@ -712,7 +712,7 @@ def conv_if(s):
     for (test, body) in s.tests:
         conds.append(CondCase(conv_expr(test), Body(conv_stmts(body))))
     else_ = Just(Body(conv_stmts(s.else_))) if s.else_ else Nothing()
-    return [Cond(conds, else_)]
+    return [S.Cond(conds, else_)]
 
 def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]
@@ -736,7 +736,7 @@ def conv_printnl(s):
         exprsa = [E.StrLit(format+'\n'), conv_expr(s.nodes[0].right)]
     else:
         assert False, "Unexpected print form: %s" % s
-    return [ExprStmt(symcall('printf', exprsa))]
+    return [S.ExprStmt(symcall('printf', exprsa))]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):
@@ -745,8 +745,8 @@ def ignore_debug_print(s):
 @stmt(ast.Return)
 def conv_return(s):
     if isinstance(s.value, ast.Const) and s.value.value is None:
-        return [ReturnNothing()]
-    return [Return(conv_expr(s.value))]
+        return [S.ReturnNothing()]
+    return [S.Return(conv_expr(s.value))]
 
 @inside_scope
 def conv_stmts(stmts):
@@ -757,7 +757,7 @@ def conv_stmts_noscope(stmts):
 
 @stmt(ast.While)
 def conv_while(s):
-    return [While(conv_expr(s.test), Body(conv_stmts(s.body)))]
+    return [S.While(conv_expr(s.test), Body(conv_stmts(s.body)))]
 
 def setup_builtin_module():
     for name, t in builtins_types.iteritems():

@@ -76,22 +76,25 @@ Lhs, LhsVar, LhsAttr = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
         'LhsAttr', ('sub', Expr), ('attr', '*Field'))
 
-Stmt, Assert, Assign, AugAssign, Break, Cond, Continue, Defn, \
-    ExprStmt, Return, ReturnNothing, While, WriteExtrinsic = \
-    ADT('Stmt',
-        'Assert', ('test', Expr), ('message', Expr),
-        'Assign', ('lhs', Lhs), ('expr', Expr),
-        'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', Expr),
+CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
+    ExprStmt, Return, ReturnNothing, While = \
+    ADT('CoreStmt',
+        'Assign', ('lhs', Lhs), ('expr', CoreExpr),
+        'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', CoreExpr),
         'Break',
         'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
         'Continue',
-        'Defn', ('pat', Pat), ('expr', Expr),
-        'ExprStmt', ('expr', Expr),
-        'Return', ('expr', Expr),
+        'Defn', ('pat', Pat), ('expr', CoreExpr),
+        'ExprStmt', ('expr', CoreExpr),
+        'Return', ('expr', CoreExpr),
         'ReturnNothing',
-        'While', ('test', Expr), ('body', Body),
-        'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
-                          ('val', 'Expr'), ('isNew', bool))
+        'While', ('test', CoreExpr), ('body', Body))
+
+Stmt, S, Assert, WriteExtrinsic = \
+    ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
+        'Assert', ('test', Expr), ('message', Expr),
+        'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', Expr),
+                          ('val', Expr), ('isNew', bool))
 
 TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',
