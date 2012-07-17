@@ -40,8 +40,14 @@ def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
     derivedFrom = None
+    derivedSubsts = None
     if isinstance(tname, tuple):
-        tname, derivedFrom = tname
+        if len(tname) == 3:
+            tname, derivedFrom, subs = tname
+            derivedSubsts = dict((extrinsic(FormSpec,s), extrinsic(FormSpec,d))
+                                 for s, d in subs.iteritems())
+        else:
+            tname, derivedFrom = tname
     t = type(tname, (Structured,), {'ctors': []})
     data = [t]
     ctor_ix = 0
@@ -62,7 +68,7 @@ def ADT(*ctors):
             members = []
             for i, field in enumerate(extrinsic(FormSpec, ctor).fields):
                 newType = derive_copied_ctor_type(field.type, derivedFrom, t,
-                        tvars)
+                        derivedSubsts or {}, tvars)
                 members.append((ctor.__slots__[i], newType))
 
             ctor_nm = ctor.__name__
@@ -433,7 +439,9 @@ def _parse_deferred():
     _deferred_type_parses = None
 _parse_deferred()
 
-def derive_copied_ctor_type(t, old_dt, new_dt, tvars):
+def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
+    substNames = dict((extrinsic(Name, dt), repl)
+                      for dt, repl in dtSubsts.iteritems())
     def _derive_tvar(tv):
         if tv not in tvars:
             orig = tv
@@ -446,12 +454,16 @@ def derive_copied_ctor_type(t, old_dt, new_dt, tvars):
     def _derive_data(dt, ts):
         if dt is old_dt:
             dt = new_dt
+        elif dt in dtSubsts:
+            dt = dtSubsts[dt]
         return TData(dt, map(copy, ts))
     def copy(t):
         if isinstance(t, TForward):
             nm = t.name
             if nm == old_dt.__name__:
                 nm = new_dt.__name__
+            elif nm in substNames:
+                nm = substNames[dt].__name__
             return TForward(nm, map(copy, t.appTypes))
         return match(t,
             ('TVar(tv)', _derive_tvar),
