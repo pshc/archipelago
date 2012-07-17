@@ -471,14 +471,14 @@ del re
 _col_shorts = {'N': 'Normal', 'DG': 'DarkGray'}
 
 def col(c, s):
-    colors = env(GENOPTS).color
+    colors = have_env(GENOPTS) and env(GENOPTS).color
     if colors:
         c = _col_shorts.get(c, c)
         s = '%s%s%s' % (getattr(colors, c), s, colors.Normal)
     return s
 
 def fmtcol(s, *args):
-    colors = env(GENOPTS).color
+    colors = have_env(GENOPTS) and env(GENOPTS).color
     if colors:
         def colorize(m):
             c = m.group(1)
