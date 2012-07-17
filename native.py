@@ -72,7 +72,8 @@ def _serialize_node(node, t):
         for var, app in ezip(t.data.tvars, t.appTypes):
             apps[var] = app
         adt = extrinsic(TrueRepresentation, t.data)
-        assert isinstance(node, adt), "%r is not a %s" % (node, adt)
+        assert isinstance(node, adt), "%s %r is not a %s" % (
+                type(node), node, adt)
         # Possibly write discriminator
         if len(t.data.ctors) > 1:
             ix = node._ctor_ix
