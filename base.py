@@ -7,6 +7,9 @@ CTORS = {}
 class Structured(object):
     pass
 
+class CopiedCtors(object):
+    pass
+
 _deferred_type_parses = []
 
 def _make_ctor(name, members, superclass):
@@ -18,7 +21,10 @@ def _make_ctor(name, members, superclass):
             setattr(self, nm, args[i])
     attrs = dict(__slots__=(nms + ('_ix',)), __init__=__init__,
                  __types__=tuple(t for nm, t in members))
-    CTORS[name] = ctor = type(name, (superclass,), attrs)
+    ctor = type(name, (superclass,), attrs)
+    ctor.__dt__ = superclass
+    superclass.ctors.append(ctor)
+    CTORS.setdefault(name, []).append(ctor)
     return ctor
 
 def DT(*members):
@@ -26,35 +32,58 @@ def DT(*members):
     name = members.pop(0)
     t = type(name, (Structured,), {'ctors': []})
     ctor = _make_ctor(name, members, t)
-    t.ctors.append(ctor)
-    ctor.__dt__ = t
-    _dt_form(t)
+    _dt_form(t, None)
     DATATYPES[name] = t
     return ctor
 
 def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
+    derivedFrom = None
+    if isinstance(tname, tuple):
+        tname, derivedFrom = tname
     t = type(tname, (Structured,), {'ctors': []})
     data = [t]
     ctor_ix = 0
+
+    def setup_ctor(name, members):
+        d = _make_ctor(name, members, t)
+        d.__module__ = tname
+        d._ctor_ix = ctor_ix
+        return d
+
+    tvars = None
+    if derivedFrom:
+        tvars = {}
+        shortcut = CopiedCtors()
+        data.append(shortcut)
+        for ctor in derivedFrom.ctors:
+            # copy ctor (without zip())
+            members = []
+            for i, field in enumerate(extrinsic(FormSpec, ctor).fields):
+                newType = derive_copied_ctor_type(field.type, derivedFrom, t,
+                        tvars)
+                members.append((ctor.__slots__[i], newType))
+
+            ctor_nm = ctor.__name__
+            d = setup_ctor(ctor_nm, members)
+            CTORS['%s.%s' % (tname, ctor_nm)] = [d]
+            ctor_ix += 1
+            setattr(shortcut, ctor_nm, d)
+
     while ctors:
         ctor = ctors.pop(0)
         members = []
         while ctors and not isinstance(ctors[0], basestring):
             members.append(ctors.pop(0))
-        d = _make_ctor(ctor, members, t)
-        d.__module__ = tname
-        d._ctor_ix = ctor_ix
-        d.__dt__ = t
+        d = setup_ctor(ctor, members)
         ctor_ix += 1
-        t.ctors.append(d)
         data.append(d)
-    _dt_form(t)
+    _dt_form(t, tvars)
     DATATYPES[tname] = t
     return tuple(data)
 
-def _dt_form(dt):
+def _dt_form(dt, tvars):
     pass
 
 # Envs
@@ -211,8 +240,9 @@ def _ctor_form(ctor):
     for i in xrange(len(ctor.__types__)):
         nm = ctor.__slots__[i]
         t = ctor.__types__[i]
-        if _deferred_type_parses is None:
-            t = in_env(NEWTYPEVARS, None, lambda: parse_type(t))
+        if _deferred_type_parses is None \
+                    and not isinstance(t, (Type, TForward)):
+            t = parse_type(t)
         field = Field(t)
         add_extrinsic(Name, field, nm)
         fields.append(field)
@@ -225,9 +255,15 @@ def _ctor_form(ctor):
         _deferred_type_parses.append(form)
     return form
 
-def _dt_form(dt):
-    tvs = {}
-    ctors = in_env(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
+def _dt_form(dt, tvs):
+    if tvs is not None:
+        ctors = in_env(TVARS, tvs,
+                lambda: map(_ctor_form, dt.ctors))
+    else:
+        tvs = {}
+        ctors = in_env(TVARS, tvs,
+                lambda: in_env(NEWTYPEVARS, None,
+                lambda: map(_ctor_form, dt.ctors)))
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(TrueRepresentation, form, dt)
@@ -235,8 +271,9 @@ def _dt_form(dt):
     return form
 
 def _restore_forms():
-    for ctor in CTORS.itervalues():
-        _dt_form(DATATYPES[ctor.__name__])
+    for ctors in CTORS.itervalues():
+        assert len(ctors) == 1 # should be no overloads as of yet
+        _dt_form(DATATYPES[ctors[0].__name__], None)
 _restore_forms()
 
 # Type representations
@@ -395,6 +432,41 @@ def _parse_deferred():
         ctor.__dt__.tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()
+
+def derive_copied_ctor_type(t, old_dt, new_dt, tvars):
+    def _derive_tvar(tv):
+        if tv not in tvars:
+            orig = tv
+            tv = TypeVar()
+            add_extrinsic(Name, tv, extrinsic(Name, orig))
+            tvars[orig] = tv
+        else:
+            tv = tvars[tv]
+        return TVar(tv)
+    def _derive_data(dt, ts):
+        if dt is old_dt:
+            dt = new_dt
+        return TData(dt, map(copy, ts))
+    def copy(t):
+        if isinstance(t, TForward):
+            nm = t.name
+            if nm == old_dt.__name__:
+                nm = new_dt.__name__
+            return TForward(nm, map(copy, t.appTypes))
+        return match(t,
+            ('TVar(tv)', _derive_tvar),
+            ('TPrim(PInt())', TInt),
+            ('TPrim(PBool())', TBool),
+            ('TPrim(PStr())', TStr),
+            ('TPrim(PChar())', TChar),
+            ('TVoid()', TVoid),
+            ('TTuple(ts)', lambda ts: TTuple(map(copy, ts))),
+            ('TFunc(args, ret)', lambda args, ret:
+                TFunc(map(copy, args), copy(ret))),
+            ('TData(data, apps)', _derive_data),
+            ('TArray(t)', lambda t: TArray(copy(t))),
+            ('TWeak(t)', lambda t: TWeak(copy(t))))
+    return copy(t)
 
 # Typeclasses
 
@@ -563,8 +635,11 @@ def match_try(atom, ast):
     if isinstance(ast, compiler.ast.CallFunc
                 ) and isinstance(ast.node, compiler.ast.Name):
         if ast.node.name in CTORS:
-            dt = CTORS[ast.node.name]
-            if atom.__class__ != dt:
+            candidates = CTORS[ast.node.name]
+            for dt in candidates:
+                if atom.__class__ is dt:
+                    break
+            else:
                 return None
             slots = filter(lambda s: s != '_ix', dt.__slots__)
             assert len(ast.args) == len(slots), \
