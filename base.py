@@ -10,35 +10,21 @@ class Structured(object):
 _deferred_type_parses = []
 
 def _make_ctor(name, members, superclass):
-    invariant = None
-    if members and isinstance(members[-1], FunctionType):
-        invariant = members.pop()
-    mems = [(nm) for (nm, t) in members]
-    slots = ', '.join(map(repr, mems) + ['"_ix"'])
-    args = ''.join(', %s' % m for m in mems)
+    nms = tuple(nm for nm, t in members)
     ix = len(DATATYPES)
-    stmts = ''.join(['    self.%s = %s\n' % (m, m) for m in mems])
-    if invariant:
-        stmts += '    assert self.check_invariant(), "Invariant failure"\n'
-    code = """class %(name)s(superclass):
-  __slots__ = [%(slots)s]
-  __types__ = []
-  def __init__(self%(args)s, **_tvars):
-    self._ix = %(ix)d
-%(stmts)s""" % locals()
-    exec code
-    ctor = CTORS[name] = eval(name)
-    for nm, t in members:
-        ctor.__types__.append(t)
-    if invariant:
-        ctor.check_invariant = invariant
+    def __init__(self, *args, **tvars):
+        self._ix = ix
+        for i, nm in enumerate(nms):
+            setattr(self, nm, args[i])
+    attrs = dict(__slots__=(nms + ('_ix',)), __init__=__init__,
+                 __types__=tuple(t for nm, t in members))
+    CTORS[name] = ctor = type(name, (superclass,), attrs)
     return ctor
 
 def DT(*members):
     members = list(members)
     name = members.pop(0)
-    exec 'class %s(Structured): ctors = []' % (name,)
-    t = eval(name)
+    t = type(name, (Structured,), {'ctors': []})
     ctor = _make_ctor(name, members, t)
     t.ctors.append(ctor)
     ctor.__dt__ = t
@@ -49,8 +35,7 @@ def DT(*members):
 def ADT(*ctors):
     ctors = list(ctors)
     tname = ctors.pop(0)
-    exec 'class %s(Structured): ctors = []' % (tname,)
-    t = eval(tname)
+    t = type(tname, (Structured,), {'ctors': []})
     data = [t]
     ctor_ix = 0
     while ctors:
