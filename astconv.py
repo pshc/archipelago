@@ -200,7 +200,7 @@ def _make_dt(dt_nm, *args, **opts):
     if dt_nm not in DATATYPES:
         args = map(unwrap_ast, args)
         opts['maker'](dt_nm, *args)
-    dt = DATATYPES[dt_nm].__form__
+    dt = extrinsic(FormSpec, DATATYPES[dt_nm])
     identifier(dt, namespace=typeNamespace)
     for ctor in dt.ctors:
         identifier(ctor, export=True)
@@ -315,7 +315,7 @@ def replace_refs(mapping, e):
         if e.target in mapping:
             e.target = mapping[e.target]
     elif isinstance(e, Structured):
-        for field in e.__form__.fields:
+        for field in extrinsic(FormSpec, type(e)).fields:
             if not isinstance(field.type, TWeak):
                 replace_refs(mapping, getattr(e, extrinsic(Name, field)))
     elif isinstance(e, list):

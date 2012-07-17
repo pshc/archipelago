@@ -1245,7 +1245,7 @@ declare void @match_fail() noreturn
 
 def write_imports(dep):
     dt = match(dep.rootType, 'TData(dt, _)')
-    if dt is DATATYPES['CompilationUnit'].__form__:
+    if dt is extrinsic(FormSpec, DATATYPES['CompilationUnit']):
         out('; %s' % (extrinsic(Name, dep),))
         newline()
         in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
@@ -1291,7 +1291,7 @@ def link(mod):
 
     def add_obj(dep):
         dt = dep.rootType.data
-        if dt is DATATYPES['CompilationUnit'].__form__:
+        if dt is extrinsic(FormSpec, DATATYPES['CompilationUnit']):
             if not has_extrinsic(OFile, dep):
                 print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
                 return

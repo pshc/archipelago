@@ -28,7 +28,7 @@ def DT(*members):
     ctor = _make_ctor(name, members, t)
     t.ctors.append(ctor)
     ctor.__dt__ = t
-    t.__form__ = _dt_form(t)
+    _dt_form(t)
     DATATYPES[name] = t
     return ctor
 
@@ -115,7 +115,8 @@ ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]),
 
 # Omnipresent for now
 Name = ExtInfo('Name', str, [{}], [])
-FormBacking = ExtInfo('FormBacking', object, [{}], [])
+FormSpec = ExtInfo('FormSpec', object, [{}], [])
+TrueRepresentation = ExtInfo('TrueRepresentation', object, [{}], [])
 
 def new_extrinsic(label, t):
     if t is not None:
@@ -217,8 +218,8 @@ def _ctor_form(ctor):
         fields.append(field)
     form = Ctor(fields)
     add_extrinsic(Name, form, ctor.__name__)
-    add_extrinsic(FormBacking, form, ctor)
-    ctor.__form__ = form
+    add_extrinsic(TrueRepresentation, form, ctor)
+    add_extrinsic(FormSpec, ctor, form)
     del ctor.__types__
     if _deferred_type_parses is not None:
         _deferred_type_parses.append(form)
@@ -229,8 +230,8 @@ def _dt_form(dt):
     ctors = in_env(TVARS, tvs, lambda: map(_ctor_form, dt.ctors))
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
-    add_extrinsic(FormBacking, form, dt)
-    dt.__form__ = form
+    add_extrinsic(TrueRepresentation, form, dt)
+    add_extrinsic(FormSpec, dt, form)
     return form
 
 def _restore_forms():
@@ -277,9 +278,9 @@ def vanilla_tdata(form):
 
 def parse_type(t):
     if type(t) is type and issubclass(t, Structured):
-        form = t.__form__
+        form = extrinsic(FormSpec, t)
         if isinstance(form, Ctor):
-            form = t.__dt__.__form__
+            form = extrinsic(FormSpec, t.__dt__)
         return vanilla_tdata(form)
     elif isinstance(t, basestring):
         key = t.replace('->', '>').replace('*', '-')
@@ -356,7 +357,7 @@ def realize_type(t):
                 tvars[t] = tvar
             return TVar(tvar)
         elif t in DATATYPES:
-            return vanilla_tdata(DATATYPES[t].__form__)
+            return vanilla_tdata(extrinsic(FormSpec, DATATYPES[t]))
         elif t in types_by_name:
             return types_by_name[t]()
         else:
@@ -368,7 +369,7 @@ def realize_type(t):
 TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
 def t_DT(dt):
-    return vanilla_tdata(dt.__dt__.__form__)
+    return vanilla_tdata(extrinsic(FormSpec, dt.__dt__))
 
 def _apply_list_type(t):
     listT = parse_type('List')

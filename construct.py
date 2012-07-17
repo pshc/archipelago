@@ -105,7 +105,7 @@ def load_module(filename):
 
 def resolve_forward_type_refs():
     for dt in DATATYPES.itervalues():
-        for ctor in dt.__form__.ctors:
+        for ctor in extrinsic(FormSpec, dt).ctors:
             for f in ctor.fields:
                 _resolve_walk(f.type, (f, 'type'))
 
@@ -115,7 +115,7 @@ def _resolve_walk(node, path):
         if nm == 'set':
             nm = 'Set'
         assert nm in DATATYPES, "Can't resolve forward type '%s'" % (nm,)
-        form = DATATYPES[nm].__form__
+        form = extrinsic(FormSpec, DATATYPES[nm])
         assert isinstance(form, DataType), "Bad form %s" % (form,)
         dest = vanilla_tdata(form)
         # Assign using path
@@ -161,7 +161,7 @@ def load_builtins():
 def load_forms():
     resolve_forward_type_refs()
 
-    pending = set([atom.CompilationUnit.__dt__.__form__])
+    pending = set([extrinsic(FormSpec, atom.CompilationUnit.__dt__)])
     done = set()
     forms = []
     names = {}

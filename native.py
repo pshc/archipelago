@@ -25,7 +25,7 @@ def _write_ref(node, t):
     if isinstance(t, TVar):
         pass # Does it even make sense to check instantiations here?
     elif isinstance(t, TData):
-        adt = extrinsic(FormBacking, t.data)
+        adt = extrinsic(TrueRepresentation, t.data)
         assert isinstance(node, adt), "->%r is not a %s" % (node, adt)
     else:
         assert False, "%r is not a ref type" % (t,)
@@ -71,7 +71,7 @@ def _serialize_node(node, t):
         apps = {}
         for var, app in ezip(t.data.tvars, t.appTypes):
             apps[var] = app
-        adt = extrinsic(FormBacking, t.data)
+        adt = extrinsic(TrueRepresentation, t.data)
         assert isinstance(node, adt), "%r is not a %s" % (node, adt)
         # Possibly write discriminator
         if len(t.data.ctors) > 1:
@@ -81,7 +81,7 @@ def _serialize_node(node, t):
         else:
             form = t.data.ctors[0]
         # Dump fields
-        ctor = extrinsic(FormBacking, form)
+        ctor = extrinsic(TrueRepresentation, form)
         assert isinstance(node, ctor), "%r is not a %s" % (node, ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
@@ -125,7 +125,7 @@ def _inspect_node(node):
         state = env(Inspection)
         add_extrinsic(Location, node, Pos(state.module, state.count))
         state.count += 1
-        form = node.__form__
+        form = extrinsic(FormSpec, type(node))
         assert isinstance(form, Ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
@@ -228,7 +228,7 @@ def _read_node(t, path):
             ctor = t.ctors[_read_int()]
         else:
             ctor = t.ctors[0]
-        form = ctor.__form__
+        form = extrinsic(FormSpec, ctor)
         assert isinstance(form, Ctor)
 
         # Bleh.

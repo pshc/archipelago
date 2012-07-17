@@ -239,7 +239,7 @@ def _do_repr(s):
                 name = '%s %s' % (name, extrinsic(ext, s))
         c.write(name)
         c.indent += 1
-        form = dt.__form__
+        form = extrinsic(FormSpec, dt)
         assert not isinstance(form, DataType)
         for field in form.fields:
             f = getattr(s, extrinsic(Name, field))
