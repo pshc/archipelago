@@ -14,6 +14,8 @@ SerialState = DT('SerialState',
 
 Serialize = new_env('Serialize', SerialState)
 
+SerialContext = new_env('SerialContext', None) # debug info
+
 def _write(b):
     state = env(Serialize)
     state.file.write(b)
@@ -64,7 +66,17 @@ def _encode_str(s):
     return _encode_int(len(b)) + b
 
 def _serialize_node(node, t):
+
+    # debugging
+    if not have_env(SerialContext):
+        in_env(SerialContext, DumpList(), lambda: _serialize_node(node, t))
+        return
+
     if isinstance(node, Structured):
+        ctxt = env(SerialContext)
+        nm = extrinsic(Name, node) if has_extrinsic(Name, node) else type(node)
+        ctxt.append((nm, t))
+
         assert isinstance(t, TData), "%r is not a datatype" % (t,)
         env(Serialize).count += 1
         # Collect instantiations
@@ -97,6 +109,8 @@ def _serialize_node(node, t):
                 _write_ref(sub, ft.refType)
             else:
                 _serialize_node(sub, ft)
+
+        ctxt.pop()
     elif isinstance(node, basestring):
         assert isinstance(t, TPrim) and isinstance(t.primType, PStr)
         _write(_encode_str(node))

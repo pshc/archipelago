@@ -140,6 +140,11 @@ class DumpEnvs(object):
         return '<DumpEnvs>'
 dumpenvs = DumpEnvs()
 
+# for more readable stack dumps etc.
+class DumpList(list):
+    def __repr__(self):
+        return ''.join('%r\n' % (e,) for e in self)
+
 TVARS = new_env('TVARS', None)
 NEWTYPEVARS = new_env('NEWTYPEVARS', None)
 
