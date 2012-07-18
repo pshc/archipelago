@@ -118,6 +118,12 @@ def _resolve_walk(node, path):
         form = extrinsic(FormSpec, DATATYPES[nm])
         assert isinstance(form, DataType), "Bad form %s" % (form,)
         dest = vanilla_tdata(form)
+
+        # Also restore any types applied to this TForward
+        for i, appT in enumerate(node.appTypes):
+            dest.appTypes[i] = appT
+            _resolve_walk(appT, (dest.appTypes, i))
+
         # Assign using path
         assert len(path) == 2
         node, last = path
