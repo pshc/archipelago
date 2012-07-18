@@ -77,6 +77,9 @@ def ADT(*ctors):
             ctor_ix += 1
             setattr(shortcut, ctor_nm, d)
 
+        # restore name->tv mapping
+        tvars = dict((extrinsic(Name, tv), tv) for tv in tvars.itervalues())
+
     while ctors:
         ctor = ctors.pop(0)
         members = []
@@ -89,8 +92,8 @@ def ADT(*ctors):
     DATATYPES[tname] = t
     return tuple(data)
 
-def _dt_form(dt, tvars):
-    pass
+def _dt_form(dt, deriveeTVars):
+    assert not deriveeTVars
 
 # Envs
 
@@ -268,14 +271,11 @@ def _ctor_form(ctor):
     return form
 
 def _dt_form(dt, tvs):
-    if tvs is not None:
-        ctors = in_env(TVARS, tvs,
-                lambda: map(_ctor_form, dt.ctors))
-    else:
+    if tvs is None:
         tvs = {}
-        ctors = in_env(TVARS, tvs,
-                lambda: in_env(NEWTYPEVARS, None,
-                lambda: map(_ctor_form, dt.ctors)))
+    ctors = in_env(TVARS, tvs,
+            lambda: in_env(NEWTYPEVARS, None,
+            lambda: map(_ctor_form, dt.ctors)))
     form = DataType(ctors, tvs.values())
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(TrueRepresentation, form, dt)

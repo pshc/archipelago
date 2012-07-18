@@ -3,6 +3,7 @@ from bedrock import *
 from globs import *
 from hashlib import sha256
 from os import system
+from types_builtin import subst
 
 ModuleMeta = DT('ModuleMeta', ('count', int), ('deps', [str]))
 
@@ -98,13 +99,7 @@ def _serialize_node(node, t):
         assert isinstance(node, ctor), "%r is not a %s" % (node, ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
-            ft = field.type
-            if isinstance(ft, TVar):
-                assert ft.typeVar in apps, \
-                        "Can't write free %r in %r with env %r" % (
-                        ft, field, apps)
-                ft = apps[ft.typeVar]
-                assert not isinstance(ft, TWeak), "TVar instantiated weakly?"
+            ft = subst(apps, field.type)
             if isinstance(ft, TWeak):
                 _write_ref(sub, ft.refType)
             else:

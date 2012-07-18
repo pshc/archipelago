@@ -119,10 +119,33 @@ def visit_type_vars(f, t):
                     ("TWeak(t)", visit),
                     ("_", lambda: True))
 
-def collect_type_vars(t):
-    seen = set()
-    visit_type_vars(lambda tv: seen.add(tv.typeVar) or True, t)
-    return seen
+
+def occurs(typeVar, t):
+    return not visit_type_vars(lambda tv: tv is not typeVar, t)
+
+def subst_affects(mapping, t):
+    return not visit_type_vars(lambda tv: tv not in mapping, t)
+
+def subst(mapping, t):
+    return map_type_vars(lambda st: mapping.get(st.typeVar, st), t)
+
+# Make sure the input is sane and non-redundant
+def checked_subst(mapping, t):
+    for tvar, rt in mapping.iteritems():
+        assert not occurs(tvar, rt), "%s occurs in replacement %s" % (tvar, rt)
+    unseen = set(mapping)
+    assert len(unseen) > 0, "Empty substitution for %s" % (t,)
+    def app(st):
+        tvar = st.typeVar
+        if tvar in mapping:
+            st = mapping[tvar]
+            if tvar in unseen:
+                unseen.remove(tvar)
+        return st
+    s = map_type_vars(app, t)
+    assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
+    return s
+
 
 def _var(n): return TVar(n)
 

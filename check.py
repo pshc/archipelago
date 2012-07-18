@@ -99,29 +99,6 @@ def check_pat_as(t, p):
     # bad type, meh
     in_env(CHECK, t, lambda: in_env(EXPRCTXT, p, lambda: _check_pat(p)))
 
-def occurs(typeVar, t):
-    return not visit_type_vars(lambda tv: tv is not typeVar, t)
-
-def subst_affects(mapping, t):
-    return not visit_type_vars(lambda tv: tv not in mapping, t)
-
-# Make sure the input is sane and non-redundant
-def checked_subst(mapping, t):
-    for tvar, rt in mapping.iteritems():
-        assert not occurs(tvar, rt), "%s occurs in replacement %s" % (tvar, rt)
-    unseen = set(mapping)
-    assert len(unseen) > 0, "Empty substitution for %s" % (t,)
-    def app(st):
-        tvar = st.typeVar
-        if tvar in mapping:
-            st = mapping[tvar]
-            if tvar in unseen:
-                unseen.remove(tvar)
-        return st
-    s = map_type_vars(app, t)
-    assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
-    return s
-
 def add_typecast(e, src, dest):
     if match((src, dest), ('(TData(a, _), TData(b, _))', lambda a, b: a is b),
                           ('_', lambda: False)):
