@@ -155,7 +155,8 @@ TrueRepresentation = ExtInfo('TrueRepresentation', object, [{}], [])
 
 def new_extrinsic(label, t):
     if t is not None:
-        t = parse_type(t)
+        tvars = {}
+        t = parse_new_type(t, tvars)
     return ExtInfo(label, t, [], [])
 
 def extrinsic(ext, obj):
