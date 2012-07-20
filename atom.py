@@ -50,7 +50,7 @@ Expr, E, And, DictLit, FuncExpr, GenExpr, \
     ADT(('Expr', CoreExpr),
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'DictLit', ('vals', '[(Expr, Expr)]'),
-        'FuncExpr', ('func', 'Func'),
+        'FuncExpr', ('func', 'Func(Expr)'),
         'GenExpr', ('expr', 'Expr'), ('pattern', 'Pat'),
                    ('listExpr', 'Expr'), ('preds', '[Expr]'),
         'GetEnv', ('env', '*Env'),
@@ -66,40 +66,40 @@ Expr, E, And, DictLit, FuncExpr, GenExpr, \
 AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
         'AugAdd', 'AugSubtract', 'AugMultiply', 'AugDivide', 'AugModulo')
 
-Body = DT('Body', ('stmts', '[Stmt]'))
+Body = DT('Body', ('stmts', '[Stmt(e)]'))
 
-CondCase = DT('CondCase', ('test', Expr), ('body', Body))
+CondCase = DT('CondCase', ('test', 'e'), ('body', 'Body(e)'))
 
-Func = DT('Func', ('params', [Var]), ('body', Body))
+Func = DT('Func', ('params', [Var]), ('body', 'Body(e)'))
 
 Lhs, LhsVar, LhsAttr = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
-        'LhsAttr', ('sub', Expr), ('attr', '*Field'))
+        'LhsAttr', ('sub', 'e'), ('attr', '*Field'))
 
 CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
     ExprStmt, Return, ReturnNothing, While = \
     ADT('CoreStmt',
-        'Assign', ('lhs', Lhs), ('expr', CoreExpr),
-        'AugAssign', ('op', AugOp), ('lhs', Lhs), ('expr', CoreExpr),
+        'Assign', ('lhs', 'Lhs(e)'), ('expr', 'e'),
+        'AugAssign', ('op', AugOp), ('lhs', 'Lhs(e)'), ('expr', 'e'),
         'Break',
-        'Cond', ('cases', [CondCase]), ('elseCase', 'Maybe(Body)'),
+        'Cond', ('cases', ['CondCase(e)']), ('elseCase', 'Maybe(Body(e))'),
         'Continue',
-        'Defn', ('pat', Pat), ('expr', CoreExpr),
-        'ExprStmt', ('expr', CoreExpr),
-        'Return', ('expr', CoreExpr),
+        'Defn', ('pat', Pat), ('expr', 'e'),
+        'ExprStmt', ('expr', 'e'),
+        'Return', ('expr', 'e'),
         'ReturnNothing',
-        'While', ('test', CoreExpr), ('body', Body))
+        'While', ('test', 'e'), ('body', 'Body(e)'))
 
 Stmt, S, Assert, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
-        'Assert', ('test', Expr), ('message', Expr),
-        'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', Expr),
-                          ('val', Expr), ('isNew', bool))
+        'Assert', ('test', 'e'), ('message', 'e'),
+        'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
+                          ('val', 'e'), ('isNew', bool))
 
 TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
     ADT('TopLevel',
         'TopCDecl', ('var', Var),
-        'TopDefn', ('pat', Pat), ('expr', Expr),
+        'TopDefn', ('pat', Pat), ('expr', 'e'),
         'TopDT', ('form', 'DataType'),
         'TopExtrinsic', ('extrinsic', Extrinsic),
         'TopEnv', ('env', Env))
@@ -108,7 +108,7 @@ STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
 
-CompilationUnit = DT('CompilationUnit', ('tops', [TopLevel]))
+CompilationUnit = DT('CompilationUnit', ('tops', ['TopLevel(Expr)']))
 
 def with_context(desc, msg):
     if have_env(UNIFYCTXT):
