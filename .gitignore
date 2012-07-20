@@ -8,3 +8,5 @@
 /opt
 /views
 .DS_Store
+xcuserdata
+*.xcworkspace

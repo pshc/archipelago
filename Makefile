@@ -23,6 +23,9 @@ ir/z.o: z.c
 bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
+Editor/obj/%.ll.o: Editor/%.py
+	$(CODEGEN) -o Editor/obj/ $<
+
 remake_tests: dirs ir/z.o
 	$(CODEGEN) --test -- $(TESTS)
 
