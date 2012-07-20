@@ -16,6 +16,10 @@ import llvm
 Entry = base.DT('Entry', ('key', '*a'), ('value', str))
 Overlay = base.DT('Overlay', ('mapping', [Entry]))
 
+Plan = DT('Plan', ('moduleName', str),
+                  ('writeIR', 'Maybe(str)'),
+                  ('linkBinary', 'Maybe(str)'))
+
 def extrinsic_mod(extr, mapping, src_mod):
     items = {}
     for k, v in mapping.iteritems():
@@ -29,15 +33,19 @@ def extrinsic_mod(extr, mapping, src_mod):
     add_extrinsic(Name, mod, extrinsic(Name, src_mod) + '_' + extr.label)
     return mod
 
-def load_module_dep(src, deps):
+def dep_obj_plan(filename):
+    name = module_name_from_py(filename)
+    return Plan(name, Just('ir/' + name + '.ll'), Nothing())
+
+def module_name_from_py(src):
     assert src.endswith('.py')
     name = src.replace('/', '_')[:-3]
-
-    test = False
-    if name.startswith('tests_'):
+    if src.startswith('tests/'):
         name = name[6:]
-        test = True
+    return name
 
+def load_module_dep(src, deps, plan):
+    name = plan.moduleName
     if name in loaded_modules:
         mod = loaded_modules[name]
         assert mod is not None, "%s is not ready yet!" % (name,)
@@ -71,26 +79,30 @@ def load_module_dep(src, deps):
 
     return expand.in_intramodule_env(
         lambda: check.in_check_env(
-        lambda: _do_mod(mod, test)
+        lambda: _do_mod(mod, plan)
     ))
 
-def _do_mod(mod, test):
+def _do_mod(mod, plan):
     casts = check.check_types(mod.root)
 
     expand.expand_module(mod)
 
-    llvm.write_ir(mod)
-    compiled = llvm.compile(mod)
-
     name = extrinsic(Filename, mod)
-    if test:
+
+    compiled = False
+    if isJust(plan.writeIR):
+        llvm.write_ir(mod, fromJust(plan.writeIR))
+        compiled = llvm.compile(mod)
+
+    if isJust(plan.linkBinary):
+        binFilename = fromJust(plan.linkBinary)
         import os
         try:
-            os.unlink('bin/' + name)
+            os.unlink(binFilename)
         except OSError:
             pass
         if compiled:
-            if llvm.link(mod):
+            if llvm.link(mod, binFilename):
                 print col('Green', 'Linked'), name
 
     assert loaded_modules[name] is None
@@ -98,9 +110,14 @@ def _do_mod(mod, test):
     return mod
 
 def load_module(filename):
-    deps = set()
     print col('DG', 'Loading'), filename
-    mod = load_module_dep(filename, deps)
+
+    plan = dep_obj_plan(filename)
+    if filename.startswith('tests/'):
+        plan.linkBinary = Just('bin/' + plan.moduleName)
+
+    deps = set()
+    mod = load_module_dep(filename, deps, plan)
     return (mod, deps)
 
 def resolve_forward_type_refs():

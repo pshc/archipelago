@@ -1253,9 +1253,7 @@ def write_imports(dep):
 LLFile = new_extrinsic('LLFile', str)
 OFile = new_extrinsic('OFile', str)
 
-def write_ir(mod):
-    filename = 'ir/' + extrinsic(Filename, mod) + '.ll'
-
+def write_ir(mod, filename):
     def go():
         out(prelude)
         runtime = loaded_modules['runtime']
@@ -1286,7 +1284,7 @@ def compile(mod):
     add_extrinsic(OFile, mod, o)
     return True
 
-def link(mod):
+def link(mod, binary):
     objs = ['ir/z.o']
 
     def add_obj(dep):
@@ -1299,7 +1297,6 @@ def link(mod):
     walk_deps(add_obj, mod)
 
     objs.append(extrinsic(OFile, mod))
-    binary = 'bin/%s' % (extrinsic(Filename, mod),)
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
 
 def in_llvm_env(func):
