@@ -16,6 +16,8 @@ import llvm
 Entry = base.DT('Entry', ('key', '*a'), ('value', str))
 Overlay = base.DT('Overlay', ('mapping', [Entry]))
 
+BuildOpts = DT('BuildOpts', ('outDir', 'Maybe(str)'), ('buildTests', bool))
+
 Plan = DT('Plan', ('moduleName', str),
                   ('writeIR', 'Maybe(str)'),
                   ('linkBinary', 'Maybe(str)'))
@@ -108,17 +110,6 @@ def _do_mod(mod, plan):
     assert loaded_modules[name] is None
     loaded_modules[name] = mod
     return mod
-
-def load_module(filename):
-    print col('DG', 'Loading'), filename
-
-    plan = dep_obj_plan(filename)
-    if filename.startswith('tests/'):
-        plan.linkBinary = Just('bin/' + plan.moduleName)
-
-    deps = set()
-    mod = load_module_dep(filename, deps, plan)
-    return (mod, deps)
 
 def resolve_forward_type_refs():
     for dt in DATATYPES.itervalues():
@@ -231,13 +222,27 @@ def load_forms():
 
 DtList = DT('DtList', ('dts', [DataType]))
 
-def load_files(files):
+def load_dep(filename):
+    load_module_dep(filename, set(), dep_obj_plan(filename))
+
+def load_files(files, options):
     load_builtins()
     load_forms()
-    load_module('runtime.py')
-    load_module('bedrock.py')
+    load_dep('runtime.py')
+
     for filename in files:
-        load_module(filename)
+        print col('DG', 'Loading'), filename
+
+        if isJust(options.outDir):
+            name = module_name_from_py(filename)
+            ll = fromJust(options.outDir) + name + '.ll'
+            plan = Plan(name, Just(ll), Nothing())
+        else:
+            plan = dep_obj_plan(filename)
+            if options.buildTests:
+                plan.linkBinary = Just('bin/' + plan.moduleName)
+
+        load_module_dep(filename, set(), plan)
 
 def in_construct_env(func):
     extrs = [Filename, Location,
@@ -249,31 +254,38 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    options = GenOpts(False, None, False, False)
+    genOpts = GenOpts(False, None, False, False)
+    options = BuildOpts(Nothing(), False)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
             files += argv
             break
         elif arg.startswith('-'):
+            # General options
             if arg == '-q':
-                options.quiet = True
+                genOpts.quiet = True
             elif arg == '--color':
                 from IPython.utils.coloransi import TermColors
-                options.color = TermColors
+                genOpts.color = TermColors
             elif arg == '-t':
-                options.dumpTypes = True
+                genOpts.dumpTypes = True
             elif arg == '-i':
-                options.dumpInsts = True
+                genOpts.dumpInsts = True
+            # Build options
+            elif arg == '-o':
+                options.outDir = Just(argv.pop(0))
+            elif arg == '--test':
+                options.buildTests = True
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:
             files.append(arg)
-    in_env(GENOPTS, options,
+    in_env(GENOPTS, genOpts,
             lambda: in_construct_env(
             lambda: expand.in_intermodule_env(
             lambda: llvm.in_llvm_env(
-            lambda: load_files(files)))))
+            lambda: load_files(files, options)))))
 
 if __name__ == '__main__':
     main()

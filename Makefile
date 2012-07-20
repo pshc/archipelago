@@ -2,7 +2,7 @@ TESTS := $(wildcard tests/*.py)
 TEST_BINS := $(TESTS:tests/%.py=bin/%)
 DIRS = bin ir mods opt views
 OPTS = --color -q
-CODEGEN = ./construct.py $(OPTS) --
+CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -ansi -pedantic -W -Wall -Werror
 
@@ -24,7 +24,7 @@ bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
 remake_tests: dirs ir/z.o
-	$(CODEGEN) $(TESTS)
+	$(CODEGEN) --test -- $(TESTS)
 
 test: remake_tests
 	@echo Running tests...
