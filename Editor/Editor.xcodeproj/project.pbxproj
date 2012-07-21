@@ -54,7 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				50A1043315BA0CB00075EE0E /* Objs */,
-				50A1040E15B9F1490075EE0E /* Editor */,
+				50A1040E15B9F1490075EE0E /* OSX */,
 				50A1040715B9F1490075EE0E /* Frameworks */,
 				50A1040515B9F1490075EE0E /* Products */,
 			);
@@ -88,7 +88,7 @@
 			name = "Other Frameworks";
 			sourceTree = "<group>";
 		};
-		50A1040E15B9F1490075EE0E /* Editor */ = {
+		50A1040E15B9F1490075EE0E /* OSX */ = {
 			isa = PBXGroup;
 			children = (
 				50A1041A15B9F1490075EE0E /* AppDelegate.h */,

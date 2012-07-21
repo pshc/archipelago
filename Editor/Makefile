@@ -1,5 +1,7 @@
-all: obj
-	$(MAKE) -C .. Editor/obj/gl.ll.o
+OBJS = Editor/obj/Editor_gl.ll.o
+
+all: include obj
+	@$(MAKE) -C .. --no-print-directory $(OBJS)
 
 obj:
 	@mkdir obj

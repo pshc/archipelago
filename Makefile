@@ -23,7 +23,7 @@ ir/z.o: z.c
 bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
-Editor/obj/%.ll.o: Editor/%.py
+Editor/obj/Editor_%.ll.o: Editor/%.py
 	$(CODEGEN) -o Editor/obj/ $<
 
 remake_tests: dirs ir/z.o
@@ -41,3 +41,4 @@ test: remake_tests
 
 clean:
 	rm -rf -- $(DIRS) *.pyc
+	@$(MAKE) -C Editor clean
