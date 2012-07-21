@@ -8,7 +8,7 @@ CFLAGS = -ansi -pedantic -W -Wall -Werror
 
 all: test
 
-debug: CODEGEN = ipdb construct.py $(OPTS) --
+debug: CODEGEN = ipdb construct.py $(OPTS)
 debug: remake_tests
 
 dirs: $(DIRS) ir/Makefile
