@@ -661,6 +661,8 @@ def conv_for(s):
     return [For(conv_ass(s.assign), conv_expr(s.list),
             conv_stmts_noscope(s.body))]
 
+load_module = None
+
 @top_level(ast.From)
 def conv_from(s):
     names = ', '.join(import_names(s.names))
@@ -672,9 +674,8 @@ def conv_from(s):
         omni = env(OMNI)
         if modname not in omni.directlyImportedModuleNames:
             omni.directlyImportedModuleNames.add(modname)
-            from construct import load_module_dep, dep_obj_plan
-            pynm = modname.replace('.', '/') + '.py'
-            mod = load_module_dep(pynm, omni.loadedDeps, dep_obj_plan(pynm))
+            filename = modname.replace('.', '/') + '.py'
+            mod = load_module(filename, omni.loadedDeps)
             symbols = loaded_module_export_names[mod]
             for k in symbols:
                 assert k not in omni.imports, "Import clash: %s" % (k,)

@@ -111,6 +111,8 @@ def _do_mod(mod, plan):
     loaded_modules[name] = mod
     return mod
 
+astconv.load_module = lambda nm, ds: load_module_dep(nm, ds, dep_obj_plan(nm))
+
 def resolve_forward_type_refs():
     for dt in DATATYPES.itervalues():
         for ctor in extrinsic(FormSpec, dt).ctors:
