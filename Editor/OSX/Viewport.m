@@ -1,6 +1,6 @@
 #import "Viewport.h"
 
-extern void setup_editor(void); // TEMP
+#include "Editor_gl.h"
 
 @implementation Viewport
 

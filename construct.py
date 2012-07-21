@@ -8,15 +8,20 @@ import atom
 import astconv
 import check
 import expand
+import headers
 import scan
 import prop
 import llvm
 
+BuildOpts = DT('BuildOpts', ('outDir', 'Maybe(str)'),
+                            ('writeHeaders', bool),
+                            ('buildTests', bool))
+
+BUILDOPTS = new_env('BUILDOPTS', BuildOpts)
+
 # TEMP
 Entry = base.DT('Entry', ('key', '*a'), ('value', str))
 Overlay = base.DT('Overlay', ('mapping', [Entry]))
-
-BuildOpts = DT('BuildOpts', ('outDir', 'Maybe(str)'), ('buildTests', bool))
 
 Plan = DT('Plan', ('moduleName', str),
                   ('writeIR', 'Maybe(str)'),
@@ -93,8 +98,13 @@ def _do_mod(mod, plan):
 
     compiled = False
     if isJust(plan.writeIR):
-        llvm.write_ir(mod, fromJust(plan.writeIR))
+        ir = fromJust(plan.writeIR)
+        llvm.write_ir(mod, ir)
         compiled = llvm.compile(mod)
+
+        if env(BUILDOPTS).writeHeaders:
+            hdr = ir[:-3].replace('obj', 'include') + '.h'
+            headers.write_export_header(mod, hdr)
 
     if isJust(plan.linkBinary):
         binFilename = fromJust(plan.linkBinary)
@@ -227,7 +237,8 @@ DtList = DT('DtList', ('dts', [DataType]))
 def load_dep(filename):
     load_module_dep(filename, set(), dep_obj_plan(filename))
 
-def load_files(files, options):
+def load_files(files):
+    options = env(BUILDOPTS)
     load_builtins()
     load_forms()
     load_dep('runtime.py')
@@ -257,7 +268,7 @@ def main():
     files = []
     argv = sys.argv[1:]
     genOpts = GenOpts(False, None, False, False)
-    options = BuildOpts(Nothing(), False)
+    options = BuildOpts(Nothing(), False, False)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
@@ -275,6 +286,8 @@ def main():
             elif arg == '-i':
                 genOpts.dumpInsts = True
             # Build options
+            elif arg == '--c-header':
+                options.writeHeaders = True
             elif arg == '-o':
                 options.outDir = Just(argv.pop(0))
             elif arg == '--test':
@@ -284,10 +297,11 @@ def main():
         else:
             files.append(arg)
     in_env(GENOPTS, genOpts,
+            lambda: in_env(BUILDOPTS, options,
             lambda: in_construct_env(
             lambda: expand.in_intermodule_env(
             lambda: llvm.in_llvm_env(
-            lambda: load_files(files, options)))))
+            lambda: load_files(files))))))
 
 if __name__ == '__main__':
     main()

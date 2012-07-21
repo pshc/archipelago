@@ -24,7 +24,7 @@ bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
 Editor/obj/Editor_%.ll.o: Editor/%.py
-	$(CODEGEN) -o Editor/obj/ $<
+	$(CODEGEN) --c-header -o Editor/obj/ $<
 
 remake_tests: dirs ir/z.o
 	$(CODEGEN) --test -- $(TESTS)
