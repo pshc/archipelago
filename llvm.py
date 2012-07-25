@@ -32,8 +32,10 @@ def setup_locals():
     entry = Label(':entry:', True, True)
     return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
-IType, IInt, IBool, IVoid, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
+IType, IInt, IFloat, IBool, IVoid, \
+    ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
+        'IFloat',
         'IBool',
         'IVoid',
         'ITuple', ('types', ['IType']),
@@ -363,6 +365,7 @@ def runtime_decl(name):
 def convert_type(t):
     return match(t,
         ("TPrim(PInt())", IInt),
+        ("TPrim(PFloat())", IFloat),
         ("TPrim(PBool())", IBool),
         ("TPrim(PStr())", IVoidPtr),
         ("TVoid()", IVoid),
@@ -377,6 +380,7 @@ def itypes_equal(src, dest):
     same = lambda: True
     return match((src, dest),
         ('(IInt(), IInt())', same),
+        ('(IFloat(), IFloat())', same),
         ('(IBool(), IBool())', same),
         ('(IVoid(), IVoid())', same),
         ('(IData(a), IData(b))', lambda a, b: a is b),
@@ -402,6 +406,7 @@ def typeof(e):
 def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
+        ("IFloat()", lambda: "float"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),

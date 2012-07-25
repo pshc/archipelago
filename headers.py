@@ -11,6 +11,7 @@ def out(s):
 def write_type(t):
     out(match(t,
         ('TPrim(PInt() or PBool())', lambda: 'int'),
+        ('TPrim(PFloat())', lambda: 'float'),
         ('TVoid()', lambda: 'void'),
         ('_', lambda: 'void *')))
 

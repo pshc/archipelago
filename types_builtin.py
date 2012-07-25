@@ -3,6 +3,7 @@ from base import *
 def prim_equal(p1, p2):
     return match((p1, p2),
         ("(PInt(), PInt())", lambda: True),
+        ("(PFloat(), PFloat())", lambda: True),
         ("(PStr(), PStr())", lambda: True),
         ("(PChar(), PChar())", lambda: True),
         ("(PBool(), PBool())", lambda: True),

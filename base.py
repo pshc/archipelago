@@ -292,8 +292,8 @@ _restore_forms()
 
 TypeVar = DT('TypeVar')
 
-PrimType, PInt, PStr, PChar, PBool = ADT('PrimType',
-        'PInt', 'PStr', 'PChar', 'PBool')
+PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
+        'PInt', 'PFloat', 'PStr', 'PChar', 'PBool')
 
 Type, TVar, TPrim, TVoid, \
     TTuple, TFunc, TData, TArray, TWeak \
@@ -309,6 +309,8 @@ Type, TVar, TPrim, TVoid, \
 
 def TInt():
     return TPrim(PInt())
+def TFloat():
+    return TPrim(PFloat())
 def TBool():
     return TPrim(PBool())
 def TStr():
@@ -340,6 +342,8 @@ def parse_type(t):
         return realize_type(t)
     elif t is int:
         return TInt()
+    elif t is float:
+        return TFloat()
     elif t is str:
         return TStr()
     elif t is bool:
@@ -363,7 +367,7 @@ def parse_type(t):
         return t
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
 
-types_by_name = dict(str=TStr, int=TInt, bool=TBool, void=TVoid)
+types_by_name = dict(str=TStr, int=TInt, float=TFloat, bool=TBool, void=TVoid)
 
 def realize_type(t):
     ast = compiler.ast
