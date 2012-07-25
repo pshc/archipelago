@@ -153,8 +153,8 @@ def check_tuplelit(es):
         check_expr_as(t, e)
 
 def check_listlit(es):
-    ts = match(env(CHECK), "TArray(ts)")
-    for t, e in ezip(ts, es):
+    t = match(env(CHECK), "TArray(t)")
+    for e in es:
         check_expr_as(t, e)
 
 def check_logic(l, r):

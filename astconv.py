@@ -192,8 +192,10 @@ def unwrap_ast(node):
         return node.name
     elif isinstance(node, ast.Tuple):
         return tuple(map(unwrap_ast, node.nodes))
+    elif isinstance(node, ast.List):
+        return map(unwrap_ast, node.nodes)
     else:
-        assert False
+        assert False, "%s isn't a field spec" % (node,)
 
 def _make_dt(dt_nm, *args, **opts):
     dt_nm = unwrap_ast(dt_nm)

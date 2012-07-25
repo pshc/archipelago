@@ -23,8 +23,9 @@ def in_new_scope(retT, f):
     new_scope = PropScope(retT, localVars)
     return in_env(PROPSCOPE, new_scope, f)
 
-MetaCell, Free, Mono, Subst = ADT('MetaCell',
-    'Free', ('origTypeVar', '*TypeVar'),
+MetaCell, Free, InstVar, Mono, Subst = ADT('MetaCell',
+    'Free', ('typeVar', 'Maybe(TypeVar)'),
+    'InstVar', ('origTypeVar', '*TypeVar'),
     'Mono',
     'Subst', ('type', 'CType'))
 
@@ -52,8 +53,11 @@ INST = new_env('INST', {TypeVar: Type})
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', {'*TypeVar': Type})
 
-def fresh(tv):
-    return CMeta(Free(tv))
+def fresh():
+    return CMeta(Free(Nothing()))
+
+def fresh_from(tv):
+    return CMeta(InstVar(tv))
 
 def fresh_monotype():
     return CMeta(Mono())
@@ -66,7 +70,7 @@ def inst_tvar(tv):
         return ctype(t)
     else:
         if not has_extrinsic(InstMeta, tv):
-            add_extrinsic(InstMeta, tv, fresh(tv))
+            add_extrinsic(InstMeta, tv, fresh_from(tv))
         return extrinsic(InstMeta, tv)
 
 def inst_tdata(dt, ts):
@@ -107,10 +111,11 @@ def gen_tdata(dt, ats):
     assert len(ats) == len(dt.tvars)
     return TData(dt, [_gen_type(at) for at in ats])
 
-def gen_new_tvar(cell):
-    top = env(PROPTOP)
+def capture_free(f):
     tvar = TypeVar()
-    cell.type = Just(CVar(tvar))
+    add_extrinsic(Name, tvar, 'free')
+    f.typeVar = Just(tvar)
+    top = env(PROPTOP)
     if not has_extrinsic(TypeVars, top):
         add_extrinsic(TypeVars, top, [])
     extrinsic(TypeVars, top).append(tvar)
@@ -130,7 +135,9 @@ def _gen_type(s):
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
-        ('CMeta(Free(tv))', TVar),
+        ('CMeta(Free(Just(tvar)))', TVar),
+        ('CMeta(f==Free(Nothing()))', capture_free),
+        ('CMeta(InstVar(tv))', TVar),
         ('CMeta(Mono())', free_monotype),
         ('CMeta(Subst(s))', _gen_type))
 
@@ -205,9 +212,13 @@ def try_unite(src, dest):
     match((src, dest),
         ("(CMeta(Subst(s)), CMeta(Subst(d)))", try_unite),
         # two free vars
-        ("(src==CMeta(Free(_)), t==CMeta(Free(_) or Mono()))", set_meta_subst),
+        ("(src==CMeta(Free()), t==CMeta(Free() or InstVar(_) or Mono()))",
+                set_meta_subst),
+        ("(src==CMeta(InstVar(_)), t==CMeta(Free() or InstVar(_) or Mono()))",
+                set_meta_subst),
         ("(src==CMeta(Mono()), t==CMeta(Mono()))", set_meta_subst),
-        ("(src==CMeta(Mono()), t==CMeta(Free(_)))", copy_mono_subst),
+        ("(src==CMeta(Mono()), t==CMeta(Free() or InstVar(_)))",
+                copy_mono_subst),
         # free -> some type (direct unification)
         ("(CMeta(Subst(src)), dest)", try_unite),
         ("(CMeta(Mono()), CVar(_))", lambda:
@@ -290,6 +301,15 @@ def prop_bind_var(b, v):
     if ct is not None:
         return ct
     return inst_bind(b, v)
+
+def prop_listlit(es):
+    if len(es) == 0:
+        return CArray(fresh())
+    else:
+        t = prop_expr(es[0])
+        for e in es[1:]:
+            consume_value_as(t, e)
+        return CArray(t)
 
 def prop_call(f, s):
     ft = prop_expr(f)
@@ -388,7 +408,7 @@ def _prop_expr(e):
         ("IntLit(_)", CInt),
         ("StrLit(_)", CStr),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
-        ("ListLit(ss)", lambda ts: CList(map(prop_expr, ts))),
+        ("ListLit(ss)", prop_listlit),
         ("Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
         ("Ternary(c, t, f)", prop_ternary),

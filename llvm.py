@@ -33,11 +33,12 @@ def setup_locals():
     return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
 IType, IInt, IFloat, IBool, IVoid, \
-    ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
+    IArray, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
         'IFloat',
         'IBool',
         'IVoid',
+        'IArray', ('count', int), ('type', 'IType'),
         'ITuple', ('types', ['IType']),
         'IData', ('datatype', '*DataType'),
         'IFunc', ('params', ['IType']), ('ret', 'IType'),
@@ -373,7 +374,7 @@ def convert_type(t):
         ("TFunc(ps, r)", lambda ps, r:
                          IFunc(map(convert_type, ps), convert_type(r))),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
-        ("TArray(t)", lambda t: IPtr(convert_type(t))),
+        ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
 def itypes_equal(src, dest):
@@ -383,7 +384,11 @@ def itypes_equal(src, dest):
         ('(IFloat(), IFloat())', same),
         ('(IBool(), IBool())', same),
         ('(IVoid(), IVoid())', same),
-        ('(IData(a), IData(b))', lambda a, b: a is b),
+        ('(IVoidPtr(), IVoidPtr())', same),
+        ('(IArray(n1, t1), IArray(n2, t2))', lambda n1, t1, n2, t2:
+            n1 == n2 and itypes_equal(t1, t2)),
+        ('(ITuple(ts1), ITuple(ts2))', lambda ts1, ts2:
+            all(itypes_equal(a, b) for a, b in ezip(ts1, ts2))),
         ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
             len(ps1) == len(ps2) and
             all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
@@ -409,6 +414,7 @@ def t_str(t):
         ("IFloat()", lambda: "float"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
+        ("IArray(n, t)", lambda n, et: "[%d x %s]" % (n, t_str(et))),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
         ("IFunc(ps, r)", t_func_str),
@@ -733,13 +739,32 @@ def expr_strlit(lit):
     newline()
     return tmp
 
-def expr_tuple_lit(lit, ts):
+def expr_tuplelit(lit, ts):
     tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
     tmp = malloc(tt).xpr
     txs = map(express_typed, ts)
     struct = build_struct(tt, txs)
     store_xpr(struct, tmp)
     return tmp
+
+def expr_listlit(lit, es):
+    litt = typeof(lit)
+    t = match(litt, "IPtr(IArray(0, t))")
+    n = len(es)
+    at = IArray(n + 1, t)
+    xtmem = malloc(at)
+    # Store length in first element
+    lenx = TypedXpr(IInt(), Const(str(n)))
+    if not itypes_equal(IInt(), t):
+        lenx = cast(lenx, t)
+    txs = map(express_typed, es)
+    txs.insert(0, lenx)
+    array = build_struct(at, txs)
+    store_xpr(array, xtmem.xpr)
+    # Return pointer to second element
+    arr = temp_reg_named('listlit')
+    get_element_ptr(arr, xtmem, 1)
+    return cast(TypedXpr(IPtr(t), arr), litt).xpr
 
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
@@ -759,8 +784,9 @@ def express(expr):
         ('e==Or(l, r)', expr_or),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
         ('lit==StrLit(_)', expr_strlit),
-        ('e==Ternary(c, l, r)', expr_ternary),
-        ('lit==TupleLit(es)', expr_tuple_lit))
+        ('lit==TupleLit(es)', expr_tuplelit),
+        ('lit==ListLit(es)', expr_listlit),
+        ('e==Ternary(c, l, r)', expr_ternary))
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
