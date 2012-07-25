@@ -23,7 +23,7 @@ ir/z.o: z.c
 bin/%: tests/%.py dirs
 	$(CODEGEN) $<
 
-Editor/obj/Editor_%.ll.o: Editor/%.py
+Editor/obj/Editor_%.ll.o: Editor/%.py $(DIRS) prop.py expand.py llvm.py
 	$(CODEGEN) --c-header -o Editor/obj/ $<
 
 remake_tests: dirs ir/z.o
