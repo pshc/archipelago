@@ -32,12 +32,13 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
 
 MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
 
-CoreExpr, Attr, Bind, Call, IntLit, StrLit, Ternary, TupleLit = \
+CoreExpr, Attr, Bind, Call, IntLit, FloatLit, StrLit, Ternary, TupleLit = \
     ADT('CoreExpr',
         'Attr', ('expr', 'CoreExpr'), ('field', '*Field'),
         'Bind', ('target', '*a'), # Binder a => a
         'Call', ('func', 'CoreExpr'), ('args', '[CoreExpr]'),
         'IntLit', ('val', int),
+        'FloatLit', ('val', float),
         'StrLit', ('val', str),
         'Ternary', ('test', 'CoreExpr'), ('then', 'CoreExpr'),
                    ('else_', 'CoreExpr'),

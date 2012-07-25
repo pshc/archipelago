@@ -478,6 +478,7 @@ def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
         return match(t,
             ('TVar(tv)', _derive_tvar),
             ('TPrim(PInt())', TInt),
+            ('TPrim(PFloat())', TFloat),
             ('TPrim(PBool())', TBool),
             ('TPrim(PStr())', TStr),
             ('TPrim(PChar())', TChar),
@@ -603,6 +604,8 @@ def pretty_brief(name, o):
             return "'%r" % (o,)
     elif name == 'IntLit':
         return col('Cyan', 'i%d' % (o.val,))
+    elif name == 'FloatLit':
+        return col('Cyan', 'i%f' % (o.val,))
     elif name == 'StrLit':
         return fmtcol('^Cyan^s{0!r}^N', o.val)
     elif name == 'TPrim' or name == 'CPrim':

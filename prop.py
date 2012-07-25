@@ -45,6 +45,7 @@ CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
 PendingType = new_extrinsic('PendingType', CType)
 
 def CInt(): return CPrim(PInt())
+def CFloat(): return CPrim(PFloat())
 def CBool(): return CPrim(PBool())
 def CStr(): return CPrim(PStr())
 
@@ -406,6 +407,7 @@ def prop_expr(e):
 def _prop_expr(e):
     rt = match(e,
         ("IntLit(_)", CInt),
+        ("FloatLit(_)", CFloat),
         ("StrLit(_)", CStr),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
         ("ListLit(ss)", prop_listlit),
@@ -423,7 +425,8 @@ def _prop_expr(e):
         ("ScopeExtrinsic(_, f)", prop_expr),
         ("bind==Bind(target)", prop_bind))
     if env(GENOPTS).dumpTypes:
-        if not matches(e, ('IntLit(_) or StrLit(_) or Bind(BindBuiltin(_))')):
+        if not matches(e, ('IntLit(_) or FloatLit(_) or StrLit(_)'
+                    + ' or Bind(BindBuiltin(_))')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
     add_extrinsic(PendingType, e, rt)
     return rt

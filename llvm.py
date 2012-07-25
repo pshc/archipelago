@@ -334,6 +334,8 @@ def cast(txpr, dest):
         ('(IInt() or IBool(), IVoidPtr())', lambda: 'inttoptr'),
         ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
         ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
+        ('(IInt(), IFloat())', lambda: 'bitcast'),
+        ('(IFloat(), IInt())', lambda: 'bitcast'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
     xpr = txpr.xpr
@@ -783,6 +785,7 @@ def express(expr):
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
         ('IntLit(i)', lambda i: Const('%d' % (i,))),
+        ('FloatLit(f)', lambda f: Const('%f' % (f,))),
         ('lit==StrLit(_)', expr_strlit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),

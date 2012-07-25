@@ -460,6 +460,8 @@ def conv_const(e):
     v = e.value
     if isinstance(v, int):
         return E.IntLit(v)
+    elif isinstance(v, float):
+        return E.FloatLit(v)
     elif isinstance(v, str):
         return E.StrLit(v)
     assert False, 'Unknown literal %s' % (e,)

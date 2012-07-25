@@ -62,6 +62,11 @@ def _encode_int(n):
     return chr(0xf0) + chr(n>>24 & 0xff) + chr(n>>16 & 0xff) + \
             chr(n>>8 & 0xff) + chr(n & 0xff)
 
+def _encode_float(f):
+    # TEMP
+    assert f >= 0 and f.is_integer()
+    return _encode_int(int(f))
+
 def _encode_str(s):
     b = s.encode('UTF-8')
     return _encode_int(len(b)) + b
@@ -115,6 +120,9 @@ def _serialize_node(node, t):
     elif isinstance(node, int):
         assert isinstance(t, TPrim) and isinstance(t.primType, PInt)
         _write(_encode_int(node))
+    elif isinstance(node, float):
+        assert isinstance(t, TPrim) and isinstance(t.primType, PFloat)
+        _write(_encode_float(node))
     elif isinstance(node, list):
         assert isinstance(t, TArray), "Unexpected array:\n%s\nfor:\n%s" % (
                 node, t)
@@ -225,6 +233,10 @@ def _read_int():
     else:
         assert False, "Int overflow"
 
+def _read_float():
+    # TEMP
+    return _read_int()
+
 def _read_str():
     n = _read_int()
     return env(Deserialize).read(n).decode('UTF-8')
@@ -252,6 +264,8 @@ def _read_node(t, path):
         return val
     elif matches(t, 'TPrim(PInt())'):
         return _read_int()
+    elif matches(t, 'TPrim(PFloat())'):
+        return _read_float()
     elif matches(t, 'TPrim(PStr())'):
         return _read_str()
     elif isinstance(t, TApply):
