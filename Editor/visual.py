@@ -1,7 +1,9 @@
-glClear = cimport('glClear', 'int -> void')
-glClearColor = cimport('glClearColor', '(float, float, float, float) -> void')
-glUniformMatrix4fv = cimport('glUniformMatrix4fv',
-        '(int, int, bool, [float]) -> void')
+from Editor.gl import *
+
+Vec2 = DT('Vec2', ('x', float), ('y', float))
+
+SceneNode = DT('SceneNode',
+        ('position', Vec2))
 
 @annot('void -> void')
 def setup_editor():
@@ -28,8 +30,6 @@ def set_view_pos(x, y):
     ]
     uniform = 1
     glUniformMatrix4fv(uniform, 1, False, mvMat)
-
-GL_COLOR_BUFFER_BIT = 16384
 
 @annot('void -> void')
 def render_editor():

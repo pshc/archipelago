@@ -357,9 +357,9 @@ def runtime_decl(name):
     if ref is not None:
         return ref
     runtime = loaded_modules['runtime']
-    from astconv import loaded_module_export_names, cNamespace
+    from astconv import loaded_module_export_names, valueNamespace
     symbolTable = loaded_module_export_names[runtime]
-    ref = symbolTable[(name, cNamespace)]
+    ref = symbolTable[(name, valueNamespace)]
     _cached_runtime_refs[name] = ref
     return ref
 
@@ -994,16 +994,13 @@ def write_defn(pat, e):
     store_pat(pat, express_typed(e))
 
 def write_top_intlit(v, n):
-    if env(DECLSONLY):
-        pass
-    else:
-        ref = global_ref(v)
-        add_static_replacement(v, ref, False)
-        out_xpr(ref)
-        out(' = global ')
-        out_t(typeof(v))
-        out(str(n))
-        newline()
+    ref = global_ref(v)
+    add_static_replacement(v, ref, False)
+    out_xpr(ref)
+    out(' = internal constant ')
+    out_t(typeof(v))
+    out(str(n))
+    newline()
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
@@ -1254,12 +1251,10 @@ def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))
 
 def write_top_cdecl(v):
-    if not env(DECLSONLY):
-        add_static_replacement(v, global_ref(v), True)
-        tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
-        write_top_func_decl(global_ref(v), tps, tret)
-    else:
-        write_top_func(v)
+    ref = global_ref(v)
+    add_static_replacement(v, ref, True)
+    tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
+    write_top_func_decl(ref, tps, tret)
 
 def write_top_var_func(v, f):
     if not env(DECLSONLY):
