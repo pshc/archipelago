@@ -21,11 +21,12 @@
 - (void)reshape
 {
     [super reshape];
+    set_view_size(self.frame.size.width, self.frame.size.height);
 }
 
 - (void)drawRect:(NSRect)dirtyRect
 {
-    // TODO: render
+    render_editor();
     [self.openGLContext flushBuffer];
 }
 
