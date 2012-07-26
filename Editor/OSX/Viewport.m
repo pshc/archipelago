@@ -1,6 +1,6 @@
 #import "Viewport.h"
 
-#include "Editor_gl.h"
+#include "Editor_visual.h"
 
 @implementation Viewport
 

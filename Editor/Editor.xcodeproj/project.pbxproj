@@ -14,7 +14,7 @@
 		50A1041F15B9F1490075EE0E /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 50A1041D15B9F1490075EE0E /* MainMenu.xib */; };
 		50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1042515B9F15F0075EE0E /* OpenGL.framework */; };
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
-		50A1043615BA0CEF0075EE0E /* Editor_gl.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1043515BA0CEF0075EE0E /* Editor_gl.ll.o */; };
+		50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,7 +33,7 @@
 		50A1042515B9F15F0075EE0E /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		50A1042C15B9F2050075EE0E /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
-		50A1043515BA0CEF0075EE0E /* Editor_gl.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_gl.ll.o; sourceTree = "<group>"; };
+		50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_visual.ll.o; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,7 +43,7 @@
 			files = (
 				50A1040915B9F1490075EE0E /* Cocoa.framework in Frameworks */,
 				50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */,
-				50A1043615BA0CEF0075EE0E /* Editor_gl.ll.o in Frameworks */,
+				50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -115,7 +115,7 @@
 		50A1043315BA0CB00075EE0E /* Objs */ = {
 			isa = PBXGroup;
 			children = (
-				50A1043515BA0CEF0075EE0E /* Editor_gl.ll.o */,
+				50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */,
 			);
 			name = Objs;
 			path = obj;
