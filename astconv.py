@@ -163,6 +163,7 @@ def conv_type(t, tvars, dt=None):
 
 for (cls, op) in {ast.Add: '+', ast.Sub: '-',
                   ast.Mul: '*', ast.FloorDiv: '//', ast.Mod: '%',
+                  ast.Div: 'fdiv',
                   ast.Bitand: '&', ast.Bitor: '|', ast.Bitxor: '^',
                   ast.LeftShift: '<<', ast.RightShift: '>>'}.iteritems():
     @expr(cls)
