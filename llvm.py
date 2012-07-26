@@ -410,6 +410,10 @@ def typeof(e):
         ("IntLit(_)", lambda: IInt()),
         ("_", no_type))
 
+def convert_split_tfunc(t):
+    return match(t,
+        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+
 def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
@@ -1125,12 +1129,19 @@ def write_params(ps, tps):
     out(')')
     return txs
 
+def write_top_func_decl(ref, tps, tret):
+    out('declare ')
+    out_t(tret)
+    out_xpr(ref)
+    write_param_types(tps)
+    newline()
+
 def write_top_func(f):
-    tps, tret = match(extrinsic(TypeOf, f),
-        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+    tps, tret = convert_split_tfunc(extrinsic(TypeOf, f))
 
     if env(DECLSONLY):
-        out('declare ')
+        write_top_func_decl(func_ref(f), tps, tret)
+        return
     elif env(EXPORTSYMS):
         out('define ')
     else:
@@ -1138,12 +1149,8 @@ def write_top_func(f):
     out_t(tret)
     out_func_ref(f)
 
-    if env(DECLSONLY):
-        write_param_types(tps)
-        newline()
-    else:
-        as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
-        out('}\n\n')
+    as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
+    out('}\n\n')
 
 def _write_top_func(f, ps, body, tps, tret):
     txs = write_params(ps, tps)
@@ -1223,7 +1230,11 @@ def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))
 
 def write_top_cdecl(v):
-    if env(DECLSONLY):
+    if not env(DECLSONLY):
+        check_static_replacement(v, v)
+        tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
+        write_top_func_decl(global_ref(v), tps, tret)
+    else:
         write_top_func(v)
 
 def write_top_var_func(v, f):

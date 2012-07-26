@@ -217,6 +217,15 @@ def make_cdecl(nm, t):
     add_extrinsic(TypeOf, var, t)
     return [TopCDecl(var)]
 
+@special_assignment('cimport')
+def make_cimport(nm, t):
+    var = Var()
+    identifier(var, nm.value, export=False, namespace=valueNamespace)
+    tvars = {}
+    t = conv_type(conv_special(t), tvars)
+    add_extrinsic(TypeOf, var, t)
+    return [TopCDecl(var)]
+
 @special_assignment('ADT')
 def make_adt(*args):
     return _make_dt(*args, **(dict(maker=ADT)))
