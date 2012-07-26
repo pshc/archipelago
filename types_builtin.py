@@ -157,7 +157,7 @@ builtins_types = {
     'ord': (TChar, TInt),
     '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
     '*': (TInt, TInt, TInt), '//': (TInt, TInt, TInt), '%': (TInt, TInt, TInt),
-    'negate': (TInt, TInt),
+    'negate': (TInt, TInt), 'fnegate': (TFloat, TFloat),
     '&': (TInt, TInt, TInt), '|': (TInt, TInt, TInt), '^': (TInt, TInt, TInt),
     '==': (TInt, TInt, TBool), '!=': (TInt, TInt, TBool),
     '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),

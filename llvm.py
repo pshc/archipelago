@@ -531,6 +531,7 @@ def una_op(b):
     return match(b,
         ('key("not")', lambda: 'not'),
         ('key("negate")', lambda: 'negate'),
+        ('key("fnegate")', lambda: 'fnegate'),
         ('_', lambda: ''))
 
 def bin_op(b):
@@ -553,14 +554,16 @@ def aug_op(b):
         ('AugModulo()', lambda: 'srem')) # or urem...
 
 def expr_unary(op, arg):
-    assert op == 'not' or op == 'negate'
-    pivot = TypedXpr(arg.type, Const('1' if op == 'not' else '0'))
+    floating = op.startswith('f')
+    pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
+    pivot = TypedXpr(arg.type, Const(pivotVal))
+    instr = 'fsub' if floating else 'sub'
     if is_const(arg.xpr):
-        return ConstOp('sub', [pivot, arg])
+        return ConstOp(instr, [pivot, arg])
     else:
         tmp = temp_reg_named(op)
         out_xpr(tmp)
-        out(' = sub ')
+        out(' = %s ' % (instr,))
         out_txpr(pivot)
         comma()
         out_xpr(arg.xpr)

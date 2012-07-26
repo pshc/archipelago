@@ -312,12 +312,26 @@ def prop_listlit(es):
             consume_value_as(t, e)
         return CArray(t)
 
-def prop_call(f, s):
+def prop_call(call, f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
+
+    # TEMP: resolve numeric operator overload
+    if 1 <= len(argts) <= 2 and matches(argts[0], "CPrim(PFloat())") and \
+                matches(f, "Bind(_)"):
+        newf = overload_num_call(f.target)
+        if newf:
+            f = newf
+            call.func = f
+            ft = prop_expr(f)
+
     for arg, param in ezip(argts, ft.funcArgs):
         unify(arg, param)
     return ft.funcRet
+
+def overload_num_call(f):
+    if matches(f, "key('negate')"):
+        return symref('fnegate')
 
 def prop_logic(l, r):
     consume_value_as(CBool(), l)
@@ -411,7 +425,7 @@ def _prop_expr(e):
         ("StrLit(_)", CStr),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
         ("ListLit(ss)", prop_listlit),
-        ("Call(f, s)", prop_call),
+        ("call==Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
         ("Ternary(c, t, f)", prop_ternary),
         ("FuncExpr(f==Func(ps, b))", prop_func),

@@ -120,8 +120,11 @@ def with_context(desc, msg):
     desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
+def symref(name):
+    return E.Bind(BUILTINS[name])
+
 def symcall(name, params):
-    return E.Call(E.Bind(BUILTINS[name]), params)
+    return E.Call(symref(name), params)
 
 def getname(sym):
     return match(sym, 'named(nm)')
