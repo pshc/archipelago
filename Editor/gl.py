@@ -29,9 +29,10 @@ def set_view_pos(x, y):
     uniform = 1
     glUniformMatrix4fv(uniform, 1, False, mvMat)
 
+GL_COLOR_BUFFER_BIT = 16384
+
 @annot('void -> void')
 def render_editor():
-    GL_COLOR_BUFFER_BIT = 16384
     glClear(GL_COLOR_BUFFER_BIT)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

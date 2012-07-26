@@ -62,7 +62,7 @@ def is_const(x):
         ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
-Replacement = new_extrinsic('Replacement', Xpr)
+Replacement = new_extrinsic('Replacement', (Xpr, bool))
 
 LiteralSize = new_extrinsic('LiteralSize', int)
 
@@ -514,15 +514,23 @@ def express_Builtin(b):
 
 @impl(LLVMBindable, Var)
 def express_Var(v):
+    globalRef = Nothing()
     if has_extrinsic(Replacement, v):
-        return extrinsic(Replacement, v)
+        repl, const = extrinsic(Replacement, v)
+        if const:
+            return repl
+        else:
+            globalRef = Just(repl)
     # Would be nice: (need name_reg)
     #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
     tmp = temp_reg_named(extrinsic(Name, v))
     out_xpr(tmp)
     out(' = load ')
     out_t_ptr(typeof(v))
-    out_name_reg(v)
+    if isJust(globalRef):
+        out_xpr(fromJust(globalRef))
+    else:
+        out_name_reg(v)
     newline()
     return tmp
 
@@ -966,21 +974,36 @@ def write_cond(stmt, cs, else_):
     if endif.used:
         out_label(endif)
 
+def add_static_replacement(v, ref, isConst):
+    add_extrinsic(Replacement, v, (ref, isConst))
+
 def check_static_replacement(v, f):
     if has_extrinsic(Replacement, v):
         return True
     if has_extrinsic(expand.VarUsage, v):
         if extrinsic(expand.VarUsage, v).isReassigned:
             return False
-    add_extrinsic(Replacement, v, func_ref(f))
+    add_static_replacement(v, func_ref(f), True)
     return True
 
-def write_func_defn(v, e, f):
+def write_local_func_defn(v, e, f):
     if not check_static_replacement(v, f):
         write_defn(v, e)
 
 def write_defn(pat, e):
     store_pat(pat, express_typed(e))
+
+def write_top_intlit(v, n):
+    if env(DECLSONLY):
+        pass
+    else:
+        ref = global_ref(v)
+        add_static_replacement(v, ref, False)
+        out_xpr(ref)
+        out(' = global ')
+        out_t(typeof(v))
+        out(str(n))
+        newline()
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
@@ -1220,7 +1243,7 @@ def write_stmt(stmt):
         ("Break()", write_break),
         ("Continue()", write_continue),
         ("stmt==Cond(cs, else_)", write_cond),
-        ("Defn(PatVar(v), e==FuncExpr(f))", write_func_defn),
+        ("Defn(PatVar(v), e==FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
@@ -1232,7 +1255,7 @@ def write_body(body):
 
 def write_top_cdecl(v):
     if not env(DECLSONLY):
-        check_static_replacement(v, v)
+        add_static_replacement(v, global_ref(v), True)
         tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
         write_top_func_decl(global_ref(v), tps, tret)
     else:
@@ -1240,7 +1263,7 @@ def write_top_cdecl(v):
 
 def write_top_var_func(v, f):
     if not env(DECLSONLY):
-        check_static_replacement(v, f)
+        add_static_replacement(v, func_ref(f), True)
     write_top_func(f)
 
 def write_top_strlit(var, s):
@@ -1263,6 +1286,7 @@ def write_top(top):
     match(top,
         ("TopCDecl(v)", write_top_cdecl),
         ("TopDefn(PatVar(v), FuncExpr(f))", write_top_var_func),
+        ("TopDefn(PatVar(v), IntLit(n))", write_top_intlit),
         ("TopDT(form)", write_dtstmt),
         ("TopEnv(environ)", write_new_env),
         ("TopExtrinsic(extr)", write_new_extrinsic))

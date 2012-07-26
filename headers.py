@@ -35,6 +35,11 @@ def write_func_decl(name, params, ret):
     write_params(params)
     out(';\n')
 
+def write_int_decl(name, t):
+    out('extern ')
+    write_type(t)
+    out(' %s;\n' % (name,))
+
 def write_unit(unit, name):
     guard = name.upper() + '_H'
     out('#ifndef %s\n#define %s\n\n' % (guard, guard))
@@ -46,7 +51,8 @@ def write_unit(unit, name):
             name = extrinsic(Name, v)
             match(t,
                 ('TFunc(params, ret)', lambda params, ret:
-                        write_func_decl(name, params, ret)))
+                        write_func_decl(name, params, ret)),
+                ('_', lambda: write_int_decl(name, t)))
 
     out('\n#endif /* %s */\n' % (guard,))
 
