@@ -318,8 +318,6 @@ def TStr():
 def TChar():
     return TPrim(PChar())
 
-_parsed_type_cache = {}
-
 def parse_new_type(t, tvars):
     return in_env(NEWTYPEVARS, None, lambda:
             in_env(TVARS, tvars, lambda: parse_type(t)))
@@ -334,12 +332,13 @@ def parse_type(t):
             form = extrinsic(FormSpec, t.__dt__)
         return vanilla_tdata(form)
     elif isinstance(t, basestring):
-        key = t.replace('->', '>').replace('*', '-')
-        t = _parsed_type_cache.get(key)
-        if not t:
-            t = compiler.parse(key, mode='eval').node
-            _parsed_type_cache[key] = t
-        return realize_type(t)
+        toks = list(tokenize_type(t))
+        try:
+            ct = consume_type(toks)
+            assert not toks, "%s remaining" % (toks,)
+        except AssertionError, e:
+            raise AssertionError("%s while parsing %r" % (e, t))
+        return ct
     elif t is int:
         return TInt()
     elif t is float:
@@ -369,55 +368,98 @@ def parse_type(t):
 
 types_by_name = dict(str=TStr, int=TInt, float=TFloat, bool=TBool, void=TVoid)
 
-def realize_type(t):
-    ast = compiler.ast
-    if isinstance(t, ast.CallFunc):
-        if isinstance(t.node, ast.Name) and t.node.name == 't':
-            return TTuple(map(realize_type, t.args))
-        dt = realize_type(t.node)
-        dt.appTypes = [realize_type(a) for a in t.args]
-        return dt
-    elif isinstance(t, ast.Compare):
-        tuplify = lambda x: x.nodes if isinstance(x, ast.Tuple) else [x]
-        ops = [tuplify(t.expr)]
-        for o, e in t.ops[:-1]:
-            assert o == '>'
-            ops.insert(0, tuplify(e))
-        # Don't tuplify the last one (final result)
-        o, e = t.ops[-1]
-        assert o == '>'
-        r = realize_type(e)
-        def step(r, ts):
-            params = map(realize_type, ts)
-            if len(params) == 1 and matches(params[0], 'TVoid()'):
-                params = []
-            return TFunc(params, r)
-        return reduce(step, ops, r)
-    elif isinstance(t, ast.List):
-        assert len(t.nodes) == 1
-        return TArray(realize_type(t.nodes[0]))
-    elif isinstance(t, ast.Tuple):
-        return TTuple(map(realize_type, t.nodes))
-    elif isinstance(t, ast.Name):
-        t = t.name
-        if len(t) == 1:
-            tvars = env(TVARS)
-            tvar = tvars.get(t)
-            if tvar is None:
-                assert have_env(NEWTYPEVARS), "Tried to create TypeVar %s" % t
-                tvar = TypeVar()
-                add_extrinsic(Name, tvar, t)
-                tvars[t] = tvar
-            return TVar(tvar)
-        elif t in DATATYPES:
-            return vanilla_tdata(extrinsic(FormSpec, DATATYPES[t]))
-        elif t in types_by_name:
-            return types_by_name[t]()
+def _type_by_name(t):
+    if len(t) == 1:
+        tvars = env(TVARS)
+        tvar = tvars.get(t)
+        if tvar is None:
+            assert have_env(NEWTYPEVARS), "Tried to create TypeVar %s" % t
+            tvar = TypeVar()
+            add_extrinsic(Name, tvar, t)
+            tvars[t] = tvar
+        return TVar(tvar)
+    elif t in DATATYPES:
+        return vanilla_tdata(extrinsic(FormSpec, DATATYPES[t]))
+    elif t in types_by_name:
+        return types_by_name[t]()
+    else:
+        return TForward(t, [])
+
+def consume_type(toks):
+    wasParens = False
+    tok = toks.pop(0)
+    if tok == '*':
+        t = TWeak(consume_type(toks))
+    elif tok == 't(' or tok == '(':
+        # tuple literal
+        wasParens = (tok == '(')
+        ts = []
+        while toks[0] != ')':
+            ts.append(consume_type(toks))
+            if toks[0] == ',':
+                toks.pop(0)
+            else:
+                assert toks[0] == ')', "Expected comma or ), not " + toks[0]
+        toks.pop(0)
+        t = TTuple(ts)
+    elif tok == '[':
+        t = TArray(consume_type(toks))
+        assert toks.pop(0) == ']', 'Unbalanced []'
+    elif tok[0] in slashW:
+        t = _type_by_name(tok)
+        if toks and toks[0] == '(':
+            # application
+            apps = []
+            toks.pop(0)
+            while toks[0] != ')':
+                apps.append(consume_type(toks))
+                if toks[0] == ',':
+                    toks.pop(0)
+                else:
+                    assert toks[0]==')', "Expected comma or ), not " + toks[0]
+            toks.pop(0)
+            assert not t.appTypes or len(t.appTypes)==len(apps),"Bad app count"
+            t.appTypes = apps
+    else:
+        assert False, "Unexpected " + tok
+    # might be followed by infix arrow
+    if toks and toks[0] == '->':
+        toks.pop(0)
+        params = t.tupleTypes if wasParens else [t]
+        if len(params) == 1 and matches(params[0], 'TVoid()'):
+            params = []
+        t = TFunc(params, consume_type(toks))
+    return t
+
+slashW = 'abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
+
+def tokenize_type(s):
+    word = ''
+    lastDash = False
+    for i, c in enumerate(s):
+        if lastDash:
+            assert c == '>', "Broken arrow"
+            yield '->'
+            lastDash = False
+        elif c in slashW:
+            word += c
+        elif c == '(' and word == 't':
+            yield 't('
+            word = ''
         else:
-            return TForward(t, [])
-    elif isinstance(t, ast.UnarySub):
-        return TWeak(realize_type(t.expr))
-    assert False, "Unknown type ast repr: %r" % (t,)
+            if word:
+                yield word
+                word = ''
+            if c in '*,:(){}[]':
+                yield c
+            elif c == '-':
+                lastDash = True
+            elif c != ' ':
+                assert False, "Unexpected char in " + s
+    assert not lastDash
+    if word:
+        yield word
+
 
 TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
