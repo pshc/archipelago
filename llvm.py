@@ -7,7 +7,8 @@ Label = DT('Label', ('name', str),
                     ('used', bool),
                     ('needsTerminator', bool))
 
-IRInfo = DT('IRInfo', ('stream', None))
+IRInfo = DT('IRInfo', ('stream', None),
+                      ('overrideImportUsageCheck', bool))
 IR = new_env('IR', IRInfo)
 
 IRLocals = DT('IRLocals', ('needIndent', bool),
@@ -26,7 +27,7 @@ DECLSONLY = new_env('DECLSONLY', bool)
 
 def setup_ir(filename):
     stream = file(filename, 'wb') # really ought to close explicitly
-    return IRInfo(stream)
+    return IRInfo(stream, False)
 
 def setup_locals():
     entry = Label(':entry:', True, True)
@@ -994,6 +995,8 @@ def write_defn(pat, e):
     store_pat(pat, express_typed(e))
 
 def write_top_intlit(v, n):
+    if not imported_bindable_used(v):
+        return
     ref = global_ref(v)
     add_static_replacement(v, ref, False)
     out_xpr(ref)
@@ -1250,7 +1253,12 @@ def write_stmt(stmt):
 def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))
 
+def imported_bindable_used(v):
+    return v in env(expand.IMPORTBINDS) or env(IR).overrideImportUsageCheck
+
 def write_top_cdecl(v):
+    if not imported_bindable_used(v):
+        return
     ref = global_ref(v)
     add_static_replacement(v, ref, True)
     tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
@@ -1326,7 +1334,9 @@ def write_ir(mod, filename):
         out(prelude)
         runtime = loaded_modules['runtime']
         if runtime is not None:
+            env(IR).overrideImportUsageCheck = True
             write_imports(runtime)
+            env(IR).overrideImportUsageCheck = False
 
         walk_deps(write_imports, mod)
         newline()

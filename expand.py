@@ -22,9 +22,12 @@ ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
 
 EXFUNC = new_env('EXFUNC', ExFunc)
 
-ExGlobal = DT('ExGlobal', ('curTopLevel', TopLevel))
+ExGlobal = DT('ExGlobal', ('curTopLevel', '*TopLevel'),
+                          ('module', '*Module'))
 
 EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
+
+IMPORTBINDS = new_env('IMPORTBINDS', set(['a'])) # Bindable
 
 ExCode, ExSurfacedFunc, ExStrLit = ADT('ExCode',
         'ExSurfacedFunc', ('func', Func),
@@ -125,6 +128,8 @@ def ex_inenv(environ, init, f):
     ex_expr(f)
 
 def ex_bind(target):
+    if extrinsic(Location, target).module is not env(EXGLOBAL).module:
+        env(IMPORTBINDS).add(target)
     v = Bindable.isVar(target)
     if isJust(v):
         ex_bind_var(fromJust(v))
@@ -289,7 +294,8 @@ def ex_top_level(s):
 def in_intramodule_env(func):
     captures = {}
     extrs = [Expansion, Closure, ExpandedDecl, VarUsage]
-    return capture_scoped(extrs, captures, func)
+    return in_env(IMPORTBINDS, set(),
+            lambda: capture_scoped(extrs, captures, func))
 
 def in_intermodule_env(func):
     captures = {}
@@ -303,7 +309,7 @@ def expand_module(mod):
             eg.curTopLevel = top
             in_env(EXSCOPE, top_scope(), lambda: ex_top_level(top))
     captures = {}
-    in_env(EXGLOBAL, ExGlobal(None),
+    in_env(EXGLOBAL, ExGlobal(None, mod),
             lambda: scope_extrinsic(LocalVar, go))
     return captures
 
