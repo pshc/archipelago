@@ -1,6 +1,6 @@
 OBJS = Editor/obj/Editor_visual.ll.o
 
-all: include obj
+all: gl.py include obj
 	@$(MAKE) -C .. --no-print-directory $(OBJS)
 
 include:
@@ -8,7 +8,10 @@ include:
 obj:
 	@mkdir obj
 
+gl.py: ../importer/import.py
+	sh -c "cd ../importer && python import.py > ../Editor/gl.py"
+
 .PHONY: all clean
 
 clean:
-	rm -rf -- include obj
+	rm -rf -- gl.py include obj
