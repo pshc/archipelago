@@ -941,37 +941,36 @@ def write_continue():
     begin, end = env(LOCALS).loopLabels
     br(begin)
 
-def write_cond(stmt, cs, else_):
+def write_cond(stmt, cs):
     n = len(cs)
-    haveElse = isJust(else_)
     srs = new_series(stmt)
     csrs = new_series(cs[0])
     elif_ = Nothing()
-    else_label = Just(new_label('else', srs)) if haveElse else Nothing()
     endif = new_label('endif', srs)
     for i, case in enumerate(cs):
         if isJust(elif_):
             out_label(fromJust(elif_))
+
+        # Makeshift else
+        if matches(case.test, "Bind(key('True'))"):
+            assert i == n-1, "Dead cond case"
+            write_body(case.body)
+            continue # breaks, really
+
         ex = express(case.test)
         then = new_label('then', csrs)
         e = endif
-        haveAnotherCase = True
+        haveAnotherCase = False
         if i + 1 < n:
+            haveAnotherCase = True
             csrs = new_series(cs[i + 1])
             e = new_label('elif', csrs)
             elif_ = Just(e)
-        elif haveElse:
-            e = fromJust(else_label)
-        else:
-            haveAnotherCase = False
         br_cond(ex, then, e)
         out_label(then)
         write_body(case.body)
         if haveAnotherCase and not env(LOCALS).unreachable:
             br(endif)
-    if haveElse:
-        out_label(fromJust(else_label))
-        write_body(fromJust(else_))
     if endif.used:
         out_label(endif)
 
@@ -1242,7 +1241,7 @@ def write_stmt(stmt):
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Break()", write_break),
         ("Continue()", write_continue),
-        ("stmt==Cond(cs, else_)", write_cond),
+        ("stmt==Cond(cs)", write_cond),
         ("Defn(PatVar(v), e==FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),

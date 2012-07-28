@@ -725,8 +725,9 @@ def conv_if(s):
     conds = []
     for (test, body) in s.tests:
         conds.append(CondCase(conv_expr(test), Body(conv_stmts(body))))
-    else_ = Just(Body(conv_stmts(s.else_))) if s.else_ else Nothing()
-    return [S.Cond(conds, else_)]
+    if s.else_:
+        conds.append(CondCase(symref('True'), Body(conv_stmts(s.else_))))
+    return [S.Cond(conds)]
 
 def import_names(nms):
     return ['%s%s' % (m, (' as ' + n) if n else '') for (m, n) in nms]

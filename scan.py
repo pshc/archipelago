@@ -135,12 +135,10 @@ def scan_augassign(lhs, e):
     scan_lhs(lhs)
     scan_expr(e)
 
-def scan_cond(cases, else_):
+def scan_cond(cases):
     for case in cases:
         scan_expr(case.test)
         scan_body(case.body)
-    if isJust(else_):
-        scan_body(fromJust(else_))
 
 def scan_while(t, b):
     scan_expr(t)
@@ -161,7 +159,7 @@ def scan_stmt(stmt):
         ("AugAssign(_, lhs, e)", scan_augassign),
         ("Break() or Continue()", nop),
         ("ExprStmt(e)", scan_expr),
-        ("Cond(cases, elseCase)", scan_cond),
+        ("Cond(cases)", scan_cond),
         ("While(t, b)", scan_while),
         ("Assert(t, m)", scan_assert),
         ("Return(e)", scan_expr),

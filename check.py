@@ -297,12 +297,10 @@ def check_augassign(a, e):
     check_lhs_as(TInt(), a)
     check_expr_as(TInt(), e)
 
-def check_cond(cases, else_):
+def check_cond(cases):
     for case in cases:
         check_expr_as(TBool(), case.test)
         check_body(case.body)
-    if isJust(else_):
-        check_body(fromJust(else_))
 
 def check_while(test, body):
     check_expr_as(TBool(), test)
@@ -329,7 +327,7 @@ def check_stmt(a):
         ("AugAssign(_, lhs, e)", check_augassign),
         ("Break() or Continue()", nop),
         ("ExprStmt(e)", check_expr_as_itself),
-        ("Cond(cases, elseCase)", check_cond),
+        ("Cond(cases)", check_cond),
         ("While(t, b)", check_while),
         ("Assert(t, m)", check_assert),
         ("Return(e)", check_return),

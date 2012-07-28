@@ -83,7 +83,7 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'Assign', ('lhs', 'Lhs(e)'), ('expr', 'e'),
         'AugAssign', ('op', AugOp), ('lhs', 'Lhs(e)'), ('expr', 'e'),
         'Break',
-        'Cond', ('cases', ['CondCase(e)']), ('elseCase', 'Maybe(Body(e))'),
+        'Cond', ('cases', ['CondCase(e)']),
         'Continue',
         'Defn', ('pat', Pat), ('expr', 'e'),
         'ExprStmt', ('expr', 'e'),

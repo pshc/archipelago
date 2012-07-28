@@ -509,12 +509,10 @@ def prop_augassign(a, e):
     unify(prop_lhs(a), CInt())
     consume_value_as(CInt(), e)
 
-def prop_cond(cases, else_):
+def prop_cond(cases):
     for case in cases:
         consume_value_as(CBool(), case.test)
         prop_body(case.body)
-    if isJust(else_):
-        prop_body(fromJust(else_))
 
 def prop_while(test, body):
     consume_value_as(CBool(), test)
@@ -538,7 +536,7 @@ def prop_stmt(a):
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
         ("ExprStmt(e)", prop_expr),
-        ("Cond(cases, elseCase)", prop_cond),
+        ("Cond(cases)", prop_cond),
         ("While(t, b)",prop_while),
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),

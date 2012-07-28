@@ -201,17 +201,13 @@ def ex_flow(s, b, top):
     s.flowFrom = [top]
     ex_body(b)
 
-def ex_cond(cs, eb):
+def ex_cond(cs):
     incomingFlow = cur_flow()
     for case in cs:
         ex_expr(case.test)
         flow = new_flow()
         add_outflows(incomingFlow, set([flow]))
         in_new_scope(lambda: ex_body(case.body), flow)
-    if isJust(eb):
-        flow = new_flow()
-        add_outflows(incomingFlow, set([flow]))
-        in_new_scope(lambda: ex_body(fromJust(eb)), flow)
 
 def ex_while(t, b):
     incomingFlow = cur_flow()
@@ -255,7 +251,7 @@ def ex_stmt(s):
         ("Assign(lhs, e)", ex_assign),
         ("AugAssign(_, lhs, e)", ex_assign),
         ("Break() or Continue()", nop),
-        ("Cond(cases, elseCase)", ex_cond),
+        ("Cond(cases)", ex_cond),
         ("While(t, b)", ex_while),
         ("Assert(t, m)", ex_assert),
         ("Return(e)", ex_return),
