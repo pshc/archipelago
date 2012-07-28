@@ -36,9 +36,10 @@ def write_func_decl(name, params, ret):
     out(';\n')
 
 def write_int_decl(name, t):
-    out('extern ')
-    write_type(t)
-    out(' %s;\n' % (name,))
+    pass # Due to "internal constant" generation instead for now
+    #out('extern ')
+    #write_type(t)
+    #out(' %s;\n' % (name,))
 
 def write_unit(unit, name):
     guard = name.upper() + '_H'
