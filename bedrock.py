@@ -28,4 +28,18 @@ def fst(t):
 def snd(t):
     return match(t, ('(_, s)', identity))
 
+Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'), 'Nothing')
+@annot('Maybe(a) -> bool')
+def isJust(m):
+    return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
+@annot('Maybe(a) -> bool')
+def isNothing(m):
+    return match(m, ('Nothing()', lambda: True), ('_', lambda: False))
+@annot('(a, Maybe(a)) -> a')
+def maybe_(no, val):
+    return match(val, ('Just(j)', lambda j: j), ('Nothing()', lambda: no))
+@annot('Maybe(a) -> a')
+def fromJust(val):
+    return match(val, ('Just(j)', lambda j: j))
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
