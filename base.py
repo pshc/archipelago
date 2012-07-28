@@ -105,7 +105,8 @@ _ENVS = set()
 def new_env(name, t):
     assert isinstance(name, basestring)
     if t is not None:
-        t = parse_type(t)
+        tvars = {}
+        t = parse_new_type(t, tvars)
     e = EnvInfo(name, t, [])
     _ENVS.add(e)
     return e
