@@ -5,7 +5,7 @@ struct adt;
 struct tvar;
 
 struct type {
-	enum { KIND_INT, KIND_STR, KIND_BOOL, KIND_VOID,
+	enum { KIND_INT, KIND_FLOAT, KIND_STR, KIND_BOOL, KIND_VOID,
 		KIND_TVAR, KIND_FUNC,
 		KIND_TUPLE, KIND_ARRAY, KIND_ADT, KIND_WEAK } kind;
 	union {
@@ -44,6 +44,7 @@ extern struct adt *Type, *TypeVar, *PrimType;
 extern struct adt *FieldForm, *CtorForm, *DtForm, *DtList;
 
 type_t intT(void);
+type_t floatT(void);
 type_t strT(void);
 type_t boolT(void);
 type_t voidT(void);

@@ -37,6 +37,14 @@ type_t intT(void) {
 	return type;
 }
 
+type_t floatT(void) {
+	type_t type = malloc(sizeof *type);
+	type->kind = KIND_FLOAT;
+	type->adt = NULL;
+	type->n = 0;
+	return type;
+}
+
 type_t strT(void) {
 	type_t type = malloc(sizeof *type);
 	type->kind = KIND_STR;
@@ -103,6 +111,7 @@ void destroy_type(type_t t) {
 	size_t i, n;
 	switch (t->kind) {
 		case KIND_INT:
+		case KIND_FLOAT:
 		case KIND_STR:
 		case KIND_BOOL:
 		case KIND_VOID:
@@ -227,8 +236,8 @@ void setup_serial(void) {
 		"ctors", arrayT(adtT(CtorForm)),
 		"tvars", arrayT(adtT(TypeVar))));
 	PrimType = ADT("PrimType");
-	ADT_ctors(PrimType, 4, Ctor("PInt", 0), Ctor("PStr", 0),
-		Ctor("PChar", 0), Ctor("PBool", 0));
+	ADT_ctors(PrimType, 5, Ctor("PInt", 0), Ctor("PFloat", 0),
+		Ctor("PStr", 0), Ctor("PChar", 0), Ctor("PBool", 0));
 	ADT_ctors(Type, 9,
 		Ctor("TVar", 1, "typeVar", weak(adtT(TypeVar))),
 		Ctor("TPrim", 1, "primType", adtT(PrimType)),
@@ -458,6 +467,7 @@ static void *read_node(type_t type) {
 	void *node;
 	switch (type->kind) {
 		case KIND_INT:
+		case KIND_FLOAT: /* TEMP */
 		case KIND_BOOL:
 			return (void *)(intptr_t)read_int();
 
@@ -809,6 +819,7 @@ static void *read_tvar(void *tvar) {
 static void *read_tprim(void *prim) {
 	return match(prim, PrimType,
 		"PInt", intT,
+		"PFloat", floatT,
 		"PStr", strT,
 		"PBool", boolT,
 		NULL);
