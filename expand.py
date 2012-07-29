@@ -269,10 +269,15 @@ def ex_top_defn(e):
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
 
 def ex_dt(dt):
-    discrim = len(dt.ctors) > 1
-    info = LayoutInfo(Just(0), Just(1) if discrim else Nothing())
+    base = 0
+    info = LayoutInfo(Nothing(), Nothing())
+    if not dt.opts.valueType:
+        info.extrSlot = Just(base)
+        base += 1
+    if len(dt.ctors) > 1:
+        info.discrimSlot = Just(base)
+        base += 1
     add_extrinsic(DataLayout, dt, info)
-    base = 2 if discrim else 1
     for i, ctor in enumerate(dt.ctors):
         add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):

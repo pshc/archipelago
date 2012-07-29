@@ -1012,13 +1012,16 @@ def write_field_specs(fields, layout):
     else:
         out('{ ')
 
-    specs = [(convert_type(f.type), extrinsic(Name, f)) for f in fields]
-    if isJust(layout.discrimSlot):
-        assert fromJust(layout.discrimSlot) == 1
-        specs.insert(0, (IInt(), "discrim"))
+    specs = []
     if isJust(layout.extrSlot):
-        assert fromJust(layout.extrSlot) == 0
-        specs.insert(0, (IVoidPtr(), "extrinsics"))
+        assert fromJust(layout.extrSlot) == len(specs)
+        specs.append((IVoidPtr(), "extrinsics"))
+    if isJust(layout.discrimSlot):
+        assert fromJust(layout.discrimSlot) == len(specs)
+        specs.append((IInt(), "discrim"))
+    for f in fields:
+        assert extrinsic(expand.FieldIndex, f) == len(specs)
+        specs.append((convert_type(f.type), extrinsic(Name, f)))
 
     n = len(specs)
     for i, (t, nm) in enumerate(specs):
@@ -1058,14 +1061,13 @@ def _write_ctor_body(ctor, layout, dtt, fts):
     ctort = IData(ctor)
     inst = malloc(ctort)
 
+    # Ought to sanity check slot indices here, but it's kind of awkward
     discrim = isJust(layout.discrimSlot)
     if discrim:
-        assert fromJust(layout.discrimSlot) == 1
         index = extrinsic(expand.CtorIndex, ctor)
         txs.insert(0, TypedXpr(IInt(), Const(str(index))))
 
     if isJust(layout.extrSlot):
-        assert fromJust(layout.extrSlot) == 0
         txs.insert(0, TypedXpr(IVoidPtr(), Const("null")))
 
     struct = build_struct(ctort, txs)
