@@ -13,7 +13,6 @@ PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
 PROPTOP = new_env('PROPTOP', '*TopLevel')
 
-InstMeta = new_extrinsic('InstMeta', 'CType')
 InstSite = new_extrinsic('InstSite', {'*TypeVar': 'CType'})
 
 def in_new_scope(retT, f):
@@ -49,8 +48,10 @@ def CFloat(): return CPrim(PFloat())
 def CBool(): return CPrim(PBool())
 def CStr(): return CPrim(PStr())
 
-# instantiation lookup for this site
+InstInfo = DT('InstInfo', ('metas', {TypeVar: CType}),
+                          ('hintLookup', {TypeVar: Type}))
 INST = new_env('INST', {TypeVar: Type})
+
 # direct transformation to C* (hacky reuse of _inst_type)
 SUBST = new_env('SUBST', {'*TypeVar': Type})
 
@@ -66,13 +67,15 @@ def fresh_monotype():
 def inst_tvar(tv):
     if have_env(SUBST):
         return env(SUBST).get(tv, CVar(tv))
-    t = env(INST).get(tv)
+    inst = env(INST)
+    t = inst.hintLookup.get(tv)
     if t is not None:
         return ctype(t)
     else:
-        if not has_extrinsic(InstMeta, tv):
-            add_extrinsic(InstMeta, tv, fresh_from(tv))
-        return extrinsic(InstMeta, tv)
+        meta = inst.metas.get(tv)
+        if meta is None:
+            inst.metas[tv] = meta = fresh_from(tv)
+        return meta
 
 def inst_tdata(dt, ts):
     assert len(ts) == len(dt.tvars)
@@ -91,11 +94,9 @@ def _inst_type(s):
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
 
 def instantiate_type(site, t):
-    inst = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
-    captures = {}
-    ct = capture_scoped([InstMeta], captures,
-            lambda: in_env(INST, inst, lambda: _inst_type(t)))
-    insts = captures[InstMeta]
+    insts = {}
+    hints = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
+    ct = in_env(INST, InstInfo(insts, hints), lambda: _inst_type(t))
     if len(insts) > 0:
         add_extrinsic(InstSite, site, insts)
     return ct
@@ -564,7 +565,11 @@ def prop_top_defn(topDefn, pat, e):
         for site, mapping in sites.iteritems():
             insts = {}
             for tv, ct in mapping.iteritems():
+                if matches(ct, "CMeta(InstVar(_))"):
+                    continue # Inst w/ old var; no replacement
                 insts[tv] = finalize_type(ct)
+            if len(insts) == 0:
+                continue
 
             # For debugging only (this check is done by the typechecker)
             origT = site_target_typeof(site)
