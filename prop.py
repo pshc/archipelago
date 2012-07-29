@@ -75,10 +75,8 @@ def inst_tvar(tv):
         return extrinsic(InstMeta, tv)
 
 def inst_tdata(dt, ts):
-    insts = []
-    for i, tvar in enumerate(dt.tvars):
-        insts.append(_inst_type(ts[i]) if i < len(ts) else CVar(tvar))
-    return CData(dt, insts)
+    assert len(ts) == len(dt.tvars)
+    return CData(dt, map(_inst_type, ts))
 
 def _inst_type(s):
     return match(s,
