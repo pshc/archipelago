@@ -85,7 +85,8 @@ def _serialize_node(node, t):
         ctxt.append((nm, t))
 
         assert isinstance(t, TData), "%r is not a datatype" % (t,)
-        env(Serialize).count += 1
+        if not t.data.opts.valueType:
+            env(Serialize).count += 1
         # Collect instantiations
         apps = {}
         for var, app in ezip(t.data.tvars, t.appTypes):
@@ -140,10 +141,14 @@ Inspection = new_env('Inspection', InspectState)
 
 def _inspect_node(node):
     if isinstance(node, Structured):
-        assert not has_extrinsic(Location, node), "Multiply used %r" % (node,)
-        state = env(Inspection)
-        add_extrinsic(Location, node, Pos(state.module, state.count))
-        state.count += 1
+        dtform = extrinsic(FormSpec, type(node).__dt__)
+        assert isinstance(dtform, DataType)
+        if not dtform.opts.valueType:
+            assert not has_extrinsic(Location, node), \
+                    "Multiply used %r" % (node,)
+            state = env(Inspection)
+            add_extrinsic(Location, node, Pos(state.module, state.count))
+            state.count += 1
         form = extrinsic(FormSpec, type(node))
         assert isinstance(form, Ctor)
         for field in form.fields:

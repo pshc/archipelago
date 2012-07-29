@@ -8,3 +8,5 @@ Expand
 - closure to env conversion
 AST
 - block match format
+ui
+- take valueTypes into account for atom indices
