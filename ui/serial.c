@@ -8,7 +8,7 @@
 #include "util.h"
 
 struct adt *Type, *TypeVar, *PrimType;
-struct adt *FieldForm, *CtorForm, *DtForm, *DtList;
+struct adt *FieldForm, *CtorForm, *DtOpts, *DtForm, *DtList;
 struct adt *Overlay, *Entry;
 struct map *loaded_modules;
 /* Map of array listings, keyed by module pointer */
@@ -231,10 +231,14 @@ void setup_serial(void) {
 	CtorForm = ADT("CtorForm");
 	ADT_ctors(CtorForm, 1, Ctor("CtorForm", 1,
 		"fields", arrayT(adtT(FieldForm))));
+	DtOpts = ADT("DtOpts");
+	ADT_ctors(DtOpts, 1, Ctor("DtOpts", 1,
+		"valueType", boolT));
 	DtForm = ADT("DtForm");
-	ADT_ctors(DtForm, 1, Ctor("DtForm", 2,
+	ADT_ctors(DtForm, 1, Ctor("DtForm", 3,
 		"ctors", arrayT(adtT(CtorForm)),
-		"tvars", arrayT(adtT(TypeVar))));
+		"tvars", arrayT(adtT(TypeVar)),
+		"opts", adtT(DtOpts)));
 	PrimType = ADT("PrimType");
 	ADT_ctors(PrimType, 5, Ctor("PInt", 0), Ctor("PFloat", 0),
 		Ctor("PStr", 0), Ctor("PChar", 0), Ctor("PBool", 0));
@@ -282,6 +286,7 @@ void cleanup_serial(void) {
 	destroy_ADT(PrimType);
 	destroy_ADT(FieldForm);
 	destroy_ADT(CtorForm);
+	destroy_ADT(DtOpts);
 	destroy_ADT(DtForm);
 	destroy_ADT(DtList);
     cleanup_platform();

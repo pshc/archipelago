@@ -28,6 +28,7 @@ def _write_ref(node, t):
     if isinstance(t, TVar):
         pass # Does it even make sense to check instantiations here?
     elif isinstance(t, TData):
+        assert not t.data.opts.valueType, "->%r is a value DT" % (node,)
         adt = extrinsic(TrueRepresentation, t.data)
         assert isinstance(node, adt), "->%r is not a %s" % (node, adt)
     else:

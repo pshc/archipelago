@@ -204,6 +204,8 @@ def check_hasextrinsic(node):
 def check_expr_as_boxed(e):
     t = check_expr_as_itself(e)
     assert matches(t, "TData(_, _)"), "Can't add extr to %s" % (nodet,)
+    opts = t.data.opts
+    assert not opts.valueType, "Can't add extr to value-DT %s" % (nodet,)
 
 def check_expr_as(t, e):
     typecheck(extrinsic(TypeOf, e), t)

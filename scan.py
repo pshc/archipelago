@@ -70,7 +70,7 @@ def scan_inst(s):
         ('TPrim(_) or TVoid()', nop),
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
         ('TFunc(ps, r)', lambda ps, r: map_(scan_inst, ps + [r])),
-        ('TData(DataType(_, tvs), apps)', scan_inst_data),
+        ('TData(DataType(_, tvs, _), apps)', scan_inst_data),
         ('TArray(t)', scan_inst),
         ('TWeak(t)', scan_inst))
 

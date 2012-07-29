@@ -27,16 +27,16 @@ def _make_ctor(name, members, superclass):
     CTORS.setdefault(name, []).append(ctor)
     return ctor
 
-def DT(*members):
+def DT(*members, **opts):
     members = list(members)
     name = members.pop(0)
-    t = type(name, (Structured,), {'ctors': []})
+    t = type(name, (Structured,), {'ctors': [], '_opts': opts})
     ctor = _make_ctor(name, members, t)
     _dt_form(t, None)
     DATATYPES[name] = t
     return ctor
 
-def ADT(*ctors):
+def ADT(*ctors, **opts):
     ctors = list(ctors)
     tname = ctors.pop(0)
     derivedFrom = None
@@ -48,7 +48,7 @@ def ADT(*ctors):
                                  for s, d in subs.iteritems())
         else:
             tname, derivedFrom = tname
-    t = type(tname, (Structured,), {'ctors': []})
+    t = type(tname, (Structured,), {'ctors': [], '_opts': opts})
     data = [t]
     ctor_ix = 0
 
@@ -247,7 +247,10 @@ value_types = (basestring, bool, int, float, tuple, type(None))
 
 Field = DT('Field', ('type', 'Type'))
 Ctor = DT('Ctor', ('fields', [Field]))
-DataType = DT('DataType', ('ctors', [Ctor]), ('tvars', ['TypeVar']))
+DTOpts = DT('DTOpts', ('valueType', bool))
+DataType = DT('DataType', ('ctors', [Ctor]),
+                          ('tvars', ['TypeVar']),
+                          ('opts', DTOpts))
 
 del _dt_form
 
@@ -277,7 +280,9 @@ def _dt_form(dt, tvs):
     ctors = in_env(TVARS, tvs,
             lambda: in_env(NEWTYPEVARS, None,
             lambda: map(_ctor_form, dt.ctors)))
-    form = DataType(ctors, tvs.values())
+    opts = DTOpts(dt._opts.get('value', False))
+    del dt._opts
+    form = DataType(ctors, tvs.values(), opts)
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(TrueRepresentation, form, dt)
     add_extrinsic(FormSpec, dt, form)
