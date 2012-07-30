@@ -35,11 +35,17 @@ ExCode, ExSurfacedFunc, ExStrLit = ADT('ExCode',
 
 Expansion = new_extrinsic('Expansion', [ExCode])
 
+# TRAINWRECK
+
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
 ExpandedDeclInfo = DT('ExpandedDeclInfo', ('var', '*Var'))
 ExpandedDecl = new_extrinsic('ExpandedDecl', ExpandedDeclInfo)
+
+GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
+GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
+LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
 VarUsageInfo = DT('VarUsageInfo', ('isReassigned', bool))
 VarUsage = new_extrinsic('VarUsage', VarUsageInfo)
@@ -174,7 +180,9 @@ def ex_pat(pat):
                ("PatTuple(ps)", lambda ps: map_(ex_pat, ps)))
 
 def ex_func_defn(v, e, f):
-    add_extrinsic(Name, f, extrinsic(Name, v))
+    name = extrinsic(Name, v) # ought to be uniqued
+    add_extrinsic(Name, f, name)
+    add_extrinsic(LocalFunctionSymbol, v, name)
     ex_pat_var(v)
     ex_expr(e)
 
@@ -261,11 +269,19 @@ def ex_stmt(s):
 def ex_body(body):
     map_(ex_stmt, body.stmts)
 
+def unique_global(v, isFunc):
+    add_extrinsic(GlobalSymbol, v, GlobalInfo(extrinsic(Name, v), isFunc))
+
+def ex_top_cdecl(v):
+    unique_global(v, True)
+
 def ex_top_func(v, f):
     add_extrinsic(Name, f, extrinsic(Name, v))
+    unique_global(v, True)
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_func(f.params, f.body))
 
-def ex_top_defn(e):
+def ex_top_defn(v, e):
+    unique_global(v, False)
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
 
 def ex_dt(dt):
@@ -285,22 +301,22 @@ def ex_dt(dt):
 
 def ex_top_level(s):
     match(s,
-        ("TopCDecl(_)", nop),
+        ("TopCDecl(v)", ex_top_cdecl),
         ("TopDefn(PatVar(v), FuncExpr(f))", ex_top_func),
-        ("TopDefn(_, e)", ex_top_defn),
+        ("TopDefn(v, e)", ex_top_defn),
         ("TopDT(dt)", ex_dt),
         ("TopEnv(_)", nop),
         ("TopExtrinsic(_)", nop))
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Expansion, Closure, ExpandedDecl, VarUsage]
+    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 
 def in_intermodule_env(func):
     captures = {}
-    extrs = [DataLayout, CtorIndex, FieldIndex]
+    extrs = [DataLayout, CtorIndex, FieldIndex, GlobalSymbol]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(mod):

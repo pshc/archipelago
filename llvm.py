@@ -63,8 +63,6 @@ def is_const(x):
         ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
         ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
 
-Replacement = new_extrinsic('Replacement', (Xpr, bool))
-
 LiteralSize = new_extrinsic('LiteralSize', int)
 
 # GLOBAL OUTPUT
@@ -516,12 +514,14 @@ def express_Builtin(b):
 @impl(LLVMBindable, Var)
 def express_Var(v):
     globalRef = Nothing()
-    if has_extrinsic(Replacement, v):
-        repl, const = extrinsic(Replacement, v)
-        if const:
-            return repl
+    if has_extrinsic(expand.GlobalSymbol, v):
+        repl = extrinsic(expand.GlobalSymbol, v)
+        if repl.isFunc:
+            return Global(repl.symbol)
         else:
-            globalRef = Just(repl)
+            globalRef = Just(Global(repl.symbol))
+    elif has_extrinsic(expand.LocalFunctionSymbol, v):
+        return Global(extrinsic(expand.LocalFunctionSymbol, v))
     # Would be nice: (need name_reg)
     #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
     tmp = temp_reg_named(extrinsic(Name, v))
@@ -974,21 +974,8 @@ def write_cond(stmt, cs):
     if endif.used:
         out_label(endif)
 
-def add_static_replacement(v, ref, isConst):
-    add_extrinsic(Replacement, v, (ref, isConst))
-
-def check_static_replacement(v, f):
-    if has_extrinsic(Replacement, v):
-        return True
-    if has_extrinsic(expand.VarUsage, v):
-        if extrinsic(expand.VarUsage, v).isReassigned:
-            return False
-    add_static_replacement(v, func_ref(f), True)
-    return True
-
-def write_local_func_defn(v, e, f):
-    if not check_static_replacement(v, f):
-        write_defn(v, e)
+def write_local_func_defn(f):
+    assert has_extrinsic(expand.Closure, f)
 
 def write_defn(pat, e):
     store_pat(pat, express_typed(e))
@@ -996,9 +983,7 @@ def write_defn(pat, e):
 def write_top_intlit(v, n):
     if not imported_bindable_used(v):
         return
-    ref = global_ref(v)
-    add_static_replacement(v, ref, False)
-    out_xpr(ref)
+    out_xpr(Global(extrinsic(GlobalSymbol, v).symbol))
     out(' = internal constant ')
     out_t(typeof(v))
     out(str(n))
@@ -1244,7 +1229,7 @@ def write_stmt(stmt):
         ("Break()", write_break),
         ("Continue()", write_continue),
         ("stmt==Cond(cs)", write_cond),
-        ("Defn(PatVar(v), e==FuncExpr(f))", write_local_func_defn),
+        ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
         ("Return(e)", write_return),
@@ -1260,14 +1245,12 @@ def imported_bindable_used(v):
 def write_top_cdecl(v):
     if not imported_bindable_used(v):
         return
-    ref = global_ref(v)
-    add_static_replacement(v, ref, True)
     tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
-    write_top_func_decl(ref, tps, tret)
+    write_top_func_decl(global_ref(v), tps, tret)
 
 def write_top_var_func(v, f):
-    if not env(DECLSONLY):
-        add_static_replacement(v, func_ref(f), True)
+    if env(DECLSONLY) and not imported_bindable_used(v):
+        return
     write_top_func(f)
 
 def write_top_strlit(var, s):
@@ -1346,9 +1329,8 @@ def write_ir(mod, filename):
         in_env(DECLSONLY, False, lambda: write_unit(mod.root))
 
     in_env(IR, setup_ir(filename),
-        lambda: scope_extrinsic(Replacement,
         lambda: scope_extrinsic(LiteralSize,
-        go)))
+        go))
 
     add_extrinsic(LLFile, mod, filename)
 
