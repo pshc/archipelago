@@ -303,7 +303,7 @@ def ex_top_level(s):
     match(s,
         ("TopCDecl(v)", ex_top_cdecl),
         ("TopDefn(PatVar(v), FuncExpr(f))", ex_top_func),
-        ("TopDefn(v, e)", ex_top_defn),
+        ("TopDefn(PatVar(v), e)", ex_top_defn),
         ("TopDT(dt)", ex_dt),
         ("TopEnv(_)", nop),
         ("TopExtrinsic(_)", nop))

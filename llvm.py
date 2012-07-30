@@ -983,7 +983,7 @@ def write_defn(pat, e):
 def write_top_intlit(v, n):
     if not imported_bindable_used(v):
         return
-    out_xpr(Global(extrinsic(GlobalSymbol, v).symbol))
+    out_xpr(Global(extrinsic(expand.GlobalSymbol, v).symbol))
     out(' = internal constant ')
     out_t(typeof(v))
     out(str(n))
