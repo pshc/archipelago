@@ -9,7 +9,7 @@ obj:
 	@mkdir obj
 
 gl.py: ../importer/import.py
-	sh -c "cd ../importer && python import.py > ../Editor/gl.py"
+	python $< > $@
 
 .PHONY: all clean
 
