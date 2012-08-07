@@ -101,7 +101,7 @@ def scan_expr(e):
 
 def _scan_expr(e):
     in_env(EXPRCTXT, e, lambda: match(e,
-        ("IntLit(_) or FloatLit(_) or StrLit(_)", nop),
+        ("Lit(_)", nop),
         ("TupleLit(ts)", lambda ts: map_(scan_expr, ts)),
         ("ListLit(ss)", lambda ss: map_(scan_expr, ss)),
         ("Call(f, s)", scan_call),

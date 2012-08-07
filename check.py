@@ -222,9 +222,9 @@ def check_same(e):
 
 def _check_expr(e):
     match(e,
-        ("IntLit(_)", lambda: check(TInt())),
-        ("FloatLit(_)", lambda: check(TFloat())),
-        ("StrLit(_)", lambda: check(TStr())),
+        ("Lit(IntLit(_))", lambda: check(TInt())),
+        ("Lit(FloatLit(_))", lambda: check(TFloat())),
+        ("Lit(StrLit(_))", lambda: check(TStr())),
         ("e==Call(f, args)", check_call),
         ("TupleLit(es)", check_tuplelit),
         ("ListLit(es)", check_listlit),

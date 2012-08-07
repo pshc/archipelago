@@ -153,7 +153,7 @@ def conv_type(t, tvars, dt=None):
     return match(t,
         ("Builtin(_)", lambda: t),
         ("TPrim(_)", lambda: t),
-        ("StrLit(s)", lambda s: parse_new_type(s, tvars)),
+        ("Lit(StrLit(s))", lambda s: parse_new_type(s, tvars)),
         ("ListLit([t])",
             lambda t: TArray(conv_type(t, tvars, dt))),
         ("_", unknown))
@@ -291,7 +291,7 @@ def conv_hint(e, **kwargs):
     e = conv_expr(e)
     insts = {}
     for k, s in kwargs.iteritems():
-        insts[k] = s.val
+        insts[k] = s.literal.val
     add_extrinsic(AstHint, e, insts)
     return e
 
@@ -310,13 +310,13 @@ def conv_special(e):
         return type_ref(e.name)
     elif c is ast.Const:
         assert isinstance(e.value, basestring), 'Bad type repr: %s' % e.value
-        return E.StrLit(e.value)
+        return E.Lit(StrLit(e.value))
     elif c is ast.Tuple:
         assert len(e.nodes) == 2
         assert isinstance(e.nodes[0], ast.Const)
         nm = e.nodes[0].value
         assert isinstance(nm, basestring), 'Expected field name: %s' % nm
-        return E.TupleLit([E.StrLit(nm), conv_special(e.nodes[1])])
+        return E.TupleLit([E.Lit(StrLit(nm)), conv_special(e.nodes[1])])
     else:
         assert False, 'Unexpected %s' % c
 
@@ -374,7 +374,7 @@ def conv_match_case(code, f):
 def conv_match(*args):
     expra = conv_expr(args[0])
     argsa = conv_exprs(args[1:])
-    casesa = [match(a, ('TupleLit([StrLit(c), f])', conv_match_case))
+    casesa = [match(a, ('TupleLit([Lit(StrLit(c)), f])', conv_match_case))
               for a in argsa]
     return Match(expra, casesa)
 
@@ -468,11 +468,11 @@ def conv_compare(e):
 def conv_const(e):
     v = e.value
     if isinstance(v, int):
-        return E.IntLit(v)
+        return E.Lit(IntLit(v))
     elif isinstance(v, float):
-        return E.FloatLit(v)
+        return E.Lit(FloatLit(v))
     elif isinstance(v, str):
-        return E.StrLit(v)
+        return E.Lit(StrLit(v))
     assert False, 'Unknown literal %s' % (e,)
 
 @expr(ast.Dict)
@@ -569,7 +569,7 @@ def conv_tuple(e):
 
 @stmt(ast.Assert)
 def conv_assert(s):
-    fail = conv_expr(s.fail) if s.fail else E.StrLit('')
+    fail = conv_expr(s.fail) if s.fail else E.Lit(StrLit('(no desc)'))
     return [Assert(conv_expr(s.test), fail)]
 
 @stmt(ast.Assign)
@@ -745,10 +745,10 @@ def conv_printnl(s):
     assert s.dest is None
     node = s.nodes[0]
     if isinstance(node, ast.Const):
-        exprsa = [E.StrLit(node.value+'\n'), E.TupleLit([])]
+        exprsa = [E.Lit(StrLit(node.value+'\n')), E.TupleLit([])]
     elif isinstance(node, ast.Mod):
         format = s.nodes[0].left.value
-        exprsa = [E.StrLit(format+'\n'), conv_expr(s.nodes[0].right)]
+        exprsa = [E.Lit(StrLit(format+'\n')), conv_expr(s.nodes[0].right)]
     else:
         assert False, "Unexpected print form: %s" % s
     return [S.ExprStmt(symcall('printf', exprsa))]

@@ -406,7 +406,7 @@ def typeof(e):
         print 'HAS NO TYPEOF: %s' % (e,)
         return IInt()
     return match(e,
-        ("IntLit(_)", lambda: IInt()),
+        ("Lit(IntLit(_))", lambda: IInt()),
         ("_", no_type))
 
 def convert_split_tfunc(t):
@@ -801,9 +801,9 @@ def express(expr):
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
-        ('IntLit(i)', lambda i: Const('%d' % (i,))),
-        ('FloatLit(f)', lambda f: Const('%f' % (f,))),
-        ('lit==StrLit(_)', expr_strlit),
+        ('Lit(IntLit(i))', lambda i: Const('%d' % (i,))),
+        ('Lit(FloatLit(f))', lambda f: Const('%f' % (f,))),
+        ('lit==Lit(StrLit(_))', expr_strlit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
         ('e==Ternary(c, l, r)', expr_ternary))
@@ -1273,7 +1273,7 @@ def write_top(top):
     match(top,
         ("TopCDecl(v)", write_top_cdecl),
         ("TopDefn(PatVar(v), FuncExpr(f))", write_top_var_func),
-        ("TopDefn(PatVar(v), IntLit(n))", write_top_intlit),
+        ("TopDefn(PatVar(v), Lit(IntLit(n)))", write_top_intlit),
         ("TopDT(form)", write_dtstmt),
         ("TopEnv(environ)", write_new_env),
         ("TopExtrinsic(extr)", write_new_extrinsic))

@@ -650,12 +650,17 @@ def pretty_brief(name, o):
             return fmtcol('^Brown{0}^N', extrinsic(Name, o))
         elif name == 'Var':
             return "'%r" % (o,)
-    elif name == 'IntLit':
-        return col('Cyan', 'i%d' % (o.val,))
-    elif name == 'FloatLit':
-        return col('Cyan', 'i%f' % (o.val,))
-    elif name == 'StrLit':
-        return fmtcol('^Cyan^s{0!r}^N', o.val)
+    elif name == 'Lit':
+        o = o.literal
+        name = type(o).__name__
+        if name == 'IntLit':
+            return col('Cyan', 'i%d' % (o.val,))
+        elif name == 'FloatLit':
+            return col('Cyan', 'i%f' % (o.val,))
+        elif name == 'StrLit':
+            return fmtcol('^Cyan^s{0!r}^N', o.val)
+        else:
+            assert False
     elif name == 'TPrim' or name == 'CPrim':
         c = 'Cyan' if name == 'TPrim' else 'LightCyan'
         return col(c, repr(o.primType))

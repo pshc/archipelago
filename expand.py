@@ -152,8 +152,8 @@ def ex_bind_var(v):
 
 def ex_expr(e):
     match(e,
-        ("IntLit(_) or FloatLit(_)", nop),
-        ("lit==StrLit(s)", ex_strlit),
+        ("lit==Lit(StrLit(s))", ex_strlit),
+        ("Lit(_)", nop),
         ("Call(f, args)", ex_call),
         ("And(l, r) or Or(l, r)", ex_logic),
         ("Ternary(c, t, f)", ex_ternary),
