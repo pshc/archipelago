@@ -1,4 +1,5 @@
 from Editor.gl import *
+from bedrock import *
 
 Vec2 = DT('Vec2', ('x', float), ('y', float))
 
@@ -34,5 +35,23 @@ def set_view_pos(x, y):
 @annot('void -> void')
 def render_editor():
     glClear(GL_COLOR_BUFFER_BIT)
+
+@annot('(str, int) -> int')
+def compile_shader(src, kind):
+    shader = glCreateShader(kind)
+    glShaderSource(shader, 1, [src], Nothing())
+
+    glCompileShader(shader)
+    logLen = [0]
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, logLen)
+    # print log if present
+
+    status = [0]
+    glGetShaderiv(shader, GL_COMPILE_STATUS, status)
+    if False:
+        glDeleteShader(shader)
+        return 0
+
+    return shader
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

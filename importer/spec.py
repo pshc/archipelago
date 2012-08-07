@@ -16,4 +16,5 @@ GL_INFO_LOG_LENGTH
 """
 
 overrides = """
+glShaderSource :: (int, int, [str], Maybe([int])) -> void
 """
