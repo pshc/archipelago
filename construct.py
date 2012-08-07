@@ -91,6 +91,8 @@ def load_module_dep(src, deps, plan):
 
 def _do_mod(mod, plan):
     casts = check.check_types(mod.root)
+    view = 'views/%s' % (extrinsic(Filename, mod),)
+    atom.write_mod_repr(view, mod, [Name, TypeOf, TypeCast])
 
     expand.expand_module(mod)
 
