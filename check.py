@@ -166,10 +166,12 @@ def check_ternary(c, t, f):
     check_same(t)
     check_same(f)
 
-def check_func(f, ps, b):
+def check_func(f):
     ft = extrinsic(TypeOf, f)
     tps, tret = match(ft, ('TFunc(ps, ret)', tuple2))
-    in_env(CHECKSCOPE, tret, lambda: check_body(b))
+    for p, tp in ezip(f.params, tps):
+        typecheck(extrinsic(TypeOf, p), tp)
+    in_env(CHECKSCOPE, tret, lambda: check_body(f.body))
 
 def check_match(m, e, cs):
     et = check_expr_as_itself(e)
@@ -222,15 +224,13 @@ def check_same(e):
 
 def _check_expr(e):
     match(e,
-        ("Lit(IntLit(_))", lambda: check(TInt())),
-        ("Lit(FloatLit(_))", lambda: check(TFloat())),
-        ("Lit(StrLit(_))", lambda: check(TStr())),
+        ("Lit(lit)", lambda lit: check(lit_type(lit))),
         ("e==Call(f, args)", check_call),
         ("TupleLit(es)", check_tuplelit),
         ("ListLit(es)", check_listlit),
         ("And(l, r) or Or(l, r)", check_logic),
         ("Ternary(c, t, f)", check_ternary),
-        ("FuncExpr(f==Func(ps, b))", check_func),
+        ("FuncExpr(f)", check_func),
         ("m==Match(p, cs)", check_match),
         ("Attr(e, f==Field(ft))", check_attr),
         ("GetEnv(Env(t))", check),
@@ -339,22 +339,27 @@ def check_stmt(a):
 def check_body(body):
     map_(check_stmt, body.stmts)
 
-def check_top_level(a):
-    in_env(STMTCTXT, a, lambda: match(a,
-        ("TopCDecl(_)", nop),
-        ("TopDT(form)", check_DT),
-        ("TopEnv(_)", nop),
-        ("TopDefn(pat, e)", check_defn),
-        ("TopExtrinsic(_)", nop)))
+def check_top_func(var, func):
+    typecheck(extrinsic(TypeOf, func), extrinsic(TypeOf, var))
+    check_func(func)
+
+def check_module_decls(decls):
+    for dt in decls.dts:
+        in_env(STMTCTXT, dt, lambda: check_DT(dt))
+    for lit in decls.lits:
+        in_env(STMTCTXT, lit, lambda:
+                typecheck(lit_type(lit.literal), extrinsic(TypeOf, lit.var)))
 
 def check_compilation_unit(unit):
-    map_(check_top_level, unit.tops)
+    for f in unit.funcs:
+        in_env(STMTCTXT, f, lambda: check_top_func(f.var, f.func))
 
-def check_types(root):
+def check_types(decl_mod, defn_mod):
+    def go():
+        check_module_decls(decl_mod.root)
+        check_compilation_unit(defn_mod.root)
     casts = {}
-    capture_extrinsic(TypeCast, casts,
-        lambda: check_compilation_unit(root)
-    )
+    capture_extrinsic(TypeCast, casts, go)
     return casts
 
 def in_check_env(func):

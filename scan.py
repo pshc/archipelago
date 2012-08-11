@@ -169,13 +169,10 @@ def scan_stmt(stmt):
 def scan_body(body):
     map_(scan_stmt, body.stmts)
 
-def scan_top_level(a):
-    in_env(STMTCTXT, a, lambda: match(a,
-        ("TopDefn(_, e)", scan_expr),
-        ("_", nop)))
-
 def scan_compilation_unit(unit):
-    map_(scan_top_level, unit.tops)
+    for f in unit.funcs:
+        in_env(STMTCTXT, f, lambda:
+                match(f, ("TopFunc(_, f==Func(ps, b))", scan_func)))
 
 def scan_root(root):
     in_env(INWARD, Inward({}), lambda: scan_compilation_unit(root))

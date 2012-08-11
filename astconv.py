@@ -8,7 +8,9 @@ ScopeContext = DT('ScopeContext', ('indent', int),
                                   ('prevContext', None))
 SCOPE = new_env('SCOPE', ScopeContext)
 
-OmniContext = DT('OmniContext', ('imports', [object]),
+OmniContext = DT('OmniContext', ('decls', ModuleDecls),
+                                ('funcDefns', [TopFunc]),
+                                ('imports', [object]),
                                 ('exports', [object]),
                                 ('missingRefs', {(str, str): [object]}),
                                 ('loadedDeps', set([Module])),
@@ -19,7 +21,8 @@ AstType = new_extrinsic('AstType', Type)
 AstHint = new_extrinsic('AstHint', {str: str})
 
 def ast_envs():
-    omni = OmniContext({}, {}, {}, set(), set())
+    decls = ModuleDecls([], [], [], [], [], [])
+    omni = OmniContext(decls, [], {}, {}, {}, set(), set())
     scope = ScopeContext(0, {}, None)
     return omni, scope
 
@@ -206,7 +209,7 @@ def _make_dt(dt_nm, *args, **opts):
     identifier(dt, namespace=typeNamespace)
     for ctor in dt.ctors:
         identifier(ctor, export=True)
-    return [TopDT(dt)]
+    env(OMNI).decls.dts.append(dt)
 
 @special_assignment('cdecl')
 def make_cdecl(nm, t):
@@ -215,7 +218,7 @@ def make_cdecl(nm, t):
     tvars = {}
     t = conv_type(conv_special(t), tvars)
     add_extrinsic(TypeOf, var, t)
-    return [TopCDecl(var)]
+    env(OMNI).decls.cdecls.append(var)
 
 @special_assignment('cimport')
 def make_cimport(nm, t):
@@ -224,29 +227,29 @@ def make_cimport(nm, t):
     tvars = {}
     t = conv_type(conv_special(t), tvars)
     add_extrinsic(TypeOf, var, t)
-    return [TopCDecl(var)]
+    env(OMNI).decls.cdecls.append(var)
 
 @special_assignment('ADT')
 def make_adt(*args):
-    return _make_dt(*args, **(dict(maker=ADT)))
+    _make_dt(*args, **(dict(maker=ADT)))
 
 @special_assignment('DT')
 def make_dt(*args):
-    return _make_dt(*args, **(dict(maker=DT)))
+    _make_dt(*args, **(dict(maker=DT)))
 
 @special_assignment('new_env')
 def make_env(nm, t):
     tvars = {}
     e = Env(conv_type(conv_special(t), tvars))
     identifier(e, nm.value, namespace=symbolNamespace, export=True)
-    return [TopEnv(e)]
+    env(OMNI).decls.envs.append(e)
 
 @special_assignment('new_extrinsic')
 def make_extrinsic(nm, t):
     tvars = {}
     extr = Extrinsic(conv_type(conv_special(t), tvars))
     identifier(extr, nm.value, namespace=symbolNamespace, export=True)
-    return [TopExtrinsic(extr)]
+    env(OMNI).decls.extrinsics.append(extr)
 
 def refs_symbol(e):
     return refs_existing(e.name, namespace=symbolNamespace).target
@@ -573,8 +576,18 @@ def conv_assert(s):
     return [Assert(conv_expr(s.test), fail)]
 
 @stmt(ast.Assign)
-@top_level(ast.Assign)
 def conv_assign(s):
+    assert len(s.nodes) == 1
+    left = s.nodes[0]
+    expra = conv_expr(s.expr)
+    reass = conv_try_reass(left)
+    if isJust(reass):
+        return [S.Assign(fromJust(reass), expra)]
+    else:
+        return [S.Defn(conv_ass(left), expra)]
+
+@top_level(ast.Assign)
+def conv_top_assign(s):
     assert len(s.nodes) == 1
     left = s.nodes[0]
     expra = conv_expr(s.expr)
@@ -585,17 +598,13 @@ def conv_assign(s):
         if isinstance(right, ast.Const):
             right = right.value
         assert left.name == right, "Name mismatch %s, %s" % (left.name, right)
-        return expra.func(*expra.args)
-
-    global_scope = is_top_level()
-    reass = conv_try_reass(left)
-    if isJust(reass):
-        assert not global_scope, "Can't reassign in global scope"
-        return [S.Assign(fromJust(reass), expra)]
+        expra.func(*expra.args)
     else:
-        pat = conv_ass(left)
-        ass = TopDefn(pat, expra) if global_scope else S.Defn(pat, expra)
-        return [ass]
+        reass = conv_try_reass(left)
+        assert not isJust(reass), "Can't reassign in global scope"
+        var = match(conv_ass(left), "PatVar(v)")
+        val = match(expra, "Lit(lit)")
+        env(OMNI).decls.lits.append(LitDecl(var, val))
 
 @stmt(ast.AssList)
 def conv_asslist(s):
@@ -693,7 +702,6 @@ def conv_from(s):
             for k in symbols:
                 assert k not in omni.imports, "Import clash: %s" % (k,)
                 omni.imports[k] = symbols[k]
-    return []
 
 @stmt(ast.Function)
 @top_level(ast.Function)
@@ -706,19 +714,22 @@ def conv_function(s):
                     assert astannot is None
                     assert isinstance(dec.args[0], ast.Const)
                     astannot = dec.args[0].value
-    func = Func([], Body([]))
     var = Var()
     assert astannot, "Function %s has no type annot" % s.name
-    add_extrinsic(AstType, func, astannot)
     glob = is_top_level()
     identifier(var, s.name, export=glob)
     @inside_scope
-    def rest():
+    def build():
+        func = Func([], Body([]))
+        add_extrinsic(AstType, func, astannot)
         func.params = extract_arglist(s)
         func.body.stmts = conv_stmts_noscope(s.code)
         return func
-    f = (TopDefn if glob else S.Defn)(PatVar(var), FuncExpr(rest()))
-    return [f]
+    if glob:
+        env(OMNI).decls.funcDecls.append(var)
+        env(OMNI).funcDefns.append(TopFunc(var, build()))
+    else:
+        return [S.Defn(PatVar(var), FuncExpr(rest()))]
 
 @stmt(ast.If)
 def conv_if(s):
@@ -786,19 +797,24 @@ def setup_builtin_module():
 def convert_file(filename, name, deps):
     assert filename.endswith('.py')
     tops = compiler.parseFile(filename).node.nodes
-    mod = Module(t_DT(CompilationUnit), None)
-    add_extrinsic(Name, mod, name)
-    deps.add(mod)
+    decl_mod = Module(t_DT(ModuleDecls), None)
+    add_extrinsic(Name, decl_mod, name)
+    deps.add(decl_mod)
     omni, scope = ast_envs()
     omni.loadedModules = deps
     def go():
         for name, b in BUILTINS.iteritems():
             scope.syms[(name, valueNamespace)] = b
-        root = []
-        for top in tops:
-            root += conv_top_level(top)
-        return CompilationUnit(root)
-    mod.root = in_env(OMNI, omni, lambda: in_env(SCOPE, scope, go))
+        map_(conv_top_level, tops)
+    in_env(OMNI, omni, lambda: in_env(SCOPE, scope, go))
+    decl_mod.root = omni.decls
+    defn_mod = Module(t_DT(CompilationUnit), CompilationUnit(omni.funcDefns))
+    if defn_mod.root.funcs:
+        add_extrinsic(Name, defn_mod, name + '_impl')
+        defn_mod = Just(defn_mod)
+    else:
+        defn_mod = Nothing()
+
     # Resolve imports for missing symbols
     missing = omni.missingRefs
     for key, binds in missing.items():
@@ -810,8 +826,8 @@ def convert_file(filename, name, deps):
     assert not missing, "Symbols not found: " + ', '.join(
                 '%s %s' % (t, s) for s, t in missing)
     global loaded_module_export_names
-    loaded_module_export_names[mod] = omni.exports
-    return mod
+    loaded_module_export_names[decl_mod] = omni.exports
+    return (decl_mod, defn_mod)
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')

@@ -35,31 +35,19 @@ def write_func_decl(name, params, ret):
     write_params(params)
     out(';\n')
 
-def write_int_decl(name, t):
-    pass # Due to "internal constant" generation instead for now
-    #out('extern ')
-    #write_type(t)
-    #out(' %s;\n' % (name,))
-
-def write_unit(unit, name):
+def write_decls(decls, name):
     guard = name.upper() + '_H'
     out('#ifndef %s\n#define %s\n\n' % (guard, guard))
-    for top in unit.tops:
-        m = match(top)
-        if m('TopDefn(PatVar(v), _)'):
-            v = m.arg
-            t = extrinsic(TypeOf, v)
-            name = extrinsic(Name, v)
-            match(t,
-                ('TFunc(params, ret)', lambda params, ret:
-                        write_func_decl(name, params, ret)),
-                ('_', lambda: write_int_decl(name, t)))
-
+    for v in decls.funcDecls:
+        t = extrinsic(TypeOf, v)
+        name = extrinsic(Name, v)
+        match(t, ('TFunc(params, ret)', lambda params, ret:
+                    write_func_decl(name, params, ret)))
     out('\n#endif /* %s */\n' % (guard,))
 
-def write_export_header(mod, header):
+def write_export_header(mod, header, cname):
     f = open(header, 'wb')
-    in_env(HDR, f, lambda: write_unit(mod.root, extrinsic(Filename, mod)))
+    in_env(HDR, f, lambda: write_decls(mod.root, cname))
     f.close()
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

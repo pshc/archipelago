@@ -93,6 +93,12 @@ def out_func_ref(f):
 def out_global_ref(v):
     out_xpr(global_ref(v))
 
+def out_global_symbol(var):
+    if has_extrinsic(expand.GlobalSymbol, var):
+        out_xpr(Global(extrinsic(expand.GlobalSymbol, var).symbol))
+    else:
+        out_global_ref(var)
+
 def newline():
     if have_env(LOCALS):
         imm_out('\n')
@@ -401,13 +407,9 @@ def itypes_equal(src, dest):
 def typeof(e):
     if has_extrinsic(TypeOf, e):
         return convert_type(extrinsic(TypeOf, e))
-    def no_type():
-        assert isinstance(e, Expr), "%s is not expr" % (e,)
-        print 'HAS NO TYPEOF: %s' % (e,)
-        return IInt()
-    return match(e,
-        ("Lit(IntLit(_))", lambda: IInt()),
-        ("_", no_type))
+    assert isinstance(e, Expr), "%s is not expr" % (e,)
+    print 'HAS NO TYPEOF: %s' % (e,)
+    return IInt()
 
 def convert_split_tfunc(t):
     return match(t,
@@ -748,6 +750,10 @@ def expr_attr(e, f):
     fieldptr = get_field_ptr(tx, f)
     return load(extrinsic(Name, f), convert_type(f.type), fieldptr).xpr
 
+def expr_lit(lit):
+    return match(lit, ('IntLit(i)', lambda i: Const('%d' % (i,))),
+                      ('FloatLit(f)', lambda f: Const('%f' % (f,))))
+
 def expr_strlit(lit):
     info = extrinsic(expand.ExpandedDecl, lit)
     tmp = temp_reg()
@@ -801,9 +807,8 @@ def express(expr):
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
-        ('Lit(IntLit(i))', lambda i: Const('%d' % (i,))),
-        ('Lit(FloatLit(f))', lambda f: Const('%f' % (f,))),
         ('lit==Lit(StrLit(_))', expr_strlit),
+        ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
         ('e==Ternary(c, l, r)', expr_ternary))
@@ -979,15 +984,6 @@ def write_local_func_defn(f):
 
 def write_defn(pat, e):
     store_pat(pat, express_typed(e))
-
-def write_top_intlit(v, n):
-    if not imported_bindable_used(v):
-        return
-    out_xpr(Global(extrinsic(expand.GlobalSymbol, v).symbol))
-    out(' = internal constant ')
-    out_t(typeof(v))
-    out(str(n))
-    newline()
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
@@ -1256,8 +1252,9 @@ def write_top_var_func(v, f):
 def write_top_strlit(var, s):
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
-    out_global_ref(var)
-    out(' = internal constant %s' % (escaped,))
+    out_global_symbol(var)
+    out(' = internal constant ')
+    out(escaped)
     newline()
 
 def escape_strlit(s):
@@ -1269,14 +1266,26 @@ def escape_strlit(s):
         lit += c if 31 < i < 127 else '\\%02x' % (i,)
     return (lit + '\\00"', n)
 
-def write_top(top):
-    match(top,
-        ("TopCDecl(v)", write_top_cdecl),
-        ("TopDefn(PatVar(v), FuncExpr(f))", write_top_var_func),
-        ("TopDefn(PatVar(v), Lit(IntLit(n)))", write_top_intlit),
-        ("TopDT(form)", write_dtstmt),
-        ("TopEnv(environ)", write_new_env),
-        ("TopExtrinsic(extr)", write_new_extrinsic))
+def write_top_lit(v, lit):
+    if not imported_bindable_used(v):
+        return
+    if matches(lit, "StrLit(_)"):
+        write_top_strlit(v, lit.val)
+        return
+    out_global_symbol(v)
+    out(' = internal constant ')
+    out_t(typeof(v))
+    out_xpr(expr_lit(lit))
+    newline()
+
+def write_top_decls(decls):
+    map_(write_top_cdecl, decls.cdecls)
+    map_(write_dtstmt, decls.dts)
+    map_(write_new_env, decls.envs)
+    map_(write_new_extrinsic, decls.extrinsics)
+    for lit in decls.lits:
+        write_top_lit(lit.var, lit.literal)
+    map_(write_top_cdecl, decls.funcDecls)
 
 def as_local(f):
     lcl = setup_locals()
@@ -1284,17 +1293,14 @@ def as_local(f):
     assert not lcl.currentBlock.needsTerminator, "Last block not terminated?"
 
 def write_unit(unit):
-    for top in unit.tops:
+    for top in unit.funcs:
         if has_extrinsic(expand.Expansion, top):
             for ex in extrinsic(expand.Expansion, top):
                 in_env(EXPORTSYMS, False, lambda: match(ex,
                     ("ExStrLit(var, s)", write_top_strlit),
                     ("ExSurfacedFunc(f)", write_top_func)))
             newline()
-        in_env(EXPORTSYMS, True, lambda: write_top(top))
-
-def write_unit_decls(unit):
-    map_(write_top, unit.tops)
+        in_env(EXPORTSYMS, True, lambda: write_top_func(top.func))
 
 prelude = """; prelude
 %Type = type opaque
@@ -1305,15 +1311,15 @@ declare void @match_fail() noreturn
 
 def write_imports(dep):
     dt = match(dep.rootType, 'TData(dt, _)')
-    if dt is extrinsic(FormSpec, DATATYPES['CompilationUnit']):
+    if dt is extrinsic(FormSpec, DATATYPES['ModuleDecls']):
         out('; %s' % (extrinsic(Name, dep),))
         newline()
-        in_env(DECLSONLY, True, lambda: write_unit_decls(dep.root))
+        in_env(DECLSONLY, True, lambda: write_top_decls(dep.root))
 
 LLFile = new_extrinsic('LLFile', str)
 OFile = new_extrinsic('OFile', str)
 
-def write_ir(mod, filename):
+def write_ir(decl_mod, defn_mod, filename):
     def go():
         out(prelude)
         runtime = loaded_modules['runtime']
@@ -1322,17 +1328,20 @@ def write_ir(mod, filename):
             write_imports(runtime)
             env(IR).overrideImportUsageCheck = False
 
-        walk_deps(write_imports, mod)
+        walk_deps(write_imports, defn_mod, set([decl_mod]))
         newline()
         out('; main')
         newline()
-        in_env(DECLSONLY, False, lambda: write_unit(mod.root))
+        def go():
+            write_top_decls(decl_mod.root)
+            write_unit(defn_mod.root)
+        in_env(DECLSONLY, False, go)
 
     in_env(IR, setup_ir(filename),
         lambda: scope_extrinsic(LiteralSize,
         go))
 
-    add_extrinsic(LLFile, mod, filename)
+    add_extrinsic(LLFile, decl_mod, filename)
 
 def compile(mod):
     ll = extrinsic(LLFile, mod)
@@ -1345,19 +1354,19 @@ def compile(mod):
     add_extrinsic(OFile, mod, o)
     return True
 
-def link(mod, binary):
+def link(decl_mod, defn_mod, binary):
     objs = ['ir/z.o']
 
     def add_obj(dep):
         dt = dep.rootType.data
-        if dt is extrinsic(FormSpec, DATATYPES['CompilationUnit']):
+        if dt is extrinsic(FormSpec, DATATYPES['ModuleDecls']):
             if not has_extrinsic(OFile, dep):
                 print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
                 return
             objs.append(extrinsic(OFile, dep))
-    walk_deps(add_obj, mod)
+    walk_deps(add_obj, defn_mod, set([decl_mod]))
 
-    objs.append(extrinsic(OFile, mod))
+    objs.append(extrinsic(OFile, decl_mod))
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
 
 def in_llvm_env(func):

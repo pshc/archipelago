@@ -22,8 +22,8 @@ ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
 
 EXFUNC = new_env('EXFUNC', ExFunc)
 
-ExGlobal = DT('ExGlobal', ('curTopLevel', '*TopLevel'),
-                          ('module', '*Module'))
+ExGlobal = DT('ExGlobal', ('curTopFunc', '*TopFunc'),
+                          ('ownModules', ['*Module']))
 
 EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
 
@@ -134,7 +134,7 @@ def ex_inenv(environ, init, f):
     ex_expr(f)
 
 def ex_bind(target):
-    if extrinsic(Location, target).module is not env(EXGLOBAL).module:
+    if extrinsic(Location, target).module not in env(EXGLOBAL).ownModules:
         env(IMPORTBINDS).add(target)
     v = Bindable.isVar(target)
     if isJust(v):
@@ -299,14 +299,11 @@ def ex_dt(dt):
         for ix, field in enumerate(ctor.fields):
             add_extrinsic(FieldIndex, field, ix + base)
 
-def ex_top_level(s):
-    match(s,
-        ("TopCDecl(v)", ex_top_cdecl),
-        ("TopDefn(PatVar(v), FuncExpr(f))", ex_top_func),
-        ("TopDefn(PatVar(v), e)", ex_top_defn),
-        ("TopDT(dt)", ex_dt),
-        ("TopEnv(_)", nop),
-        ("TopExtrinsic(_)", nop))
+def expand_decls(decls):
+    map(ex_top_cdecl, decls.cdecls)
+    map(ex_dt, decls.dts)
+    for lit in decls.lits:
+        unique_global(lit.var, False)
 
 def in_intramodule_env(func):
     captures = {}
@@ -319,14 +316,15 @@ def in_intermodule_env(func):
     extrs = [DataLayout, CtorIndex, FieldIndex, GlobalSymbol]
     return capture_scoped(extrs, captures, func)
 
-def expand_module(mod):
+def expand_module(decl_mod, defn_mod):
+    expand_decls(decl_mod.root)
     def go():
         eg = env(EXGLOBAL)
-        for top in mod.root.tops:
+        for top in defn_mod.root.funcs:
             eg.curTopLevel = top
-            in_env(EXSCOPE, top_scope(), lambda: ex_top_level(top))
+            in_env(EXSCOPE, top_scope(), lambda: ex_top_func(top.var,top.func))
     captures = {}
-    in_env(EXGLOBAL, ExGlobal(None, mod),
+    in_env(EXGLOBAL, ExGlobal(None, [decl_mod, defn_mod]),
             lambda: scope_extrinsic(LocalVar, go))
     return captures
 

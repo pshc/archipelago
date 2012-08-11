@@ -11,7 +11,7 @@ PropScope = DT('PropScope', ('retType', 'Maybe(CType)'),
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
-PROPTOP = new_env('PROPTOP', '*TopLevel')
+PROPTOP = new_env('PROPTOP', '*TopFunc')
 
 InstSite = new_extrinsic('InstSite', {'*TypeVar': 'CType'})
 
@@ -302,6 +302,9 @@ def prop_bind_var(b, v):
         return ct
     return inst_bind(b, v)
 
+def prop_lit(lit):
+    return ctype(lit_type(lit))
+
 def prop_listlit(es):
     if len(es) == 0:
         return CArray(fresh())
@@ -364,7 +367,7 @@ def infer_func(f, ps, b):
         return cft
     return in_new_scope(Just(rt), inside_func)
 
-def prop_func(f, ps, b):
+def prop_func_expr(f, ps, b):
     if not has_extrinsic(TypeOf, f):
         return infer_func(f, ps, b)
     ft = extrinsic(TypeOf, f)
@@ -419,15 +422,13 @@ def prop_expr(e):
 
 def _prop_expr(e):
     rt = match(e,
-        ("Lit(IntLit(_))", CInt),
-        ("Lit(FloatLit(_))", CFloat),
-        ("Lit(StrLit(_))", CStr),
+        ("Lit(lit)", prop_lit),
         ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
         ("ListLit(ss)", prop_listlit),
         ("call==Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
         ("Ternary(c, t, f)", prop_ternary),
-        ("FuncExpr(f==Func(ps, b))", prop_func),
+        ("FuncExpr(f==Func(ps, b))", prop_func_expr),
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
         ("e==GetEnv(Env(t))", instantiate_type),
@@ -485,16 +486,19 @@ def prop_DT(form):
     for c in form.ctors:
         set_type(c, TFunc([f.type for f in c.fields], dtT))
 
+def prop_func_defn(var, f):
+    t = extrinsic(TypeOf, f)
+    set_type(var, t)
+    ft = prop_func_expr(f, f.params, f.body)
+    unify(ft, ctype(t))
+
 def prop_defn(pat, e):
     m = match(e)
     if m("FuncExpr(f)"):
         f = m.arg
         if has_extrinsic(TypeOf, f):
             t = extrinsic(TypeOf, f)
-            v = match(pat, "PatVar(v)")
-            set_type(v, t)
-            set_type(pat, t)
-            consume_value_as(ctype(t), e)
+            prop_func_defn(match(pat, "PatVar(v)"), f)
             return
 
     ct = prop_expr(e)
@@ -551,10 +555,10 @@ def site_target_typeof(site):
     elif isinstance(site, Pat):
         return vanilla_tdata(extrinsic(TypeOf, site.ctor).funcRet.data)
 
-def prop_top_defn(topDefn, pat, e):
+def prop_top_func(topDefn, topVar, f):
 
-    def go(pat, e, captures):
-        prop_defn(pat, e)
+    def go(topVar, f, captures):
+        prop_func_defn(topVar, f)
         # Finalize inferred types
         for v, ct in captures[PendingType].iteritems():
             set_type(v, finalize_type(ct))
@@ -586,24 +590,17 @@ def prop_top_defn(topDefn, pat, e):
     captures = {}
     capture_scoped([PendingType, InstSite], captures,
         lambda: in_env(PROPTOP, topDefn,
-        lambda: go(pat, e, captures)))
-
-
-def prop_top_level(a):
-    in_env(STMTCTXT, a, lambda: match(a,
-        ("TopCDecl(_)", nop),
-        ("TopDT(form)", prop_DT),
-        ("TopEnv(_)", nop),
-        ("top==TopDefn(pat, e)", prop_top_defn),
-        ("TopExtrinsic(_)", nop)))
+        lambda: go(topVar, f, captures)))
 
 def prop_compilation_unit(unit):
-    map_(prop_top_level, unit.tops)
+    for f in unit.funcs:
+        in_env(STMTCTXT, f, lambda: prop_top_func(f, f.var, f.func))
 
-def prop_types(root):
-    annots = {}
-    capture_extrinsic(TypeOf, annots,
-        lambda: prop_compilation_unit(root)
-    )
+def prop_top_lit(lit):
+    add_extrinsic(TypeOf, lit.var, finalize_type(prop_lit(lit.literal)))
+
+def prop_module_decls(decls):
+    map_(prop_DT, decls.dts)
+    map_(prop_top_lit, decls.lits)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

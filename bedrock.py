@@ -12,7 +12,7 @@ ModDigest = new_extrinsic('ModDigest', str)
 ModDeps = new_extrinsic('ModDeps', '[*Module]')
 
 @annot('a -> a')
-def identity(val): return hint(val, a='a')
+def identity(val): return val
 
 @annot('(a, b) -> (a, b)')
 def tuple2(a, b): return (a, b)

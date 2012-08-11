@@ -100,19 +100,23 @@ Stmt, S, Assert, WriteExtrinsic = \
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))
 
-TopLevel, TopCDecl, TopDefn, TopDT, TopExtrinsic, TopEnv = \
-    ADT('TopLevel',
-        'TopCDecl', ('var', Var),
-        'TopDefn', ('pat', Pat), ('expr', 'e'),
-        'TopDT', ('form', 'DataType'),
-        'TopExtrinsic', ('extrinsic', Extrinsic),
-        'TopEnv', ('env', Env))
+LitDecl = DT('LitDecl', ('var', Var), ('literal', CoreLiteral))
+
+ModuleDecls = DT('ModuleDecls',
+        ('cdecls', [Var]),
+        ('dts', [DataType]),
+        ('envs', [Env]),
+        ('extrinsics', [Extrinsic]),
+        ('lits', [LitDecl]),
+        ('funcDecls', [Var]))
+
+TopFunc = DT('TopFunc', ('var', '*Var'), ('func', 'Func(Expr)'))
+
+CompilationUnit = DT('CompilationUnit', ('funcs', [TopFunc]))
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')
 UNIFYCTXT = new_env('UNIFYCTXT', '(*Type, *Type)')
-
-CompilationUnit = DT('CompilationUnit', ('tops', ['TopLevel(Expr)']))
 
 def with_context(desc, msg):
     if have_env(UNIFYCTXT):
@@ -134,6 +138,11 @@ def getname(sym):
 
 def _fix_type(t):
     return t() if isinstance(t, (type, types.FunctionType)) else t
+
+def lit_type(lit):
+    return match(lit, ("IntLit(_)", TInt),
+                      ("FloatLit(_)", TFloat),
+                      ("StrLit(_)", TStr))
 
 Bindable = new_typeclass('Bindable',
         ('isVar', 'a -> Var', lambda v: Nothing()))
@@ -207,8 +216,7 @@ def _match_named(atom, ast):
         return match_try(extrinsic(Name, atom), ast.args[0])
     return None
 
-def walk_deps(func, mod):
-    seen = set()
+def walk_deps(func, mod, seen):
     def walk(deps):
         for dep in deps:
             if dep in seen:

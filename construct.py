@@ -62,51 +62,73 @@ def load_module_dep(src, deps, plan):
     names = {}
 
     def conv_mod():
-        mod = capture_extrinsic(Name, names,
+        decl_mod, defn_mod_m = capture_extrinsic(Name, names,
             lambda: astconv.convert_file(src, name, deps))
-        add_extrinsic(Filename, mod, name)
-
+        add_extrinsic(Filename, decl_mod, name)
         view = 'views/%s' % (name,)
-        atom.write_mod_repr(view, mod, [Name])
+        if not isJust(defn_mod_m):
+            atom.write_mod_repr(view, decl_mod, [Name])
+            prop.prop_module_decls(decl_mod.root)
+            atom.write_mod_repr(view, decl_mod, [Name, TypeOf])
+            return decl_mod, defn_mod_m
 
-        scan.scan_root(mod.root)
-        atom.write_mod_repr(view, mod, [Name, TypeOf, InstMap])
+        defn_mod = fromJust(defn_mod_m)
+        add_extrinsic(Filename, defn_mod, name)
 
-        prop.prop_types(mod.root)
-        atom.write_mod_repr(view, mod, [Name, TypeOf, Instantiation])
+        impv = view
+        view += '_decls'
+        atom.write_mod_repr(view, decl_mod, [Name])
+        atom.write_mod_repr(impv, defn_mod, [Name])
 
-        return mod
-    mod = scope_extrinsic(InstMap,
+        scan.scan_root(defn_mod.root)
+        atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, InstMap])
+
+        prop.prop_module_decls(decl_mod.root)
+        atom.write_mod_repr(view, decl_mod, [Name, TypeOf])
+        prop.prop_compilation_unit(defn_mod.root)
+        atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, Instantiation])
+
+        return decl_mod, defn_mod_m
+    decl_mod, defn_mod = scope_extrinsic(InstMap,
             lambda: scope_extrinsic(astconv.AstType,
             lambda: scope_extrinsic(astconv.AstHint, conv_mod)))
 
-    native.serialize(mod)
-    names_mod = extrinsic_mod(Name, names, mod)
-    native.serialize(names_mod)
+    native.serialize(decl_mod)
+    native.serialize(extrinsic_mod(Name, names, decl_mod))
+    if isJust(defn_mod):
+        mod = fromJust(defn_mod)
+        native.serialize(mod)
+        native.serialize(extrinsic_mod(Name, names, mod))
 
-    return expand.in_intramodule_env(
-        lambda: check.in_check_env(
-        lambda: _do_mod(mod, plan)
-    ))
+        expand.in_intramodule_env(
+            lambda: check.in_check_env(
+            lambda: build_mod(decl_mod, mod, plan)
+        ))
+    else:
+        expand.expand_decls(decl_mod.root)
+        if isJust(plan.writeIR):
+            write_mod_headers(decl_mod, fromJust(plan.writeIR))
 
-def _do_mod(mod, plan):
-    casts = check.check_types(mod.root)
-    view = 'views/%s' % (extrinsic(Filename, mod),)
-    atom.write_mod_repr(view, mod, [Name, TypeOf, TypeCast])
+    assert loaded_modules[name] is None
+    loaded_modules[name] = decl_mod
+    return decl_mod
 
-    expand.expand_module(mod)
 
-    name = extrinsic(Filename, mod)
+def build_mod(decl_mod, defn_mod, plan):
+    name = extrinsic(Filename, decl_mod)
+    view = 'views/%s' % (name,)
+
+    casts = check.check_types(decl_mod, defn_mod)
+    atom.write_mod_repr(view, defn_mod, [Name, TypeOf, TypeCast])
+
+    expand.expand_module(decl_mod, defn_mod)
 
     compiled = False
     if isJust(plan.writeIR):
         ir = fromJust(plan.writeIR)
-        llvm.write_ir(mod, ir)
-        compiled = llvm.compile(mod)
-
-        if env(BUILDOPTS).writeHeaders:
-            hdr = ir[:-3].replace('obj', 'include') + '.h'
-            headers.write_export_header(mod, hdr)
+        llvm.write_ir(decl_mod, defn_mod, ir)
+        compiled = llvm.compile(decl_mod)
+        write_mod_headers(decl_mod, ir)
 
     if isJust(plan.linkBinary):
         binFilename = fromJust(plan.linkBinary)
@@ -116,12 +138,14 @@ def _do_mod(mod, plan):
         except OSError:
             pass
         if compiled:
-            if llvm.link(mod, binFilename):
+            if llvm.link(decl_mod, defn_mod, binFilename):
                 print col('Green', 'Linked'), name
 
-    assert loaded_modules[name] is None
-    loaded_modules[name] = mod
-    return mod
+def write_mod_headers(mod, ir):
+    if env(BUILDOPTS).writeHeaders:
+        hdr = ir[:-3].replace('obj', 'include') + '.h'
+        sym = extrinsic(Filename, mod)
+        headers.write_export_header(mod, hdr, sym)
 
 astconv.load_module = lambda nm, ds: load_module_dep(nm, ds, dep_obj_plan(nm))
 
