@@ -380,9 +380,15 @@ def convert_type(t):
         ("TVar(_)", IVoidPtr),
         ("TFunc(ps, r)", lambda ps, r:
                          IFunc(map(convert_type, ps), convert_type(r))),
-        ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
+        ("TData(dt, ts)", convert_dt),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
+
+def convert_dt(dt, ts):
+    # XXX maybe codegen
+    if dt is extrinsic(FormSpec, DATATYPES['Maybe']):
+        return convert_type(ts[0])
+    return IPtr(IData(dt))
 
 def itypes_equal(src, dest):
     same = lambda: True
@@ -623,7 +629,17 @@ def write_runtime_call(name, argxs, rett):
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
-        mret = LLVMBindable.express_called(f.target, args)
+        func = f.target
+
+        # XXX maybe codegen
+        if Nullable.isMaybe(func):
+            if len(args) == 1:
+                return express(args[0])
+            else:
+                assert len(args) == 0
+                return Const("null")
+
+        mret = LLVMBindable.express_called(func, args)
         if isJust(mret):
             return fromJust(mret)
     return fromJust(write_call(f, args, typeof(e))).xpr
@@ -830,6 +846,14 @@ MatchState = DT('MatchState', ('failureBlock', Label))
 MATCH = new_env('MATCH', MatchState)
 
 def match_pat_ctor(pat, ctor, ps, tx):
+    # XXX maybe codegen
+    if Nullable.isMaybe(ctor):
+        if extrinsic(Name, ctor) == 'Just':
+            match_pat_just(pat, ps[0], tx)
+        else:
+            match_pat_nothing(pat, tx)
+        return
+
     form = match(tx.type, "IPtr(IData(form))")
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
@@ -856,6 +880,19 @@ def match_pat_ctor(pat, ctor, ps, tx):
         else:
             ptx = TypedXpr(convert_type(f.type), val)
         match_pat(p, ptx)
+
+def match_pat_just(pat, p, tx):
+    m = expr_binop('icmp ne', tx.xpr, Const('null'), tx.type)
+    lbl = new_label('just', new_series(pat))
+    br_cond(m, lbl, env(MATCH).failureBlock)
+    out_label(lbl)
+    match_pat(p, tx)
+
+def match_pat_nothing(pat, tx):
+    m = expr_binop('icmp eq', tx.xpr, Const('null'), tx.type)
+    lbl = new_label('nothing', new_series(pat))
+    br_cond(m, lbl, env(MATCH).failureBlock)
+    out_label(lbl)
 
 def match_pat_tuple(ps, tx):
     with_pat_tuple(ps, tx, match_pat)

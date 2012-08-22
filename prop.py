@@ -447,8 +447,11 @@ def _prop_expr(e):
 def consume_value_as(ct, e):
     in_env(EXPRCTXT, e, lambda: unify(_prop_expr(e), ct))
 
+def extract_cdata(t):
+    return match(t, ('CData(dt, ts) or CMeta(Subst(CData(dt, ts)))', tuple2))
+
 def resolve_field_by_name(t, f):
-    dt = match(t, "CData(t, _)")
+    dt, ts = extract_cdata(t)
     real_field = None
     for ctor in dt.ctors:
         for field in ctor.fields:
@@ -459,7 +462,7 @@ def resolve_field_by_name(t, f):
     return real_field
 
 def resolve_field_type(t, ft):
-    dt, ts = match(t, ('CData(dt, ts)', tuple2))
+    dt, ts = extract_cdata(t)
     tmap = {}
     for tvar, t in ezip(dt.tvars, ts):
         tmap[tvar] = t

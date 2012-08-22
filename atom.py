@@ -158,6 +158,15 @@ def isVar_Var(var):
 default_impl(Bindable, Builtin)
 default_impl(Bindable, Ctor)
 
+# XXX maybe codegen
+Nullable = new_typeclass('Nullable', ('isMaybe', 'a -> bool', lambda v: False))
+@impl(Nullable, Ctor)
+def isMaybe_Ctor(ctor):
+    name = extrinsic(Name, ctor)
+    return name == 'Just' or name == 'Nothing'
+default_impl(Nullable, Builtin)
+default_impl(Nullable, Var)
+
 def make_builtin_scheme(name, t):
     tvars = {}
     if t is None:

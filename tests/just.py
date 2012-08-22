@@ -1,7 +1,9 @@
 from bedrock import *
 
+SlimeMold = DT('SlimeMold', ('sliminess', int))
+
 @annot('void -> int')
 def main():
-    a = Just(0)
+    a = Just(SlimeMold(0))
     b = Nothing()
-    return fromJust(a)
+    return fromJust(a).sliminess
