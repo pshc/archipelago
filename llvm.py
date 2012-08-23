@@ -521,27 +521,26 @@ def express_Builtin(b):
 
 @impl(LLVMBindable, Var)
 def express_Var(v):
-    globalRef = Nothing()
     if has_extrinsic(expand.GlobalSymbol, v):
         repl = extrinsic(expand.GlobalSymbol, v)
         if repl.isFunc:
             return Global(repl.symbol)
+        elif has_extrinsic(LiteralSize, v):
+            return get_strlit_ptr(v)
         else:
-            globalRef = Just(Global(repl.symbol))
+            return load(extrinsic(Name, v), typeof(v), Global(repl.symbol)).xpr
     elif has_extrinsic(expand.LocalFunctionSymbol, v):
         return Global(extrinsic(expand.LocalFunctionSymbol, v))
-    # Would be nice: (need name_reg)
-    #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
-    tmp = temp_reg_named(extrinsic(Name, v))
-    out_xpr(tmp)
-    out(' = load ')
-    out_t_ptr(typeof(v))
-    if isJust(globalRef):
-        out_xpr(fromJust(globalRef))
     else:
+        # Would be nice: (need name_reg)
+        #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
+        tmp = temp_reg_named(extrinsic(Name, v))
+        out_xpr(tmp)
+        out(' = load ')
+        out_t_ptr(typeof(v))
         out_name_reg(v)
-    newline()
-    return tmp
+        newline()
+        return tmp
 
 @impl(LLVMBindable, Ctor)
 def express_Ctor(c):
@@ -770,15 +769,18 @@ def expr_lit(lit):
     return match(lit, ('IntLit(i)', lambda i: Const('%d' % (i,))),
                       ('FloatLit(f)', lambda f: Const('%f' % (f,))))
 
-def expr_strlit(lit):
-    info = extrinsic(expand.ExpandedDecl, lit)
+def get_strlit_ptr(var):
     tmp = temp_reg()
     out_xpr(tmp)
-    out(' = getelementptr [%d x i8]* ' % (extrinsic(LiteralSize, info.var),))
-    out_global_ref(info.var)
+    out(' = getelementptr [%d x i8]* ' % (extrinsic(LiteralSize, var),))
+    out_global_ref(var)
     out(', i32 0, i32 0')
     newline()
     return tmp
+
+def expr_strlit(lit):
+    info = extrinsic(expand.ExpandedDecl, lit)
+    return get_strlit_ptr(info.var)
 
 def expr_tuplelit(lit, ts):
     tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
@@ -1304,7 +1306,7 @@ def escape_strlit(s):
     return (lit + '\\00"', n)
 
 def write_top_lit(v, lit):
-    if not imported_bindable_used(v):
+    if env(DECLSONLY) and not imported_bindable_used(v):
         return
     if matches(lit, "StrLit(_)"):
         write_top_strlit(v, lit.val)
