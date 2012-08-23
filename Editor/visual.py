@@ -72,11 +72,12 @@ def compile_shader(src, kind):
     glCompileShader(shader)
     logLen = [0]
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, logLen)
-    # print log if present
+    if logLen[0] > 0:
+        pass # print log
 
     status = [0]
     glGetShaderiv(shader, GL_COMPILE_STATUS, status)
-    if False:
+    if status[0] == 0:
         glDeleteShader(shader)
         return 0
 
@@ -88,11 +89,12 @@ def link_program(program):
 
     logLen = [0]
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, logLen)
-    # check log
+    if logLen[0] > 0:
+        pass # print log
 
     status = [0]
     glGetProgramiv(program, GL_LINK_STATUS, status)
-    return True # status[0] != 0
+    return status[0] != 0
 
 @annot('void -> int')
 def load_shader():
