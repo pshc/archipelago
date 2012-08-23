@@ -212,12 +212,12 @@ def try_unite(src, dest):
     match((src, dest),
         ("(CMeta(Subst(s)), CMeta(Subst(d)))", try_unite),
         # two free vars
-        ("(src==CMeta(Free()), t==CMeta(Free() or InstVar(_) or Mono()))",
+        ("(src==CMeta(Free(_)), t==CMeta(Free(_) or InstVar(_) or Mono()))",
                 set_meta_subst),
-        ("(src==CMeta(InstVar(_)), t==CMeta(Free() or InstVar(_) or Mono()))",
+        ("(src==CMeta(InstVar(_)), t==CMeta(Free(_) or InstVar(_) or Mono()))",
                 set_meta_subst),
         ("(src==CMeta(Mono()), t==CMeta(Mono()))", set_meta_subst),
-        ("(src==CMeta(Mono()), t==CMeta(Free() or InstVar(_)))",
+        ("(src==CMeta(Mono()), t==CMeta(Free(_) or InstVar(_)))",
                 copy_mono_subst),
         # free -> some type (direct unification)
         ("(CMeta(Subst(src)), dest)", try_unite),
