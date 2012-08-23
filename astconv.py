@@ -787,7 +787,8 @@ def conv_while(s):
 
 def setup_builtin_module():
     for name, t in builtins_types.iteritems():
-        t, tvars = make_builtin_scheme(name, t)
+        tvars = {}
+        t = parse_new_type(t, tvars)
         builtin = Builtin()
         add_extrinsic(Name, builtin, name)
         add_extrinsic(TypeOf, builtin, t)

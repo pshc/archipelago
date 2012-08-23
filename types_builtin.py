@@ -147,23 +147,20 @@ def checked_subst(mapping, t):
     assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
     return s
 
-
-def _var(n): return TVar(n)
-
 # Tuples are a shortcut for functions
 builtins_types = {
-    'True': TBool, 'False': TBool,
-    'not': (TBool, TBool),
-    'ord': (TChar, TInt),
-    '+': (TInt, TInt, TInt), '-': (TInt, TInt, TInt),
-    '*': (TInt, TInt, TInt), '//': (TInt, TInt, TInt), '%': (TInt, TInt, TInt),
-    'negate': (TInt, TInt),
-    'fdiv': (TFloat, TFloat, TFloat), 'fnegate': (TFloat, TFloat),
-    '&': (TInt, TInt, TInt), '|': (TInt, TInt, TInt), '^': (TInt, TInt, TInt),
-    '==': (TInt, TInt, TBool), '!=': (TInt, TInt, TBool),
-    '<': (TInt, TInt, TBool), '>': (TInt, TInt, TBool),
-    '<=': (TInt, TInt, TBool), '>=': (TInt, TInt, TBool),
-    'is': (_var(1), _var(1), TBool), 'is not': (_var(1), _var(1), TBool),
+    'True': 'bool', 'False': 'bool', 'not': 'bool -> bool',
+    '+': '(int, int) -> int', '-': '(int, int) -> int',
+    '*': '(int, int) -> int', '//': '(int, int) -> int',
+    '%': '(int, int) -> int',
+    'negate': 'int -> int', 'fnegate': 'float -> float',
+    'fdiv': '(float, float) -> float',
+    '&': '(int, int) -> int', '|': '(int, int) -> int',
+    '^': '(int, int) -> int',
+    '==': '(int, int) -> bool', '!=': '(int, int) -> bool',
+    '<': '(int, int) -> bool', '>': '(int, int) -> bool',
+    '<=': '(int, int) -> bool', '>=': '(int, int) -> bool',
+    'is': '(a, a) -> bool', 'is not': '(a, a) -> bool',
 }
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
