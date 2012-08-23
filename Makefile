@@ -6,6 +6,10 @@ CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -ansi -pedantic -W -Wall -Werror
 
+ifdef DEBUG
+  CODEGEN = ipdb construct.py $(OPTS)
+endif
+
 all: test
 
 debug: CODEGEN = ipdb construct.py $(OPTS)
