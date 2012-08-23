@@ -124,4 +124,8 @@ def load_shader():
         program = 0
     return program
 
+@annot('int -> void')
+def unload_shader(program):
+    glDeleteProgram(program)
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
