@@ -123,8 +123,9 @@ def tokenize(s):
     if word:
         yield word
 
-def load_spec(name):
-    spec = __import__(name)
+def load_spec(filename):
+    import imp
+    spec = imp.load_source('spec', filename)
     spec.funcs = re.findall(r'\w+', spec.funcs)
     spec.consts = re.findall(r'\w+', spec.consts)
     def parse(line):
@@ -135,7 +136,7 @@ def load_spec(name):
 
 if __name__ == '__main__':
     import inspect, os.path, sys
-    spec = load_spec('spec')
+    spec = load_spec(sys.argv[1])
     path = os.path.dirname(inspect.getfile(inspect.currentframe()))
     gl_c = os.path.join(path, 'gl.c')
     func_decls(gl_c, spec)

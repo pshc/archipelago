@@ -8,8 +8,8 @@ include:
 obj:
 	@mkdir obj
 
-gl.py: ../importer/import.py
-	python $< > $@
+gl.py: ../importer/import.py spec.py
+	python $^  > $@
 
 .PHONY: all clean
 
