@@ -301,7 +301,7 @@ def get_field_ptr(tx, f):
     get_element_ptr(tmp, tx, extrinsic(expand.FieldIndex, f))
     return tmp
 
-def subscript(arraytx, indexpr):
+def subscript(regname, arraytx, indexpr):
     arrayPtr = temp_reg_named('arrayptr')
     out_xpr(arrayPtr)
     out(' = getelementptr ')
@@ -313,7 +313,7 @@ def subscript(arraytx, indexpr):
     out_xpr(indexpr)
     newline()
     elemType = match(arraytx.type, 'IPtr(IArray(0, t))')
-    return load('subscript', elemType, arrayPtr).xpr
+    return load(regname, elemType, arrayPtr).xpr
 
 def extractvalue(regname, tx, index):
     # Const version would be fairly pointless
@@ -566,6 +566,7 @@ def una_op(b):
         ('key("not")', lambda: 'not'),
         ('key("negate")', lambda: 'negate'),
         ('key("fnegate")', lambda: 'fnegate'),
+        ('key("len")', lambda: 'len'),
         ('_', lambda: ''))
 
 def bin_op(b):
@@ -590,6 +591,10 @@ def aug_op(b):
         ('AugModulo()', lambda: 'srem')) # or urem...
 
 def expr_unary(op, arg):
+    if op == 'len':
+        if not matches(arg.type, "IPtr(IArray(0, IInt()))"):
+            arg = cast(arg, IPtr(IArray(0, IInt())))
+        return subscript('len', arg, Const('-1'))
     floating = op.startswith('f')
     pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
     pivot = TypedXpr(arg.type, Const(pivotVal))
@@ -610,7 +615,7 @@ def expr_binop(op, left, right, t):
     tleft = TypedXpr(t, left)
     if op == 'subscript':
         # ought to sanity check `right` was typed as TInt
-        return subscript(tleft, right)
+        return subscript('subscript', tleft, right)
     if is_const(left) and is_const(right):
         return ConstOp(op, [tleft, TypedXpr(t, right)])
     else:
