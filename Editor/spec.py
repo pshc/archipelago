@@ -11,6 +11,7 @@ glDeleteShader
 glDetachShader
 glLinkProgram
 glGetProgramiv
+glGetShaderInfoLog
 glGetShaderiv
 glShaderSource
 glUniformMatrix4fv

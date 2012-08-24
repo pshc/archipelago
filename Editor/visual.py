@@ -73,7 +73,9 @@ def compile_shader(src, kind):
     logLen = [0]
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, logLen)
     if logLen[0] > 0:
-        pass # print log
+        log = buffer(logLen[0])
+        glGetShaderInfoLog(shader, logLen[0], logLen, log)
+        # print log
 
     status = [0]
     glGetShaderiv(shader, GL_COMPILE_STATUS, status)

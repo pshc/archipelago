@@ -254,9 +254,8 @@ def malloc(t):
     out(' to ')
     out_t_nospace(sizeoft)
     newline()
-    f = func_ref(runtime_decl('malloc'))
-    mem = call(IVoidPtr(), f, [TypedXpr(IInt(), sizeof)])
-    return cast(mem, IPtr(t))
+    mem = write_runtime_call('malloc', [TypedXpr(IInt(), sizeof)], IVoidPtr())
+    return cast(fromJust(mem), IPtr(t))
 
 def call(rett, fx, argxs):
     tmp = temp_reg()
@@ -566,7 +565,7 @@ def una_op(b):
         ('key("not")', lambda: 'not'),
         ('key("negate")', lambda: 'negate'),
         ('key("fnegate")', lambda: 'fnegate'),
-        ('key("len")', lambda: 'len'),
+        ('key("len")', lambda: 'len'), ('key("buffer")', lambda: 'buffer'),
         ('_', lambda: ''))
 
 def bin_op(b):
@@ -595,6 +594,9 @@ def expr_unary(op, arg):
         if not matches(arg.type, "IPtr(IArray(0, IInt()))"):
             arg = cast(arg, IPtr(IArray(0, IInt())))
         return subscript('len', arg, Const('-1'))
+    elif op == 'buffer':
+        buf = write_runtime_call('malloc', [arg], IVoidPtr())
+        return fromJust(buf).xpr
     floating = op.startswith('f')
     pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
     pivot = TypedXpr(arg.type, Const(pivotVal))
