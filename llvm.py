@@ -300,7 +300,7 @@ def get_field_ptr(tx, f):
     get_element_ptr(tmp, tx, extrinsic(expand.FieldIndex, f))
     return tmp
 
-def subscript(regname, arraytx, indexpr):
+def subscript(regname, arraytx, itx):
     arrayPtr = temp_reg_named('arrayptr')
     out_xpr(arrayPtr)
     out(' = getelementptr ')
@@ -308,8 +308,7 @@ def subscript(regname, arraytx, indexpr):
     comma()
     out('i32 0')
     comma()
-    out('i32 ')
-    out_xpr(indexpr)
+    out_txpr(itx)
     newline()
     elemType = match(arraytx.type, 'IPtr(IArray(0, t))')
     return load(regname, elemType, arrayPtr).xpr
@@ -581,8 +580,7 @@ def bin_op(b):
         ('key("&")', lambda: 'and'), ('key("|")', lambda: 'or'),
         ('key("^")', lambda: 'xor'),
         ('key("==")', lambda: 'icmp eq'), ('key("!=")', lambda: 'icmp ne'),
-        ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'),
-        ('key("subscript")', lambda: 'subscript'))
+        ('key("<")', lambda: 'icmp slt'), ('key(">")', lambda: 'icmp sgt'))
 
 def aug_op(b):
     return match(b,
@@ -596,7 +594,7 @@ def expr_unary(op, arg):
     if op == 'len':
         if not matches(arg.type, "IPtr(IArray(0, IInt()))"):
             arg = cast(arg, IPtr(IArray(0, IInt())))
-        return subscript('len', arg, Const('-1'))
+        return subscript('len', arg, TypedXpr(IInt(), Const('-1')))
     elif op == 'buffer':
         buf = write_runtime_call('malloc', [arg], IVoidPtr())
         return fromJust(buf).xpr
@@ -618,9 +616,6 @@ def expr_unary(op, arg):
 
 def expr_binop(op, left, right, t):
     tleft = TypedXpr(t, left)
-    if op == 'subscript':
-        # ought to sanity check `right` was typed as TInt
-        return subscript('subscript', tleft, right)
     if is_const(left) and is_const(right):
         return ConstOp(op, [tleft, TypedXpr(t, right)])
     else:
@@ -678,12 +673,20 @@ def express_called_Builtin(target, args):
         assert len(args) == 1, '%s is unary' % (op,)
         arg = express_typed(args[0])
         return Just(expr_unary(op, arg))
-    else:
-        op = bin_op(target)
-        assert len(args) == 2, '%s requires two args' % (op,)
-        left = express(args[0])
-        right = express(args[1])
-        return Just(expr_binop(op, left, right, typeof(args[0])))
+
+    assert len(args) == 2, '%s requires two args' % (op,)
+    t = typeof(args[0])
+    left = express(args[0])
+    right = express(args[1])
+
+    if matches(target, 'key("subscript")'):
+        it = typeof(args[1])
+        assert itypes_equal(it, IInt()), "Non-integral index"
+        return Just(subscript('subscript',
+                TypedXpr(t, left), TypedXpr(it, right)))
+
+    op = bin_op(target)
+    return Just(expr_binop(op, left, right, t))
 
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
