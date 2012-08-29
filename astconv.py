@@ -754,15 +754,14 @@ def conv_pass(s):
 @stmt(ast.Printnl)
 def conv_printnl(s):
     assert s.dest is None
+    assert len(s.nodes) == 1
     node = s.nodes[0]
-    if isinstance(node, ast.Const):
-        exprsa = [E.Lit(StrLit(node.value+'\n')), E.TupleLit([])]
-    elif isinstance(node, ast.Mod):
-        format = s.nodes[0].left.value
-        exprsa = [E.Lit(StrLit(format+'\n')), conv_expr(s.nodes[0].right)]
+    if isinstance(node, ast.Mod):
+        format = node.left.value
+        exprsa = [E.Lit(StrLit(format+'\n')), conv_expr(node.right)]
+        return [S.ExprStmt(symcall('printf', exprsa))]
     else:
-        assert False, "Unexpected print form: %s" % s
-    return [S.ExprStmt(symcall('printf', exprsa))]
+        return [S.ExprStmt(symcall('puts_', [conv_expr(node)]))]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):

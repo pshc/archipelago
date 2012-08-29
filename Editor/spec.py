@@ -10,6 +10,7 @@ glDeleteProgram
 glDeleteShader
 glDetachShader
 glLinkProgram
+glGetProgramInfoLog
 glGetProgramiv
 glGetShaderInfoLog
 glGetShaderiv
