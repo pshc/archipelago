@@ -2,27 +2,18 @@ from Editor.gl import *
 from bedrock import *
 
 fragmentShaderSrc = """
-varying lowp vec2 uv;
-uniform sampler2D atlas;
-
 void main () {
-    lowp vec4 col = texture2D(atlas, uv);
-    gl_FragColor = vec4(uv, 1.0 - uv.x, col.a * (uv.y * 0.5 + 0.5));
+    gl_FragColor = vec4(1.0, 0.5, 0.0, 1.0);
 }
 """
 
 vertexShaderSrc = """
-attribute lowp vec2 position;
-attribute lowp vec2 texCoord0;
-
-varying lowp vec2 uv;
+attribute vec2 position;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
-uniform lowp vec2 invAtlasSize;
 
 void main() {
-    uv = texCoord0 * invAtlasSize;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position,0.0,1.0);
 }
 """
@@ -33,10 +24,6 @@ Vec2 = DT('Vec2', ('x', float), ('y', float))
 
 SceneNode = DT('SceneNode',
         ('position', Vec2))
-
-@annot('void -> void')
-def setup_editor():
-    glClearColor(0.0, 0.0, 0.0, 1.0)
 
 @annot('(float, float) -> void')
 def set_view_size(width, height):
@@ -59,10 +46,6 @@ def set_view_pos(x, y):
     ]
     uniform = 1
     glUniformMatrix4fv(uniform, 1, False, mvMat)
-
-@annot('void -> void')
-def render_editor():
-    glClear(GL_COLOR_BUFFER_BIT)
 
 @annot('(str, int) -> int')
 def compile_shader(src, kind):
@@ -118,7 +101,9 @@ def load_shader():
 
     linked = link_program(program)
     if linked:
-        pass # get uniforms
+        mvmat = glGetUniformLocation(program, "modelViewMatrix")
+        pmat = glGetUniformLocation(program, "projectionMatrix")
+
     glDetachShader(program, vertShader)
     glDetachShader(program, fragShader)
     glDeleteShader(vertShader)
@@ -126,10 +111,35 @@ def load_shader():
     if not linked:
         glDeleteProgram(program)
         program = 0
+
     return program
 
 @annot('int -> void')
 def unload_shader(program):
     glDeleteProgram(program)
+
+@annot('void -> void')
+def setup_editor():
+    glClearColor(0.0, 0.0, 0.0, 1.0)
+    load_shader()
+
+@annot('(float, float, float, float) -> void')
+def render_quad(x, y, w, h):
+    r = fadd(x, w)
+    b = fadd(y, h)
+    points = [
+        x, y,
+        r, y,
+        r, b,
+        x, b,
+    ]
+    indices = [0, 1, 2, 0, 2, 3]
+    glVertexAttribPointer(ATTRIB_POS, 2, GL_FLOAT, False, 8, points)
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, indices)
+
+@annot('void -> void')
+def render_editor():
+    glClear(GL_COLOR_BUFFER_BIT)
+    render_quad(0.0, 0.0, 1.0, 1.0)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

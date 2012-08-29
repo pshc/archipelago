@@ -53,7 +53,7 @@
         dy = theEvent.deltaY;
     }
 
-    // TODO: adjust view pos
+    set_view_pos(dx, dy);
     self.needsDisplay = YES;
 }
 
