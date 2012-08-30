@@ -87,3 +87,13 @@ int _hasextrinsic(intptr_t extr, intptr_t **atom) {
 		return 0;
 	return extrinsic_index(table, TABLE_COUNT(table), extr) != -1;
 }
+
+void _print_str(const char *s) {
+	fputs(s, stdout);
+}
+void _print_int(intptr_t n) {
+	printf("%d", (int) n);
+}
+void _newline(void) {
+	putchar('\n');
+}
