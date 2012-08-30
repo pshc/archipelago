@@ -351,8 +351,8 @@ def cast(txpr, dest):
         ('(IInt() or IBool(), IVoidPtr())', lambda: 'inttoptr'),
         ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
         ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
-        ('(IInt(), IFloat())', lambda: 'bitcast'),
-        ('(IFloat(), IInt())', lambda: 'bitcast'),
+        ('(IInt(), IFloat())', lambda: 'sitofp'),
+        ('(IFloat(), IInt())', lambda: 'fptosi'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
     xpr = txpr.xpr
@@ -566,6 +566,7 @@ def una_op(b):
         ('key("not")', lambda: 'not'),
         ('key("negate")', lambda: 'negate'),
         ('key("fnegate")', lambda: 'fnegate'),
+        ('key("float")', lambda: 'int_to_float'),
         ('key("len")', lambda: 'len'), ('key("buffer")', lambda: 'buffer'),
         ('_', lambda: ''))
 
@@ -598,6 +599,9 @@ def expr_unary(op, arg):
     elif op == 'buffer':
         buf = write_runtime_call('malloc', [arg], IVoidPtr())
         return fromJust(buf).xpr
+    elif op == 'int_to_float':
+        return cast(arg, IFloat()).xpr
+
     floating = op.startswith('f')
     pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
     pivot = TypedXpr(arg.type, Const(pivotVal))
