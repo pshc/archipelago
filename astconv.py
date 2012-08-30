@@ -2,6 +2,7 @@ from atom import *
 from base import *
 import compiler
 from compiler import ast
+import re
 
 ScopeContext = DT('ScopeContext', ('indent', int),
                                   ('syms', {(str, bool): object}),
@@ -757,15 +758,32 @@ def conv_printnl(s):
     assert len(s.nodes) == 1
     node = s.nodes[0]
     if isinstance(node, ast.Mod):
-        format = node.left.value
-        exprsa = [E.Lit(StrLit(format+'\n')), conv_expr(node.right)]
-        return [S.ExprStmt(symcall('printf', exprsa))]
+        assert isinstance(node.right, ast.Tuple)
+        args = map(conv_expr, node.right.nodes)
+        ops = []
+        for bit in re.split(r'(%.)', node.left.value):
+            if bit.startswith('%'):
+                if bit == '%s':
+                    f = 'print_str'
+                elif bit == '%d':
+                    f = 'print_int'
+                elif bit == '%%':
+                    f = 'putchar'
+                else:
+                    assert False, "Unknown format " + bit
+                ops.append(S.ExprStmt(symcall(f, [args.pop(0)])))
+            else:
+                lit = E.Lit(StrLit(bit))
+                ops.append(S.ExprStmt(symcall('print_str', [lit])))
+        assert not args, "Format arguments remain: " + args
+        ops.append(S.ExprStmt(symcall('newline', [])))
+        return ops
     else:
         return [S.ExprStmt(symcall('puts_', [conv_expr(node)]))]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):
-    return []
+    pass
 
 @stmt(ast.Return)
 def conv_return(s):
