@@ -6,6 +6,8 @@ def main():
     assert len(empty) == 0, "Empty length"
     strs = ["hello", "world"]
     assert len(strs) == 2, "Pointer array length"
+    nothing = [Nothing(), Nothing(), Nothing()]
+    assert len(nothing) == 3, "Array of nulls length"
     rets = [-1, -1, 0, -1]
     assert len(rets) == 4, "Array length"
     return rets[2]

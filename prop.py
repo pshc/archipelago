@@ -573,7 +573,16 @@ def prop_top_func(topDefn, topVar, f):
             for tv, ct in mapping.iteritems():
                 if matches(ct, "CMeta(InstVar(_))"):
                     continue # Inst w/ old var; no replacement
-                insts[tv] = finalize_type(ct)
+
+                instType = finalize_type(ct)
+
+                # check if this replaces the typevar with itself
+                # wondering if it's possible to do this check earlier?
+                if match(instType, ("TVar(tv2)", lambda tv2: tv is tv2),
+                                   ("_", lambda: False)):
+                    continue
+
+                insts[tv] = instType
             if len(insts) == 0:
                 continue
 
