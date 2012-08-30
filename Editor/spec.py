@@ -10,6 +10,8 @@ glDeleteProgram
 glDeleteShader
 glDetachShader
 glDrawElements
+glEnableClientState
+glEnableVertexAttribArray
 glLinkProgram
 glGetProgramInfoLog
 glGetProgramiv
@@ -17,7 +19,9 @@ glGetShaderInfoLog
 glGetShaderiv
 glGetUniformLocation
 glShaderSource
+glUseProgram
 glUniformMatrix4fv
+glViewport
 glVertexAttribPointer
 """
 
@@ -30,6 +34,7 @@ GL_INFO_LOG_LENGTH
 GL_LINK_STATUS
 GL_TRIANGLES
 GL_UNSIGNED_INT
+GL_VERTEX_ARRAY
 GL_VERTEX_SHADER
 """
 

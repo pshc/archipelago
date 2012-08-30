@@ -25,11 +25,12 @@ Vec2 = DT('Vec2', ('x', float), ('y', float))
 SceneNode = DT('SceneNode',
         ('position', Vec2))
 
-@annot('(float, float) -> void')
+@annot('(int, int) -> void')
 def set_view_size(width, height):
+    glViewport(0, 0, width, height)
     projMat = [
-        2.0 / width, 0.0, 0.0, 0.0,
-        0.0, -2.0 / height, 0.0, 0.0,
+        2.0 / float(width), 0.0, 0.0, 0.0,
+        0.0, -2.0 / float(height), 0.0, 0.0,
         0.0, 0.0, -1.0, 0.0,
         -1.0, 1.0, 0.0, 1.0,
     ]
@@ -112,7 +113,9 @@ def load_shader():
     if not linked:
         glDeleteProgram(program)
         program = 0
-
+    else:
+        print 'using program %d' % (program,)
+        glUseProgram(program)
     return program
 
 @annot('int -> void')
@@ -122,6 +125,10 @@ def unload_shader(program):
 @annot('void -> void')
 def setup_editor():
     glClearColor(0.0, 0.0, 0.0, 1.0)
+
+    glEnableVertexAttribArray(ATTRIB_POS)
+    glEnableClientState(GL_VERTEX_ARRAY)
+
     load_shader()
 
 @annot('(float, float, float, float) -> void')
@@ -135,12 +142,12 @@ def render_quad(x, y, w, h):
         x, b,
     ]
     indices = [0, 1, 2, 0, 2, 3]
-    glVertexAttribPointer(ATTRIB_POS, 2, GL_FLOAT, False, 8, points)
+    glVertexAttribPointer(ATTRIB_POS, 2, GL_FLOAT, False, 0, points)
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, indices)
 
 @annot('void -> void')
 def render_editor():
     glClear(GL_COLOR_BUFFER_BIT)
-    render_quad(0.0, 0.0, 1.0, 1.0)
+    render_quad(0.0, 0.0, 100.0, 100.0)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

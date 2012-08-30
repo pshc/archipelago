@@ -4,6 +4,8 @@
 
 @implementation Viewport
 
+static float viewX = 0, viewY = 0;
+
 - (void)prepareOpenGL
 {
     [super prepareOpenGL];
@@ -11,6 +13,7 @@
     [self.openGLContext setValues:&zeroOpacity forParameter:NSOpenGLCPSurfaceOpacity];
 
     setup_editor();
+    set_view_pos(viewX, viewY);
 }
 
 - (BOOL)isOpaque
@@ -53,7 +56,9 @@
         dy = theEvent.deltaY;
     }
 
-    set_view_pos(dx, dy);
+    viewX -= dx;
+    viewY -= dy;
+    set_view_pos(viewX, viewY);
     self.needsDisplay = YES;
 }
 
