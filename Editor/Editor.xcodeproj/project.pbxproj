@@ -15,6 +15,7 @@
 		50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1042515B9F15F0075EE0E /* OpenGL.framework */; };
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
 		50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */; };
+		50FDA17A15F02A3900AD4982 /* z.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50FDA17915F02A3900AD4982 /* z.o */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		50A1042C15B9F2050075EE0E /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
 		50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_visual.ll.o; sourceTree = "<group>"; };
+		50FDA17915F02A3900AD4982 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +46,7 @@
 				50A1040915B9F1490075EE0E /* Cocoa.framework in Frameworks */,
 				50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */,
 				50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */,
+				50FDA17A15F02A3900AD4982 /* z.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -115,6 +118,7 @@
 		50A1043315BA0CB00075EE0E /* Objs */ = {
 			isa = PBXGroup;
 			children = (
+				50FDA17915F02A3900AD4982 /* z.o */,
 				50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */,
 			);
 			name = Objs;

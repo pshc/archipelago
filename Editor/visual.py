@@ -44,7 +44,7 @@ def set_view_pos(x, y):
         0.0, 0.0, 1.0, 0.0,
          -x,  -y, 0.0, 1.0,
     ]
-    uniform = 1
+    uniform = 4
     glUniformMatrix4fv(uniform, 1, False, mvMat)
 
 @annot('(str, int) -> int')
@@ -103,6 +103,7 @@ def load_shader():
     if linked:
         mvmat = glGetUniformLocation(program, "modelViewMatrix")
         pmat = glGetUniformLocation(program, "projectionMatrix")
+        print 'mvmat %d pmat %d' % (mvmat, pmat)
 
     glDetachShader(program, vertShader)
     glDetachShader(program, fragShader)
