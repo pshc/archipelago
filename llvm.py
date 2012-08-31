@@ -1,5 +1,6 @@
 from atom import *
 import expand
+import mach
 import os
 import sys
 
@@ -33,9 +34,10 @@ def setup_locals():
     entry = Label(':entry:', True, True)
     return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
-IType, IInt, IFloat, IBool, IVoid, \
+IType, IInt, IInt64, IFloat, IBool, IVoid, \
     IArray, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
+        'IInt64',
         'IFloat',
         'IBool',
         'IVoid',
@@ -342,17 +344,21 @@ def build_struct(t, args):
         accum = new_val
     return TypedXpr(t, accum)
 
-def cast(txpr, dest):
+def _do_cast(txpr, dest, liberal):
     src = txpr.type
     if matches((src, dest), '(IVoidPtr(), IVoidPtr())'):
         return txpr
-    assert not itypes_equal(src, dest), "Pointless %s cast to itself" % (src,)
+    if itypes_equal(src, dest):
+        if liberal:
+            return txpr
+        assert False, "Pointless %s cast to itself" % (src,)
     kind = match((src, dest),
         ('(IInt() or IBool(), IVoidPtr())', lambda: 'inttoptr'),
         ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
         ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
         ('(IInt(), IFloat())', lambda: 'sitofp'),
-        ('(IFloat(), IInt())', lambda: 'fptosi'),
+        ('(IInt(), IInt64())', lambda: 'sext'),
+        ('(IInt64(), IInt())', lambda: 'trunc'),
         ('_', lambda: 'invalid'))
     assert kind != 'invalid', "Can't cast %s to %s" % (src, dest)
     xpr = txpr.xpr
@@ -366,6 +372,12 @@ def cast(txpr, dest):
     out_t_nospace(dest)
     newline()
     return TypedXpr(dest, tmp)
+
+def cast(txpr, dest):
+    return _do_cast(txpr, dest, False)
+
+def cast_if_needed(txpr, dest):
+    return _do_cast(txpr, dest, True)
 
 _cached_runtime_refs = {}
 def runtime_decl(name):
@@ -406,6 +418,7 @@ def itypes_equal(src, dest):
     same = lambda: True
     return match((src, dest),
         ('(IInt(), IInt())', same),
+        ('(IInt64(), IInt64())', same),
         ('(IFloat(), IFloat())', same),
         ('(IBool(), IBool())', same),
         ('(IVoid(), IVoid())', same),
@@ -436,6 +449,7 @@ def convert_split_tfunc(t):
 def t_str(t):
     return match(t,
         ("IInt()", lambda: "i32"),
+        ("IInt64()", lambda: "i64"),
         ("IFloat()", lambda: "float"),
         ("IBool()", lambda: "i1"),
         ("IVoid()", lambda: "void"),
@@ -591,11 +605,19 @@ def aug_op(b):
         ('AugDivide()', lambda: 'sdiv'), # or udiv...
         ('AugModulo()', lambda: 'srem')) # or urem...
 
+IS64 = (mach.PTRSIZE == 8)
+
+def intptr_type():
+    return IInt64() if IS64 else IInt()
+
 def expr_unary(op, arg):
     if op == 'len':
-        if not matches(arg.type, "IPtr(IArray(0, IInt()))"):
-            arg = cast(arg, IPtr(IArray(0, IInt())))
-        return subscript('len', arg, TypedXpr(IInt(), Const('-1')))
+        intT = intptr_type()
+        arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
+        l = subscript('len', arg, TypedXpr(intT, Const('-1')))
+        if IS64:
+            l = cast(TypedXpr(IInt64(), l), IInt()).xpr
+        return l
     elif op == 'buffer':
         buf = write_runtime_call('malloc', [arg], IVoidPtr())
         return fromJust(buf).xpr
