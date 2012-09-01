@@ -213,7 +213,7 @@ def load_builtins():
 def load_forms():
     resolve_forward_type_refs()
 
-    pending = set([extrinsic(FormSpec, atom.CompilationUnit.__dt__)])
+    pending = set([t_DT(atom.CompilationUnit).data])
     done = set()
     forms = []
     names = {}

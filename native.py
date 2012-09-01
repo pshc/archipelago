@@ -141,7 +141,7 @@ Inspection = new_env('Inspection', InspectState)
 
 def _inspect_node(node):
     if isinstance(node, Structured):
-        dtform = extrinsic(FormSpec, type(node).__dt__)
+        dtform = t_DT(type(node)).data
         assert isinstance(dtform, DataType)
         if not dtform.opts.valueType:
             assert not has_extrinsic(Location, node), \

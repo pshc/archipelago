@@ -1,6 +1,7 @@
 import compiler
 from types import FunctionType
 
+SUPERS = {}
 DATATYPES = {}
 CTORS = {}
 
@@ -22,7 +23,7 @@ def _make_ctor(name, members, superclass):
     attrs = dict(__slots__=(nms + ('_ix',)), __init__=__init__,
                  __types__=tuple(t for nm, t in members))
     ctor = type(name, (superclass,), attrs)
-    ctor.__dt__ = superclass
+    SUPERS[ctor] = superclass
     superclass.ctors.append(ctor)
     CTORS.setdefault(name, []).append(ctor)
     return ctor
@@ -335,7 +336,7 @@ def parse_type(t):
     if type(t) is type and issubclass(t, Structured):
         form = extrinsic(FormSpec, t)
         if isinstance(form, Ctor):
-            form = extrinsic(FormSpec, t.__dt__)
+            form = extrinsic(FormSpec, SUPERS[t])
         return vanilla_tdata(form)
     elif isinstance(t, basestring):
         toks = list(tokenize_type(t))
@@ -470,7 +471,7 @@ def tokenize_type(s):
 TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
 def t_DT(dt):
-    return vanilla_tdata(extrinsic(FormSpec, dt.__dt__))
+    return vanilla_tdata(extrinsic(FormSpec, SUPERS[dt]))
 
 def _apply_list_type(t):
     listT = parse_type('List')
@@ -493,7 +494,7 @@ def _parse_deferred():
                 field.type = parse_type(field.type)
         tvars = {}
         in_env(NEWTYPEVARS, None, lambda: in_env(TVARS, tvars, parse))
-        ctor.__dt__.tvars = tvars.values()
+        SUPERS[type(ctor)].tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()
 
@@ -556,7 +557,7 @@ def new_typeclass(name, *args):
             assert len(args) == len(specT.funcArgs)
             t = type(args[0])
             if t not in impls:
-                t = t.__dt__
+                t = SUPERS[t]
             tnm = t.__name__
             assert t in impls, "%s is not a part of %s" % (tnm, name)
             func = impls[t][i]
