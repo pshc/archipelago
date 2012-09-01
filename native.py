@@ -129,9 +129,13 @@ def _serialize_node(node, t):
         assert isinstance(t, TArray), "Unexpected array:\n%s\nfor:\n%s" % (
                 node, t)
         _write(_encode_int(len(node)))
-        # TODO: Check list element type for weak
-        for item in node:
-            _serialize_node(item, t.elemType)
+        et = t.elemType
+        if isinstance(et, TWeak):
+            for item in node:
+                _write_ref(item, et.refType)
+        else:
+            for item in node:
+                _serialize_node(item, et)
     else:
         assert False, "Can't serialize %r" % (node,)
 
@@ -153,8 +157,10 @@ def _inspect_node(node):
         assert isinstance(form, Ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
-            if not isinstance(field.type, TWeak):
+            # wow this sucks
+            if not matches(field.type, 'TWeak(_) or TArray(TWeak(_))'):
                 _inspect_node(sub)
+
     elif isinstance(node, list):
         for sub in node:
             _inspect_node(sub)
