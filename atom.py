@@ -110,6 +110,9 @@ ModuleDecls = DT('ModuleDecls',
         ('lits', [LitDecl]),
         ('funcDecls', [Var]))
 
+def blank_module_decls():
+    return ModuleDecls([], [], [], [], [], [])
+
 TopFunc = DT('TopFunc', ('var', '*Var'), ('func', 'Func(Expr)'))
 
 CompilationUnit = DT('CompilationUnit', ('funcs', [TopFunc]))

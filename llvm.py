@@ -836,8 +836,8 @@ def get_strlit_ptr(var):
     return tmp
 
 def expr_strlit(lit):
-    info = extrinsic(expand.ExpandedDecl, lit)
-    return get_strlit_ptr(info.var)
+    var = extrinsic(expand.ExpandedDecl, lit)
+    return get_strlit_ptr(var)
 
 def expr_tuplelit(lit, ts):
     tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
@@ -1404,12 +1404,6 @@ def as_local(f):
 
 def write_unit(unit):
     for top in unit.funcs:
-        if has_extrinsic(expand.Expansion, top):
-            for ex in extrinsic(expand.Expansion, top):
-                in_env(EXPORTSYMS, False, lambda: match(ex,
-                    ("ExStrLit(var, s)", write_top_strlit),
-                    ("ExSurfacedFunc(f)", write_top_func)))
-            newline()
         in_env(EXPORTSYMS, True, lambda: write_top_func(top.func))
 
 prelude = """; prelude

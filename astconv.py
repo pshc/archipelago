@@ -22,7 +22,7 @@ AstType = new_extrinsic('AstType', Type)
 AstHint = new_extrinsic('AstHint', {str: str})
 
 def ast_envs():
-    decls = ModuleDecls([], [], [], [], [], [])
+    decls = blank_module_decls()
     omni = OmniContext(decls, [], {}, {}, {}, set(), set())
     scope = ScopeContext(0, {}, None)
     return omni, scope

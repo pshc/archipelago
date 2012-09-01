@@ -5,6 +5,7 @@ from bedrock import *
 import types_builtin
 import native
 import atom
+import rewriter
 import astconv
 import check
 import expand
@@ -121,7 +122,14 @@ def build_mod(decl_mod, defn_mod, plan):
     casts = check.check_types(decl_mod, defn_mod)
     atom.write_mod_repr(view, defn_mod, [Name, TypeOf, TypeCast])
 
-    expand.expand_module(decl_mod, defn_mod)
+    new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
+    decl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
+    defn_mod = Module(t_DT(atom.CompilationUnit), new_unit)
+    add_extrinsic(Name, decl_mod, name)
+    add_extrinsic(Name, defn_mod, name)
+    atom.write_mod_repr(view, decl_mod, [Name])
+    native.serialize(decl_mod)
+    native.serialize(defn_mod)
 
     compiled = False
     if isJust(plan.writeIR):

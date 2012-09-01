@@ -22,26 +22,20 @@ ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
 
 EXFUNC = new_env('EXFUNC', ExFunc)
 
-ExGlobal = DT('ExGlobal', ('curTopFunc', '*TopFunc'),
+ExGlobal = DT('ExGlobal', ('newDecls', ModuleDecls),
+                          ('newDefns', [TopFunc]),
                           ('ownModules', ['*Module']))
 
 EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
 
 IMPORTBINDS = new_env('IMPORTBINDS', set(['a'])) # Bindable
 
-ExCode, ExSurfacedFunc, ExStrLit = ADT('ExCode',
-        'ExSurfacedFunc', ('func', Func),
-        'ExStrLit', ('var', Var), ('str', str))
-
-Expansion = new_extrinsic('Expansion', [ExCode])
-
 # TRAINWRECK
 
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
-ExpandedDeclInfo = DT('ExpandedDeclInfo', ('var', '*Var'))
-ExpandedDecl = new_extrinsic('ExpandedDecl', ExpandedDeclInfo)
+ExpandedDecl = new_extrinsic('ExpandedDecl', '*Var')
 
 GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
 GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
@@ -87,17 +81,11 @@ def activate_flow(newFlow):
 def add_outflows(flow, outflows):
     flow.outflows.update(outflows)
 
-def push_expansion(ex):
-    top = env(EXGLOBAL).curTopLevel
-    if not has_extrinsic(Expansion, top):
-        add_extrinsic(Expansion, top, [])
-    extrinsic(Expansion, top).append(ex)
-
 def ex_strlit(lit, s):
     v = Var()
     add_extrinsic(Name, v, '.LC%d' % (extrinsic(Location, lit).index,))
-    push_expansion(ExStrLit(v, s))
-    add_extrinsic(ExpandedDecl, lit, ExpandedDeclInfo(v))
+    env(EXGLOBAL).newDecls.lits.append(LitDecl(v, StrLit(s)))
+    add_extrinsic(ExpandedDecl, lit, v)
 
 def ex_call(f, args):
     ex_expr(f)
@@ -115,7 +103,10 @@ def ex_ternary(c, t, f):
 def ex_funcexpr(f):
     info = ex_func(f.params, f.body)
     isClosure = len(info.closedVars) > 0
-    push_expansion(ExSurfacedFunc(f))
+    var = Var()
+    glob = env(EXGLOBAL)
+    glob.newDecls.funcDecls.append(var)
+    glob.newDefns.append(TopFunc(var, f))
     add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
 def ex_match_case(c):
@@ -307,7 +298,7 @@ def expand_decls(decls):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Expansion, Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol]
+    extrs = [Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 
@@ -318,14 +309,19 @@ def in_intermodule_env(func):
 
 def expand_module(decl_mod, defn_mod):
     expand_decls(decl_mod.root)
+
     def go():
-        eg = env(EXGLOBAL)
         for top in defn_mod.root.funcs:
-            eg.curTopLevel = top
             in_env(EXSCOPE, top_scope(), lambda: ex_top_func(top.var,top.func))
-    captures = {}
-    in_env(EXGLOBAL, ExGlobal(None, [decl_mod, defn_mod]),
-            lambda: scope_extrinsic(LocalVar, go))
-    return captures
+    decls = blank_module_decls()
+    glob = ExGlobal(decls, [], [decl_mod, defn_mod])
+    in_env(EXGLOBAL, glob, lambda: scope_extrinsic(LocalVar, go))
+
+    expand_decls(decls)
+
+    import rewriter
+    new_unit = rewriter.clone(defn_mod.root, [Name, TypeOf])
+    new_unit.funcs = glob.newDefns + new_unit.funcs
+    return (decls, new_unit)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
