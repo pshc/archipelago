@@ -2,6 +2,7 @@
 from base import *
 from atom import *
 import globs
+import rewriter
 
 FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
                           ('returns', bool))
@@ -81,9 +82,15 @@ def activate_flow(newFlow):
 def add_outflows(flow, outflows):
     flow.outflows.update(outflows)
 
+def orig_loc(obj):
+    # Ugh, I don't like the conditional check...
+    if has_extrinsic(rewriter.Original, obj):
+        obj = extrinsic(rewriter.Original, obj)
+    return extrinsic(Location, obj)
+
 def ex_strlit(lit, s):
     v = Var()
-    add_extrinsic(Name, v, '.LC%d' % (extrinsic(Location, lit).index,))
+    add_extrinsic(Name, v, '.LC%d' % (orig_loc(lit).index,))
     env(EXGLOBAL).newDecls.lits.append(LitDecl(v, StrLit(s)))
     add_extrinsic(ExpandedDecl, lit, v)
 
@@ -125,7 +132,7 @@ def ex_inenv(environ, init, f):
     ex_expr(f)
 
 def ex_bind(target):
-    if extrinsic(Location, target).module not in env(EXGLOBAL).ownModules:
+    if orig_loc(target).module not in env(EXGLOBAL).ownModules:
         env(IMPORTBINDS).add(target)
     v = Bindable.isVar(target)
     if isJust(v):
@@ -271,9 +278,9 @@ def ex_top_func(v, f):
     unique_global(v, True)
     in_env(EXFUNC, ExStaticDefn(), lambda: ex_func(f.params, f.body))
 
-def ex_top_defn(v, e):
-    unique_global(v, False)
-    in_env(EXFUNC, ExStaticDefn(), lambda: ex_expr(e))
+def ex_unit(unit):
+    for top in unit.funcs:
+        in_env(EXSCOPE, top_scope(), lambda: ex_top_func(top.var, top.func))
 
 def ex_dt(dt):
     base = 0
@@ -298,7 +305,8 @@ def expand_decls(decls):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol]
+    extrs = [Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol,
+            rewriter.Original]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 
@@ -310,18 +318,23 @@ def in_intermodule_env(func):
 def expand_module(decl_mod, defn_mod):
     expand_decls(decl_mod.root)
 
-    def go():
-        for top in defn_mod.root.funcs:
-            in_env(EXSCOPE, top_scope(), lambda: ex_top_func(top.var,top.func))
-    decls = blank_module_decls()
-    glob = ExGlobal(decls, [], [decl_mod, defn_mod])
-    in_env(EXGLOBAL, glob, lambda: scope_extrinsic(LocalVar, go))
+    # Clone decls and defns as mutable replacements
+    def clone():
+        decls = rewriter.clone(decl_mod.root, [Name, TypeOf])
+        unit = rewriter.clone(defn_mod.root, [Name, TypeOf])
+        rewriter.rewrite(unit)
+        return decls, unit
+    new_decls, new_unit = rewriter.in_vat(clone)
 
-    expand_decls(decls)
+    # Expand over cloned definitions
+    in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
+        lambda: scope_extrinsic(LocalVar,
+        lambda: ex_unit(new_unit)
+    ))
 
-    import rewriter
-    new_unit = rewriter.clone(defn_mod.root, [Name, TypeOf])
-    new_unit.funcs = glob.newDefns + new_unit.funcs
-    return (decls, new_unit)
+    # Finally, prepare our new decls
+    expand_decls(new_decls)
+
+    return (new_decls, new_unit)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
