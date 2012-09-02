@@ -5,7 +5,7 @@ from bedrock import *
 import types_builtin
 import native
 import atom
-import rewriter
+import vat
 import astconv
 import check
 import expand

@@ -2,7 +2,7 @@
 from base import *
 from atom import *
 import globs
-import rewriter
+import vat
 
 FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
                           ('returns', bool))
@@ -84,8 +84,8 @@ def add_outflows(flow, outflows):
 
 def orig_loc(obj):
     # Ugh, I don't like the conditional check...
-    if has_extrinsic(rewriter.Original, obj):
-        obj = extrinsic(rewriter.Original, obj)
+    if has_extrinsic(vat.Original, obj):
+        obj = extrinsic(vat.Original, obj)
     return extrinsic(Location, obj)
 
 def ex_strlit(lit, s):
@@ -306,7 +306,7 @@ def expand_decls(decls):
 def in_intramodule_env(func):
     captures = {}
     extrs = [Closure, ExpandedDecl, VarUsage, LocalFunctionSymbol,
-            rewriter.Original]
+            vat.Original]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 
@@ -320,11 +320,11 @@ def expand_module(decl_mod, defn_mod):
 
     # Clone decls and defns as mutable replacements
     def clone():
-        decls = rewriter.clone(decl_mod.root, [Name, TypeOf])
-        unit = rewriter.clone(defn_mod.root, [Name, TypeOf])
-        rewriter.rewrite(unit)
+        decls = vat.clone(decl_mod.root, [Name, TypeOf])
+        unit = vat.clone(defn_mod.root, [Name, TypeOf])
+        vat.rewrite(unit)
         return decls, unit
-    new_decls, new_unit = rewriter.in_vat(clone)
+    new_decls, new_unit = vat.in_vat(clone)
 
     # Expand over cloned definitions
     in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
