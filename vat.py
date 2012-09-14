@@ -139,4 +139,110 @@ def rewrite_by_type(obj, t):
     else:
         assert False, "Bad type to rewrite: %r" % (t,)
 
+# AST visitor&mutator (not really vat)
+
+# Env+class is redundant; could just put this all in the class.
+# But this is plumbing anyway
+VISIT = new_env('VISIT', None)
+
+def visit(visitor, obj):
+    inst = visitor()
+    in_env(VISIT, inst, lambda: inst.visit(obj))
+
+class Visitor(object):
+    def visit(self, obj):
+        return visit_by_type(obj, t_DT(type(obj)))
+
+def visit_by_type(obj, t):
+    m = match(t)
+    if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
+        pass
+    elif m('TTuple(tts)'):
+        tts = m.arg
+        assert isinstance(obj, tuple)
+        for v, tt in ezip(obj, tts):
+            visit_by_type(v, tt)
+    elif m('TData(data, appTs)'):
+        data, appTs = m.args
+        assert isinstance(obj, extrinsic(TrueRepresentation, data))
+        visitor = env(VISIT)
+        ctor = extrinsic(FormSpec, type(obj))
+        # Call custom visitor
+        ctorNm = extrinsic(Name, ctor)
+        if hasattr(visitor, ctorNm):
+            getattr(visitor, ctorNm)(obj)
+            return
+        # Default to recursive visits
+        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        for field in ctor.fields:
+            fnm = extrinsic(Name, field)
+            ft = field.type
+            if apps:
+                ft = subst(apps, ft)
+            if not isinstance(ft, TWeak):
+                visit_by_type(getattr(obj, fnm), ft)
+    elif m('TArray(et)'):
+        et = m.arg
+        assert isinstance(obj, list)
+        if not isinstance(et, TWeak):
+            for o in obj:
+                visit_by_type(o, et)
+    elif m('TWeak(_)'):
+        pass
+    elif m('TVoid()'):
+        assert False, "No void values!"
+    else:
+        assert False, "Bad type to visit: %r" % (t,)
+
+MUTATE = new_env('MUTATE', None)
+
+def mutate(mutator, obj):
+    inst = mutator()
+    return in_env(MUTATE, inst, lambda: inst.mutate(obj))
+
+class Mutator(object):
+    def mutate(self, obj):
+        return mutate_by_type(obj, t_DT(type(obj)))
+
+def mutate_by_type(obj, t):
+    m = match(t)
+    if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
+        return obj
+    elif m('TTuple(tts)'):
+        tts = m.arg
+        assert isinstance(obj, tuple)
+        return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, tts))
+    elif m('TData(data, appTs)'):
+        data, appTs = m.args
+        assert isinstance(obj, extrinsic(TrueRepresentation, data))
+        mutator = env(MUTATE)
+        ctor = extrinsic(FormSpec, type(obj))
+        # Call custom mutator
+        ctorNm = extrinsic(Name, ctor)
+        if hasattr(mutator, ctorNm):
+            return getattr(mutator, ctorNm)(obj)
+        # Default to recursive mutation
+        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        for field in ctor.fields:
+            fnm = extrinsic(Name, field)
+            ft = field.type
+            if apps:
+                ft = subst(apps, ft)
+            if not isinstance(ft, TWeak):
+                val = getattr(obj, fnm)
+                setattr(obj, fnm, mutate_by_type(val, ft))
+        return obj
+    elif m('TArray(et)'):
+        et = m.arg
+        assert isinstance(obj, list)
+        if isinstance(et, TWeak):
+            return obj
+        return [mutate_by_type(o, et) for o in obj]
+    elif m('TWeak(_)'):
+        return obj
+    elif m('TVoid()'):
+        assert False, "No void values!"
+    else:
+        assert False, "Bad type to mutate: %r" % (t,)
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
