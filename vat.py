@@ -11,6 +11,18 @@ VAT = new_env('VAT', VatContents)
 
 Original = new_extrinsic('Original', 'a')
 
+def set_orig(clone, orig):
+    # Don't need to recurse since there's only one level of clones
+    if has_extrinsic(Original, orig):
+        orig = extrinsic(Original, orig)
+    add_extrinsic(Original, clone, orig)
+
+def orig_loc(obj):
+    # Ugh, I don't like the conditional check...
+    if has_extrinsic(Original, obj):
+        obj = extrinsic(Original, obj)
+    return extrinsic(Location, obj)
+
 def in_vat(func):
     return in_env(VAT, VatContents([], {}), func)
 
@@ -37,7 +49,7 @@ def clone_structured(src, apps=None):
             add_extrinsic(extr, o, extrinsic(extr, src))
 
     if in_extrinsic_scope(Original):
-        add_extrinsic(Original, o, src)
+        set_orig(o, src)
     vat.replacements[src] = o
 
     return o
@@ -60,7 +72,8 @@ def clone_by_type(src, t):
         return src
     elif m('TData(data, appTs)'):
         data, appTs = m.args
-        assert isinstance(src, extrinsic(TrueRepresentation, data))
+        assert isinstance(src, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, got: %r" % (data, obj)
         apps = appTs and type_app_list_to_map(data.tvars, appTs)
         return clone_structured(src, apps)
     elif m('TArray(et)'):
@@ -152,8 +165,10 @@ def visit(visitor, obj):
 class Visitor(object):
     def visit(self, obj):
         return visit_by_type(obj, t_DT(type(obj)))
+    def defaultVisit(self, obj):
+        return visit_by_type(obj, t_DT(type(obj)), False)
 
-def visit_by_type(obj, t):
+def visit_by_type(obj, t, customVisitors=True):
     m = match(t)
     if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
         pass
@@ -167,11 +182,11 @@ def visit_by_type(obj, t):
         assert isinstance(obj, extrinsic(TrueRepresentation, data))
         visitor = env(VISIT)
         ctor = extrinsic(FormSpec, type(obj))
-        # Call custom visitor
-        ctorNm = extrinsic(Name, ctor)
-        if hasattr(visitor, ctorNm):
-            getattr(visitor, ctorNm)(obj)
-            return
+        if customVisitors:
+            ctorNm = extrinsic(Name, ctor)
+            if hasattr(visitor, ctorNm):
+                getattr(visitor, ctorNm)(obj)
+                return
         # Default to recursive visits
         apps = appTs and type_app_list_to_map(data.tvars, appTs)
         for field in ctor.fields:
@@ -203,8 +218,10 @@ def mutate(mutator, obj):
 class Mutator(object):
     def mutate(self, obj):
         return mutate_by_type(obj, t_DT(type(obj)))
+    def defaultMutate(self, obj):
+        return mutate_by_type(obj, t_DT(type(obj)), False)
 
-def mutate_by_type(obj, t):
+def mutate_by_type(obj, t, customMutators=True):
     m = match(t)
     if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
         return obj
@@ -214,13 +231,14 @@ def mutate_by_type(obj, t):
         return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, tts))
     elif m('TData(data, appTs)'):
         data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data))
+        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, got: %r" % (data, obj)
         mutator = env(MUTATE)
         ctor = extrinsic(FormSpec, type(obj))
-        # Call custom mutator
-        ctorNm = extrinsic(Name, ctor)
-        if hasattr(mutator, ctorNm):
-            return getattr(mutator, ctorNm)(obj)
+        if customMutators:
+            ctorNm = extrinsic(Name, ctor)
+            if hasattr(mutator, ctorNm):
+                return getattr(mutator, ctorNm)(obj)
         # Default to recursive mutation
         apps = appTs and type_app_list_to_map(data.tvars, appTs)
         for field in ctor.fields:
