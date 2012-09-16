@@ -1338,6 +1338,7 @@ def write_stmt(stmt):
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
         ("ExprStmt(e)", write_expr_stmt),
+        ("Nop()", lambda: None),
         ("Return(e)", write_return),
         ("stmt==While(c, b)", write_while),
         ("WriteExtrinsic(extr, node, val, isNew)", write_writeextrinsic))

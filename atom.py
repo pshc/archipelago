@@ -94,9 +94,10 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'ReturnNothing',
         'While', ('test', 'e'), ('body', 'Body(e)'))
 
-Stmt, S, Assert, WriteExtrinsic = \
+Stmt, S, Assert, Nop, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
         'Assert', ('test', 'e'), ('message', 'e'),
+        'Nop',
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))
 
