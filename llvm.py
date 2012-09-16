@@ -438,7 +438,7 @@ def itypes_equal(src, dest):
 def typeof(e):
     if has_extrinsic(TypeOf, e):
         return convert_type(extrinsic(TypeOf, e))
-    assert isinstance(e, Expr), "%s is not expr" % (e,)
+    assert isinstance(e, Expr) or isinstance(e, Var), "%s is not type-y" % (e,)
     print 'HAS NO TYPEOF: %s' % (e,)
     return IInt()
 
@@ -835,10 +835,6 @@ def get_strlit_ptr(var):
     newline()
     return tmp
 
-def expr_strlit(lit):
-    var = extrinsic(expand.ExpandedDecl, lit)
-    return get_strlit_ptr(var)
-
 def expr_tuplelit(lit, ts):
     tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
     tmp = malloc(tt).xpr
@@ -882,7 +878,6 @@ def express(expr):
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
-        ('lit==Lit(StrLit(_))', expr_strlit),
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),

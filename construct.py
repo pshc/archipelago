@@ -117,10 +117,11 @@ def load_module_dep(src, deps, plan):
 
 def build_mod(decl_mod, defn_mod, plan):
     name = extrinsic(Filename, decl_mod)
-    view = 'views/%s' % (name,)
+    impv = 'views/%s' % (name,)
+    view = '%s_decls' % (impv,)
 
     casts = check.check_types(decl_mod, defn_mod)
-    atom.write_mod_repr(view, defn_mod, [Name, TypeOf, TypeCast])
+    atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
 
     new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
     decl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
@@ -128,6 +129,7 @@ def build_mod(decl_mod, defn_mod, plan):
     add_extrinsic(Name, decl_mod, name)
     add_extrinsic(Name, defn_mod, name)
     atom.write_mod_repr(view, decl_mod, [Name])
+    atom.write_mod_repr(impv, defn_mod, [Name])
     native.serialize(decl_mod)
     native.serialize(defn_mod)
 

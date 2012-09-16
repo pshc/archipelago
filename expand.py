@@ -4,9 +4,6 @@ from atom import *
 import globs
 import vat
 
-FlowNode = DT('FlowNode', ('outflows', 'set([FlowNode])'),
-                          ('returns', bool))
-
 ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
         'ExStaticDefn',
         'ExInnerFunc', ('closedVars', 'set([*Var])'),
@@ -22,135 +19,103 @@ EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
 
 IMPORTBINDS = new_env('IMPORTBINDS', set(['a'])) # Bindable
 
-# TRAINWRECK
+CtorIndex = new_extrinsic('CtorIndex', int)
+FieldIndex = new_extrinsic('FieldIndex', int)
+
+# DEFNS
 
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
-GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
-GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
+ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
+
 LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
-VarUsageInfo = DT('VarUsageInfo', ('isReassigned', bool))
-VarUsage = new_extrinsic('VarUsage', VarUsageInfo)
+class VarCloser(vat.Visitor):
+    def TopFunc(self, top):
+        in_env(EXFUNC, ExStaticDefn(), lambda: self.visit(top.func))
 
-VarInfo = DT('VarInfo', ('function', ExFunc))
-LocalVar = new_extrinsic('LocalVar', VarInfo)
-
-CtorIndex = new_extrinsic('CtorIndex', int)
-FieldIndex = new_extrinsic('FieldIndex', int)
-
-LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
-                              ('discrimSlot', 'Maybe(int)'))
-DataLayout = new_extrinsic('DataLayout', LayoutInfo)
-
-def orig_loc(obj):
-    # Ugh, I don't like the conditional check...
-    if has_extrinsic(vat.Original, obj):
-        obj = extrinsic(vat.Original, obj)
-    return extrinsic(Location, obj)
-
-# DEFNS
-
-class UnitMutator(vat.Mutator):
     def Defn(self, defn):
         m = match(defn)
-        if m("Defn(PatVar(v), FuncExpr(f))"):
-            # Globalify function-in-function
+        if m("Defn(PatVar(var), FuncExpr(f))"):
+            # Extract function-in-function
             var, f = m.args
-
-            # Skip ex_pat_var since this is becoming global?
-            name = extrinsic(Name, var) # ought to be uniqued
-            add_extrinsic(Name, f, name)
-            add_extrinsic(LocalFunctionSymbol, var, name)
-
-            info = ex_func(f.params, f.body)
+            info = ExInnerFunc(set(), env(EXFUNC))
+            in_env(EXFUNC, info, lambda: self.visit(f))
             isClosure = len(info.closedVars) > 0
             glob = env(EXGLOBAL)
             glob.newDecls.funcDecls.append(var)
             glob.newDefns.append(TopFunc(var, f))
             add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
-            # now need to replace all references with binds to that var...
+    def PatVar(self, pat):
+        add_extrinsic(ClosedVar, pat.var, env(EXFUNC))
 
-        else:
-            defn.pat = self.mutate(defn.pat)
-            defn.expr = self.mutate(defn.expr)
-        return defn
+    def Bind(self, bind):
+        mv = Bindable.isVar(bind.target)
+        if isJust(mv):
+            m = match(env(EXFUNC))
+            if m('f==ExInnerFunc(closedVars, _)'):
+                f, closedVars = m.args
+                v = fromJust(mv)
+                if has_extrinsic(ClosedVarFunc, v):
+                    if extrinsic(ClosedVarFunc, v) is not f:
+                        closedVars.add(v)
 
-    def FuncExpr(self, f):
-        # Globalify lambda expression
-        info = ex_func(f.params, f.body)
+
+class FuncExpander(vat.Mutator):
+    def Defn(self, defn):
+        if matches(defn, "Defn(PatVar(_), FuncExpr(_))"):
+            return Nop()
+        return self.defaultMutate(defn)
+
+    def FuncExpr(self, fe):
+        # Extract lambda expression
+        info = ExInnerFunc(set(), env(EXFUNC))
+        f = in_env(EXFUNC, info, lambda: self.mutate(fe.func))
         isClosure = len(info.closedVars) > 0
         var = Var()
         glob = env(EXGLOBAL)
         glob.newDecls.funcDecls.append(var)
         glob.newDefns.append(TopFunc(var, f))
         add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
-        return Bind(var)
+        bind = E.Bind(var)
+        t = extrinsic(TypeOf, f)
+        add_extrinsic(TypeOf, bind, t)
+        add_extrinsic(TypeOf, var, t)
+        return bind
 
+def expand_closures(unit):
+    vat.visit(VarCloser, unit)
+    vat.mutate(FuncExpander, unit)
+
+
+class LitExpander(vat.Mutator):
     def Lit(self, lit):
-        m = match(lit)
-        if m('StrLit(s)'):
-            s = m.arg
+        m = match(lit.literal)
+        if m('StrLit(_)'):
             v = Var()
-            add_extrinsic(Name, v, '.LC%d' % (orig_loc(lit).index,))
-            env(EXGLOBAL).newDecls.lits.append(LitDecl(v, StrLit(s)))
-            return Bind(v)
+            add_extrinsic(Name, v, '.LC%d' % (vat.orig_loc(lit).index,))
+            vat.set_orig(v, lit)
+            env(EXGLOBAL).newDecls.lits.append(LitDecl(v, lit.literal))
+            expr = E.Bind(v)
+            add_extrinsic(TypeOf, expr, TStr())
+            add_extrinsic(TypeOf, v, TStr())
+            return expr
         else:
             return lit
 
-class VarVisitor(vat.Visitor):
-    def TopFunc(self, top):
-        add_extrinsic(Name, top.func, extrinsic(Name, top.var))
-        unique_global(top.var, True)
-        in_env(EXFUNC, ExStaticDefn(), lambda: self.visit(top.func))
 
+class ImportMarker(vat.Visitor):
     def Bind(self, bind):
-        target = bind.target
-        if orig_loc(target).module not in env(EXGLOBAL).ownModules:
-            env(IMPORTBINDS).add(target)
-        v = Bindable.isVar(target)
-        if isJust(v):
-            ex_bind_var(fromJust(v))
+        if vat.orig_loc(bind.target).module not in env(EXGLOBAL).ownModules:
+            env(IMPORTBINDS).add(bind.target)
 
-    def LhsVar(self, lhs):
-        # this isn't a binding, why call this?
-        ex_bind_var(lhs.var)
+LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
+                              ('discrimSlot', 'Maybe(int)'))
+DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
-        if not has_extrinsic(VarUsage, lhs.var):
-            add_extrinsic(VarUsage, lhs.var, VarUsageInfo(True))
-
-    def PatVar(self, pat):
-        add_extrinsic(LocalVar, pat.var, VarInfo(env(EXFUNC)))
-
-    def Assign(self, ass):
-        # reversed order (XXX: multiple passes will deprecate this)
-        self.visit(ass.expr)
-        self.visit(ass.lhs)
-
-    def AugAssign(self, ass):
-        # as above
-        self.visit(ass.expr)
-        self.visit(ass.lhs)
-
-def ex_bind_var(self, v):
-    m = match(env(EXFUNC))
-    if m('f==ExInnerFunc(closVars, _)'):
-        f, closVars = m.args
-        if has_extrinsic(LocalVar, v):
-            assert isinstance(v, Var)
-            info = extrinsic(LocalVar, v)
-            if info.function != f:
-                closVars.add(v)
-
-# DECLS
-
-def unique_global(v, isFunc):
-    add_extrinsic(GlobalSymbol, v, GlobalInfo(extrinsic(Name, v), isFunc))
-
-def ex_dt(dt):
-    """Computes struct layout."""
+def dt_layout(dt):
     base = 0
     info = LayoutInfo(Nothing(), Nothing())
     if not dt.opts.valueType:
@@ -165,19 +130,69 @@ def ex_dt(dt):
         for ix, field in enumerate(ctor.fields):
             add_extrinsic(FieldIndex, field, ix + base)
 
-def ex_top_cdecl(v):
-    unique_global(v, True)
 
-def expand_decls(decls):
-    map(ex_top_cdecl, decls.cdecls)
-    map(ex_dt, decls.dts)
+GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
+GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
+
+def unique_global(v, isFunc):
+    # Would prefer not to do this check
+    # Need firmer uniquer pass order
+    if has_extrinsic(GlobalSymbol, v):
+        symbol = extrinsic(GlobalSymbol, v).symbol
+    else:
+        symbol = extrinsic(Name, v)
+        add_extrinsic(GlobalSymbol, v, GlobalInfo(symbol, isFunc))
+    return symbol
+
+def unique_static_global(v):
+    name = extrinsic(Name, v)
+    add_extrinsic(LocalFunctionSymbol, v, name)
+    return name
+
+class Uniquer(vat.Visitor):
+    def TopFunc(self, top):
+        # somewhat redundant with unique_decls()
+        # however currently we don't know which order they'll be called in...
+        sym = unique_global(top.var, True)
+        add_extrinsic(Name, top.func, sym)
+        self.defaultVisit(top)
+
+    def Defn(self, defn):
+        m = match(defn)
+        if m("Defn(PatVar(var), FuncExpr(f))"):
+            var, f = m.args
+            add_extrinsic(Name, f, unique_static_global(var))
+            self.visit(f)
+        else:
+            self.defaultVisit(defn)
+
+def unique_decls(decls):
+    for v in decls.cdecls:
+        unique_global(v, True)
+    for var in decls.funcDecls:
+        unique_global(var, True)
     for lit in decls.lits:
         unique_global(lit.var, False)
 
+# GLUE
+
+def expand_decls(decls):
+    map_(dt_layout, decls.dts)
+    unique_decls(decls)
+
+def expand_unit(unit):
+    scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
+    vat.mutate(LitExpander, unit)
+
+    # Prepend generated TopFuncs now
+    unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
+
+    vat.visit(ImportMarker, unit)
+    vat.visit(Uniquer, unit)
+
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, VarUsage, LocalFunctionSymbol,
-            vat.Original]
+    extrs = [Closure, LocalFunctionSymbol, vat.Original]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 
@@ -197,13 +212,11 @@ def expand_module(decl_mod, defn_mod):
         return decls, unit
     new_decls, new_unit = vat.in_vat(clone)
 
-    # Expand over cloned definitions
+    # Mutate clones
     in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
-        lambda: scope_extrinsic(LocalVar,
-        lambda: ex_unit(new_unit)
-    ))
+        lambda: expand_unit(new_unit))
 
-    # Finally, prepare our new decls
+    # We likely have new decls now, so unique 'em
     expand_decls(new_decls)
 
     return (new_decls, new_unit)
