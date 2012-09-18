@@ -34,27 +34,30 @@ def parse_func_decl(s, typedefs, spec):
     name = s.pop(0)
     assert s[0] == '(', "Couldn't parse retT of "+line+" at: " + ' '.join(s)
     s.pop(0)
-    if name in spec.overrides:
-        typedesc = spec.overrides[name]
-    elif name not in spec.funcs:
+    if name not in spec.funcs:
         return
-    else:
-        argTs = []
-        while s[0] != ')':
-            argTs.append(consume_type(s, typedefs, tvars))
-            if s[0] not in ',)':
-                argNm = s.pop(0)
-            if s[0] == ',':
-                s.pop(0)
-            else:
-                assert s[0] == ')', "Expected comma, got " + ' '.join(s)
-        assert s == [')', ';'], 'Unexpected trailer: ' + ' '.join(s)
+    overrides = spec.overrides.get(name, {})
 
-        if len(argTs) > 1:
-            typedesc = '(%s) -> %s' % (', '.join(argTs), retT)
+    argTs = []
+    while s[0] != ')':
+        toks = s[:]
+        argT = consume_type(s, typedefs, tvars)
+        toks = toks[:len(toks) -  len(s)]
+        if s[0] not in ',)':
+            argT = overrides.get(s.pop(0), argT)
+        argTs.append(argT)
+        if s[0] == ',':
+            s.pop(0)
         else:
-            arg = argTs[0] if argTs else 'void'
-            typedesc = '%s -> %s' % (arg, retT)
+            assert s[0] == ')', "Expected comma, got " + ' '.join(s)
+    assert s == [')', ';'], 'Unexpected trailer: ' + ' '.join(s)
+
+    if len(argTs) > 1:
+        typedesc = '(%s) -> %s' % (', '.join(argTs), retT)
+    else:
+        arg = argTs[0] if argTs else 'void'
+        typedesc = '%s -> %s' % (arg, retT)
+
     decl = '%s = cdecl(%r, %r)' % (name, name, typedesc)
     if len(decl) > 79:
         decl = '%s = cdecl(%r,\n\t%r)' % (name, name, typedesc)
@@ -123,15 +126,19 @@ def tokenize(s):
     if word:
         yield word
 
+def parse_overrides(line):
+    func, args = re.match(r'^\s*(\w+)\s+(.+?)\s*$', line).groups()
+    args = dict(re.match(r'^\s*(\w+)\s*::\s*(.+?)\s*$', s).groups()
+                for s in args.split(';'))
+    return (func, args)
+
 def load_spec(filename):
     import imp
     spec = imp.load_source('spec', filename)
     spec.funcs = re.findall(r'\w+', spec.funcs)
     spec.consts = re.findall(r'\w+', spec.consts)
-    def parse(line):
-        return re.match(r'^\s*(\w+)\s*::\s*(.*?)\s*$', line).groups()
     lines = filter(None, spec.overrides.splitlines())
-    spec.overrides = dict(map(parse, lines))
+    spec.overrides = dict(map(parse_overrides, lines))
     return spec
 
 if __name__ == '__main__':

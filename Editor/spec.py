@@ -39,5 +39,7 @@ GL_VERTEX_SHADER
 """
 
 overrides = """
-glShaderSource :: (int, int, [str], Maybe([int])) -> void
+glDrawElements indices :: [int]
+glShaderSource length :: Maybe([int])
+glVertexAttribPointer pointer :: [float]
 """
