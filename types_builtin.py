@@ -164,7 +164,6 @@ builtins_types = {
     'is': '(a, a) -> bool', 'is not': '(a, a) -> bool',
     'len': '[a] -> int', 'subscript': '([a], int) -> a',
     'buffer': 'int -> str',
-    'puts_': 'str -> void',
     'print_str': 'str -> void', 'print_int': 'int -> void',
     'newline': 'void -> void',
 }

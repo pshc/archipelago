@@ -1,4 +1,4 @@
-from base import DT, ADT, annot, match, new_extrinsic, hint
+from base import DT, ADT, annot, cdecl, hint, match, new_extrinsic
 
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
@@ -43,5 +43,7 @@ def maybe_(no, val):
 @annot('Maybe(a) -> a')
 def fromJust(val):
     return match(val, ('Just(j)', lambda j: j))
+
+puts = cdecl('puts', 'str -> void')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

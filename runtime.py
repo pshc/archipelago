@@ -1,5 +1,4 @@
 malloc = cdecl('malloc', 'int -> a')
-puts = cdecl('puts', 'str -> void')
 _addextrinsic = cdecl('_addextrinsic', '(e, a, b) -> void')
 _updateextrinsic = cdecl('_updateextrinsic', '(e, a, b) -> void')
 _getextrinsic = cdecl('_getextrinsic', '(e, a) -> b')

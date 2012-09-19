@@ -131,17 +131,11 @@ def with_context(desc, msg):
     desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
-def symref(name):
+def builtin_ref(name):
     return E.Bind(BUILTINS[name])
 
-def symcall(name, params):
-    return E.Call(symref(name), params)
-
-def getname(sym):
-    return match(sym, 'named(nm)')
-
-def _fix_type(t):
-    return t() if isinstance(t, (type, types.FunctionType)) else t
+def builtin_call(name, args):
+    return E.Call(builtin_ref(name), args)
 
 def lit_type(lit):
     return match(lit, ("IntLit(_)", TInt),
@@ -191,6 +185,9 @@ def make_builtin_scheme(name, t):
         return TVar(tvars[index])
     t = map_type_vars(builtin_typevar, t)
     return t, tvars
+
+def _fix_type(t):
+    return t() if isinstance(t, (type, types.FunctionType)) else t
 
 @matcher('key')
 def _match_key(atom, ast):

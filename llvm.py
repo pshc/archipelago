@@ -1176,7 +1176,6 @@ def write_void_call(f, a):
 @impl(LLVMBindable, Builtin)
 def express_called_void_Builtin(target, args):
     func = match(target,
-        ('key("puts_")', lambda: 'puts'),
         ('key("print_str")', lambda: '_print_str'),
         ('key("print_int")', lambda: '_print_int'),
         ('key("newline")', lambda: '_newline'))

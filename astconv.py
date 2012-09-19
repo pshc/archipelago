@@ -36,6 +36,14 @@ valueNamespace = 'value'
 typeNamespace = 'type'
 symbolNamespace = 'symbol'
 
+def sym_call(path, args):
+    mod, sym = path.split('.')
+    assert mod in loaded_modules, "%s not loaded!" % (mod,)
+    syms = loaded_module_export_names[loaded_modules[mod]]
+    sym = (sym, valueNamespace)
+    assert sym in syms, "%s not found in %s" % (sym, syms.keys())
+    return E.Call(E.Bind(syms[sym]), args)
+
 def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
     scope = env(SCOPE)
@@ -173,7 +181,7 @@ for (cls, op) in {ast.Add: '+', ast.Sub: '-',
     def binop(e, o=op):
         cs = e.getChildren()
         assert len(cs) == 2
-        return symcall(o, [conv_expr(cs[0]), conv_expr(cs[1])])
+        return builtin_call(o, [conv_expr(cs[0]), conv_expr(cs[1])])
 
 for (cls, sym) in {ast.UnaryAdd: 'positive',
                    ast.UnarySub: 'negate',
@@ -181,7 +189,7 @@ for (cls, sym) in {ast.UnaryAdd: 'positive',
                    ast.Invert: 'invert'}.iteritems():
     @expr(cls)
     def unaop(e, s=sym):
-        return symcall(s, [conv_expr(e.expr)])
+        return builtin_call(s, [conv_expr(e.expr)])
 del cls, sym
 
 @expr(ast.And)
@@ -395,13 +403,13 @@ def conv_match_try(node, bs):
             i = conv_match_try(node.args[0], bs)
             dummy = []
             assert False, "yagni"
-            return symref(nm + '2', [i, conv_match_try(node.args[1], dummy)])
+            return builtin_ref(nm+'2', [i, conv_match_try(node.args[1],dummy)])
         args = [conv_match_try(n, bs) for n in node.args]
         if named_matcher is not None:
             assert len(args) in named_matcher, (
                    "Bad number of args (%d) to %s matcher" % (len(args), nm))
             assert False, "yagni"
-            return symref("%s%d" % (nm, len(args)), args)
+            return builtin_ref("%s%d" % (nm, len(args)), args)
         else:
             b = refs_existing(nm)
             assert isinstance(b.target, Ctor), "Can't bind to %s" % (b,)
@@ -466,7 +474,7 @@ def conv_compare(e):
     la = conv_expr(e.expr)
     ra = conv_expr(e.ops[0][1])
     op = e.ops[0][0]
-    return symcall(op, [la, ra])
+    return builtin_call(op, [la, ra])
 
 @expr(ast.Const)
 def conv_const(e):
@@ -555,14 +563,14 @@ def conv_slice(e):
         (ua, ut) = conv_expr(e.upper)
         sym = 'slice' if e.lower else 'uslice'
         args.append(ua)
-    return (symcall(sym, args), '%s[%s:%s]' % (et, lt, ut))
+    return (builtin_call(sym, args), '%s[%s:%s]' % (et, lt, ut))
 
 @expr(ast.Subscript)
 def conv_subscript(e):
     assert len(e.subs) == 1
     ea = conv_expr(e.expr)
     sa = conv_expr(e.subs[0])
-    return symcall('subscript', [ea, sa])
+    return builtin_call('subscript', [ea, sa])
 
 @expr(ast.Tuple)
 def conv_tuple(e):
@@ -693,16 +701,19 @@ def conv_from(s):
     if modname != 'base':
         assert len(s.names) == 1 and s.names[0][0] == '*', \
                 'Only wildcard imports are supported.'
-        global loaded_module_export_names
         omni = env(OMNI)
         if modname not in omni.directlyImportedModuleNames:
             omni.directlyImportedModuleNames.add(modname)
             filename = modname.replace('.', '/') + '.py'
-            mod = load_module(filename, omni.loadedDeps)
-            symbols = loaded_module_export_names[mod]
-            for k in symbols:
-                assert k not in omni.imports, "Import clash: %s" % (k,)
-                omni.imports[k] = symbols[k]
+            import_module(load_module(filename, omni.loadedDeps))
+
+def import_module(mod):
+    global loaded_module_export_names
+    symbols = loaded_module_export_names[mod]
+    imports = env(OMNI).imports
+    for k in symbols:
+        assert k not in imports, "Import clash: %s" % (k,)
+        imports[k] = symbols[k]
 
 @stmt(ast.Function)
 @top_level(ast.Function)
@@ -738,7 +749,7 @@ def conv_if(s):
     for (test, body) in s.tests:
         conds.append(CondCase(conv_expr(test), Body(conv_stmts(body))))
     if s.else_:
-        conds.append(CondCase(symref('True'), Body(conv_stmts(s.else_))))
+        conds.append(CondCase(builtin_ref('True'), Body(conv_stmts(s.else_))))
     return [S.Cond(conds)]
 
 def import_names(nms):
@@ -771,15 +782,15 @@ def conv_printnl(s):
                     f = 'putchar'
                 else:
                     assert False, "Unknown format " + bit
-                ops.append(S.ExprStmt(symcall(f, [args.pop(0)])))
+                ops.append(S.ExprStmt(builtin_call(f, [args.pop(0)])))
             else:
                 lit = E.Lit(StrLit(bit))
-                ops.append(S.ExprStmt(symcall('print_str', [lit])))
+                ops.append(S.ExprStmt(builtin_call('print_str', [lit])))
         assert not args, "Format arguments remain: " + args
-        ops.append(S.ExprStmt(symcall('newline', [])))
+        ops.append(S.ExprStmt(builtin_call('newline', [])))
         return ops
     else:
-        return [S.ExprStmt(symcall('puts_', [conv_expr(node)]))]
+        return [S.ExprStmt(sym_call('bedrock.puts', [conv_expr(node)]))]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):
