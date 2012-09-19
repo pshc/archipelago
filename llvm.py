@@ -1173,16 +1173,6 @@ def write_void_call(f, a):
     t = write_call(f, a, IVoid())
     assert isNothing(t)
 
-@impl(LLVMBindable, Builtin)
-def express_called_void_Builtin(target, args):
-    func = match(target,
-        ('key("print_str")', lambda: '_print_str'),
-        ('key("print_int")', lambda: '_print_int'),
-        ('key("newline")', lambda: '_newline'))
-    argxs = [express_casted(arg) for arg in args]
-    write_runtime_call(func, argxs, IVoid())
-    return True
-
 def write_void_stmt(e):
     match(e,
         ('Call(f, a)', write_void_call),

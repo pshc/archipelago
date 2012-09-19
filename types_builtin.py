@@ -164,8 +164,6 @@ builtins_types = {
     'is': '(a, a) -> bool', 'is not': '(a, a) -> bool',
     'len': '[a] -> int', 'subscript': '([a], int) -> a',
     'buffer': 'int -> str',
-    'print_str': 'str -> void', 'print_int': 'int -> void',
-    'newline': 'void -> void',
 }
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

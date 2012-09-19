@@ -775,19 +775,17 @@ def conv_printnl(s):
         for bit in re.split(r'(%.)', node.left.value):
             if bit.startswith('%'):
                 if bit == '%s':
-                    f = 'print_str'
+                    f = 'bedrock._print_str'
                 elif bit == '%d':
-                    f = 'print_int'
-                elif bit == '%%':
-                    f = 'putchar'
+                    f = 'bedrock._print_int'
                 else:
                     assert False, "Unknown format " + bit
-                ops.append(S.ExprStmt(builtin_call(f, [args.pop(0)])))
+                ops.append(S.ExprStmt(sym_call(f, [args.pop(0)])))
             else:
                 lit = E.Lit(StrLit(bit))
-                ops.append(S.ExprStmt(builtin_call('print_str', [lit])))
+                ops.append(S.ExprStmt(sym_call('bedrock._print_str', [lit])))
         assert not args, "Format arguments remain: " + args
-        ops.append(S.ExprStmt(builtin_call('newline', [])))
+        ops.append(S.ExprStmt(sym_call('bedrock._newline', [])))
         return ops
     else:
         return [S.ExprStmt(sym_call('bedrock.puts', [conv_expr(node)]))]
