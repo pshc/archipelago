@@ -108,7 +108,11 @@ class LitExpander(vat.Mutator):
 
 class ImportMarker(vat.Visitor):
     def Bind(self, bind):
-        if vat.orig_loc(bind.target).module not in env(EXGLOBAL).ownModules:
+        tar = bind.target
+        external = has_extrinsic(CFunction, tar) and extrinsic(CFunction, tar)
+        if not external:
+            external = vat.orig_loc(tar).module not in env(EXGLOBAL).ownModules
+        if external:
             env(IMPORTBINDS).add(bind.target)
 
 LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
@@ -133,6 +137,8 @@ def dt_layout(dt):
 
 GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
 GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
+
+CFunction = new_extrinsic('CFunction', bool)
 
 def unique_global(v, isFunc):
     # Would prefer not to do this check
@@ -169,6 +175,12 @@ class Uniquer(vat.Visitor):
 def unique_decls(decls):
     for v in decls.cdecls:
         unique_global(v, True)
+
+        # XXX: avoid this check
+        # (shouldn't be uniquing the old decls anyway)
+        if not has_extrinsic(CFunction, v):
+            add_extrinsic(CFunction, v, True)
+
     for var in decls.funcDecls:
         unique_global(var, True)
     for lit in decls.lits:
@@ -198,7 +210,7 @@ def in_intramodule_env(func):
 
 def in_intermodule_env(func):
     captures = {}
-    extrs = [DataLayout, CtorIndex, FieldIndex, GlobalSymbol]
+    extrs = [DataLayout, CtorIndex, FieldIndex, GlobalSymbol, CFunction]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(decl_mod, defn_mod):
@@ -206,7 +218,7 @@ def expand_module(decl_mod, defn_mod):
 
     # Clone decls and defns as mutable replacements
     def clone():
-        decls = vat.clone(decl_mod.root, [Name, TypeOf])
+        decls = vat.clone(decl_mod.root, [Name, TypeOf, CFunction])
         unit = vat.clone(defn_mod.root, [Name, TypeOf])
         vat.rewrite(unit)
         return decls, unit
