@@ -155,7 +155,7 @@ builtins_types = {
     'negate': 'int -> int', 'fnegate': 'float -> float',
     'fadd': '(float, float) -> float', 'fsub': '(float, float) -> float',
     'fmul': '(float, float) -> float', 'fdiv': '(float, float) -> float',
-    'float': 'int -> float',
+    'float': 'int -> float', 'int': 'float -> int',
     '&': '(int, int) -> int', '|': '(int, int) -> int',
     '^': '(int, int) -> int',
     '==': '(int, int) -> bool', '!=': '(int, int) -> bool',

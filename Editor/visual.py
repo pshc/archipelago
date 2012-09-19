@@ -150,4 +150,23 @@ def render_editor():
     glClear(GL_COLOR_BUFFER_BIT)
     render_quad(0.0, 0.0, 100.0, 100.0)
 
+
+# TEXTURES
+
+ceilf = cimport('ceilf', 'float -> float')
+
+@annot('void -> void')
+def setup_texture():
+    scaleFactor = 1.0
+    atlasWidth = 512 * int(ceilf(scaleFactor))
+    atlasHeight = atlasWidth
+
+    atlasTexture = [0]
+    glGenTextures(1, atlasTexture)
+    glBindTexture(GL_TEXTURE_2D, atlasTexture[0])
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, atlasWidth, atlasHeight, 0,
+            GL_ALPHA, GL_UNSIGNED_BYTE, Nothing())
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

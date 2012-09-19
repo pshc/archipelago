@@ -357,6 +357,7 @@ def _do_cast(txpr, dest, liberal):
         ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
         ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
         ('(IInt(), IFloat())', lambda: 'sitofp'),
+        ('(IFloat(), IInt())', lambda: 'fptosi'),
         ('(IInt(), IInt64())', lambda: 'sext'),
         ('(IInt64(), IInt())', lambda: 'trunc'),
         ('_', lambda: 'invalid'))
@@ -581,8 +582,9 @@ def una_op(b):
         ('key("negate")', lambda: 'negate'),
         ('key("fnegate")', lambda: 'fnegate'),
         ('key("float")', lambda: 'int_to_float'),
+        ('key("int")', lambda: 'float_to_int'),
         ('key("len")', lambda: 'len'), ('key("buffer")', lambda: 'buffer'),
-        ('_', lambda: ''))
+        ('_', lambda: '<unknown builtin %s>' % (b,)))
 
 def bin_op(b):
     # grr boilerplate
@@ -623,6 +625,8 @@ def expr_unary(op, arg):
         return fromJust(buf).xpr
     elif op == 'int_to_float':
         return cast(arg, IFloat()).xpr
+    elif op == 'float_to_int':
+        return cast(arg, IInt()).xpr
 
     floating = op.startswith('f')
     pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
@@ -695,7 +699,7 @@ def expr_call(e, f, args):
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
     op = una_op(target)
-    if op != '':
+    if not op.startswith('<unknown'):
         assert len(args) == 1, '%s is unary' % (op,)
         arg = express_typed(args[0])
         return Just(expr_unary(op, arg))
