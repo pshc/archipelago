@@ -147,7 +147,6 @@ def checked_subst(mapping, t):
     assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
     return s
 
-# Tuples are a shortcut for functions
 builtins_types = {
     'True': 'bool', 'False': 'bool', 'not': 'bool -> bool',
     '+': '(int, int) -> int', '-': '(int, int) -> int',
