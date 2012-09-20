@@ -1,5 +1,5 @@
 TESTS := $(wildcard tests/*.py)
-TEST_BINS := $(TESTS:tests/%.py=bin/%)
+TEST_TARGETS := $(TESTS:tests/%.py=%)
 DIRS = bin ir mods opt views
 OPTS = --color -q
 CODEGEN = ./construct.py $(OPTS)
@@ -30,6 +30,9 @@ ir/z.o: z.c
 bin/%: tests/%.py setup
 	$(CODEGEN) $<
 
+$(TEST_TARGETS):
+	@$(MAKE) bin/$@
+
 Editor/obj/Editor_%.ll.o: Editor/%.py $(DIRS) prop.py expand.py llvm.py
 	$(CODEGEN) --c-header -o Editor/obj/ $<
 
@@ -38,8 +41,8 @@ remake_tests: setup ir/z.o
 
 test: remake_tests
 	@echo Running tests...
-	@for bin in $(TEST_BINS); do \
-	  $$bin || echo $$bin returned $$?.; \
+	@for target in $(TEST_TARGETS); do \
+	  bin/$$target || echo $$target returned $$?.; \
 	done
 	@echo
 	@echo Done.
