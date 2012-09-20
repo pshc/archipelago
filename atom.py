@@ -5,6 +5,7 @@ from base import *
 from bedrock import *
 from globs import *
 from types_builtin import *
+from vat import *
 import types
 
 types_by_name['set'] = lambda: t_DT(Set)
@@ -303,5 +304,133 @@ def _do_repr(s):
         c.write(repr(s))
     else:
         assert False, "Can't deal with %r" % (s,)
+
+STRINGIFY = new_env('STRINGIFY', [str])
+
+def stringify(ast):
+    frags = []
+    in_env(STRINGIFY, frags, lambda: visit(ExprStringifier, ast))
+    return ''.join(frags)
+
+def frag(s):
+    env(STRINGIFY).append(s)
+
+class ExprStringifier(Visitor):
+    def Attr(self, a):
+        self.visit(a.expr)
+        frag('.%s' % (extrinsic(Name, a.field),))
+
+    def Bind(self, bind):
+        t = bind.target
+        if has_extrinsic(Original, t):
+            orig = extrinsic(Original, t)
+            if matches(orig, "Lit(_)"):
+                self.visit(orig)
+                return
+        frag(extrinsic(Name, t) if has_extrinsic(Name, t) else '<unnamed>')
+
+    def Call(self, call):
+        if len(call.args) == 2 and matches(call.func, 'Bind(Builtin())'):
+            self.visit(call.args[0])
+            frag(' %s ' % (extrinsic(Name, call.func.target)))
+            self.visit(call.args[1])
+            return
+        self.visit(call.func)
+        frag('(')
+        first = True
+        for arg in call.args:
+            if first:
+                first = False
+            else:
+                frag(', ')
+            self.visit(arg)
+        frag(')')
+
+    def IntLit(self, lit):
+        frag('%d' % (lit.val))
+    def FloatLit(self, lit):
+        frag('%f' % (lit.val))
+    def StrLit(self, lit):
+        frag(repr(lit.val))
+
+    def Ternary(self, lit):
+        self.visit(lit.test)
+        frag(' ? ')
+        self.visit(lit.then)
+        frag(' : ')
+        self.visit(lit.else_)
+
+    def And(self, e):
+        self.visit(e.left)
+        frag(' and ')
+        self.visit(e.right)
+    def Or(self, e):
+        self.visit(e.left)
+        frag(' or ')
+        self.visit(e.right)
+
+    def TupleLit(self, lit):
+        frag('[')
+        first = True
+        for v in lit.vals:
+            if first:
+                first = False
+            else:
+                frag(', ')
+            self.visit(v)
+        frag(']')
+    def ListLit(self, lit):
+        frag('[')
+        first = True
+        for v in lit.vals:
+            if first:
+                first = False
+            else:
+                frag(', ')
+            self.visit(v)
+        frag(']')
+    def DictLit(self, lit):
+        frag('{')
+        first = True
+        for k, v in lit.vals:
+            if first:
+                first = False
+            else:
+                frag(', ')
+            self.visit(k)
+            frag(': ')
+            self.visit(v)
+        frag('}')
+
+    def FuncExpr(self, fe):
+        frag('<function ' + extrinsic(Name, fe.func) + '>')
+
+    def GetEnv(self, e):
+        frag('env(' + extrinsic(Name, e.env) + ')')
+    def HaveEnv(self, e):
+        frag('have_env(' + extrinsic(Name, e.env) + ')')
+    def InEnv(self, e):
+        frag('in_env(' + extrinsic(Name, e.env) + ', ')
+        self.visit(e.init)
+        self.visit(e.expr)
+        frag(')')
+
+    def GetExtrinsic(self, e):
+        frag('extrinsic(' + extrinsic(Name, e.extrinsic))
+        self.visit(e.node)
+        frag(')')
+    def HasExtrinsic(self, e):
+        frag('has_extrinsic(' + extrinsic(Name, e.extrinsic))
+        self.visit(e.node)
+        frag(')')
+    def ScopeExtrinsic(self, e):
+        frag('scope_extrinsic(' + extrinsic(Name, e.extrinsic))
+        self.visit(e.expr)
+        frag(')')
+
+    def Match(self, m):
+        frag('match(')
+        self.visit(m.expr)
+        frag(', ...)')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

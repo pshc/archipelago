@@ -111,6 +111,11 @@ def newline():
 def comma():
     out(', ')
 
+def out_comment(s):
+    assert '\n' not in s
+    out('; %s' % (s,))
+    newline()
+
 # FUNCTION-LOCAL OUTPUT
 
 def out_name_reg(a):
@@ -868,6 +873,7 @@ def expr_listlit(lit, es):
 
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
+    out_comment(stringify(expr))
     return match(expr,
         ('e==And(l, r)', expr_and),
         ('Bind(v)', LLVMBindable.express),
