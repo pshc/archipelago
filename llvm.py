@@ -1303,9 +1303,9 @@ def write_return(expr):
 
 def write_while(stmt, cond, body):
     srs = new_series(stmt)
-    begin = new_label('loop', srs)
-    body_label = new_label('body', srs)
-    exit = new_label('exit', srs)
+    begin = new_label('while', srs)
+    body_label = new_label('whilebody', srs)
+    exit = new_label('endwhile', srs)
 
     # for break and continue
     old_labels = env(LOCALS).loopLabels
