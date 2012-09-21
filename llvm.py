@@ -709,8 +709,12 @@ def express_called_Builtin(target, args):
     op = una_op(target)
     if not op.startswith('<unknown'):
         assert len(args) == 1, '%s is unary' % (op,)
-        arg = express_typed(args[0])
-        return Just(expr_unary(op, arg))
+        arg = args[0]
+        if op == 'negate' and matches(arg, 'Lit(IntLit(_))'):
+            return Just(Const('%d' % (-arg.literal.val,)))
+        elif op == 'fnegate' and matches(arg, 'Lit(FloatLit(_))'):
+            return Just(Const('%f' % (-arg.literal.val,)))
+        return Just(expr_unary(op, express_typed(arg)))
 
     assert len(args) == 2, '%s requires two args' % (op,)
     t = typeof(args[0])
