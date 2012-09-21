@@ -118,8 +118,8 @@ def out_comment(s):
 
 # FUNCTION-LOCAL OUTPUT
 
-def out_pretty(a):
-    out_comment(stringify(a))
+def out_pretty(a, t):
+    out_comment(stringify(a, t))
 
 def out_name_reg(a):
     out('%%%s' % (extrinsic(Name, a),))
@@ -1070,8 +1070,10 @@ def write_cond(stmt, cs):
             write_body(case.body)
             continue # breaks, really
 
-        if i > 0:
-            out_pretty(case)
+        if i == 0:
+            out_comment('if %s:' % (stringify(case.test, 'Expr'),))
+        else:
+            out_pretty(case, 'CondCase(Expr)')
         ex = express(case.test)
         then = new_label('then', csrs)
         e = endif
@@ -1331,7 +1333,7 @@ def write_writeextrinsic(extr, node, val, isNew):
     assert isNothing(r)
 
 def write_stmt(stmt):
-    out_pretty(stmt)
+    out_pretty(stmt, 'Stmt(Expr)')
     match(stmt,
         ("stmt==Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),

@@ -33,7 +33,7 @@ LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
 class VarCloser(vat.Visitor):
     def TopFunc(self, top):
-        in_env(EXFUNC, ExStaticDefn(), lambda: self.visit(top.func))
+        in_env(EXFUNC, ExStaticDefn(), lambda: self.visit('func'))
 
     def Defn(self, defn):
         m = match(defn)
@@ -41,7 +41,7 @@ class VarCloser(vat.Visitor):
             # Extract function-in-function
             var, f = m.args
             info = ExInnerFunc(set(), env(EXFUNC))
-            in_env(EXFUNC, info, lambda: self.visit(f))
+            in_env(EXFUNC, info, lambda: self.visit('expr'))
             isClosure = len(info.closedVars) > 0
             glob = env(EXGLOBAL)
             glob.newDecls.funcDecls.append(var)
@@ -49,7 +49,7 @@ class VarCloser(vat.Visitor):
             add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
     def PatVar(self, pat):
-        add_extrinsic(ClosedVar, pat.var, env(EXFUNC))
+        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
 
     def Bind(self, bind):
         mv = Bindable.isVar(bind.target)
@@ -86,9 +86,9 @@ class FuncExpander(vat.Mutator):
         return bind
 
 def expand_closures(unit):
-    vat.visit(VarCloser, unit)
+    t = t_DT(CompilationUnit)
+    vat.visit(VarCloser, unit, t)
     vat.mutate(FuncExpander, unit)
-
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):
@@ -161,16 +161,16 @@ class Uniquer(vat.Visitor):
         # however currently we don't know which order they'll be called in...
         sym = unique_global(top.var, True)
         add_extrinsic(Name, top.func, sym)
-        self.defaultVisit(top)
+        self.visit()
 
     def Defn(self, defn):
         m = match(defn)
         if m("Defn(PatVar(var), FuncExpr(f))"):
             var, f = m.args
             add_extrinsic(Name, f, unique_static_global(var))
-            self.visit(f)
+            self.visit('expr')
         else:
-            self.defaultVisit(defn)
+            self.visit()
 
 def unique_decls(decls):
     for v in decls.cdecls:
@@ -199,8 +199,9 @@ def expand_unit(unit):
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
-    vat.visit(ImportMarker, unit)
-    vat.visit(Uniquer, unit)
+    t = t_DT(CompilationUnit)
+    vat.visit(ImportMarker, unit, t)
+    vat.visit(Uniquer, unit, t)
 
 def in_intramodule_env(func):
     captures = {}

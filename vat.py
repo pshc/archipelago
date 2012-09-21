@@ -158,15 +158,33 @@ def rewrite_by_type(obj, t):
 # But this is plumbing anyway
 VISIT = new_env('VISIT', None)
 
-def visit(visitor, obj):
+def visit(visitor, obj, t):
     inst = visitor()
-    in_env(VISIT, inst, lambda: inst.visit(obj))
+    inst.obj = inst.t = inst.fts = None
+    in_env(VISIT, inst, lambda: visit_by_type(obj, t))
 
 class Visitor(object):
-    def visit(self, obj):
-        return visit_by_type(obj, t_DT(type(obj)))
-    def defaultVisit(self, obj):
-        return visit_by_type(obj, t_DT(type(obj)), False)
+    def visit(self, *path):
+        obj, t = self.obj, self.t
+        for field in path:
+            if isinstance(field, int):
+                assert isinstance(t, TArray), "Can't index %s" % (t,)
+                obj = obj[field]
+                t = t.elemType
+                continue
+            assert field in self.fts, \
+                    "%s is not a field {%s}" % (field, ', '.join(self.fts))
+            t = self.fts[field]
+
+            # Catch some stupidity
+            if len(path) == 1:
+                assert t is not None, "Already visited this field!"
+                self.fts[field] = None
+
+            assert not isinstance(t, TWeak), \
+                    "%s is weak and won't be visited" % (field,)
+            obj = getattr(obj, field)
+        return visit_by_type(obj, t, bool(path))
 
 def visit_by_type(obj, t, customVisitors=True):
     m = match(t)
@@ -179,21 +197,29 @@ def visit_by_type(obj, t, customVisitors=True):
             visit_by_type(v, tt)
     elif m('TData(data, appTs)'):
         data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data))
+        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, got %s" % (data, obj)
+        apps = appTs and type_app_list_to_map(data.tvars, appTs)
         visitor = env(VISIT)
+
         ctor = extrinsic(FormSpec, type(obj))
+        fts = dict((extrinsic(Name, f), subst(apps,f.type) if apps else f.type)
+                   for f in ctor.fields)
+
         if customVisitors:
             ctorNm = extrinsic(Name, ctor)
             if hasattr(visitor, ctorNm):
+                # Scope field types for recursive visiting
+                old = visitor.obj, visitor.t, visitor.fts
+                visitor.obj, visitor.t, visitor.fts = obj, t, fts
                 getattr(visitor, ctorNm)(obj)
+                visitor.obj, visitor.t, visitor.fts = old
                 return
+
         # Default to recursive visits
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
         for field in ctor.fields:
             fnm = extrinsic(Name, field)
-            ft = field.type
-            if apps:
-                ft = subst(apps, ft)
+            ft = fts[fnm]
             if not isinstance(ft, TWeak):
                 visit_by_type(getattr(obj, fnm), ft)
     elif m('TArray(et)'):
