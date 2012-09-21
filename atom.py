@@ -314,6 +314,8 @@ def stringify(ast):
 
 def frag(s):
     env(STRINGIFY).append(s)
+def frag_comma():
+    frag(', ')
 
 class ExprStringifier(Visitor):
     def Attr(self, a):
@@ -330,11 +332,29 @@ class ExprStringifier(Visitor):
         frag(extrinsic(Name, t) if has_extrinsic(Name, t) else '<unnamed>')
 
     def Call(self, call):
-        if len(call.args) == 2 and matches(call.func, 'Bind(Builtin())'):
-            self.visit(call.args[0])
-            frag(' %s ' % (extrinsic(Name, call.func.target)))
-            self.visit(call.args[1])
-            return
+        if matches(call.func, 'Bind(Builtin())'):
+            if len(call.args) == 2:
+                op = extrinsic(Name, call.func.target)
+                if op == 'subscript':
+                    self.visit(call.args[0])
+                    frag('[')
+                    self.visit(call.args[1])
+                    frag(']')
+                    return
+                self.visit(call.args[0])
+                frag(' %s ' % (op,))
+                self.visit(call.args[1])
+                return
+            elif len(call.args) == 1:
+                m = match(call.func.target)
+                if m('key("not")'):
+                    frag('!')
+                    self.visit(call.args[0])
+                    return
+                elif m('key("negate")'):
+                    frag('-')
+                    self.visit(call.args[0])
+                    return
         self.visit(call.func)
         frag('(')
         first = True
@@ -342,16 +362,13 @@ class ExprStringifier(Visitor):
             if first:
                 first = False
             else:
-                frag(', ')
+                frag_comma()
             self.visit(arg)
         frag(')')
 
-    def IntLit(self, lit):
-        frag('%d' % (lit.val))
-    def FloatLit(self, lit):
-        frag('%f' % (lit.val))
-    def StrLit(self, lit):
-        frag(repr(lit.val))
+    def IntLit(self, lit): frag('%d' % (lit.val))
+    def FloatLit(self, lit): frag('%f' % (lit.val))
+    def StrLit(self, lit): frag(repr(lit.val))
 
     def Ternary(self, lit):
         self.visit(lit.test)
@@ -376,7 +393,7 @@ class ExprStringifier(Visitor):
             if first:
                 first = False
             else:
-                frag(', ')
+                frag_comma()
             self.visit(v)
         frag(']')
     def ListLit(self, lit):
@@ -386,7 +403,7 @@ class ExprStringifier(Visitor):
             if first:
                 first = False
             else:
-                frag(', ')
+                frag_comma()
             self.visit(v)
         frag(']')
     def DictLit(self, lit):
@@ -396,41 +413,128 @@ class ExprStringifier(Visitor):
             if first:
                 first = False
             else:
-                frag(', ')
+                frag_comma()
             self.visit(k)
             frag(': ')
             self.visit(v)
         frag('}')
 
     def FuncExpr(self, fe):
-        frag('<function ' + extrinsic(Name, fe.func) + '>')
+        frag('<function %s>' % (extrinsic(Name, fe.func),))
 
     def GetEnv(self, e):
-        frag('env(' + extrinsic(Name, e.env) + ')')
+        frag('env(%s)' % (extrinsic(Name, e.env),))
     def HaveEnv(self, e):
-        frag('have_env(' + extrinsic(Name, e.env) + ')')
+        frag('have_env(%s)' % (extrinsic(Name, e.env),))
     def InEnv(self, e):
-        frag('in_env(' + extrinsic(Name, e.env) + ', ')
+        frag('in_env(%s' % (extrinsic(Name, e.env),))
+        frag_comma()
         self.visit(e.init)
         self.visit(e.expr)
         frag(')')
 
     def GetExtrinsic(self, e):
-        frag('extrinsic(' + extrinsic(Name, e.extrinsic))
+        frag('extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
+        frag_comma()
         self.visit(e.node)
         frag(')')
     def HasExtrinsic(self, e):
-        frag('has_extrinsic(' + extrinsic(Name, e.extrinsic))
+        frag('has_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
+        frag_comma()
         self.visit(e.node)
         frag(')')
     def ScopeExtrinsic(self, e):
-        frag('scope_extrinsic(' + extrinsic(Name, e.extrinsic))
+        frag('scope_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
+        frag_comma()
         self.visit(e.expr)
         frag(')')
 
     def Match(self, m):
         frag('match(')
         self.visit(m.expr)
-        frag(', ...)')
+        frag_comma()
+        frag('...)')
+
+    # PATTERNS
+
+    def PatVar(self, pat):
+        frag(extrinsic(Name, pat.var))
+
+    def PatWild(self, pat):
+        frag('_')
+
+    def LhsVar(self, lhs):
+        frag(extrinsic(Name, lhs.var))
+
+    def LhsAttr(self, lhs):
+        print 'lhsattr'
+        self.visit(lhs.sub)
+        frag('.%s' % (extrinsic(Name, lhs.attr),))
+
+    # STMTS
+
+    def Assign(self, a):
+        self.visit(a.lhs)
+        frag(' = ')
+        self.visit(a.expr)
+
+    def AugAssign(self, a):
+        self.visit(a.lhs)
+        self.visit(a.op)
+        self.visit(a.expr)
+
+    def AugAdd(self, a): frag(' += ')
+    def AugSubtract(self, a): frag(' -= ')
+    def AugMultiply(self, a): frag(' *= ')
+    def AugDivide(self, a): frag(' //= ')
+    def AugModulo(self, a): frag(' %= ')
+
+    def Break(self, b): frag('break')
+    def Continue(self, c): frag('continue')
+
+    def Cond(self, cond):
+        frag('if ')
+        self.visit(cond.cases[0].test)
+        frag(':')
+    def CondCase(self, case):
+        frag('elif ')
+        self.visit(case.test)
+        frag(':')
+
+    def Defn(self, defn):
+        self.visit(defn.pat)
+        frag(' := ')
+        self.visit(defn.expr)
+
+    def ExprStmt(self, stmt):
+        # XXX: Shouldn't be necessary; CoreStmt/Stmt etc. breaks vat
+        self.visit(stmt.expr)
+
+    def Return(self, ret):
+        frag('return ')
+        self.visit(ret.expr)
+
+    def ReturnNothing(self, ret):
+        frag('return')
+
+    def While(self, w):
+        frag('while ')
+        self.visit(w.test)
+        frag(':')
+
+    def Assert(self, a):
+        frag('assert ')
+        self.visit(a.test)
+        frag_comma()
+        self.visit(a.message)
+
+    def WriteExtrinsic(self, a):
+        frag('add_extrinsic(' if a.isNew else 'update_extrinsic(')
+        frag(extrinsic(Name, a.extrinsic))
+        frag_comma()
+        self.visit(a.node)
+        frag_comma()
+        self.visit(a.val)
+        frag(')')
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

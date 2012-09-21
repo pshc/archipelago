@@ -118,6 +118,9 @@ def out_comment(s):
 
 # FUNCTION-LOCAL OUTPUT
 
+def out_pretty(a):
+    out_comment(stringify(a))
+
 def out_name_reg(a):
     out('%%%s' % (extrinsic(Name, a),))
 
@@ -873,7 +876,6 @@ def expr_listlit(lit, es):
 
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
-    out_comment(stringify(expr))
     return match(expr,
         ('e==And(l, r)', expr_and),
         ('Bind(v)', LLVMBindable.express),
@@ -1060,9 +1062,12 @@ def write_cond(stmt, cs):
         # Makeshift else
         if matches(case.test, "Bind(key('True'))"):
             assert i == n-1, "Dead cond case"
+            out_comment('else:')
             write_body(case.body)
             continue # breaks, really
 
+        if i > 0:
+            out_pretty(case)
         ex = express(case.test)
         then = new_label('then', csrs)
         e = endif
@@ -1322,6 +1327,7 @@ def write_writeextrinsic(extr, node, val, isNew):
     assert isNothing(r)
 
 def write_stmt(stmt):
+    out_pretty(stmt)
     match(stmt,
         ("stmt==Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
