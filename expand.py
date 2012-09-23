@@ -67,12 +67,12 @@ class FuncExpander(vat.Mutator):
     def Defn(self, defn):
         if matches(defn, "Defn(PatVar(_), FuncExpr(_))"):
             return Nop()
-        return self.defaultMutate(defn)
+        return self.mutate()
 
     def FuncExpr(self, fe):
         # Extract lambda expression
         info = ExInnerFunc(set(), env(EXFUNC))
-        f = in_env(EXFUNC, info, lambda: self.mutate(fe.func))
+        f = in_env(EXFUNC, info, lambda: self.mutate('func'))
         isClosure = len(info.closedVars) > 0
         var = Var()
         glob = env(EXGLOBAL)
@@ -88,7 +88,7 @@ class FuncExpander(vat.Mutator):
 def expand_closures(unit):
     t = t_DT(CompilationUnit)
     vat.visit(VarCloser, unit, t)
-    vat.mutate(FuncExpander, unit)
+    vat.mutate(FuncExpander, unit, t)
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):
@@ -193,13 +193,13 @@ def expand_decls(decls):
     unique_decls(decls)
 
 def expand_unit(unit):
+    t = t_DT(CompilationUnit)
     scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
-    vat.mutate(LitExpander, unit)
+    vat.mutate(LitExpander, unit, t)
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
-    t = t_DT(CompilationUnit)
     vat.visit(ImportMarker, unit, t)
     vat.visit(Uniquer, unit, t)
 

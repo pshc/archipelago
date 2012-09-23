@@ -237,15 +237,33 @@ def visit_by_type(obj, t, customVisitors=True):
 
 MUTATE = new_env('MUTATE', None)
 
-def mutate(mutator, obj):
+def mutate(mutator, obj, t):
     inst = mutator()
-    return in_env(MUTATE, inst, lambda: inst.mutate(obj))
+    inst.obj = inst.t = inst.fts = None
+    in_env(MUTATE, inst, lambda: mutate_by_type(obj, t))
 
 class Mutator(object):
-    def mutate(self, obj):
-        return mutate_by_type(obj, t_DT(type(obj)))
-    def defaultMutate(self, obj):
-        return mutate_by_type(obj, t_DT(type(obj)), False)
+    def mutate(self, *path):
+        obj, t = self.obj, self.t
+        for field in path:
+            if isinstance(field, int):
+                assert isinstance(t, TArray), "Can't index %s" % (t,)
+                obj = obj[field]
+                t = t.elemType
+                continue
+            assert field in self.fts, \
+                    "%s is not a field {%s}" % (field, ', '.join(self.fts))
+            t = self.fts[field]
+
+            # Catch some stupidity
+            if len(path) == 1:
+                assert t is not None, "Already mutated this field!"
+                self.fts[field] = None
+
+            assert not isinstance(t, TWeak), \
+                    "%s is weak and won't be mutated" % (field,)
+            obj = getattr(obj, field)
+        return mutate_by_type(obj, t, bool(path))
 
 def mutate_by_type(obj, t, customMutators=True):
     m = match(t)
@@ -259,19 +277,27 @@ def mutate_by_type(obj, t, customMutators=True):
         data, appTs = m.args
         assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
                 "Expected %s, got: %r" % (data, obj)
+        apps = appTs and type_app_list_to_map(data.tvars, appTs)
         mutator = env(MUTATE)
+
         ctor = extrinsic(FormSpec, type(obj))
+        fts = dict((extrinsic(Name, f), subst(apps,f.type) if apps else f.type)
+                   for f in ctor.fields)
+
         if customMutators:
             ctorNm = extrinsic(Name, ctor)
             if hasattr(mutator, ctorNm):
-                return getattr(mutator, ctorNm)(obj)
+                # Scope field types for recursive mutatino
+                old = mutator.obj, mutator.t, mutator.fts
+                mutator.obj, mutator.t, mutator.fts = obj, t, fts
+                obj = getattr(mutator, ctorNm)(obj)
+                mutator.obj, mutator.t, mutator.fts = old
+                return obj
+
         # Default to recursive mutation
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
         for field in ctor.fields:
             fnm = extrinsic(Name, field)
-            ft = field.type
-            if apps:
-                ft = subst(apps, ft)
+            ft = fts[fnm]
             if not isinstance(ft, TWeak):
                 val = getattr(obj, fnm)
                 setattr(obj, fnm, mutate_by_type(val, ft))
