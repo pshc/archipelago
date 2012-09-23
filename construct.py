@@ -131,7 +131,7 @@ def build_mod(decl_mod, defn_mod, plan):
     add_extrinsic(Filename, decl_mod, name)
     add_extrinsic(Filename, defn_mod, name)
     atom.write_mod_repr(view, decl_mod, [Name])
-    atom.write_mod_repr(impv, defn_mod, [Name])
+    atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
     native.serialize(decl_mod)
     native.serialize(defn_mod)
 
