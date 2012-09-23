@@ -5,3 +5,6 @@ all: $(MEM2REGS)
 %.ll.mem2reg: %.ll
 	@echo mem2reg $<
 	@llvm-as $< -o - | opt -mem2reg | llvm-dis -o $@
+
+clean:
+	rm -f -- $(MEM2REGS)
