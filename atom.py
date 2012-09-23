@@ -12,6 +12,7 @@ types_by_name['set'] = lambda: t_DT(Set)
 
 # Shouldn't this be an env or something?
 BUILTINS = {}
+RUNTIME = {}
 
 Builtin = DT('Builtin')
 

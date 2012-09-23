@@ -852,8 +852,15 @@ def convert_file(filename, name, deps):
             del missing[key]
     assert not missing, "Symbols not found: " + ', '.join(
                 '%s %s' % (t, s) for s, t in missing)
+
     global loaded_module_export_names
     loaded_module_export_names[decl_mod] = omni.exports
+    if name == 'runtime':
+        for sym, var in omni.exports.iteritems():
+            name, space = sym
+            assert space == valueNamespace
+            RUNTIME[name] = var
+
     return (decl_mod, defn_mod)
 
 def escape(text):

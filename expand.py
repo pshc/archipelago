@@ -31,6 +31,11 @@ ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
 
 LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
+def runtime_call(name, args):
+    f = RUNTIME[name]
+    bind = E.Bind(f)
+    return E.Call(bind, args)
+
 class VarCloser(vat.Visitor):
     def TopFunc(self, top):
         in_env(EXFUNC, ExStaticDefn(), lambda: self.visit('func'))
