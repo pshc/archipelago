@@ -31,9 +31,16 @@ ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
 
 LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
+def copy_type(dest, src):
+    # bleh... vat?
+    add_extrinsic(TypeOf, dest, extrinsic(TypeOf, src))
+    if has_extrinsic(TypeCast, src):
+        add_extrinsic(TypeCast, dest, extrinsic(TypeCast, src))
+
 def runtime_call(name, args):
     f = RUNTIME[name]
     bind = E.Bind(f)
+    copy_type(bind, f)
     return E.Call(bind, args)
 
 class VarCloser(vat.Visitor):
@@ -110,6 +117,37 @@ class LitExpander(vat.Mutator):
         else:
             return lit
 
+class EnvExtrConverter(vat.Mutator):
+    def GetExtrinsic(self, e):
+        extr = bind_extrinsic(e.extrinsic)
+        node = self.mutate('node')
+        call = runtime_call('_getextrinsic', [extr, node])
+        copy_type(call, e)
+        return call
+
+    def HasExtrinsic(self, e):
+        extr = bind_extrinsic(e.extrinsic)
+        node = self.mutate('node')
+        call = runtime_call('_hasextrinsic', [extr, node])
+        copy_type(call, e)
+        return call
+
+    def ScopeExtrinsic(self, e):
+        return self.mutate('expr') # TEMP
+
+    def WriteExtrinsic(self, s):
+        f = '_addextrinsic' if s.isNew else '_updateextrinsic'
+        extr = bind_extrinsic(s.extrinsic)
+        node = self.mutate('node')
+        val = self.mutate('val')
+        e = runtime_call(f, [extr, node, val])
+        add_extrinsic(TypeOf, e, TVoid())
+        return S.ExprStmt(e)
+
+def bind_extrinsic(extr):
+    bind = E.Bind(extr)
+    add_extrinsic(TypeOf, bind, t_DT(Extrinsic)) # XXX fake type
+    return bind
 
 class ImportMarker(vat.Visitor):
     def Bind(self, bind):
@@ -186,6 +224,9 @@ def unique_decls(decls):
         if not has_extrinsic(CFunction, v):
             add_extrinsic(CFunction, v, True)
 
+    for extr in decls.extrinsics:
+        unique_global(extr, False)
+
     for var in decls.funcDecls:
         unique_global(var, True)
     for lit in decls.lits:
@@ -204,6 +245,8 @@ def expand_unit(unit):
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
+
+    vat.mutate(EnvExtrConverter, unit, t)
 
     vat.visit(ImportMarker, unit, t)
     vat.visit(Uniquer, unit, t)

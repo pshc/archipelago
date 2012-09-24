@@ -158,6 +158,9 @@ def isVar_Var(var):
 default_impl(Bindable, Builtin)
 default_impl(Bindable, Ctor)
 
+# XXX only become bindable after expansion (ought to be a different typeclass)
+default_impl(Bindable, Extrinsic)
+
 # XXX maybe codegen
 Nullable = new_typeclass('Nullable', ('isMaybe', 'a -> bool', lambda v: False))
 @impl(Nullable, Ctor)

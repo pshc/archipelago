@@ -585,6 +585,10 @@ def express_Var(v):
 def express_Ctor(c):
     return func_ref(c)
 
+@impl(LLVMBindable, Extrinsic)
+def express_Extrinsic(extr):
+    return global_symbol(extr)
+
 def una_op(b):
     # grr boilerplate
     return match(b,
@@ -780,21 +784,6 @@ def expr_inenv_void(environ, init, e):
     write_void_stmt(e)
     env_teardown(environ, old)
 
-def expr_getextrinsic(extr, e, exists):
-    sym = '_hasextrinsic' if exists else '_getextrinsic'
-    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
-    t = IBool() if exists else convert_type(extr.type)
-    ex = express_casted(e)
-    return fromJust(write_runtime_call(sym, [extrx, ex], t)).xpr
-
-def expr_scopeextrinsic(extr, e):
-    out('; enter %s' % (extrinsic(Name, extr),))
-    newline()
-    ret = express(e)
-    out('; exit %s' % (extrinsic(Name, extr),))
-    newline()
-    return ret
-
 def expr_match(m, e, cs):
     tx = express_typed(e)
     msrs = new_series(m)
@@ -890,9 +879,6 @@ def express(expr):
         ('GetEnv(environ)', expr_getenv),
         ('HaveEnv(environ)', expr_haveenv),
         ('InEnv(environ, init, e)', expr_inenv),
-        ('GetExtrinsic(x, e)', lambda x, e: expr_getextrinsic(x, e, False)),
-        ('HasExtrinsic(x, e)', lambda x, e: expr_getextrinsic(x, e, True)),
-        ('ScopeExtrinsic(extr, e)', expr_scopeextrinsic),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
@@ -1219,8 +1205,8 @@ def write_new_env(e):
 
 def write_new_extrinsic(extr):
     decl = env(DECLSONLY)
-    out_global_ref(extr)
-    out(' = %sglobal i8' % ('external ' if decl else '',))
+    out_global_symbol(extr)
+    out(' = %s global %%Extrinsic' % ('external' if decl else 'linkonce',))
     if not decl:
         out(' zeroinitializer')
     newline()
@@ -1326,14 +1312,6 @@ def write_while(stmt, cond, body):
 
     env(LOCALS).loopLabels = old_labels
 
-def write_writeextrinsic(extr, node, val, isNew):
-    sym = '_addextrinsic' if isNew else '_updateextrinsic'
-    extrx = TypedXpr(IVoidPtr(), global_ref(extr))
-    n = express_casted(node)
-    v = express_casted(val)
-    r = write_runtime_call(sym, [extrx, n, v], IVoid())
-    assert isNothing(r)
-
 def write_stmt(stmt):
     out_pretty(stmt, 'Stmt(Expr)')
     match(stmt,
@@ -1348,8 +1326,7 @@ def write_stmt(stmt):
         ("ExprStmt(e)", write_expr_stmt),
         ("Nop()", lambda: None),
         ("Return(e)", write_return),
-        ("stmt==While(c, b)", write_while),
-        ("WriteExtrinsic(extr, node, val, isNew)", write_writeextrinsic))
+        ("stmt==While(c, b)", write_while))
 
 def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))
@@ -1417,8 +1394,10 @@ def write_unit(unit):
 
 prelude = """; prelude
 %Type = type opaque
+%Extrinsic = type i8
 declare void @fail(i8*) noreturn
 declare void @match_fail() noreturn
+declare i8* @malloc(i32)
 
 """
 
@@ -1435,12 +1414,6 @@ OFile = new_extrinsic('OFile', str)
 def write_ir(decl_mod, defn_mod, filename):
     def go():
         out(prelude)
-        runtime = loaded_modules['runtime']
-        if runtime is not None:
-            env(IR).overrideImportUsageCheck = True
-            write_imports(runtime)
-            env(IR).overrideImportUsageCheck = False
-
         walk_deps(write_imports, defn_mod, set([decl_mod]))
         newline()
         out('; main')
