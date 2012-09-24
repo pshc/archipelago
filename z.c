@@ -18,13 +18,15 @@ __dead2 void match_fail() {
 }
 
 /* TEMP */
-intptr_t _getenv(intptr_t env) {
+intptr_t _getenv(intptr_t env, void *ctx) {
 	(void) env;
+	(void) ctx;
 	return 0;
 }
 
-int _hasenv(intptr_t env) {
+int _haveenv(intptr_t env, void *ctx) {
 	(void) env;
+	(void) ctx;
 	return 1;
 }
 

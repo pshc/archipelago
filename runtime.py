@@ -2,8 +2,8 @@
 
 malloc = cdecl('malloc', 'int -> a')
 
-_getenv = cdecl('_getenv', 'Env -> a')
-_haveenv = cdecl('_haveenv', 'Env -> bool')
+_getenv = cdecl('_getenv', '(Env, a) -> b')
+_haveenv = cdecl('_haveenv', '(Env, a) -> bool')
 
 _addextrinsic = cdecl('_addextrinsic', '(Extrinsic, a, b) -> void')
 _updateextrinsic = cdecl('_updateextrinsic', '(Extrinsic, a, b) -> void')
