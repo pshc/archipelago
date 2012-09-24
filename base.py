@@ -158,16 +158,11 @@ NEWTYPEVARS = new_env('NEWTYPEVARS', None)
 ExtInfo = DT('ExtInfo', ('label', str), ('t', 'Type'), ('stack', [{'a': 't'}]),
                         ('captures', [{'a': 't'}]))
 
-# Omnipresent for now
-Name = ExtInfo('Name', str, [{}], [])
-FormSpec = ExtInfo('FormSpec', object, [{}], [])
-TrueRepresentation = ExtInfo('TrueRepresentation', object, [{}], [])
-
-def new_extrinsic(label, t):
+def new_extrinsic(label, t, omni=False):
     if t is not None:
         tvars = {}
         t = parse_new_type(t, tvars)
-    return ExtInfo(label, t, [], [])
+    return ExtInfo(label, t, [{}] if omni else [], [])
 
 def extrinsic(ext, obj):
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
@@ -241,6 +236,10 @@ def has_extrinsic(ext, obj):
     assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     return obj in ext.stack[-1]
+
+Name = new_extrinsic('Name', None, omni=True)
+FormSpec = new_extrinsic('FormSpec', None, omni=True)
+TrueRepresentation = new_extrinsic('TrueRepresentation', None, omni=True)
 
 value_types = (basestring, bool, int, float, tuple, type(None))
 
