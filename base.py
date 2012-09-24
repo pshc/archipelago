@@ -306,7 +306,8 @@ FuncMeta = DT('FuncMeta', ('takesEnv', bool))
 
 def plain_meta():
     return FuncMeta(True)
-ctor_meta = plain_meta
+def basic_meta():
+    return FuncMeta(False)
 def copy_meta(meta):
     return FuncMeta(meta.takesEnv)
 def metas_equal(m1, m2):
@@ -714,11 +715,8 @@ Structured.__repr__ = __repr__
 
 # Type annotations
 
-def annot(t):
-    def dec(func):
-        func.typeannot = t
-        return func
-    return dec
+def annot(t, **opts):
+    return lambda func: func
 
 # Matching
 

@@ -816,7 +816,8 @@ def express(expr):
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
-        ('e==Ternary(c, l, r)', expr_ternary))
+        ('e==Ternary(c, l, r)', expr_ternary),
+        ('NullPtr()', lambda: Const("null")))
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))

@@ -491,7 +491,7 @@ def prop_lhs(lhs):
 def prop_DT(form):
     dtT = vanilla_tdata(form)
     for c in form.ctors:
-        set_type(c, TFunc([f.type for f in c.fields], dtT, ctor_meta()))
+        set_type(c, TFunc([f.type for f in c.fields], dtT, basic_meta()))
 
 def prop_func_defn(var, f):
     t = extrinsic(TypeOf, f)

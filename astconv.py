@@ -18,7 +18,7 @@ OmniContext = DT('OmniContext', ('decls', ModuleDecls),
                                 ('directlyImportedModuleNames', set([str])))
 OMNI = new_env('OMNI', OmniContext)
 
-AstType = new_extrinsic('AstType', Type)
+AstType = new_extrinsic('AstType', (str, FuncMeta))
 AstHint = new_extrinsic('AstHint', {str: str})
 
 def ast_envs():
@@ -226,6 +226,7 @@ def make_cdecl(nm, t):
     identifier(var, nm.value, export=True, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
+    t.meta.takesEnv = False
     add_extrinsic(TypeOf, var, t)
     env(OMNI).decls.cdecls.append(var)
 
@@ -235,6 +236,7 @@ def make_cimport(nm, t):
     identifier(var, nm.value, export=False, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
+    t.meta.takesEnv = False
     add_extrinsic(TypeOf, var, t)
     env(OMNI).decls.cdecls.append(var)
 
@@ -725,7 +727,21 @@ def conv_function(s):
                 if dec.node.name == 'annot':
                     assert astannot is None
                     assert isinstance(dec.args[0], ast.Const)
-                    astannot = dec.args[0].value
+                    meta = plain_meta()
+
+                    if s.name == 'main':
+                        meta.takesEnv = False
+
+                    for arg in dec.args[1:]:
+                        assert isinstance(arg, ast.Keyword)
+                        assert isinstance(arg.expr, ast.Name)
+                        key = arg.name
+                        val = {'True': True, 'False': False}[arg.expr.name]
+                        if key == 'env':
+                            meta.takesEnv = val
+                        else:
+                            assert False, "Unknown meta option " + key
+                    astannot = (dec.args[0].value, meta)
     var = Var()
     assert astannot, "Function %s has no type annot" % s.name
     glob = is_top_level()
@@ -815,6 +831,8 @@ def setup_builtin_module():
     for name, t in builtins_types.iteritems():
         tvars = {}
         t = parse_new_type(t, tvars)
+        if isinstance(t, TFunc):
+            t.meta.takesEnv = False
         builtin = Builtin()
         add_extrinsic(Name, builtin, name)
         add_extrinsic(TypeOf, builtin, t)

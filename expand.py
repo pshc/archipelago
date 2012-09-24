@@ -32,6 +32,8 @@ ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
 
 LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
+GeneratedLocal = new_extrinsic('GeneratedLocal', bool)
+
 def iconvert(a):
     add_extrinsic(LLVMTypeOf, a, convert_type(extrinsic(TypeOf, a)))
 
@@ -123,18 +125,9 @@ class LitExpander(vat.Mutator):
 
 def convert_decl_types(decls):
     map_(iconvert, decls.cdecls)
-    map_(add_context_param_type, decls.funcDecls)
+    map_(iconvert, decls.funcDecls)
 
-def add_context_param_type(f):
-    ft = convert_type(extrinsic(TypeOf, f))
-    ft.params.append(IVoidPtr())
-    add_extrinsic(LLVMTypeOf, f, ft)
-
-def context_param_var():
-    context = Var()
-    add_extrinsic(Name, context, '_ctx')
-    add_extrinsic(LLVMTypeOf, context, IVoidPtr())
-    return context
+THREADENV = new_env('THREADENV', 'Maybe(Var)')
 
 class TypeConverter(vat.Visitor):
     def t_Expr(self, e):
@@ -146,9 +139,36 @@ class TypeConverter(vat.Visitor):
 
     def Func(self, f):
         self.visit('params')
-        f.params.append(context_param_var())
-        add_context_param_type(f)
-        self.visit('body')
+
+        threadedVar = Nothing()
+        if extrinsic(TypeOf, f).meta.takesEnv:
+            # Add context parameter
+            var = Var()
+            add_extrinsic(Name, var, 'ctx')
+            add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+            add_extrinsic(GeneratedLocal, var, True)
+            threadedVar = Just(var)
+            f.params.append(var)
+
+        in_env(THREADENV, threadedVar, lambda: self.visit('body'))
+        iconvert(f)
+
+    def Call(self, e):
+        self.visit('func')
+        self.visit('args')
+        if extrinsic(TypeOf, e.func).meta.takesEnv:
+            m = match(env(THREADENV))
+            if m('Just(ctx)'):
+                ctx = m.arg
+                bind = E.Bind(ctx)
+                copy_type(bind, ctx)
+                m.ret(bind)
+            else:
+                null = E.NullPtr()
+                add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+                m.ret(null)
+            e.args.append(m.result())
+        iconvert(e)
 
 class EnvExtrConverter(vat.Mutator):
     def GetEnv(self, e):
@@ -200,11 +220,13 @@ def bind_extrinsic(extr):
 class ImportMarker(vat.Visitor):
     def Bind(self, bind):
         tar = bind.target
+        if has_extrinsic(GeneratedLocal, tar):
+            return
         external = has_extrinsic(CFunction, tar) and extrinsic(CFunction, tar)
         if not external:
             external = vat.orig_loc(tar).module not in env(EXGLOBAL).ownModules
         if external:
-            env(IMPORTBINDS).add(bind.target)
+            env(IMPORTBINDS).add(tar)
 
 LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
                               ('discrimSlot', 'Maybe(int)'))
@@ -312,7 +334,7 @@ def expand_unit(decls, unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, LocalFunctionSymbol, vat.Original]
+    extrs = [Closure, LocalFunctionSymbol, vat.Original, GeneratedLocal]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 

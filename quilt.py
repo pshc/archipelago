@@ -24,20 +24,22 @@ def convert_type(t):
         ("TPrim(PStr())", IVoidPtr),
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(ps, r, _)", lambda ps, r:
-                IFunc(map(convert_type, ps), convert_type(r))),
-        ("TData(dt, ts)", convert_dt),
+        ("TFunc(tps, tret, meta)", convert_func_type),
+        ("TData(dt, ts)", convert_dt_type),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
-def convert_dt(dt, ts):
+def convert_dt_type(dt, ts):
     # XXX maybe codegen
     if dt is extrinsic(FormSpec, DATATYPES['Maybe']):
         return convert_type(ts[0])
     return IPtr(IData(dt))
 
-def i_DT(dt):
-    return IData(extrinsic(FormSpec, SUPERS[dt]))
+def convert_func_type(tps, tret, meta):
+    ips = map(convert_type, tps)
+    if meta.takesEnv:
+        ips.append(IVoidPtr())
+    return IFunc(ips, convert_type(tret))
 
 def itypes_equal(src, dest):
     same = lambda: True

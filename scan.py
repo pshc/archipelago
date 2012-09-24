@@ -28,8 +28,10 @@ def scan_func(f, ps, b):
         return
 
     tvars = {}
-    ft = parse_new_type(extrinsic(AstType, f), tvars)
-    tps, tret = match(ft, ('TFunc(tps, tret, _)', tuple2))
+    ftstr, ftmeta = extrinsic(AstType, f)
+    ft = parse_new_type(ftstr, tvars)
+    ft.meta = ftmeta
+    tps = ft.paramTypes
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     set_type(f, ft)
 
