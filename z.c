@@ -17,6 +17,17 @@ __dead2 void match_fail() {
 	exit(1);
 }
 
+/* TEMP */
+intptr_t _getenv(intptr_t env) {
+	(void) env;
+	return 0;
+}
+
+int _hasenv(intptr_t env) {
+	(void) env;
+	return 1;
+}
+
 static int extrinsic_index(intptr_t *table, intptr_t count, intptr_t extr) {
 	intptr_t i;
 	for (i = 0; i < count; i++)

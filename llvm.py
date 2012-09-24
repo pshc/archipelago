@@ -589,6 +589,10 @@ def express_Ctor(c):
 def express_Extrinsic(extr):
     return global_symbol(extr)
 
+@impl(LLVMBindable, Env)
+def express_Env(e):
+    return global_symbol(e)
+
 def una_op(b):
     # grr boilerplate
     return match(b,
@@ -744,16 +748,6 @@ def expr_func(f, ps, body):
 def env_type(environ):
     return ITuple([convert_type(environ.type), IBool()])
 
-def read_env_state(environ, index, regname):
-    tmp = load('env', env_type(environ), global_ref(environ))
-    return extractvalue(regname, tmp, index)
-
-def expr_getenv(environ):
-    return read_env_state(environ, 0, extrinsic(Name, environ))
-
-def expr_haveenv(environ):
-    return read_env_state(environ, 1, 'have.%s' % (extrinsic(Name, environ)))
-
 def env_setup(environ, init):
     name = extrinsic(Name, environ)
     t = env_type(environ)
@@ -876,8 +870,6 @@ def express(expr):
         ('Bind(v)', LLVMBindable.express),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
-        ('GetEnv(environ)', expr_getenv),
-        ('HaveEnv(environ)', expr_haveenv),
         ('InEnv(environ, init, e)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),

@@ -118,6 +118,16 @@ class LitExpander(vat.Mutator):
             return lit
 
 class EnvExtrConverter(vat.Mutator):
+    def GetEnv(self, e):
+        call = runtime_call('_getenv', [bind_env(e.env)])
+        copy_type(call, e)
+        return call
+
+    def HaveEnv(self, e):
+        call = runtime_call('_haveenv', [bind_env(e.env)])
+        copy_type(call, e)
+        return call
+
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
@@ -143,6 +153,11 @@ class EnvExtrConverter(vat.Mutator):
         e = runtime_call(f, [extr, node, val])
         add_extrinsic(TypeOf, e, TVoid())
         return S.ExprStmt(e)
+
+def bind_env(e):
+    bind = E.Bind(e)
+    add_extrinsic(TypeOf, bind, t_DT(Env)) # XXX fake type
+    return bind
 
 def bind_extrinsic(extr):
     bind = E.Bind(extr)
@@ -224,6 +239,8 @@ def unique_decls(decls):
         if not has_extrinsic(CFunction, v):
             add_extrinsic(CFunction, v, True)
 
+    for env in decls.envs:
+        unique_global(env, False)
     for extr in decls.extrinsics:
         unique_global(extr, False)
 

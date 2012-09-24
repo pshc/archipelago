@@ -160,6 +160,7 @@ default_impl(Bindable, Ctor)
 
 # XXX only become bindable after expansion (ought to be a different typeclass)
 default_impl(Bindable, Extrinsic)
+default_impl(Bindable, Env)
 
 # XXX maybe codegen
 Nullable = new_typeclass('Nullable', ('isMaybe', 'a -> bool', lambda v: False))
