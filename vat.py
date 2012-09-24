@@ -207,12 +207,14 @@ def visit_by_type(obj, t, customVisitors=True):
                    for f in ctor.fields)
 
         if customVisitors:
-            ctorNm = extrinsic(Name, ctor)
-            if hasattr(visitor, ctorNm):
+            custom = getattr(visitor, extrinsic(Name, ctor), None)
+            if custom is None:
+                custom = getattr(visitor, 't_'+extrinsic(Name, data), None)
+            if custom is not None:
                 # Scope field types for recursive visiting
                 old = visitor.obj, visitor.t, visitor.fts
                 visitor.obj, visitor.t, visitor.fts = obj, t, fts
-                getattr(visitor, ctorNm)(obj)
+                custom(obj)
                 visitor.obj, visitor.t, visitor.fts = old
                 return
 
