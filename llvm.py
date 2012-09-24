@@ -87,19 +87,21 @@ def func_ref(f):
     return global_ref(f)
 
 def global_ref(v):
+    """Deprecated; use GlobalSymbol and co."""
     return Global(extrinsic(Name, v))
+
+def global_symbol(var):
+    return Global(extrinsic(expand.GlobalSymbol, var).symbol)
 
 def out_func_ref(f):
     out_xpr(func_ref(f))
 
 def out_global_ref(v):
+    """Deprecated."""
     out_xpr(global_ref(v))
 
 def out_global_symbol(var):
-    if has_extrinsic(expand.GlobalSymbol, var):
-        out_xpr(Global(extrinsic(expand.GlobalSymbol, var).symbol))
-    else:
-        out_global_ref(var)
+    out_xpr(global_symbol(var))
 
 def newline():
     if have_env(LOCALS):
