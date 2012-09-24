@@ -416,6 +416,7 @@ class ExprStringifier(Visitor):
         frag('in_env(%s' % (extrinsic(Name, e.env),))
         frag_comma()
         self.visit('init')
+        frag_comma()
         self.visit('expr')
         frag(')')
 
