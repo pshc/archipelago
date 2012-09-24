@@ -125,6 +125,14 @@ class LitExpander(vat.Mutator):
 
 def convert_decl_types(decls):
     map_(iconvert, decls.cdecls)
+    for dt in decls.dts:
+        for ctor in dt.ctors:
+            for field in ctor.fields:
+                add_extrinsic(LLVMTypeOf, field, convert_type(field.type))
+    for env in decls.envs:
+        add_extrinsic(LLVMTypeOf, env, convert_type(env.type))
+    for lit in decls.lits:
+        iconvert(lit.var)
     map_(iconvert, decls.funcDecls)
 
 THREADENV = new_env('THREADENV', 'Maybe(Var)')

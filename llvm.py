@@ -393,7 +393,7 @@ def runtime_decl(name):
 # TYPES
 
 def typeof(e):
-    assert isinstance(e, Expr) or isinstance(e, Var), "%s is not type-y" % (e,)
+    assert isinstance(e, (Expr, Var, Field)), "%s is not type-y" % (e,)
     return extrinsic(LLVMTypeOf, e)
 
 def t_str(t):
@@ -685,7 +685,7 @@ def expr_func(f, ps, body):
     return func_ref(clos.func)
 
 def env_type(environ):
-    return ITuple([convert_type(environ.type), IBool()])
+    return ITuple([extrinsic(LLVMTypeOf, environ), IBool()])
 
 def env_setup(environ, init):
     name = extrinsic(Name, environ)
@@ -760,7 +760,7 @@ def expr_match(m, e, cs):
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
-    return load(extrinsic(Name, f), convert_type(f.type), fieldptr).xpr
+    return load(extrinsic(Name, f), typeof(f), fieldptr).xpr
 
 def expr_lit(lit):
     return match(lit, ('IntLit(i)', lambda i: Const('%d' % (i,))),
@@ -868,7 +868,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
             src, dest = extrinsic(TypeCast, p)
             ptx = cast(TypedXpr(convert_type(src), val), convert_type(dest))
         else:
-            ptx = TypedXpr(convert_type(f.type), val)
+            ptx = TypedXpr(typeof(f), val)
         match_pat(p, ptx)
 
 def match_pat_just(pat, p, tx):
@@ -916,7 +916,7 @@ def store_var(v, xpr):
 def store_attr(dest, f, val):
     tx = express_typed(dest)
     fieldptr = get_field_ptr(tx, f)
-    store_xpr(TypedXpr(convert_type(f.type), val), fieldptr)
+    store_xpr(TypedXpr(typeof(f), val), fieldptr)
 
 def store_lhs(lhs, x):
     match(lhs,
@@ -1034,7 +1034,7 @@ def write_field_specs(fields, layout):
         specs.append((IInt(), "discrim"))
     for f in fields:
         assert extrinsic(expand.FieldIndex, f) == len(specs)
-        specs.append((convert_type(f.type), extrinsic(Name, f)))
+        specs.append((typeof(f), extrinsic(Name, f)))
 
     n = len(specs)
     for i, (t, nm) in enumerate(specs):
@@ -1058,16 +1058,15 @@ def write_ctor(ctor, dt, layout):
     out('declare ' if env(DECLSONLY) else 'define ')
     out_t(dtt)
     out_func_ref(ctor)
-    fts = [convert_type(f.type) for f in ctor.fields]
     if env(DECLSONLY):
-        write_param_types(fts)
+        write_param_types(map(typeof, ctor.fields))
         newline()
     else:
-        as_local(lambda: _write_ctor_body(ctor, layout, dtt, fts))
+        as_local(lambda: _write_ctor_body(ctor, layout, dtt))
         out('}\n')
 
-def _write_ctor_body(ctor, layout, dtt, fts):
-    txs = write_params(ctor.fields, fts)
+def _write_ctor_body(ctor, layout, dtt):
+    txs = write_params(ctor.fields, map(typeof, ctor.fields))
     out(' {')
     newline()
 
