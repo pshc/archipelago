@@ -36,6 +36,7 @@ CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
         'CVoid',
         'CTuple', ('tupleTypes', ['CType']),
         'CFunc', ('paramTypes', ['CType']), ('retType', 'CType'),
+                 ('meta', FuncMeta),
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
         'CWeak', ('refType', 'CType'),
@@ -87,8 +88,8 @@ def _inst_type(s):
         ('TPrim(p)', CPrim),
         ('TVoid()', CVoid),
         ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
-        ('TFunc(ps, r)', lambda ps, r:
-                CFunc(map(_inst_type, ps), _inst_type(r))),
+        ('TFunc(ps, r, meta)', lambda ps, r, meta:
+                CFunc(map(_inst_type, ps), _inst_type(r), copy_meta(meta))),
         ('TData(dt, ts)', inst_tdata),
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
@@ -130,8 +131,8 @@ def _gen_type(s):
         ('CPrim(p)', TPrim),
         ('CVoid()', TVoid),
         ('CTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
-        ('CFunc(ps, r)', lambda ps, r:
-                TFunc(map(_gen_type, ps), _gen_type(r))),
+        ('CFunc(ps, r, meta)', lambda ps, r, meta:
+                TFunc(map(_gen_type, ps), _gen_type(r), copy_meta(meta))),
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
@@ -153,9 +154,11 @@ def try_unite_tuples(src, list1, dest, list2):
     for s, d in ezip(list1, list2):
         try_unite(s, d)
 
-def try_unite_funcs(sf, sargs, sret, df, dargs, dret):
+def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
     try_unite_tuples(sf, sargs, df, dargs)
     try_unite(sret, dret)
+    if not metas_equal(smeta, dmeta):
+        unification_failure(sf, df, "conflicting func metas")
 
 def try_unite_datas(src, a, ats, dest, b, bts):
     if a is not b:
@@ -230,7 +233,7 @@ def try_unite(src, dest):
         ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
         ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
         ("(CArray(t1), CArray(t2))", try_unite),
-        ("(sf==CFunc(sa, sr), df==CFunc(da, dr))", try_unite_funcs),
+        ("(sf==CFunc(sa, sr, sm), df==CFunc(da, dr, dm))", try_unite_funcs),
         ("(src==CData(a, ats), dest==CData(b, bts))", try_unite_datas),
         ("(src==CPrim(sp), dest==CPrim(dp))", try_unite_prims),
         ("(CVoid(), CVoid())", nop),
@@ -265,7 +268,7 @@ def pat_capture(v, p):
 
 def pat_ctor(ref, ctor, args):
     ctorT = instantiate_type(ref, extrinsic(TypeOf, ctor))
-    fieldTs, dt = match(ctorT, ("CFunc(fs, dt)", tuple2))
+    fieldTs, dt = match(ctorT, ("CFunc(fs, dt, _)", tuple2))
     unify_m(dt)
     for arg, fieldT in ezip(args, fieldTs):
         in_env(INPAT, fieldT, lambda: _prop_pat(arg))
@@ -358,7 +361,8 @@ def infer_func(f, ps, b):
             set_var_ctype(p, pt)
             pts.append(pt)
 
-        cft = CFunc(pts, rt)
+        # XXX infer FuncMeta?
+        cft = CFunc(pts, rt, plain_meta())
         # lambdas can't recurse, but this (sort of thing) would be nice
         #localVars[f] = cft
         prop_body(b)
@@ -372,7 +376,7 @@ def prop_func_expr(f, ps, b):
         return infer_func(f, ps, b)
     ft = extrinsic(TypeOf, f)
     cft = ctype(ft)
-    tps, tret = match(cft, ('CFunc(ps, ret)', tuple2))
+    tps, tret = match(cft, ('CFunc(ps, ret, _)', tuple2))
     def inside_func_scope():
         for p, ctp in ezip(ps, tps):
             set_var_ctype(p, ctp)
@@ -487,7 +491,7 @@ def prop_lhs(lhs):
 def prop_DT(form):
     dtT = vanilla_tdata(form)
     for c in form.ctors:
-        set_type(c, TFunc([f.type for f in c.fields], dtT))
+        set_type(c, TFunc([f.type for f in c.fields], dtT, ctor_meta()))
 
 def prop_func_defn(var, f):
     t = extrinsic(TypeOf, f)

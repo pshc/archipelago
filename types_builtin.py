@@ -17,13 +17,15 @@ def _type_tuple_equal(ts1, ts2):
             return False
     return True
 
-def _type_func_equal(as1, r1, as2, r2):
+def _type_func_equal(as1, r1, m1, as2, r2, m2):
     if len(as1) != len(as2):
         return False
     for a1, a2 in ezip(as1, as2):
         if not type_equal(a1, a2):
             return False
-    return type_equal(r1, r2)
+    if not type_equal(r1, r2):
+        return False
+    return metas_equal(m1, m2)
 
 def _type_data_equal(d1, ts1, d2, ts2):
     if d1 is not d2:
@@ -43,7 +45,7 @@ def type_equal(a, b):
         ("(TPrim(a), TPrim(b))", prim_equal),
         ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
-        ("(TFunc(args1, r1), TFunc(args2, r2))", _type_func_equal),
+        ("(TFunc(args1, r1, m1), TFunc(args2, r2, m2))", _type_func_equal),
         ("(TData(d1, ts1), TData(d2, ts2))", _type_data_equal),
         ("(TArray(a), TArray(b))", type_equal),
         ("(TWeak(a), TWeak(b))", type_equal),
@@ -73,7 +75,7 @@ def _type_repr(t):
                     ("TVoid()", lambda: 'void'),
                     ("TTuple(ts)", lambda ts: '(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),
-                    ("TFunc(s, r)", lambda s, r: '(%s)' %
+                    ("TFunc(s, r, _)", lambda s, r: '(%s)' %
                         (' -> '.join(_type_repr(t) for t in s + [r]),)),
                     ("TData(d, [])", _get_name),
                     ("_", lambda: '<bad type %s>' % type(t)))
@@ -99,9 +101,9 @@ def map_type_vars(f, t):
     return match(t, ("tv==TVar(_)", f),
                     ("TData(dt, ts)", lambda dt, ts:
                         TData(dt, [map_type_vars(f, t) for t in ts])),
-                    ("TFunc(args, ret)", lambda args, ret:
+                    ("TFunc(args, ret, meta)", lambda args, ret, meta:
                         TFunc([map_type_vars(f, a) for a in args],
-                              map_type_vars(f, ret))),
+                              map_type_vars(f, ret), copy_meta(meta))),
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("TArray(t)", lambda t: TArray(map_type_vars(f, t))),
@@ -113,7 +115,7 @@ def visit_type_vars(f, t):
     visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
     return match(t, ("TVar(tv)", f),
                     ("TData(_, ts)", visit_many),
-                    ("TFunc(args, ret)", lambda args, ret:
+                    ("TFunc(args, ret, _)", lambda args, ret:
                         visit_many(args) and visit(ret)),
                     ("TTuple(ts)", visit_many),
                     ("TArray(t)", visit),

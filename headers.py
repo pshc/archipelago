@@ -41,7 +41,7 @@ def write_decls(decls, name):
     for v in decls.funcDecls:
         t = extrinsic(TypeOf, v)
         name = extrinsic(Name, v)
-        match(t, ('TFunc(params, ret)', lambda params, ret:
+        match(t, ('TFunc(params, ret, _)', lambda params, ret:
                     write_func_decl(name, params, ret)))
     out('\n#endif /* %s */\n' % (guard,))
 

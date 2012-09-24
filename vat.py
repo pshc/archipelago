@@ -68,7 +68,7 @@ def clone_by_type(src, t):
         tts = m.arg
         assert isinstance(src, tuple)
         return tuple(clone_by_type(v, tt) for v, tt in ezip(src, tts))
-    elif m('TFunc(_, _)'):
+    elif m('TFunc(_, _, _)'):
         return src
     elif m('TData(data, appTs)'):
         data, appTs = m.args
@@ -117,7 +117,7 @@ def rewrite_by_type(obj, t):
         for v, tt in ezip(obj, tts):
             assert not isinstance(tt, TWeak), "TODO"
             rewrite_by_type(v, tt)
-    elif m('TFunc(_, _)'):
+    elif m('TFunc(_, _, _)'):
         pass
     elif m('TData(data, appTs)'):
         data, appTs = m.args
@@ -188,7 +188,7 @@ class Visitor(object):
 
 def visit_by_type(obj, t, customVisitors=True):
     m = match(t)
-    if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
+    if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
         pass
     elif m('TTuple(tts)'):
         tts = m.arg
@@ -269,7 +269,7 @@ class Mutator(object):
 
 def mutate_by_type(obj, t, customMutators=True):
     m = match(t)
-    if m('TVar(_) or TPrim(_) or TFunc(_, _)'):
+    if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
         return obj
     elif m('TTuple(tts)'):
         tts = m.arg

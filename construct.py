@@ -244,7 +244,7 @@ def load_forms():
         assert isinstance(t, Type), "%r is not a type" % (t,)
         match(t,
             ('TTuple(ts)', lambda ts: map(scan_type_deps, ts)),
-            ('TFunc(a, r)', lambda a, r: map(scan_type_deps, a + [r])),
+            ('TFunc(a, r, _)', lambda a, r: map(scan_type_deps, a + [r])),
             ('TData(dt, apps)', found_dt),
             ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),

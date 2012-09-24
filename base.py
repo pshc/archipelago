@@ -302,6 +302,16 @@ TypeVar = DT('TypeVar')
 PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
         'PInt', 'PFloat', 'PStr', 'PChar', 'PBool')
 
+FuncMeta = DT('FuncMeta', ('takesEnv', bool))
+
+def plain_meta():
+    return FuncMeta(True)
+ctor_meta = plain_meta
+def copy_meta(meta):
+    return FuncMeta(meta.takesEnv)
+def metas_equal(m1, m2):
+    return m1.takesEnv == m2.takesEnv
+
 Type, TVar, TPrim, TVoid, \
     TTuple, TFunc, TData, TArray, TWeak \
     = ADT('Type',
@@ -310,6 +320,7 @@ Type, TVar, TPrim, TVoid, \
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
         'TFunc', ('paramTypes', ['Type']), ('retType', 'Type'),
+                 ('meta', FuncMeta),
         'TData', ('data', '*DataType'), ('appTypes', ['Type']),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
@@ -324,6 +335,9 @@ def TStr():
     return TPrim(PStr())
 def TChar():
     return TPrim(PChar())
+
+def TPlainFunc(params, ret):
+    return TFunc(params, ret, plain_meta())
 
 def parse_new_type(t, tvars):
     return in_env(NEWTYPEVARS, None, lambda:
@@ -435,7 +449,7 @@ def consume_type(toks):
         params = t.tupleTypes if wasParens else [t]
         if len(params) == 1 and matches(params[0], 'TVoid()'):
             params = []
-        t = TFunc(params, consume_type(toks))
+        t = TPlainFunc(params, consume_type(toks))
     return t
 
 slashW = 'abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
@@ -533,8 +547,8 @@ def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
             ('TPrim(PChar())', TChar),
             ('TVoid()', TVoid),
             ('TTuple(ts)', lambda ts: TTuple(map(copy, ts))),
-            ('TFunc(args, ret)', lambda args, ret:
-                TFunc(map(copy, args), copy(ret))),
+            ('TFunc(args, ret, meta)', lambda args, ret:
+                TFunc(map(copy, args), copy(ret), copy_meta(meta))),
             ('TData(data, apps)', _derive_data),
             ('TArray(t)', lambda t: TArray(copy(t))),
             ('TWeak(t)', lambda t: TWeak(copy(t))))

@@ -24,8 +24,8 @@ def convert_type(t):
         ("TPrim(PStr())", IVoidPtr),
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(ps, r)", lambda ps, r:
-                         IFunc(map(convert_type, ps), convert_type(r))),
+        ("TFunc(ps, r, _)", lambda ps, r:
+                IFunc(map(convert_type, ps), convert_type(r))),
         ("TData(dt, ts)", convert_dt),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))

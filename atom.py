@@ -179,7 +179,7 @@ def make_builtin_scheme(name, t):
         if None in t:
             assert False, 'Incomplete builtin %s: %s' % (name, t)
         t = map(_fix_type, t)
-        t = TFunc(t[:-1], t[-1])
+        t = TPlainFunc(t[:-1], t[-1])
     else:
         t = _fix_type(t)
     def builtin_typevar(v):

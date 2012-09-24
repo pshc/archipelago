@@ -17,9 +17,11 @@ def try_unite_tuples(src, list1, dest, list2):
     for s, d in ezip(list1, list2):
         try_unite(s, d)
 
-def try_unite_funcs(sf, sargs, sret, df, dargs, dret):
+def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
     try_unite_tuples(sf, sargs, df, dargs)
     try_unite(sret, dret)
+    if not metas_equal(smeta, dmeta):
+        unification_failure(sf, df, "conflicting func metas")
 
 def try_unite_datas(src, a, ats, dest, b, bts):
     if a is not b:
@@ -42,7 +44,7 @@ def try_unite(src, dest):
         ("(src==TVar(stv), dest==TVar(dtv))", try_unite_typevars),
         ("(src==TTuple(t1), dest==TTuple(t2))", try_unite_tuples),
         ("(TArray(t1), TArray(t2))", try_unite),
-        ("(sf==TFunc(sa, sr), df==TFunc(da, dr))", try_unite_funcs),
+        ("(sf==TFunc(sa, sr, sm), df==TFunc(da, dr, dm))", try_unite_funcs),
         ("(src==TData(a, ats), dest==TData(b, bts))", try_unite_datas),
         ("(src==TPrim(sp), dest==TPrim(dp))", try_unite_prims),
         ("(TVoid(), TVoid())", nop),
@@ -68,11 +70,11 @@ def pat_capture(v, p):
 
 def pat_ctor(pat, ctor, args):
     ctorT = extrinsic(TypeOf, ctor)
-    fieldTs, dt = match(ctorT, ("TFunc(fs, dt)", tuple2))
+    fieldTs, dt = match(ctorT, ("TFunc(fs, dt, _)", tuple2))
     if has_extrinsic(Instantiation, pat):
         inst = extrinsic(Instantiation, pat)
         ctorT = checked_subst(inst, ctorT)
-        paramTs, pdt = match(ctorT, ("TFunc(ps, pdt)", tuple2))
+        paramTs, pdt = match(ctorT, ("TFunc(ps, pdt, _)", tuple2))
         check(pdt)
         # Check whether each field is affected by instantiation or not
         for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
@@ -117,13 +119,13 @@ def check_bind(bind, target):
 def check_inst_call(e, inst, f, args):
     # Instead of typecasting f, typecast its args backwards
     origT = extrinsic(TypeOf, f.target)
-    origArgTs, origRetT = match(origT, ("TFunc(args, ret)", tuple2))
+    origArgTs, origRetT = match(origT, ("TFunc(args, ret, _)", tuple2))
     t = checked_subst(inst, origT)
 
     # Avoid check_expr_as() here to avoid check_bind(), which would conflict
     typecheck(t, extrinsic(TypeOf, f))
 
-    argTs, retT = match(t, ("TFunc(args, ret)", tuple2))
+    argTs, retT = match(t, ("TFunc(args, ret, _)", tuple2))
     if subst_affects(inst, origRetT):
         # XXX this is going to clobber other casts... need to be able to
         # compose them? or do this differently?
@@ -142,7 +144,7 @@ def check_call(e, f, args):
         check_inst_call(e, extrinsic(Instantiation, f), f, args)
         return
     t = check_expr_as_itself(f)
-    argts, rett = match(t, ("TFunc(args, ret)", tuple2))
+    argts, rett = match(t, ("TFunc(args, ret, _)", tuple2))
     check(rett)
     for arg, t in ezip(args, argts):
         check_expr_as(t, arg)
@@ -168,7 +170,7 @@ def check_ternary(c, t, f):
 
 def check_func(f):
     ft = extrinsic(TypeOf, f)
-    tps, tret = match(ft, ('TFunc(ps, ret)', tuple2))
+    tps, tret = match(ft, ('TFunc(ps, ret, _)', tuple2))
     for p, tp in ezip(f.params, tps):
         typecheck(extrinsic(TypeOf, p), tp)
     in_env(CHECKSCOPE, tret, lambda: check_body(f.body))
@@ -270,7 +272,7 @@ def check_lhs_as_itself(a):
 def check_DT(form):
     dtT = vanilla_tdata(form)
     for ctor in form.ctors:
-        ctorT = TFunc([f.type for f in ctor.fields], dtT)
+        ctorT = TFunc([f.type for f in ctor.fields], dtT, ctor_meta())
         typecheck(extrinsic(TypeOf, ctor), ctorT)
 
 def destructure_tuple(ps, t):

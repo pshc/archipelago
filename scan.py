@@ -29,7 +29,7 @@ def scan_func(f, ps, b):
 
     tvars = {}
     ft = parse_new_type(extrinsic(AstType, f), tvars)
-    tps, tret = match(ft, ('TFunc(tps, tret)', tuple2))
+    tps, tret = match(ft, ('TFunc(tps, tret, _)', tuple2))
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps, ps)
     set_type(f, ft)
 
@@ -69,7 +69,7 @@ def scan_inst(s):
         ('TVar(tv)', record_tvar),
         ('TPrim(_) or TVoid()', nop),
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
-        ('TFunc(ps, r)', lambda ps, r: map_(scan_inst, ps + [r])),
+        ('TFunc(ps, r, _)', lambda ps, r: map_(scan_inst, ps + [r])),
         ('TData(DataType(_, tvs, _), apps)', scan_inst_data),
         ('TArray(t)', scan_inst),
         ('TWeak(t)', scan_inst))
