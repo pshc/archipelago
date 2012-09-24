@@ -137,6 +137,7 @@ def convert_decl_types(decls):
 
 THREADENV = new_env('THREADENV', 'Maybe(Var)')
 FuncCtxVar = new_extrinsic('FuncCtxVar', 'Maybe(Var)')
+InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
 
 class TypeConverter(vat.Visitor):
     def t_Expr(self, e):
@@ -152,11 +153,7 @@ class TypeConverter(vat.Visitor):
         threadedVar = Nothing()
         if extrinsic(TypeOf, f).meta.takesEnv:
             # Add context parameter
-            var = Var()
-            add_extrinsic(Name, var, 'ctx')
-            add_extrinsic(LLVMTypeOf, var, IVoidPtr())
-            add_extrinsic(GeneratedLocal, var, True)
-
+            var = new_ctx_var()
             threadedVar = Just(var)
             f.params.append(var)
 
@@ -178,11 +175,22 @@ class TypeConverter(vat.Visitor):
                 copy_type(bind, ctx)
                 m.ret(bind)
             else:
-                null = E.NullPtr()
-                add_extrinsic(LLVMTypeOf, null, IVoidPtr())
-                m.ret(null)
+                m.ret(null_expr())
             e.args.append(m.result())
         iconvert(e)
+
+def new_ctx_var():
+    var = Var()
+    # need to unique this name
+    add_extrinsic(Name, var, 'ctx')
+    add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+    add_extrinsic(GeneratedLocal, var, True)
+    return var
+
+def null_expr():
+    null = E.NullPtr()
+    add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+    return null
 
 class EnvExtrConverter(vat.Mutator):
     def Func(self, f):
@@ -190,24 +198,32 @@ class EnvExtrConverter(vat.Mutator):
                 lambda: self.mutate())
 
     def GetEnv(self, e):
-        ctx = fromJust(env(THREADENV))
-        call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx(ctx)])
+        call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
         copy_type(call, e)
         return call
 
     def HaveEnv(self, e):
+        call = runtime_call('_haveenv', [bind_env(e.env), bind_env_ctx()])
+        add_extrinsic(LLVMTypeOf, call, IBool())
+        return call
+
+    def InEnv(self, e):
+        # Defer to the llvm pass until we have expression flattening
+        e.init = self.mutate('init')
         m = match(env(THREADENV))
-        # Should we even bother checking?
-        # Functions that don't take a context parameter need never use this
         if m('Just(ctx)'):
             ctx = m.arg
-            m.ret(runtime_call('_haveenv',
-                    [bind_env(e.env), bind_env_ctx(ctx)]))
+            add_extrinsic(InEnvCtxVar, e, ctx)
+            e.expr = self.mutate('expr')
+            return e
         else:
-            m.ret(builtin_ref('False'))
-        q = m.result()
-        add_extrinsic(LLVMTypeOf, q, IBool())
-        return q
+            # Don't have a ctx var yet, need to introduce one
+            ctx = new_ctx_var()
+            add_extrinsic(InEnvCtxVar, e, ctx)
+            e.expr = in_env(THREADENV, Just(ctx), lambda: self.mutate('expr'))
+            w = E.WithVar(ctx, e)
+            copy_type(w, e)
+            return w
 
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
@@ -240,8 +256,8 @@ def bind_env(e):
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
-def bind_env_ctx(ctx):
-    bind = E.Bind(ctx)
+def bind_env_ctx():
+    bind = E.Bind(fromJust(env(THREADENV)))
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
@@ -369,7 +385,9 @@ def expand_unit(decls, unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, LocalFunctionSymbol, vat.Original, GeneratedLocal]
+    extrs = [Closure, LocalFunctionSymbol,
+            vat.Original, GeneratedLocal,
+            InEnvCtxVar]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))
 

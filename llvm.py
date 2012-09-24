@@ -510,15 +510,18 @@ def express_Var(v):
     elif has_extrinsic(expand.LocalFunctionSymbol, v):
         return Global(extrinsic(expand.LocalFunctionSymbol, v))
     else:
-        # Would be nice: (need name_reg)
-        #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
-        tmp = temp_reg_named(extrinsic(Name, v))
-        out_xpr(tmp)
-        out(' = load ')
-        out_t_ptr(typeof(v))
-        out_name_reg(v)
-        newline()
-        return tmp
+        return load_var(v)
+
+def load_var(v):
+    # Would be nice: (need name_reg)
+    #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
+    tmp = temp_reg_named(extrinsic(Name, v))
+    out_xpr(tmp)
+    out(' = load ')
+    out_t_ptr(typeof(v))
+    out_name_reg(v)
+    newline()
+    return tmp
 
 @impl(LLVMBindable, Ctor)
 def express_Ctor(c):
@@ -684,38 +687,36 @@ def expr_func(f, ps, body):
     assert not clos.isClosure, "TODO"
     return func_ref(clos.func)
 
-def env_type(environ):
-    return ITuple([extrinsic(LLVMTypeOf, environ), IBool()])
+def push_env(envtx, ctxVar, init):
+    # XXX temp hack for this env impl
+    # name_reg() would make it cleaner but yagni
+    # taking this ptr-to-alloca breaks mem2reg
+    # prefer to return a tuple from _pushenv or have it manage its own stack
+    pctx = TypedXpr(IPtr(IVoidPtr()),
+            Const('%%%s' % (extrinsic(Name, ctxVar),)))
 
-def env_setup(environ, init):
-    name = extrinsic(Name, environ)
-    t = env_type(environ)
-    envref = global_ref(environ)
+    i = express_typed(init)
+    old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
+    return fromJust(old)
 
-    out('; push env %s' % (name,))
-    newline()
-    old = load('old.%s' % (name,), t, envref)
-    i = express(init)
-    envt = match(t, "ITuple([envt, IBool()])")
-    info = ConstStruct([TypedXpr(envt, i), TypedXpr(IBool(), Const('true'))])
-    store_xpr(TypedXpr(t, info), envref)
-    return old
+def pop_env(envtx, ctxVar, old):
+    ctx = TypedXpr(typeof(ctxVar), load_var(ctxVar))
+    write_runtime_call('_popenv', [envtx, ctx, old], IVoid())
 
-def env_teardown(environ, old):
-    out('; pop env %s' % (extrinsic(Name, environ),))
-    newline()
-    store_xpr(old, global_ref(environ))
-
-def expr_inenv(environ, init, e):
-    old = env_setup(environ, init)
-    ret = express(e)
-    env_teardown(environ, old)
+def expr_inenv(e, environ, init, expr):
+    envtx = TypedXpr(extrinsic(LLVMTypeOf, environ), global_symbol(environ))
+    ctxVar = extrinsic(expand.InEnvCtxVar, e)
+    old = push_env(envtx, ctxVar, init)
+    ret = express(expr)
+    pop_env(envtx, ctxVar, old)
     return ret
 
-def expr_inenv_void(environ, init, e):
-    old = env_setup(environ, init)
-    write_void_stmt(e)
-    env_teardown(environ, old)
+def expr_inenv_void(e, environ, init, expr):
+    envtx = TypedXpr(extrinsic(LLVMTypeOf, environ), global_symbol(environ))
+    ctx = extrinsic(expand.InEnvCtxVar, e)
+    old = push_env(envtx, ctx, init)
+    write_void_stmt(expr)
+    pop_env(envtx, ctx, old)
 
 def expr_match(m, e, cs):
     tx = express_typed(e)
@@ -802,6 +803,14 @@ def expr_listlit(lit, es):
     get_element_ptr(arr, xtmem, 1)
     return cast(TypedXpr(IPtr(t), arr), litt).xpr
 
+def expr_with(var, expr):
+    store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
+    return express(expr)
+
+def expr_with_void(var, expr):
+    store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
+    write_void_stmt(expr)
+
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
     return match(expr,
@@ -809,7 +818,7 @@ def express(expr):
         ('Bind(v)', LLVMBindable.express),
         ('e==Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
-        ('InEnv(environ, init, e)', expr_inenv),
+        ('e==InEnv(environ, init, expr)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('e==Or(l, r)', expr_or),
@@ -817,7 +826,8 @@ def express(expr):
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
         ('e==Ternary(c, l, r)', expr_ternary),
-        ('NullPtr()', lambda: Const("null")))
+        ('NullPtr()', lambda: Const("null")),
+        ('WithVar(v, e)', expr_with))
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
@@ -1116,7 +1126,8 @@ def write_void_call(f, a):
 def write_void_stmt(e):
     match(e,
         ('Call(f, a)', write_void_call),
-        ('InEnv(environ, init, e)', expr_inenv_void))
+        ('e==InEnv(environ, init, expr)', expr_inenv_void),
+        ('WithVar(v, expr)', expr_with_void))
 
 def write_expr_stmt(e):
     t = typeof(e)
@@ -1128,8 +1139,7 @@ def write_expr_stmt(e):
 def write_new_env(e):
     decl = env(DECLSONLY)
     out_global_ref(e)
-    out(' = %sglobal ' % ('external ' if decl else '',))
-    out_t_nospace(env_type(e))
+    out(' = %s global %%Env' % ('external' if decl else 'linkonce',))
     if not decl:
         out(' zeroinitializer')
     newline()
@@ -1325,10 +1335,14 @@ def write_unit(unit):
 
 prelude = """; prelude
 %Type = type opaque
+%Env = type i8
 %Extrinsic = type i8
 declare void @fail(i8*) noreturn
 declare void @match_fail() noreturn
 declare i8* @malloc(i32)
+; temp
+declare i8* @_pushenv(%Env*, i8**, i8*)
+declare void @_popenv(%Env*, i8*, i8*)
 
 """
 

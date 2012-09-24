@@ -2,8 +2,10 @@
 
 malloc = cdecl('malloc', 'int -> a')
 
-_getenv = cdecl('_getenv', '(Env, a) -> b')
-_haveenv = cdecl('_haveenv', '(Env, a) -> bool')
+_getenv = cdecl('_getenv', '(Env, c) -> a')
+_haveenv = cdecl('_haveenv', '(Env, c) -> bool')
+_pushenv = cdecl('_pushenv', '(Env, c, v) -> c')
+_popenv = cdecl('_popenv', '(Env, c, v) -> void')
 
 _addextrinsic = cdecl('_addextrinsic', '(Extrinsic, a, b) -> void')
 _updateextrinsic = cdecl('_updateextrinsic', '(Extrinsic, a, b) -> void')

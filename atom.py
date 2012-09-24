@@ -39,7 +39,7 @@ CoreLiteral, IntLit, FloatLit, StrLit = ADT('CoreLiteral',
         'FloatLit', ('val', float),
         'StrLit', ('val', str))
 
-CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit, NullPtr = \
+CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit, NullPtr, WithVar = \
     ADT('CoreExpr',
         'Attr', ('expr', 'CoreExpr'), ('field', '*Field'),
         'Bind', ('target', '*a'), # Binder a => a
@@ -49,7 +49,8 @@ CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit, NullPtr = \
                    ('else_', 'CoreExpr'),
         'TupleLit', ('vals', '[CoreExpr]'),
         # XXX only used in the LLVM phase, move to own type
-        'NullPtr')
+        'NullPtr',
+        'WithVar', ('var', Var), ('expr', 'CoreExpr'))
 
 Expr, E, And, DictLit, FuncExpr, GenExpr, \
         GetEnv, HaveEnv, InEnv, \
