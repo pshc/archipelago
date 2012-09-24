@@ -309,7 +309,7 @@ Type, TVar, TPrim, TVoid, \
         'TPrim', ('primType', PrimType),
         'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
-        'TFunc', ('funcArgs', ['Type']), ('funcRet', 'Type'),
+        'TFunc', ('paramTypes', ['Type']), ('retType', 'Type'),
         'TData', ('data', '*DataType'), ('appTypes', ['Type']),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
@@ -554,7 +554,7 @@ def new_typeclass(name, *args):
         # Limitation: First argument :: 'a to do the lookup
         # Really ought to use specT to figure it out
         def lookup(*args):
-            assert len(args) == len(specT.funcArgs)
+            assert len(args) == len(specT.paramTypes)
             t = type(args[0])
             if t not in impls:
                 t = SUPERS[t]
@@ -574,7 +574,7 @@ def new_typeclass(name, *args):
         assert nm not in spec
         tvars = {}
         t = parse_new_type(t, tvars)
-        assert match(t.funcArgs[0], ("TVar(tv)", lambda tv: tv is tvars['a']))
+        assert match(t.paramTypes[0], ("TVar(tv)",lambda tv: tv is tvars['a']))
         spec[nm] = (i, t, default)
         setattr(info, nm, make_impl(i, t, nm))
     return info

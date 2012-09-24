@@ -196,9 +196,9 @@ def _resolve_walk(node, path):
         for i, t in enumerate(node.tupleTypes):
             _resolve_walk(t, (node.tupleTypes, i))
     elif isinstance(node, TFunc):
-        for i, arg in enumerate(node.funcArgs):
-            _resolve_walk(arg, (node.funcArgs, i))
-        _resolve_walk(node.funcRet, (node, 'funcRet'))
+        for i, arg in enumerate(node.paramTypes):
+            _resolve_walk(arg, (node.paramTypes, i))
+        _resolve_walk(node.retType, (node, 'retType'))
     elif isinstance(node, TData):
         for i, t in enumerate(node.appTypes):
             _resolve_walk(t, (node.appTypes, i))

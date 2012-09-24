@@ -35,7 +35,7 @@ CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
         'CPrim', ('primType', '*PrimType'),
         'CVoid',
         'CTuple', ('tupleTypes', ['CType']),
-        'CFunc', ('funcArgs', ['CType']), ('funcRet', 'CType'),
+        'CFunc', ('paramTypes', ['CType']), ('retType', 'CType'),
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
         'CWeak', ('refType', 'CType'),
@@ -327,9 +327,9 @@ def prop_call(call, f, s):
             call.func = f
             ft = prop_expr(f)
 
-    for arg, param in ezip(argts, ft.funcArgs):
+    for arg, param in ezip(argts, ft.paramTypes):
         unify(arg, param)
-    return ft.funcRet
+    return ft.retType
 
 def overload_num_call(f):
     if matches(f, "key('negate')"):
@@ -556,7 +556,7 @@ def site_target_typeof(site):
     if isinstance(site, Expr):
         return extrinsic(TypeOf, site.target)
     elif isinstance(site, Pat):
-        return vanilla_tdata(extrinsic(TypeOf, site.ctor).funcRet.data)
+        return vanilla_tdata(extrinsic(TypeOf, site.ctor).retType.data)
 
 def prop_top_func(topDefn, topVar, f):
 
