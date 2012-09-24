@@ -15,8 +15,8 @@ def write_type(t):
         ('TVoid()', lambda: 'void'),
         ('_', lambda: 'void *')))
 
-def write_params(ps):
-    if len(ps) == 0:
+def write_params(ps, meta):
+    if len(ps) == 0 and not meta.takesEnv:
         out('(void)')
         return
     first = True
@@ -27,12 +27,20 @@ def write_params(ps):
         else:
             out(', ')
         write_type(p)
+
+    if meta.takesEnv:
+        if first:
+            first = False
+        else:
+            out(', ')
+        out('void *')
+
     out(')')
 
-def write_func_decl(name, params, ret):
+def write_func_decl(name, params, ret, meta):
     write_type(ret)
     out(' %s' % (name,))
-    write_params(params)
+    write_params(params, meta)
     out(';\n')
 
 def write_decls(decls, name):
@@ -41,8 +49,8 @@ def write_decls(decls, name):
     for v in decls.funcDecls:
         t = extrinsic(TypeOf, v)
         name = extrinsic(Name, v)
-        match(t, ('TFunc(params, ret, _)', lambda params, ret:
-                    write_func_decl(name, params, ret)))
+        match(t, ('TFunc(params, ret, meta)', lambda params, ret, meta:
+                    write_func_decl(name, params, ret, meta)))
     out('\n#endif /* %s */\n' % (guard,))
 
 def write_export_header(mod, header, cname):
