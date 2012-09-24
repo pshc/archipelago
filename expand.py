@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 from base import *
 from atom import *
+from quilt import *
 import globs
 import vat
 
@@ -31,9 +32,12 @@ ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
 
 LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
 
+def iconvert(a):
+    add_extrinsic(LLVMTypeOf, a, convert_type(extrinsic(TypeOf, a)))
+
 def copy_type(dest, src):
     # bleh... vat?
-    add_extrinsic(TypeOf, dest, extrinsic(TypeOf, src))
+    add_extrinsic(LLVMTypeOf, dest, extrinsic(LLVMTypeOf, src))
     if has_extrinsic(TypeCast, src):
         add_extrinsic(TypeCast, dest, extrinsic(TypeCast, src))
 
@@ -117,6 +121,35 @@ class LitExpander(vat.Mutator):
         else:
             return lit
 
+def convert_decl_types(decls):
+    map_(iconvert, decls.cdecls)
+    map_(add_context_param_type, decls.funcDecls)
+
+def add_context_param_type(f):
+    ft = convert_type(extrinsic(TypeOf, f))
+    ft.params.append(IVoidPtr())
+    add_extrinsic(LLVMTypeOf, f, ft)
+
+def context_param_var():
+    context = Var()
+    add_extrinsic(Name, context, '_ctx')
+    add_extrinsic(LLVMTypeOf, context, IVoidPtr())
+    return context
+
+class TypeConverter(vat.Visitor):
+    def t_Expr(self, e):
+        self.visit()
+        iconvert(e)
+
+    def Var(self, v):
+        iconvert(v)
+
+    def Func(self, f):
+        self.visit('params')
+        f.params.append(context_param_var())
+        add_context_param_type(f)
+        self.visit('body')
+
 class EnvExtrConverter(vat.Mutator):
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env)])
@@ -151,17 +184,17 @@ class EnvExtrConverter(vat.Mutator):
         node = self.mutate('node')
         val = self.mutate('val')
         e = runtime_call(f, [extr, node, val])
-        add_extrinsic(TypeOf, e, TVoid())
+        add_extrinsic(LLVMTypeOf, e, IVoid())
         return S.ExprStmt(e)
 
 def bind_env(e):
     bind = E.Bind(e)
-    add_extrinsic(TypeOf, bind, t_DT(Env)) # XXX fake type
+    add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
 def bind_extrinsic(extr):
     bind = E.Bind(extr)
-    add_extrinsic(TypeOf, bind, t_DT(Extrinsic)) # XXX fake type
+    add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
 class ImportMarker(vat.Visitor):
@@ -252,10 +285,14 @@ def unique_decls(decls):
 # GLUE
 
 def expand_decls(decls):
+    convert_decl_types(decls)
+    finish_decls(decls)
+
+def finish_decls(decls):
     map_(dt_layout, decls.dts)
     unique_decls(decls)
 
-def expand_unit(unit):
+def expand_unit(decls, unit):
     t = t_DT(CompilationUnit)
     scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
     vat.mutate(LitExpander, unit, t)
@@ -263,7 +300,12 @@ def expand_unit(unit):
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
+    convert_decl_types(decls)
+    vat.visit(TypeConverter, unit, t)
+
     vat.mutate(EnvExtrConverter, unit, t)
+
+    finish_decls(decls)
 
     vat.visit(ImportMarker, unit, t)
     vat.visit(Uniquer, unit, t)
@@ -276,7 +318,8 @@ def in_intramodule_env(func):
 
 def in_intermodule_env(func):
     captures = {}
-    extrs = [DataLayout, CtorIndex, FieldIndex, GlobalSymbol, CFunction]
+    extrs = [LLVMTypeOf, DataLayout, CtorIndex, FieldIndex,
+            GlobalSymbol, CFunction]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(decl_mod, defn_mod):
@@ -292,10 +335,7 @@ def expand_module(decl_mod, defn_mod):
 
     # Mutate clones
     in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
-        lambda: expand_unit(new_unit))
-
-    # We likely have new decls now, so unique 'em
-    expand_decls(new_decls)
+        lambda: expand_unit(new_decls, new_unit))
 
     return (new_decls, new_unit)
 

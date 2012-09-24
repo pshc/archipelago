@@ -1,4 +1,5 @@
 from atom import *
+from quilt import *
 import expand
 import mach
 import os
@@ -33,20 +34,6 @@ def setup_ir(filename):
 def setup_locals():
     entry = Label(':entry:', True, True)
     return IRLocals(False, False, 0, entry, entry, set(), Nothing())
-
-IType, IInt, IInt64, IFloat, IBool, IVoid, \
-    IArray, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
-        'IInt',
-        'IInt64',
-        'IFloat',
-        'IBool',
-        'IVoid',
-        'IArray', ('count', int), ('type', 'IType'),
-        'ITuple', ('types', ['IType']),
-        'IData', ('datatype', '*DataType'),
-        'IFunc', ('params', ['IType']), ('ret', 'IType'),
-        'IPtr', ('type', 'IType'),
-        'IVoidPtr')
 
 TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
 
@@ -405,57 +392,9 @@ def runtime_decl(name):
 
 # TYPES
 
-def convert_type(t):
-    return match(t,
-        ("TPrim(PInt())", IInt),
-        ("TPrim(PFloat())", IFloat),
-        ("TPrim(PBool())", IBool),
-        ("TPrim(PStr())", IVoidPtr),
-        ("TVoid()", IVoid),
-        ("TVar(_)", IVoidPtr),
-        ("TFunc(ps, r)", lambda ps, r:
-                         IFunc(map(convert_type, ps), convert_type(r))),
-        ("TData(dt, ts)", convert_dt),
-        ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
-        ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
-
-def convert_dt(dt, ts):
-    # XXX maybe codegen
-    if dt is extrinsic(FormSpec, DATATYPES['Maybe']):
-        return convert_type(ts[0])
-    return IPtr(IData(dt))
-
-def itypes_equal(src, dest):
-    same = lambda: True
-    return match((src, dest),
-        ('(IInt(), IInt())', same),
-        ('(IInt64(), IInt64())', same),
-        ('(IFloat(), IFloat())', same),
-        ('(IBool(), IBool())', same),
-        ('(IVoid(), IVoid())', same),
-        ('(IVoidPtr(), IVoidPtr())', same),
-        ('(IArray(n1, t1), IArray(n2, t2))', lambda n1, t1, n2, t2:
-            n1 == n2 and itypes_equal(t1, t2)),
-        ('(ITuple(ts1), ITuple(ts2))', lambda ts1, ts2:
-            all(itypes_equal(a, b) for a, b in ezip(ts1, ts2))),
-        ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
-            len(ps1) == len(ps2) and
-            all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
-            itypes_equal(r1, r2)),
-        ('(IPtr(a), IPtr(b))', itypes_equal),
-        ('(IVoidPtr(), IVoidPtr())', same),
-        ('_', lambda: False))
-
 def typeof(e):
-    if has_extrinsic(TypeOf, e):
-        return convert_type(extrinsic(TypeOf, e))
     assert isinstance(e, Expr) or isinstance(e, Var), "%s is not type-y" % (e,)
-    print 'HAS NO TYPEOF: %s' % (e,)
-    return IInt()
-
-def convert_split_tfunc(t):
-    return match(t,
-        ('TFunc(p, r)', lambda p, r: (map(convert_type, p), convert_type(r))))
+    return extrinsic(LLVMTypeOf, e)
 
 def t_str(t):
     return match(t,
@@ -1238,7 +1177,7 @@ def write_top_func_decl(ref, tps, tret):
     newline()
 
 def write_top_func(f):
-    tps, tret = convert_split_tfunc(extrinsic(TypeOf, f))
+    tps, tret = match(extrinsic(LLVMTypeOf, f), ("IFunc(ps, ret)", tuple2))
 
     if env(DECLSONLY):
         write_top_func_decl(func_ref(f), tps, tret)
@@ -1329,7 +1268,7 @@ def imported_bindable_used(v):
 def write_top_cdecl(v):
     if not imported_bindable_used(v):
         return
-    tps, tret = convert_split_tfunc(extrinsic(TypeOf, v))
+    tps, tret = match(extrinsic(LLVMTypeOf, v), ("IFunc(ps, ret)", tuple2))
     write_top_func_decl(global_ref(v), tps, tret)
 
 def write_top_var_func(v, f):
