@@ -78,9 +78,7 @@ def pat_ctor(pat, ctor, args):
         check(pdt)
         # Check whether each field is affected by instantiation or not
         for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
-            if subst_affects(inst, fieldT):
-                # both these types are pretty obvious from the context...
-                add_typecast(arg, fieldT, paramT)
+            maybe_typecast(inst, arg, fieldT, paramT)
             in_env(CHECK, paramT, lambda: _check_pat(arg))
     else:
         check(dt)
@@ -108,6 +106,19 @@ def add_typecast(e, src, dest):
         return
     add_extrinsic(TypeCast, e, (src, dest))
 
+def maybe_typecast(inst, e, fromT, toT):
+    if subst_affects(inst, fromT):
+        if env(GENOPTS).dumpInsts:
+            print fmtcol('^Blue^cast ^N{0} ^Blue^to^N {1}', fromT, toT)
+        add_typecast(e, fromT, toT)
+
+def maybe_typecast_reversed(inst, e, fromT, toT):
+    if subst_affects(inst, toT):
+        if env(GENOPTS).dumpInsts:
+            print fmtcol('^LightBlue^revcast ^N{0} ^LightBlue^to^N {1}',
+                    fromT, toT)
+        add_typecast(e, fromT, toT)
+
 def check_bind(bind, target):
     t = extrinsic(TypeOf, target)
     if has_extrinsic(Instantiation, bind):
@@ -126,17 +137,11 @@ def check_inst_call(e, inst, f, args):
     typecheck(t, extrinsic(TypeOf, f))
 
     argTs, retT = match(t, ("TFunc(args, ret, _)", tuple2))
-    if subst_affects(inst, origRetT):
-        # XXX this is going to clobber other casts... need to be able to
-        # compose them? or do this differently?
-        #add_typecast(e, origRetT, retT)
-        pass
+    maybe_typecast(inst, e, origRetT, retT)
     check(retT)
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
-        if subst_affects(inst, origT):
-            # cast back into the field spec type
-            add_typecast(arg, newT, origT)
+        maybe_typecast_reversed(inst, arg, newT, origT)
         check_expr_as(newT, arg)
 
 def check_call(e, f, args):
