@@ -1328,8 +1328,8 @@ def write_imports(dep):
         newline()
         in_env(DECLSONLY, True, lambda: write_top_decls(dep.root))
 
-LLFile = new_extrinsic('LLFile', str)
-OFile = new_extrinsic('OFile', str)
+LLFile = new_extrinsic('LLFile', str, omni=True)
+OFile = new_extrinsic('OFile', str, omni=True)
 
 def write_ir(decl_mod, defn_mod, filename):
     def go():
@@ -1374,10 +1374,5 @@ def link(decl_mod, defn_mod, binary):
 
     objs.append(extrinsic(OFile, decl_mod))
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
-
-def in_llvm_env(func):
-    captures = {}
-    extrs = [LLFile, OFile]
-    return capture_scoped(extrs, captures, func)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

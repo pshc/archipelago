@@ -339,8 +339,7 @@ def main():
             lambda: in_env(BUILDOPTS, options,
             lambda: in_construct_env(
             lambda: expand.in_intermodule_env(
-            lambda: llvm.in_llvm_env(
-            lambda: load_files(files))))))
+            lambda: load_files(files)))))
 
 if __name__ == '__main__':
     main()
