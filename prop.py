@@ -443,7 +443,7 @@ def _prop_expr(e):
         ("ScopeExtrinsic(_, f)", prop_expr),
         ("bind==Bind(target)", prop_bind))
     if env(GENOPTS).dumpTypes:
-        if not matches(e, ('Lit(_) or Bind(BindBuiltin(_))')):
+        if not matches(e, ('Lit(_) or Bind(Builtin())')):
             print fmtcol('{0}\n  ^Green^gave^N {1}\n', e, rt)
     add_extrinsic(PendingType, e, rt)
     return rt
