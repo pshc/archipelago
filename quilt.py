@@ -15,6 +15,7 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IVoidPtr')
 
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
+LLVMTypeCast = new_extrinsic('LLVMTypeCast', (IType, IType))
 
 def convert_type(t):
     return match(t,

@@ -40,8 +40,11 @@ def iconvert(a):
 def copy_type(dest, src):
     # bleh... vat?
     add_extrinsic(LLVMTypeOf, dest, extrinsic(LLVMTypeOf, src))
-    if has_extrinsic(TypeCast, src):
-        add_extrinsic(TypeCast, dest, extrinsic(TypeCast, src))
+
+def convert_cast(e):
+    if has_extrinsic(TypeCast, e):
+        src, dest = extrinsic(TypeCast, e)
+        add_extrinsic(LLVMTypeCast, e, (convert_type(src), convert_type(dest)))
 
 def runtime_call(name, args):
     f = RUNTIME[name]
@@ -143,6 +146,11 @@ class TypeConverter(vat.Visitor):
     def t_Expr(self, e):
         self.visit()
         iconvert(e)
+        convert_cast(e)
+
+    def t_Pat(self, p):
+        self.visit()
+        convert_cast(p)
 
     def Var(self, v):
         iconvert(v)
@@ -180,6 +188,7 @@ class TypeConverter(vat.Visitor):
                 m.ret(null)
             e.args.append(m.result())
         iconvert(e)
+        convert_cast(e)
 
 def new_ctx_var():
     var = Var()
@@ -400,7 +409,7 @@ def expand_unit(decls, unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, StaticSymbol,
+    extrs = [Closure, StaticSymbol, LLVMTypeCast,
             vat.Original, GeneratedLocal,
             InEnvCtxVar]
     return in_env(IMPORTBINDS, set(),

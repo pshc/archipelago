@@ -808,11 +808,12 @@ def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
 
 def express_casted(expr):
-    if not has_extrinsic(TypeCast, expr):
+    if not has_extrinsic(LLVMTypeCast, expr):
+        assert not has_extrinsic(TypeCast, expr), "typecast not converted"
         return express_typed(expr)
     ex = express(expr)
-    src, dest = extrinsic(TypeCast, expr)
-    return cast(TypedXpr(convert_type(src), ex), convert_type(dest))
+    src, dest = extrinsic(LLVMTypeCast, expr)
+    return cast(TypedXpr(src, ex), dest)
 
 # PATTERN MATCHES
 
@@ -847,11 +848,11 @@ def match_pat_ctor(pat, ctor, ps, tx):
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(Name, f), ctorval, index)
-        if has_extrinsic(TypeCast, p):
-            # DT instantiation affects this field
-            src, dest = extrinsic(TypeCast, p)
-            ptx = cast(TypedXpr(convert_type(src), val), convert_type(dest))
+        if has_extrinsic(LLVMTypeCast, p):
+            src, dest = extrinsic(LLVMTypeCast, p)
+            ptx = cast(TypedXpr(src, val), dest)
         else:
+            assert not has_extrinsic(TypeCast, p), "pat cast not converted"
             ptx = TypedXpr(typeof(f), val)
         match_pat(p, ptx)
 
