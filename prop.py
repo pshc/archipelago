@@ -13,7 +13,7 @@ PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
 
 PROPTOP = new_env('PROPTOP', '*TopFunc')
 
-InstSite = new_extrinsic('InstSite', {'*TypeVar': 'CType'})
+PendingInst = new_extrinsic('PendingInst', {'*TypeVar': 'CType'})
 
 def in_new_scope(retT, f):
     localVars = {}
@@ -99,7 +99,7 @@ def instantiate_type(site, t):
     hints = extrinsic(InstMap, site) if has_extrinsic(InstMap, site) else {}
     ct = in_env(INST, InstInfo(insts, hints), lambda: _inst_type(t))
     if len(insts) > 0:
-        add_extrinsic(InstSite, site, insts)
+        add_extrinsic(PendingInst, site, insts)
     return ct
 
 def ctype(t):
@@ -570,7 +570,7 @@ def prop_top_func(topDefn, topVar, f):
         for v, ct in captures[PendingType].iteritems():
             set_type(v, finalize_type(ct))
         # Record instantiations
-        sites = captures[InstSite]
+        sites = captures[PendingInst]
 
         for site, mapping in sites.iteritems():
             insts = {}
@@ -604,7 +604,7 @@ def prop_top_func(topDefn, topVar, f):
             add_extrinsic(Instantiation, site, insts)
 
     captures = {}
-    capture_scoped([PendingType, InstSite], captures,
+    capture_scoped([PendingType, PendingInst], captures,
         lambda: in_env(PROPTOP, topDefn,
         lambda: go(topVar, f, captures)))
 
