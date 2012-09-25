@@ -606,7 +606,7 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
-def write_call(f, args, rett):
+def write_call(e, f, args, rett):
     fx = express_casted(f)
     argxs = [express_casted(arg) for arg in args]
 
@@ -614,7 +614,13 @@ def write_call(f, args, rett):
         call_void(fx.xpr, argxs)
         return Nothing()
 
-    return Just(call(rett, fx.xpr, argxs))
+    if has_extrinsic(LLVMTypeCast, e):
+        src, dest = extrinsic(LLVMTypeCast, e)
+        x = cast(call(src, fx.xpr, argxs), dest)
+    else:
+        x = call(rett, fx.xpr, argxs)
+
+    return Just(x)
 
 def write_runtime_call(name, argxs, rett):
     fx = global_symbol(runtime_decl(name))
@@ -630,7 +636,7 @@ def expr_call(e, f, args):
         mret = LLVMBindable.express_called(f.target, args)
         if isJust(mret):
             return fromJust(mret)
-    return fromJust(write_call(f, args, typeof(e))).xpr
+    return fromJust(write_call(e, f, args, typeof(e))).xpr
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
@@ -1091,16 +1097,16 @@ def write_dtstmt(form):
     if not env(DECLSONLY):
         newline()
 
-def write_void_call(f, a):
+def write_void_call(e, f, a):
     if matches(f, 'Bind(_)'):
         if LLVMBindable.express_called_void(f.target, a):
             return
-    t = write_call(f, a, IVoid())
+    t = write_call(e, f, a, IVoid())
     assert isNothing(t)
 
 def write_void_stmt(e):
     match(e,
-        ('Call(f, a)', write_void_call),
+        ('e==Call(f, a)', write_void_call),
         ('e==InEnv(environ, init, expr)', expr_inenv_void),
         ('WithVar(v, expr)', expr_with_void))
 
