@@ -418,7 +418,7 @@ def expand_module(decl_mod, defn_mod):
     # Clone decls and defns as mutable replacements
     def clone():
         decls = vat.clone(decl_mod.root, [Name, TypeOf, CFunction])
-        unit = vat.clone(defn_mod.root, [Name, TypeOf])
+        unit = vat.clone(defn_mod.root, [Name, TypeOf, TypeCast])
         vat.rewrite(unit)
         return decls, unit
     new_decls, new_unit = vat.in_vat(clone)
