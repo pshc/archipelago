@@ -219,7 +219,13 @@ class EnvExtrConverter(vat.Mutator):
 
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
-        copy_type(call, e)
+
+        # cast void* return to env's type
+        t = extrinsic(LLVMTypeOf, e)
+        if not matches(t, 'IVoidPtr()'):
+            add_extrinsic(LLVMTypeCast, call, (IVoidPtr(), t))
+
+        add_extrinsic(LLVMTypeOf, call, t)
         return call
 
     def HaveEnv(self, e):
