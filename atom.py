@@ -408,13 +408,14 @@ class ExprStringifier(Visitor):
     def DictLit(self, lit):
         assert False
 
+    def NullPtr(self, null):
+        frag('null')
+    def WithVar(self, expr):
+        self.visit('expr')
+
     def FuncExpr(self, fe):
         frag('<function %s>' % (extrinsic(Name, fe.func),))
 
-    def GetEnv(self, e):
-        frag('env(%s)' % (extrinsic(Name, e.env),))
-    def HaveEnv(self, e):
-        frag('have_env(%s)' % (extrinsic(Name, e.env),))
     def InEnv(self, e):
         frag('in_env(%s' % (extrinsic(Name, e.env),))
         frag_comma()
@@ -423,16 +424,6 @@ class ExprStringifier(Visitor):
         self.visit('expr')
         frag(')')
 
-    def GetExtrinsic(self, e):
-        frag('extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
-        frag_comma()
-        self.visit('node')
-        frag(')')
-    def HasExtrinsic(self, e):
-        frag('has_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
-        frag_comma()
-        self.visit('node')
-        frag(')')
     def ScopeExtrinsic(self, e):
         frag('scope_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
         frag_comma()
