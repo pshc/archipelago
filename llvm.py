@@ -37,20 +37,24 @@ def setup_locals():
 
 TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
 
-Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast = ADT('Xpr',
+Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast, \
+    ConstElementPtr = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'Global', ('name', str),
         'ConstStruct', ('vals', [TypedXpr]),
         'Const', ('frag', 'str'),
         'ConstOp', ('op', 'str'), ('args', [TypedXpr]),
-        'ConstCast', ('kind', str), ('src', TypedXpr), ('dest', IType))
+        'ConstCast', ('kind', str), ('src', TypedXpr), ('dest', IType),
+        'ConstElementPtr', ('src', TypedXpr), ('indexes', [int]))
 
 def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
         ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
-        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True))
+        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True),
+        ('ConstCast(_, _, _)', lambda: True),
+        ('ConstElementPtr(_, _)', lambda: True))
 
 LiteralSize = new_extrinsic('LiteralSize', int)
 
@@ -140,7 +144,8 @@ def xpr_str(x):
                     ('ConstStruct(vals)', conststruct_str),
                     ('Const(s)', identity),
                     ('ConstOp(f, args)', constop_str),
-                    ('ConstCast(kind, src, dest)', constcast_str))
+                    ('ConstCast(kind, src, dest)', constcast_str),
+                    ('ConstElementPtr(src, ixs)', constelemptr_str))
 
 def txpr_str(txpr):
     return '%s %s' % (t_str(txpr.type), xpr_str(txpr.xpr))
@@ -153,6 +158,10 @@ def conststruct_str(vals):
 
 def constcast_str(kind, src, dest):
     return '%s (%s to %s)' % (kind, txpr_str(src), t_str(dest))
+
+def constelemptr_str(src, ixs):
+    return 'getelementptr (%s, %s)' % (txpr_str(src), ', '.join(
+            'i32 %d' % ix for ix in ixs))
 
 def clear_indent():
     env(LOCALS).needIndent = False
@@ -242,18 +251,10 @@ def store_xpr(txpr, dest):
     newline()
 
 def malloc(t):
-    sizeof = temp_reg_named('sizeof')
+    nullx = ConstElementPtr(TypedXpr(IPtr(t), Const("null")), [1])
     sizeoft = IInt()
-    out_xpr(sizeof)
-    out(' = ptrtoint ')
-    out_t_ptr(t)
-    out('getelementptr')
-    nullx = TypedXpr(IPtr(t), Const("null"))
-    write_args([nullx, TypedXpr(IInt(), Const("1"))])
-    out(' to ')
-    out_t_nospace(sizeoft)
-    newline()
-    mem = write_runtime_call('malloc', [TypedXpr(IInt(), sizeof)], IVoidPtr())
+    sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), sizeoft)
+    mem = write_runtime_call('malloc', [TypedXpr(sizeoft, sizeof)], IVoidPtr())
     return cast(fromJust(mem), IPtr(t))
 
 def call(rett, fx, argxs):
@@ -284,7 +285,10 @@ def write_args(args):
         out_txpr(tx)
     out(')')
 
-def get_element_ptr(tmp, tx, index):
+def get_element_ptr(name, tx, index):
+    if is_const(tx.xpr):
+        return ConstElementPtr(tx, [0, index])
+    tmp = temp_reg_named(name)
     out_xpr(tmp)
     out(' = getelementptr ')
     out_txpr(tx)
@@ -293,11 +297,11 @@ def get_element_ptr(tmp, tx, index):
     comma()
     out('i32 %d' % (index,))
     newline()
+    return tmp
 
 def get_field_ptr(tx, f):
-    tmp = temp_reg_named(extrinsic(Name, f))
-    get_element_ptr(tmp, tx, extrinsic(expand.FieldIndex, f))
-    return tmp
+    index = extrinsic(expand.FieldIndex, f)
+    return get_element_ptr(extrinsic(Name, f), tx, index)
 
 def subscript(regname, arraytx, itx):
     arrayPtr = temp_reg_named('arrayptr')
@@ -799,8 +803,7 @@ def expr_listlit(lit, es):
     array = build_struct(at, txs)
     store_xpr(array, xtmem.xpr)
     # Return pointer to second element
-    arr = temp_reg_named('listlit')
-    get_element_ptr(arr, xtmem, 1)
+    arr = get_element_ptr('listlit', xtmem, 1)
     return cast(TypedXpr(IPtr(t), arr), litt).xpr
 
 def expr_with(var, expr):
@@ -858,8 +861,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
         tx = cast(tx, IPtr(IData(ctor)))
-        ixptr = temp_reg()
-        get_element_ptr(ixptr, tx, fromJust(layout.discrimSlot))
+        ixptr = get_element_ptr('ixptr', tx, fromJust(layout.discrimSlot))
         ix = load('ix', IInt(), ixptr)
         index = Const(str(extrinsic(expand.CtorIndex, ctor)))
         m = expr_binop('icmp eq', ix.xpr, index, ix.type)
