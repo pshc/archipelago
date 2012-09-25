@@ -175,7 +175,9 @@ class TypeConverter(vat.Visitor):
                 copy_type(bind, ctx)
                 m.ret(bind)
             else:
-                m.ret(null_expr())
+                null = E.NullPtr()
+                add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+                m.ret(null)
             e.args.append(m.result())
         iconvert(e)
 
@@ -187,10 +189,19 @@ def new_ctx_var():
     add_extrinsic(GeneratedLocal, var, True)
     return var
 
-def null_expr():
-    null = E.NullPtr()
-    add_extrinsic(LLVMTypeOf, null, IVoidPtr())
-    return null
+class MaybeConverter(vat.Mutator):
+    def Call(self, call):
+        if matches(call.func, 'Bind(_)'):
+            if Nullable.isMaybe(call.func.target):
+                args = call.args
+                if len(args) == 1:
+                    return self.mutate('args', 0)
+                else:
+                    assert len(args) == 0
+                    null = E.NullPtr()
+                    copy_type(null, call)
+                    return null
+        return self.mutate()
 
 class EnvExtrConverter(vat.Mutator):
     def Func(self, f):
@@ -376,9 +387,9 @@ def expand_unit(decls, unit):
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
     convert_decl_types(decls)
-
     def type_conversion_pass(unit, t):
         vat.visit(TypeConverter, unit, t)
+        vat.mutate(MaybeConverter, unit, t)
         vat.mutate(EnvExtrConverter, unit, t)
     scope_extrinsic(FuncCtxVar, lambda: type_conversion_pass(unit, t))
 

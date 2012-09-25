@@ -627,17 +627,7 @@ def write_runtime_call(name, argxs, rett):
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
-        func = f.target
-
-        # XXX maybe codegen
-        if Nullable.isMaybe(func):
-            if len(args) == 1:
-                return express(args[0])
-            else:
-                assert len(args) == 0
-                return Const("null")
-
-        mret = LLVMBindable.express_called(func, args)
+        mret = LLVMBindable.express_called(f.target, args)
         if isJust(mret):
             return fromJust(mret)
     return fromJust(write_call(f, args, typeof(e))).xpr
