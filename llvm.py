@@ -72,24 +72,8 @@ def out(s):
     else:
         imm_out(s)
 
-def func_ref(f):
-    if not has_extrinsic(Name, f):
-        add_extrinsic(Name, f, "unnamed_func")
-    return global_ref(f)
-
-def global_ref(v):
-    """Deprecated; use GlobalSymbol and co."""
-    return Global(extrinsic(Name, v))
-
 def global_symbol(var):
     return Global(extrinsic(expand.GlobalSymbol, var).symbol)
-
-def out_func_ref(f):
-    out_xpr(func_ref(f))
-
-def out_global_ref(v):
-    """Deprecated."""
-    out_xpr(global_ref(v))
 
 def out_global_symbol(var):
     out_xpr(global_symbol(var))
@@ -511,8 +495,8 @@ def express_Var(v):
             return get_strlit_ptr(v)
         else:
             return load(extrinsic(Name, v), typeof(v), Global(repl.symbol)).xpr
-    elif has_extrinsic(expand.LocalFunctionSymbol, v):
-        return Global(extrinsic(expand.LocalFunctionSymbol, v))
+    elif has_extrinsic(expand.StaticSymbol, v):
+        return Global(extrinsic(expand.StaticSymbol, v))
     else:
         return load_var(v)
 
@@ -529,7 +513,7 @@ def load_var(v):
 
 @impl(LLVMBindable, Ctor)
 def express_Ctor(c):
-    return func_ref(c)
+    return global_symbol(c)
 
 @impl(LLVMBindable, Extrinsic)
 def express_Extrinsic(extr):
@@ -633,15 +617,13 @@ def write_call(f, args, rett):
     return Just(call(rett, fx.xpr, argxs))
 
 def write_runtime_call(name, argxs, rett):
-    decl = runtime_decl(name)
+    fx = global_symbol(runtime_decl(name))
 
-    fx = func_ref(decl)
     if matches(rett, "IVoid()"):
         call_void(fx, argxs)
         return Nothing()
-
-    tmp = call(rett, fx, argxs)
-    return Just(tmp)
+    else:
+        return Just(call(rett, fx, argxs))
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
@@ -689,7 +671,7 @@ def express_called_Builtin(target, args):
 def expr_func(f, ps, body):
     clos = extrinsic(expand.Closure, f)
     assert not clos.isClosure, "TODO"
-    return func_ref(clos.func)
+    return global_symbol(clos.func)
 
 def push_env(envtx, ctxVar, init):
     # XXX temp hack for this env impl
@@ -775,7 +757,7 @@ def get_strlit_ptr(var):
     tmp = temp_reg()
     out_xpr(tmp)
     out(' = getelementptr [%d x i8]* ' % (extrinsic(LiteralSize, var),))
-    out_global_ref(var)
+    out_global_symbol(var)
     out(', i32 0, i32 0')
     newline()
     return tmp
@@ -1069,7 +1051,7 @@ def write_ctor(ctor, dt, layout):
     dtt = IPtr(IData(dt))
     out('declare ' if env(DECLSONLY) else 'define ')
     out_t(dtt)
-    out_func_ref(ctor)
+    out_global_symbol(ctor)
     if env(DECLSONLY):
         write_param_types(map(typeof, ctor.fields))
         newline()
@@ -1140,7 +1122,7 @@ def write_expr_stmt(e):
 
 def write_new_env(e):
     decl = env(DECLSONLY)
-    out_global_ref(e)
+    out_global_symbol(e)
     out(' = %s global %%Env' % ('external' if decl else 'linkonce',))
     if not decl:
         out(' zeroinitializer')
@@ -1188,18 +1170,18 @@ def write_top_func_decl(ref, tps, tret):
     write_param_types(tps)
     newline()
 
-def write_top_func(f):
+def write_top_func(var, f):
     tps, tret = match(extrinsic(LLVMTypeOf, f), ("IFunc(ps, ret)", tuple2))
 
     if env(DECLSONLY):
-        write_top_func_decl(func_ref(f), tps, tret)
+        write_top_func_decl(global_symbol(var), tps, tret)
         return
     elif env(EXPORTSYMS):
         out('define ')
     else:
         out('define internal ')
     out_t(tret)
-    out_func_ref(f)
+    out_global_symbol(var)
 
     as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
     out('}\n\n')
@@ -1281,12 +1263,12 @@ def write_top_cdecl(v):
     if not imported_bindable_used(v):
         return
     tps, tret = match(extrinsic(LLVMTypeOf, v), ("IFunc(ps, ret)", tuple2))
-    write_top_func_decl(global_ref(v), tps, tret)
+    write_top_func_decl(global_symbol(v), tps, tret)
 
 def write_top_var_func(v, f):
     if env(DECLSONLY) and not imported_bindable_used(v):
         return
-    write_top_func(f)
+    write_top_func(v, f)
 
 def write_top_strlit(var, s):
     escaped, n = escape_strlit(s)
@@ -1333,7 +1315,7 @@ def as_local(f):
 
 def write_unit(unit):
     for top in unit.funcs:
-        in_env(EXPORTSYMS, True, lambda: write_top_func(top.func))
+        in_env(EXPORTSYMS, True, lambda: write_top_func(top.var, top.func))
 
 prelude = """; prelude
 %Type = type opaque

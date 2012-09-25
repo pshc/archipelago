@@ -30,7 +30,7 @@ Closure = new_extrinsic('Closure', ClosureInfo)
 
 ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
 
-LocalFunctionSymbol = new_extrinsic('LocalFunctionSymbol', str)
+StaticSymbol = new_extrinsic('StaticSymbol', str)
 
 GeneratedLocal = new_extrinsic('GeneratedLocal', bool)
 
@@ -314,7 +314,7 @@ def unique_global(v, isFunc):
 
 def unique_static_global(v):
     name = extrinsic(Name, v)
-    add_extrinsic(LocalFunctionSymbol, v, name)
+    add_extrinsic(StaticSymbol, v, name)
     return name
 
 class Uniquer(vat.Visitor):
@@ -342,6 +342,10 @@ def unique_decls(decls):
         # (shouldn't be uniquing the old decls anyway)
         if not has_extrinsic(CFunction, v):
             add_extrinsic(CFunction, v, True)
+
+    for dt in decls.dts:
+        for ctor in dt.ctors:
+            unique_global(ctor, True)
 
     for env in decls.envs:
         unique_global(env, False)
@@ -385,7 +389,7 @@ def expand_unit(decls, unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, LocalFunctionSymbol,
+    extrs = [Closure, StaticSymbol,
             vat.Original, GeneratedLocal,
             InEnvCtxVar]
     return in_env(IMPORTBINDS, set(),
