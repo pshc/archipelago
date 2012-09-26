@@ -199,7 +199,6 @@ class TypeConverter(vat.Visitor):
 
 def new_ctx_var():
     var = Var()
-    # need to unique this name
     add_extrinsic(Name, var, 'ctx')
     add_extrinsic(LLVMTypeOf, var, IVoidPtr())
     add_extrinsic(GeneratedLocal, var, True)
@@ -332,6 +331,9 @@ GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
 
 CFunction = new_extrinsic('CFunction', bool)
 
+LocalSymbol = new_extrinsic('LocalSymbol', str)
+EXLOCALS = new_env('EXLOCALS', {str: int})
+
 def unique_global(v, isFunc):
     # Would prefer not to do this check
     # Need firmer uniquer pass order
@@ -347,13 +349,30 @@ def unique_static_global(v):
     add_extrinsic(StaticSymbol, v, name)
     return name
 
+def unique_local(v):
+    name = extrinsic(Name, v)
+    lcls = env(EXLOCALS)
+    index = lcls.get(name, 0) + 1
+    lcls[name] = index
+    assert '.' not in name
+    if index > 1:
+        name = '%s.no%d' % (name, index)
+    add_extrinsic(LocalSymbol, v, name)
+
 class Uniquer(vat.Visitor):
     def TopFunc(self, top):
         # somewhat redundant with unique_decls()
         # however currently we don't know which order they'll be called in...
         sym = unique_global(top.var, True)
         add_extrinsic(Name, top.func, sym)
-        self.visit()
+        # Don't visit top.var, it's not a local
+        self.visit('func')
+
+    def Func(self, func):
+        in_env(EXLOCALS, {}, lambda: self.visit())
+
+    def Var(self, var):
+        unique_local(var)
 
     def Defn(self, defn):
         m = match(defn)
@@ -420,7 +439,7 @@ def expand_unit(decls, unit):
 def in_intramodule_env(func):
     captures = {}
     extrs = [Closure, StaticSymbol, LLVMTypeCast,
-            vat.Original, GeneratedLocal,
+            vat.Original, GeneratedLocal, LocalSymbol,
             InEnvCtxVar]
     return in_env(IMPORTBINDS, set(),
             lambda: capture_scoped(extrs, captures, func))

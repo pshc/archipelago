@@ -98,8 +98,8 @@ def out_comment(s):
 def out_pretty(a, t):
     out_comment(stringify(a, t))
 
-def out_name_reg(a):
-    out('%%%s' % (extrinsic(Name, a),))
+def out_local_var_reg(v):
+    out('%%%s' % (extrinsic(expand.LocalSymbol, v),))
 
 def out_label(label):
     lcl = env(LOCALS)
@@ -218,12 +218,12 @@ def load(regname, t, xpr):
     newline()
     return TypedXpr(t, tmp)
 
-def store_named(txpr, named):
+def store_local_var(txpr, var):
     out('store ')
     out_txpr(txpr)
     comma()
     out_t_ptr(txpr.type)
-    out_name_reg(named)
+    out_local_var_reg(var)
     newline()
 
 def store_xpr(txpr, dest):
@@ -501,13 +501,13 @@ def express_Var(v):
         return load_var(v)
 
 def load_var(v):
-    # Would be nice: (need name_reg)
-    #return load(extrinsic(Name, v), typeof(v), name_reg(v)).xpr
+    # Would be nice: (need local_var_reg)
+    #return load(extrinsic(LocalSymbol, v), typeof(v), local_var_reg(v)).xpr
     tmp = temp_reg_named(extrinsic(Name, v))
     out_xpr(tmp)
     out(' = load ')
     out_t_ptr(typeof(v))
-    out_name_reg(v)
+    out_local_var_reg(v)
     newline()
     return tmp
 
@@ -675,7 +675,7 @@ def push_env(envtx, ctxVar, init):
     # taking this ptr-to-alloca breaks mem2reg
     # prefer to return a tuple from _pushenv or have it manage its own stack
     pctx = TypedXpr(IPtr(IVoidPtr()),
-            Const('%%%s' % (extrinsic(Name, ctxVar),)))
+            Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),)))
 
     i = express_casted(init)
     old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
@@ -902,7 +902,7 @@ def write_assert(stmt, e, msg):
     out_label(pass_)
 
 def store_var(v, xpr):
-    store_named(TypedXpr(typeof(v), xpr), v)
+    store_local_var(TypedXpr(typeof(v), xpr), v)
 
 def store_attr(dest, f, val):
     tx = express_typed(dest)
@@ -915,11 +915,11 @@ def store_lhs(lhs, x):
         ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
 def store_pat_var(v, txpr):
-    out_name_reg(v)
+    out_local_var_reg(v)
     out(' = alloca ')
     out_t_nospace(txpr.type)
     newline()
-    store_named(txpr, v)
+    store_local_var(txpr, v)
 
 def store_pat_tuple(ps, txpr):
     with_pat_tuple(ps, txpr, store_pat)
@@ -1085,12 +1085,12 @@ def _write_ctor_body(ctor, layout, dtt):
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
-        out_name_reg(form)
-        out(' = type opaque')
+        # GlobalSymbol?
+        out('%%%s = type opaque' % (extrinsic(Name, form),))
         newline()
     for ctor in form.ctors:
-        out_name_reg(ctor)
-        out(' = type ')
+        # GlobalSymbol?
+        out('%%%s = type ' % (extrinsic(Name, ctor),))
         write_field_specs(ctor.fields, layout)
         newline()
         write_ctor(ctor, form, layout)
@@ -1191,11 +1191,11 @@ def _write_top_func(f, ps, body, tps, tret):
     if len(ps) > 0:
         # write params to mem
         for p, tx in ezip(ps, txs):
-            out_name_reg(p)
+            out_local_var_reg(p)
             out(' = alloca ')
             out_t(tx.type)
             newline()
-            store_named(tx, p)
+            store_local_var(tx, p)
         newline()
 
     write_body(body)
