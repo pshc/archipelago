@@ -328,6 +328,8 @@ GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
 
 CFunction = new_extrinsic('CFunction', bool)
 
+FieldSymbol = new_extrinsic('FieldSymbol', str)
+
 LocalSymbol = new_extrinsic('LocalSymbol', str)
 EXLOCALS = new_env('EXLOCALS', {str: int})
 
@@ -392,6 +394,8 @@ def unique_decls(decls):
     for dt in decls.dts:
         for ctor in dt.ctors:
             unique_global(ctor, True)
+            for field in ctor.fields:
+                add_extrinsic(FieldSymbol, field, extrinsic(Name, field))
 
     for env in decls.envs:
         unique_global(env, False)
@@ -446,7 +450,7 @@ def in_intramodule_env(func):
 def in_intermodule_env(func):
     captures = {}
     extrs = [LLVMTypeOf, DataLayout, CtorIndex, FieldIndex,
-            GlobalSymbol, CFunction]
+            GlobalSymbol, CFunction, FieldSymbol]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(decl_mod, defn_mod):

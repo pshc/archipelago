@@ -285,7 +285,7 @@ def get_element_ptr(name, tx, index):
 
 def get_field_ptr(tx, f):
     index = extrinsic(expand.FieldIndex, f)
-    return get_element_ptr(extrinsic(Name, f), tx, index)
+    return get_element_ptr(extrinsic(expand.FieldSymbol, f), tx, index)
 
 def subscript(regname, arraytx, itx):
     arrayPtr = temp_reg_named('arrayptr')
@@ -743,7 +743,7 @@ def expr_match(m, e, cs):
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
-    return load(extrinsic(Name, f), typeof(f), fieldptr).xpr
+    return load(extrinsic(expand.FieldSymbol, f), typeof(f), fieldptr).xpr
 
 def expr_lit(lit):
     return match(lit, ('IntLit(i)', lambda i: Const('%d' % (i,))),
@@ -853,7 +853,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
 
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
-        val = extractvalue(extrinsic(Name, f), ctorval, index)
+        val = extractvalue(extrinsic(expand.FieldSymbol, f), ctorval, index)
         if has_extrinsic(LLVMTypeCast, p):
             src, dest = extrinsic(LLVMTypeCast, p)
             ptx = cast(TypedXpr(src, val), dest)
@@ -1025,7 +1025,7 @@ def write_field_specs(fields, layout):
         specs.append((IInt(), "discrim"))
     for f in fields:
         assert extrinsic(expand.FieldIndex, f) == len(specs)
-        specs.append((typeof(f), extrinsic(Name, f)))
+        specs.append((typeof(f), extrinsic(expand.FieldSymbol, f)))
 
     n = len(specs)
     for i, (t, nm) in enumerate(specs):
