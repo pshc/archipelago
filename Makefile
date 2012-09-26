@@ -27,8 +27,8 @@ ir/Makefile: .irMakefile
 ir/z.o: z.c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
-bin/%: tests/%.py setup
-	$(CODEGEN) $<
+bin/%: tests/%.py setup ir/z.o
+	$(CODEGEN) --test -- $< && $@ || echo $@ returned $$?.
 
 $(TEST_TARGETS):
 	@$(MAKE) bin/$@
