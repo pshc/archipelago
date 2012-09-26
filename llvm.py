@@ -494,7 +494,7 @@ def express_Var(v):
         elif has_extrinsic(LiteralSize, v):
             return get_strlit_ptr(v)
         else:
-            return load(extrinsic(Name, v), typeof(v), Global(repl.symbol)).xpr
+            return load(repl.symbol, typeof(v), Global(repl.symbol)).xpr
     elif has_extrinsic(expand.StaticSymbol, v):
         return Global(extrinsic(expand.StaticSymbol, v))
     else:
@@ -503,7 +503,7 @@ def express_Var(v):
 def load_var(v):
     # Would be nice: (need local_var_reg)
     #return load(extrinsic(LocalSymbol, v), typeof(v), local_var_reg(v)).xpr
-    tmp = temp_reg_named(extrinsic(Name, v))
+    tmp = temp_reg_named(extrinsic(expand.LocalSymbol, v))
     out_xpr(tmp)
     out(' = load ')
     out_t_ptr(typeof(v))
@@ -830,7 +830,7 @@ MATCH = new_env('MATCH', MatchState)
 def match_pat_ctor(pat, ctor, ps, tx):
     # XXX maybe codegen
     if Nullable.isMaybe(ctor):
-        if extrinsic(Name, ctor) == 'Just':
+        if global_symbol(ctor).name == 'Just':
             match_pat_just(pat, ps[0], tx)
         else:
             match_pat_nothing(pat, tx)
@@ -838,18 +838,19 @@ def match_pat_ctor(pat, ctor, ps, tx):
 
     form = match(tx.type, "IPtr(IData(form))")
     layout = extrinsic(expand.DataLayout, form)
+    ctorSym = global_symbol(ctor).name
     if isJust(layout.discrimSlot):
         tx = cast(tx, IPtr(IData(ctor)))
         ixptr = get_element_ptr('ixptr', tx, fromJust(layout.discrimSlot))
         ix = load('ix', IInt(), ixptr)
         index = Const(str(extrinsic(expand.CtorIndex, ctor)))
         m = expr_binop('icmp eq', ix.xpr, index, ix.type)
-        correctIx = new_label('got.' + extrinsic(Name, ctor), new_series(pat))
+        correctIx = new_label('got.%s' % (ctorSym,), new_series(pat))
         br_cond(m, correctIx, env(MATCH).failureBlock)
         out_label(correctIx)
 
     datat = match(tx.type, "IPtr(t==IData(_))")
-    ctorval = load(extrinsic(Name, ctor), datat, tx.xpr)
+    ctorval = load(ctorSym, datat, tx.xpr)
 
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
@@ -1057,7 +1058,7 @@ def write_ctor(ctor, dt, layout):
         out('}\n')
 
 def _write_ctor_body(ctor, layout, dtt):
-    txs = write_params(ctor.fields, map(typeof, ctor.fields))
+    txs = write_params(ctor.fields, map(typeof, ctor.fields), True)
     out(' {')
     newline()
 
@@ -1085,12 +1086,10 @@ def _write_ctor_body(ctor, layout, dtt):
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
-        # GlobalSymbol?
-        out('%%%s = type opaque' % (extrinsic(Name, form),))
+        out('%%%s = type opaque' % (global_symbol(form).name,))
         newline()
     for ctor in form.ctors:
-        # GlobalSymbol?
-        out('%%%s = type ' % (extrinsic(Name, ctor),))
+        out('%%%s = type ' % (global_symbol(ctor).name,))
         write_field_specs(ctor.fields, layout)
         newline()
         write_ctor(ctor, form, layout)
@@ -1144,7 +1143,7 @@ def write_param_types(tps):
         out_t_nospace(t)
     out(')')
 
-def write_params(ps, tps):
+def write_params(ps, tps, fieldSymbols):
     out('(')
     first = True
     txs = []
@@ -1153,7 +1152,8 @@ def write_params(ps, tps):
             first = False
         else:
             comma()
-        tmp = temp_reg_named(extrinsic(Name, p))
+        tmp = temp_reg_named(extrinsic(expand.FieldSymbol, p) if fieldSymbols
+                else extrinsic(expand.LocalSymbol, p))
         tx = TypedXpr(tp, tmp)
         out_txpr(tx)
         txs.append(tx)
@@ -1184,7 +1184,7 @@ def write_top_func(var, f):
     out('}\n\n')
 
 def _write_top_func(f, ps, body, tps, tret):
-    txs = write_params(ps, tps)
+    txs = write_params(ps, tps, False)
     out(' {')
     newline()
 

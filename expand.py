@@ -392,6 +392,7 @@ def unique_decls(decls):
             add_extrinsic(CFunction, v, True)
 
     for dt in decls.dts:
+        unique_global(dt, True)
         for ctor in dt.ctors:
             unique_global(ctor, True)
             for field in ctor.fields:
