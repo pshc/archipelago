@@ -677,7 +677,7 @@ def push_env(envtx, ctxVar, init):
     pctx = TypedXpr(IPtr(IVoidPtr()),
             Const('%%%s' % (extrinsic(Name, ctxVar),)))
 
-    i = express_typed(init)
+    i = express_casted(init)
     old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
     return fromJust(old)
 
@@ -686,7 +686,7 @@ def pop_env(envtx, ctxVar, old):
     write_runtime_call('_popenv', [envtx, ctx, old], IVoid())
 
 def expr_inenv(e, environ, init, expr):
-    envtx = TypedXpr(extrinsic(LLVMTypeOf, environ), global_symbol(environ))
+    envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
     ctxVar = extrinsic(expand.InEnvCtxVar, e)
     old = push_env(envtx, ctxVar, init)
     ret = express(expr)
@@ -694,7 +694,7 @@ def expr_inenv(e, environ, init, expr):
     return ret
 
 def expr_inenv_void(e, environ, init, expr):
-    envtx = TypedXpr(extrinsic(LLVMTypeOf, environ), global_symbol(environ))
+    envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
     ctx = extrinsic(expand.InEnvCtxVar, e)
     old = push_env(envtx, ctx, init)
     write_void_stmt(expr)

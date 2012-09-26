@@ -46,6 +46,14 @@ def convert_cast(e):
         src, dest = extrinsic(TypeCast, e)
         add_extrinsic(LLVMTypeCast, e, (convert_type(src), convert_type(dest)))
 
+def cast_from_voidptr(e, t):
+    if not matches(t, 'IVoidPtr()'):
+        add_extrinsic(LLVMTypeCast, e, (IVoidPtr(), t))
+
+def cast_to_voidptr(e, t):
+    if not matches(t, 'IVoidPtr()'):
+        add_extrinsic(LLVMTypeCast, e, (t, IVoidPtr()))
+
 def runtime_call(name, args):
     f = RUNTIME[name]
     bind = E.Bind(f)
@@ -219,13 +227,9 @@ class EnvExtrConverter(vat.Mutator):
 
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
-
-        # cast void* return to env's type
         t = extrinsic(LLVMTypeOf, e)
-        if not matches(t, 'IVoidPtr()'):
-            add_extrinsic(LLVMTypeCast, call, (IVoidPtr(), t))
-
         add_extrinsic(LLVMTypeOf, call, t)
+        cast_from_voidptr(call, t)
         return call
 
     def HaveEnv(self, e):
@@ -236,6 +240,7 @@ class EnvExtrConverter(vat.Mutator):
     def InEnv(self, e):
         # Defer to the llvm pass until we have expression flattening
         e.init = self.mutate('init')
+        cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
         m = match(env(THREADENV))
         if m('Just(ctx)'):
             ctx = m.arg
