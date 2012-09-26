@@ -405,13 +405,16 @@ def unique_decls(decls):
 
 # GLUE
 
-def expand_decls(decls):
+def _prepare_decls(decls):
     convert_decl_types(decls)
-    finish_decls(decls)
 
-def finish_decls(decls):
+def _finish_decls(decls):
     map_(dt_layout, decls.dts)
     unique_decls(decls)
+
+def expand_decls(decls):
+    _prepare_decls(decls)
+    _finish_decls(decls)
 
 def expand_unit(decls, unit):
     t = t_DT(CompilationUnit)
@@ -421,12 +424,13 @@ def expand_unit(decls, unit):
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
-    convert_decl_types(decls)
+    _prepare_decls(decls)
+
     vat.visit(TypeConverter, unit, t)
     vat.mutate(MaybeConverter, unit, t)
     vat.mutate(EnvExtrConverter, unit, t)
 
-    finish_decls(decls)
+    _finish_decls(decls)
 
     vat.visit(ImportMarker, unit, t)
     vat.visit(Uniquer, unit, t)
