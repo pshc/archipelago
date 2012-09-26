@@ -241,13 +241,17 @@ class EnvExtrConverter(vat.Mutator):
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
+        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         call = runtime_call('_getextrinsic', [extr, node])
-        copy_type(call, e)
+        t = extrinsic(LLVMTypeOf, e)
+        add_extrinsic(LLVMTypeOf, call, t)
+        cast_from_voidptr(call, t)
         return call
 
     def HasExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
+        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         call = runtime_call('_hasextrinsic', [extr, node])
         copy_type(call, e)
         return call
@@ -260,6 +264,8 @@ class EnvExtrConverter(vat.Mutator):
         extr = bind_extrinsic(s.extrinsic)
         node = self.mutate('node')
         val = self.mutate('val')
+        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
+        cast_to_voidptr(val, extrinsic(LLVMTypeOf, val))
         e = runtime_call(f, [extr, node, val])
         add_extrinsic(LLVMTypeOf, e, IVoid())
         return S.ExprStmt(e)
