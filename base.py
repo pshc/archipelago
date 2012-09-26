@@ -232,6 +232,17 @@ def update_extrinsic(ext, obj, val):
         assert obj in cap
         cap[obj] = val
 
+def remove_extrinsic(ext, obj):
+    assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
+    assert ext.stack, "Not in extrinsic %s" % (ext.label,)
+    map = ext.stack[-1]
+    assert obj in map, "%r doesn't have %s extrinsic" % (obj, ext.label)
+    del map[obj]
+    if len(ext.captures) > 0:
+        cap = ext.captures[-1]
+        assert obj in cap
+        del cap[obj]
+
 def has_extrinsic(ext, obj):
     assert not isinstance(obj, value_types), "%s on value %r" % (ext.label,obj)
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
