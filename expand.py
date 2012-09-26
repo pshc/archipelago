@@ -100,9 +100,8 @@ class FuncExpander(vat.Mutator):
 
     def FuncExpr(self, fe):
         # Extract lambda expression
-        info = ExInnerFunc(set(), env(EXFUNC))
-        f = in_env(EXFUNC, info, lambda: self.mutate('func'))
-        isClosure = len(info.closedVars) > 0
+        f = self.mutate('func')
+        isClosure = False # TODO
         var = Var()
         glob = env(EXGLOBAL)
         glob.newDecls.funcDecls.append(var)
