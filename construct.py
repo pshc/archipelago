@@ -249,7 +249,7 @@ def load_forms():
             ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
             ('TVar(tvar)', found_tvar),
-            ('_', lambda: None))
+            ('TPrim(_) or TVoid()', lambda: None))
 
     while pending:
         dt = pending.pop()
