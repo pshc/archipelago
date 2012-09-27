@@ -1299,7 +1299,6 @@ prelude = """; prelude
 %Type = type opaque
 %Env = type i8
 %Extrinsic = type i8
-declare i8* @malloc(i32)
 ; temp
 declare i8* @_pushenv(%Env*, i8**, i8*)
 declare void @_popenv(%Env*, i8*, i8*)
@@ -1325,7 +1324,12 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
 
     def go():
         out(prelude)
-        walk_deps(write_imports, defn_mod, set(decls))
+
+        # XXX force runtime import until we have better staged compilation
+        runtime = loaded_modules['runtime']
+        write_imports(runtime)
+        walk_deps(write_imports, defn_mod, set(decls + [runtime]))
+
         newline()
         out('; main')
         newline()

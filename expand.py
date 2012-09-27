@@ -477,7 +477,11 @@ def in_intramodule_env(func):
     extrs = [Closure, StaticSymbol, LLVMTypeCast,
             vat.Original, GeneratedLocal, LocalSymbol,
             InEnvCtxVar]
-    return in_env(IMPORTBINDS, set(),
+
+    # XXX workaround for insufficiently staged compilation
+    default_binds = set([RUNTIME['malloc'], RUNTIME['match_fail']])
+
+    return in_env(IMPORTBINDS, default_binds,
             lambda: capture_scoped(extrs, captures, func))
 
 def in_intermodule_env(func):
