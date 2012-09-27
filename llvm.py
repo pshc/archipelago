@@ -1337,15 +1337,22 @@ def write_imports(dep):
 LLFile = new_extrinsic('LLFile', str, omni=True)
 OFile = new_extrinsic('OFile', str, omni=True)
 
-def write_ir(decl_mod, defn_mod, filename):
+OwnDecls = new_extrinsic('OwnDecls', ['*Module'], omni=True)
+
+def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
+
+    decls = [decl_mod, xdecl_mod]
+    add_extrinsic(OwnDecls, defn_mod, decls)
+
     def go():
         out(prelude)
-        walk_deps(write_imports, defn_mod, set([decl_mod]))
+        walk_deps(write_imports, defn_mod, set(decls))
         newline()
         out('; main')
         newline()
         def go():
-            write_top_decls(decl_mod.root)
+            for decl in decls:
+                write_top_decls(decl.root)
             write_unit(defn_mod.root)
         in_env(DECLSONLY, False, go)
 
@@ -1376,7 +1383,7 @@ def link(decl_mod, defn_mod, binary):
                 print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
                 return
             objs.append(extrinsic(OFile, dep))
-    walk_deps(add_obj, defn_mod, set([decl_mod]))
+    walk_deps(add_obj, defn_mod, set(extrinsic(OwnDecls, defn_mod)))
 
     objs.append(extrinsic(OFile, decl_mod))
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0

@@ -75,7 +75,6 @@ def load_module_dep(src, deps, plan):
             return decl_mod, defn_mod_m
 
         defn_mod = fromJust(defn_mod_m)
-        add_extrinsic(Filename, defn_mod, name)
 
         impv = view
         view += '_decls'
@@ -119,27 +118,25 @@ def load_module_dep(src, deps, plan):
 def build_mod(decl_mod, defn_mod, plan):
     name = extrinsic(Filename, decl_mod)
     impv = 'views/%s' % (name,)
-    view = '%s_decls' % (impv,)
+    view = '%s_xdecls' % (impv,)
 
     casts = check.check_types(decl_mod, defn_mod)
     atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
 
     new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
-    decl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
+    xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
     defn_mod = Module(t_DT(atom.CompilationUnit), new_unit)
-    add_extrinsic(Name, decl_mod, name)
+    add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
-    add_extrinsic(Filename, decl_mod, name)
-    add_extrinsic(Filename, defn_mod, name)
-    atom.write_mod_repr(view, decl_mod, [Name])
+    atom.write_mod_repr(view, xdecl_mod, [Name, TypeOf])
     atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
-    native.serialize(decl_mod)
+    native.serialize(xdecl_mod)
     native.serialize(defn_mod)
 
     compiled = False
     if isJust(plan.writeIR):
         ir = fromJust(plan.writeIR)
-        llvm.write_ir(decl_mod, defn_mod, ir)
+        llvm.write_ir(decl_mod, xdecl_mod, defn_mod, ir)
         compiled = llvm.compile(decl_mod)
         write_mod_headers(decl_mod, ir)
 

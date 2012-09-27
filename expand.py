@@ -436,7 +436,7 @@ def expand_decls(decls):
     _prepare_decls(decls)
     _finish_decls(decls)
 
-def expand_unit(decls, unit):
+def expand_unit(unit):
     t = t_DT(CompilationUnit)
     scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
     vat.mutate(LitExpander, unit, t)
@@ -444,13 +444,13 @@ def expand_unit(decls, unit):
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
-    _prepare_decls(decls)
+    _prepare_decls(env(EXGLOBAL).newDecls)
 
     vat.visit(TypeConverter, unit, t)
     vat.mutate(MaybeConverter, unit, t)
     vat.mutate(EnvExtrConverter, unit, t)
 
-    _finish_decls(decls)
+    _finish_decls(env(EXGLOBAL).newDecls)
 
     vat.visit(ImportMarker, unit, t)
     vat.visit(Uniquer, unit, t)
@@ -471,18 +471,18 @@ def in_intermodule_env(func):
 
 def expand_module(decl_mod, defn_mod):
     expand_decls(decl_mod.root)
+    new_decls = blank_module_decls()
 
-    # Clone decls and defns as mutable replacements
+    # Clone defns as mutable replacements
     def clone():
-        decls = vat.clone(decl_mod.root, [Name, TypeOf, CFunction])
         unit = vat.clone(defn_mod.root, [Name, TypeOf, TypeCast])
         vat.rewrite(unit)
-        return decls, unit
-    new_decls, new_unit = vat.in_vat(clone)
+        return unit
+    new_unit = vat.in_vat(clone)
 
     # Mutate clones
     in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
-        lambda: expand_unit(new_decls, new_unit))
+        lambda: expand_unit(new_unit))
 
     return (new_decls, new_unit)
 
