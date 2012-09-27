@@ -726,8 +726,7 @@ def expr_match(m, e, cs):
 
     if next_case.used:
         out_label(next_case)
-        out('call void @match_fail() noreturn')
-        newline()
+        write_runtime_call('match_fail', [], IVoid())
         out('unreachable')
         term()
 
@@ -892,20 +891,6 @@ def match_pat(pat, xpr):
         ("(PatWild(), _)", nop))
 
 # STATEMENTS
-
-def write_assert(stmt, e, msg):
-    ex = express(e)
-    srs = new_series(stmt)
-    pass_ = new_label('pass', srs)
-    fail_ = new_label('fail', srs)
-    br_cond(ex, pass_, fail_)
-    out_label(fail_)
-    m = express(msg)
-    out('call void @fail(i8* %s) noreturn' % (xpr_str(m),))
-    newline()
-    out('unreachable')
-    term()
-    out_label(pass_)
 
 def store_var(v, xpr):
     store_local_var(TypedXpr(typeof(v), xpr), v)
@@ -1237,7 +1222,6 @@ def write_while(stmt, cond, body):
 def write_stmt(stmt):
     out_pretty(stmt, 'Stmt(Expr)')
     match(stmt,
-        ("stmt==Assert(e, m)", write_assert),
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Break()", write_break),
@@ -1318,8 +1302,6 @@ prelude = """; prelude
 %Type = type opaque
 %Env = type i8
 %Extrinsic = type i8
-declare void @fail(i8*) noreturn
-declare void @match_fail() noreturn
 declare i8* @malloc(i32)
 ; temp
 declare i8* @_pushenv(%Env*, i8**, i8*)
@@ -1374,7 +1356,7 @@ def compile(mod):
     return True
 
 def link(decl_mod, defn_mod, binary):
-    objs = ['ir/z.o']
+    objs = []
 
     def add_obj(dep):
         dt = dep.rootType.data

@@ -12,7 +12,7 @@ __dead2 void fail(const char *err) {
 	exit(1);
 }
 
-__dead2 void match_fail() {
+__dead2 void match_fail(void) {
 	fputs("Match failure.\n", stderr);
 	exit(1);
 }

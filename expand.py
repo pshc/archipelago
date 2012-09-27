@@ -143,6 +143,22 @@ class LitExpander(vat.Mutator):
         else:
             return lit
 
+class AssertionExpander(vat.Mutator):
+    def Assert(self, a):
+        check = builtin_call('not', [self.mutate('test')])
+        add_extrinsic(TypeOf, check.func, extrinsic(TypeOf, check.func.target))
+        add_extrinsic(TypeOf, check, TBool())
+
+        # temp
+        fail = RUNTIME['fail']
+        bfail = E.Bind(fail)
+        add_extrinsic(TypeOf, bfail, extrinsic(TypeOf, fail))
+
+        message = self.mutate('message')
+        call = E.Call(bfail, [message])
+        add_extrinsic(TypeOf, call, TVoid())
+        return S.Cond([CondCase(check, Body([S.ExprStmt(call)]))])
+
 def convert_decl_types(decls):
     map_(iconvert, decls.cdecls)
     for dt in decls.dts:
@@ -440,6 +456,7 @@ def expand_unit(unit):
     t = t_DT(CompilationUnit)
     scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
     vat.mutate(LitExpander, unit, t)
+    vat.mutate(AssertionExpander, unit, t)
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
