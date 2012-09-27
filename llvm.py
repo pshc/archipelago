@@ -871,7 +871,8 @@ def match_pat_just(pat, p, tx):
     lbl = new_label('just', new_series(pat))
     br_cond(m, lbl, env(MATCH).failureBlock)
     out_label(lbl)
-    match_pat(p, tx.xpr)
+    val = cast(tx, extrinsic(LLVMTypeOf, p)).xpr
+    match_pat(p, val)
 
 def match_pat_nothing(pat, tx):
     m = expr_binop('icmp eq', tx.xpr, Const('null'), tx.type)
