@@ -174,30 +174,6 @@ def isMaybe_Ctor(ctor):
 default_impl(Nullable, Builtin)
 default_impl(Nullable, Var)
 
-def make_builtin_scheme(name, t):
-    tvars = {}
-    if t is None:
-        assert False, 'Unknown builtin %s' % (name,)
-    if isinstance(t, tuple):
-        if None in t:
-            assert False, 'Incomplete builtin %s: %s' % (name, t)
-        t = map(_fix_type, t)
-        t = TPlainFunc(t[:-1], t[-1])
-    else:
-        t = _fix_type(t)
-    def builtin_typevar(v):
-        index = match(v, 'TVar(n)')
-        if index not in tvars:
-            tvar = TypeVar()
-            add_extrinsic(Name, tvar, chr(96 + index))
-            tvars[index] = tvar
-        return TVar(tvars[index])
-    t = map_type_vars(builtin_typevar, t)
-    return t, tvars
-
-def _fix_type(t):
-    return t() if isinstance(t, (type, types.FunctionType)) else t
-
 @matcher('key')
 def _match_key(atom, ast):
     assert len(ast.args) == 1
