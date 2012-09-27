@@ -166,6 +166,7 @@ class TypeConverter(vat.Visitor):
 
     def t_Pat(self, p):
         self.visit()
+        iconvert(p)
         convert_cast(p)
 
     def Var(self, v):

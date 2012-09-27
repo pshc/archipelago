@@ -701,7 +701,7 @@ def expr_inenv_void(e, environ, init, expr):
     pop_env(envtx, ctx, old)
 
 def expr_match(m, e, cs):
-    tx = express_typed(e)
+    xpr = express(e)
     msrs = new_series(m)
     next_case = new_label('case', new_series(cs[0]))
     success = new_label('matchresult', msrs)
@@ -716,7 +716,7 @@ def expr_match(m, e, cs):
         else:
             next_case = new_label('failed', msrs)
         info = MatchState(next_case)
-        in_env(MATCH, info, lambda: match_pat(cp, tx))
+        in_env(MATCH, info, lambda: match_pat(cp, xpr))
         x = express(ce)
         here = env(LOCALS).currentBlock
         phi_srcs.append((x, here))
@@ -857,20 +857,21 @@ def match_pat_ctor(pat, ctor, ps, tx):
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(expand.FieldSymbol, f), ctorval, index)
+
+        # move this cast check into match_pat maybe?
         if has_extrinsic(LLVMTypeCast, p):
             src, dest = extrinsic(LLVMTypeCast, p)
-            ptx = cast(TypedXpr(src, val), dest)
+            val = cast(TypedXpr(src, val), dest).xpr
         else:
             assert not has_extrinsic(TypeCast, p), "pat cast not converted"
-            ptx = TypedXpr(typeof(f), val)
-        match_pat(p, ptx)
+        match_pat(p, val)
 
 def match_pat_just(pat, p, tx):
     m = expr_binop('icmp ne', tx.xpr, Const('null'), tx.type)
     lbl = new_label('just', new_series(pat))
     br_cond(m, lbl, env(MATCH).failureBlock)
     out_label(lbl)
-    match_pat(p, tx)
+    match_pat(p, tx.xpr)
 
 def match_pat_nothing(pat, tx):
     m = expr_binop('icmp eq', tx.xpr, Const('null'), tx.type)
@@ -881,7 +882,8 @@ def match_pat_nothing(pat, tx):
 def match_pat_tuple(ps, tx):
     with_pat_tuple(ps, tx, match_pat)
 
-def match_pat(pat, tx):
+def match_pat(pat, xpr):
+    tx = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
     match((pat, tx),
         ("(pat==PatCtor(c, ps), tx)", match_pat_ctor),
         ("(PatTuple(ps), tx)", match_pat_tuple),
@@ -928,19 +930,14 @@ def store_pat_tuple(ps, txpr):
     with_pat_tuple(ps, txpr, store_pat)
 
 def with_pat_tuple(ps, txpr, func):
-    # This silliness would disappear if we were using TypeOfs on the pats
-    tupt, tts = match(txpr.type, ('IPtr(t==ITuple(tts))', tuple2))
+    tupt = match(txpr.type, 'IPtr(t==ITuple(_))')
 
     tupval = load('tuple', tupt, txpr.xpr)
-    i = 0
-    for p, tt in ezip(ps, tts):
-        val = extractvalue('t%d' % (i,), tupval, i)
-        i += 1
-        func(p, TypedXpr(tt, val))
+    for i, p in enumerate(ps):
+        func(p, extractvalue('t%d' % (i,), tupval, i))
 
-def store_pat(pat, txpr):
-    # Really there ought to be TypeOfs on the pats rather than propagating
-    # the typedxpr I think.
+def store_pat(pat, xpr):
+    txpr = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
     match((pat, txpr), ('(PatVar(v), txpr)', store_pat_var),
                        ('(PatTuple(ps), txpr)', store_pat_tuple))
 
@@ -1009,7 +1006,7 @@ def write_local_func_defn(f):
     assert has_extrinsic(expand.Closure, f)
 
 def write_defn(pat, e):
-    store_pat(pat, express_typed(e))
+    store_pat(pat, express(e))
 
 def write_field_specs(fields, layout):
     verbose = not env(DECLSONLY)
