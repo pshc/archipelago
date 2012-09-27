@@ -46,13 +46,23 @@ def convert_cast(e):
         src, dest = extrinsic(TypeCast, e)
         add_extrinsic(LLVMTypeCast, e, (convert_type(src), convert_type(dest)))
 
+def cast(e, src, dest):
+    assert not itypes_equal(src, dest), "%s already of %s type" % (e, src)
+    if has_extrinsic(LLVMTypeCast, e):
+        oldSrc, oldDest = extrinsic(LLVMTypeCast, e)
+        assert itypes_equal(oldDest, src), ("Casts on %s do not compose:\n" +
+                "%s->%s\n%s->%s") % (e, oldSrc, oldDest, src, dest)
+        update_extrinsic(LLVMTypeCast, e, (oldSrc, dest))
+    else:
+        add_extrinsic(LLVMTypeCast, e, (src, dest))
+
 def cast_from_voidptr(e, t):
     if not matches(t, 'IVoidPtr()'):
-        add_extrinsic(LLVMTypeCast, e, (IVoidPtr(), t))
+        cast(e, IVoidPtr(), t)
 
 def cast_to_voidptr(e, t):
     if not matches(t, 'IVoidPtr()'):
-        add_extrinsic(LLVMTypeCast, e, (t, IVoidPtr()))
+        cast(e, t, IVoidPtr())
 
 def runtime_call(name, args):
     f = RUNTIME[name]
@@ -167,7 +177,11 @@ class MaybeConverter(vat.Mutator):
             if Nullable.isMaybe(call.func.target):
                 args = call.args
                 if len(args) == 1:
-                    return self.mutate('args', 0)
+                    arg = self.mutate('args', 0)
+                    t = i_ADT(Maybe)
+                    cast(arg, IVoidPtr(), t)
+                    update_extrinsic(LLVMTypeOf, arg, t)
+                    return arg
                 else:
                     assert len(args) == 0
                     null = E.NullPtr()

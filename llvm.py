@@ -338,8 +338,8 @@ def _do_cast(txpr, dest, liberal):
             return txpr
         assert False, "Pointless %s cast to itself" % (src,)
     kind = match((src, dest),
-        ('(IInt() or IBool(), IVoidPtr())', lambda: 'inttoptr'),
-        ('(IVoidPtr(), IInt() or IBool())', lambda: 'ptrtoint'),
+        ('(IInt() or IBool(), IVoidPtr() or IPtr(_))', lambda: 'inttoptr'),
+        ('(IVoidPtr() or IPtr(_), IInt() or IBool())', lambda: 'ptrtoint'),
         ('(IVoidPtr() or IPtr(_), IVoidPtr() or IPtr(_))', lambda: 'bitcast'),
         ('(IInt(), IFloat())', lambda: 'sitofp'),
         ('(IFloat(), IInt())', lambda: 'fptosi'),
@@ -830,9 +830,11 @@ MATCH = new_env('MATCH', MatchState)
 def match_pat_ctor(pat, ctor, ps, tx):
     # XXX maybe codegen
     if Nullable.isMaybe(ctor):
-        if global_symbol(ctor).name == 'Just':
+        ctorNm = global_symbol(ctor).name
+        if ctorNm == 'Just':
             match_pat_just(pat, ps[0], tx)
         else:
+            assert ctorNm == 'Nothing'
             match_pat_nothing(pat, tx)
         return
 

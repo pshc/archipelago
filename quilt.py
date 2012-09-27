@@ -26,15 +26,9 @@ def convert_type(t):
         ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
         ("TFunc(tps, tret, meta)", convert_func_type),
-        ("TData(dt, ts)", convert_dt_type),
+        ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
-
-def convert_dt_type(dt, ts):
-    # XXX maybe codegen
-    if dt is extrinsic(FormSpec, DATATYPES['Maybe']):
-        return convert_type(ts[0])
-    return IPtr(IData(dt))
 
 def convert_func_type(tps, tret, meta):
     ips = map(convert_type, tps)
@@ -62,5 +56,8 @@ def itypes_equal(src, dest):
         ('(IPtr(a), IPtr(b))', itypes_equal),
         ('(IVoidPtr(), IVoidPtr())', same),
         ('_', lambda: False))
+
+def i_ADT(dt):
+    return IPtr(IData(extrinsic(FormSpec, dt)))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
