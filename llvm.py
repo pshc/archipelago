@@ -9,9 +9,7 @@ Label = DT('Label', ('name', str),
                     ('used', bool),
                     ('needsTerminator', bool))
 
-IRInfo = DT('IRInfo', ('stream', None),
-                      ('overrideImportUsageCheck', bool))
-IR = new_env('IR', IRInfo)
+IR = new_env('IR', file)
 
 IRLocals = DT('IRLocals', ('needIndent', bool),
                           ('unreachable', bool),
@@ -28,8 +26,7 @@ EXPORTSYMS = new_env('EXPORTSYMS', bool)
 DECLSONLY = new_env('DECLSONLY', bool)
 
 def setup_ir(filename):
-    stream = file(filename, 'wb') # really ought to close explicitly
-    return IRInfo(stream, False)
+    return file(filename, 'wb') # really ought to close explicitly
 
 def setup_locals():
     entry = Label(':entry:', True, True)
@@ -61,7 +58,7 @@ LiteralSize = new_extrinsic('LiteralSize', int)
 # GLOBAL OUTPUT
 
 def imm_out(s):
-    env(IR).stream.write(s)
+    env(IR).write(s)
     if not env(GENOPTS).quiet:
         sys.stdout.write(s)
 
@@ -1238,7 +1235,7 @@ def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))
 
 def imported_bindable_used(v):
-    return v in env(expand.IMPORTBINDS) or env(IR).overrideImportUsageCheck
+    return v in env(expand.IMPORTBINDS)
 
 def write_top_cdecl(v):
     if not imported_bindable_used(v):
