@@ -66,12 +66,17 @@ def scan_inst_data(tvs, apps):
     map_(record_tvar, tvs)
     map_(scan_inst, apps)
 
+def scan_inst_func(ps, r):
+    map_(scan_inst, ps)
+    if matches(r, ('Ret(_)')):
+        scan_inst(r.type)
+
 def scan_inst(s):
     match(s,
         ('TVar(tv)', record_tvar),
-        ('TPrim(_) or TVoid()', nop),
+        ('TPrim(_)', nop),
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
-        ('TFunc(ps, r, _)', lambda ps, r: map_(scan_inst, ps + [r])),
+        ('TFunc(ps, r, _)', scan_inst_func),
         ('TData(DataType(_, tvs, _), apps)', scan_inst_data),
         ('TArray(t)', scan_inst),
         ('TWeak(t)', scan_inst))

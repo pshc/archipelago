@@ -23,18 +23,20 @@ def convert_type(t):
         ("TPrim(PFloat())", IFloat),
         ("TPrim(PBool())", IBool),
         ("TPrim(PStr())", IVoidPtr),
-        ("TVoid()", IVoid),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(tps, tret, meta)", convert_func_type),
+        ("TFunc(tps, result, meta)", convert_func_type),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
-def convert_func_type(tps, tret, meta):
+def convert_func_type(tps, result, meta):
     ips = map(convert_type, tps)
     if meta.takesEnv:
         ips.append(IVoidPtr())
-    return IFunc(ips, convert_type(tret))
+    res = match(result, ('Ret(t)', convert_type),
+                        ('Void()', IVoid),
+                        ('Bottom()', IVoid)) # todo
+    return IFunc(ips, res)
 
 def itypes_equal(src, dest):
     same = lambda: True

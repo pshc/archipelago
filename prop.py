@@ -6,7 +6,7 @@ from globs import TypeOf
 
 INPAT = new_env('INPAT', '*Type')
 
-PropScope = DT('PropScope', ('retType', 'Maybe(CType)'),
+PropScope = DT('PropScope', ('result', 'Result(CType)'),
                             ('localVars', {'*Var': 'CType'}))
 
 PROPSCOPE = new_env('PROPSCOPE', 'PropScope')
@@ -15,11 +15,11 @@ PROPTOP = new_env('PROPTOP', '*TopFunc')
 
 PendingInst = new_extrinsic('PendingInst', {'*TypeVar': 'CType'})
 
-def in_new_scope(retT, f):
+def in_new_scope(result, f):
     localVars = {}
     if have_env(PROPSCOPE):
         localVars = env(PROPSCOPE).localVars.copy()
-    new_scope = PropScope(retT, localVars)
+    new_scope = PropScope(result, localVars)
     return in_env(PROPSCOPE, new_scope, f)
 
 MetaCell, Free, InstVar, Mono, Subst = ADT('MetaCell',
@@ -29,13 +29,12 @@ MetaCell, Free, InstVar, Mono, Subst = ADT('MetaCell',
     'Subst', ('type', 'CType'))
 
 # instantiated types
-CType, CVar, CPrim, CVoid, CTuple, CFunc, CData, CArray, CWeak, CMeta \
+CType, CVar, CPrim, CTuple, CFunc, CData, CArray, CWeak, CMeta \
     = ADT('CType',
         'CVar', ('typeVar', '*TypeVar'),
         'CPrim', ('primType', '*PrimType'),
-        'CVoid',
         'CTuple', ('tupleTypes', ['CType']),
-        'CFunc', ('paramTypes', ['CType']), ('retType', 'CType'),
+        'CFunc', ('paramTypes', ['CType']), ('result', 'Result(CType)'),
                  ('meta', FuncMeta),
         'CData', ('data', '*DataType'), ('appTypes', ['CType']),
         'CArray', ('elemType', 'CType'),
@@ -86,13 +85,17 @@ def _inst_type(s):
     return match(s,
         ('TVar(tv)', inst_tvar),
         ('TPrim(p)', CPrim),
-        ('TVoid()', CVoid),
         ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
         ('TFunc(ps, r, meta)', lambda ps, r, meta:
-                CFunc(map(_inst_type, ps), _inst_type(r), copy_meta(meta))),
+                CFunc(map(_inst_type, ps), _inst_result(r), copy_meta(meta))),
         ('TData(dt, ts)', inst_tdata),
         ('TArray(t)', lambda t: CArray(_inst_type(t))),
         ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
+
+def _inst_result(r):
+    return match(r, ('Ret(t)', lambda t: Ret(_inst_type(t))),
+                    ('Void()', Void),
+                    ('Bottom()', Bottom))
 
 def instantiate_type(site, t):
     insts = {}
@@ -129,10 +132,9 @@ def _gen_type(s):
     return match(s,
         ('CVar(tv)', TVar),
         ('CPrim(p)', TPrim),
-        ('CVoid()', TVoid),
         ('CTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
         ('CFunc(ps, r, meta)', lambda ps, r, meta:
-                TFunc(map(_gen_type, ps), _gen_type(r), copy_meta(meta))),
+                TFunc(map(_gen_type, ps), _gen_result(r), copy_meta(meta))),
         ('CData(dt, ts)', gen_tdata),
         ('CArray(t)', lambda t: TArray(_gen_type(t))),
         ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
@@ -141,6 +143,11 @@ def _gen_type(s):
         ('CMeta(InstVar(tv))', TVar),
         ('CMeta(Mono())', free_monotype),
         ('CMeta(Subst(s))', _gen_type))
+
+def _gen_result(r):
+    return match(r, ('Ret(t)', lambda t: Ret(_gen_type(t))),
+                    ('Void()', Void),
+                    ('Bottom()', Bottom))
 
 def finalize_type(t):
     return _gen_type(t)
@@ -156,9 +163,16 @@ def try_unite_tuples(src, list1, dest, list2):
 
 def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
     try_unite_tuples(sf, sargs, df, dargs)
-    try_unite(sret, dret)
+    try_unite_results(sf, sret, df, dret)
     if not metas_equal(smeta, dmeta):
         unification_failure(sf, df, "conflicting func metas")
+
+def try_unite_results(t1, a, t2, b):
+    match((a, b), ("(Ret(at), Ret(bt))", try_unite),
+                  ("(Void(), Void())", nop),
+                  ("(Bottom(), Bottom())", nop),
+                  ("_", lambda: unification_failure(t1, t2,
+                                "conflicting result types")))
 
 def try_unite_datas(src, a, ats, dest, b, bts):
     if a is not b:
@@ -236,14 +250,17 @@ def try_unite(src, dest):
         ("(sf==CFunc(sa, sr, sm), df==CFunc(da, dr, dm))", try_unite_funcs),
         ("(src==CData(a, ats), dest==CData(b, bts))", try_unite_datas),
         ("(src==CPrim(sp), dest==CPrim(dp))", try_unite_prims),
-        ("(CVoid(), CVoid())", nop),
         ("_", lambda: fail("type mismatch")))
 
 def unify(src, dest):
     in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
 
-def unify_m(e):
-    unify(env(INPAT), e)
+def unify_m(t):
+    unify(env(INPAT), t)
+
+def unify_results(src, dest):
+    in_env(UNIFYCTXT, (src, dest),
+            lambda: try_unite_results(src, src, dest, dest))
 
 def set_type(e, t):
     assert isinstance(t, Type), "%s is not a type" % (t,)
@@ -268,7 +285,7 @@ def pat_capture(v, p):
 
 def pat_ctor(ref, ctor, args):
     ctorT = instantiate_type(ref, extrinsic(TypeOf, ctor))
-    fieldTs, dt = match(ctorT, ("CFunc(fs, dt, _)", tuple2))
+    fieldTs, dt = match(ctorT, ("CFunc(fs, Ret(dt), _)", tuple2))
     unify_m(dt)
     for arg, fieldT in ezip(args, fieldTs):
         in_env(INPAT, fieldT, lambda: _prop_pat(arg))
@@ -317,7 +334,7 @@ def prop_listlit(es):
             consume_value_as(t, e)
         return CArray(t)
 
-def prop_call(call, f, s):
+def prop_call_result(call, f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
 
@@ -330,9 +347,14 @@ def prop_call(call, f, s):
             call.func = f
             ft = prop_expr(f)
 
+    paramTypes, result = match(ft, ("CFunc(ps, res, _)", tuple2))
     for arg, param in ezip(argts, ft.paramTypes):
         unify(arg, param)
-    return ft.retType
+    return result
+
+def prop_call(call, f, s):
+    result = prop_call_result(call, f, s)
+    return match(result, "Ret(t)")
 
 def overload_num_call(f):
     if matches(f, "key('negate')"):
@@ -351,7 +373,7 @@ def prop_ternary(c, t, f):
     return tf
 
 def infer_func(f, ps, b):
-    rt = fresh_monotype()
+    result = Ret(fresh_monotype())
     def inside_func():
         localVars = env(PROPSCOPE).localVars
         pts = []
@@ -362,44 +384,45 @@ def infer_func(f, ps, b):
             pts.append(pt)
 
         # XXX infer FuncMeta?
-        cft = CFunc(pts, rt, plain_meta())
+        cft = CFunc(pts, result, plain_meta())
         # lambdas can't recurse, but this (sort of thing) would be nice
         #localVars[f] = cft
         prop_body(b)
 
         add_extrinsic(PendingType, f, cft)
         return cft
-    return in_new_scope(Just(rt), inside_func)
+    return in_new_scope(result, inside_func)
 
 def prop_func_expr(f, ps, b):
     if not has_extrinsic(TypeOf, f):
         return infer_func(f, ps, b)
     ft = extrinsic(TypeOf, f)
     cft = ctype(ft)
-    tps, tret = match(cft, ('CFunc(ps, ret, _)', tuple2))
+    tps, result = match(cft, ('CFunc(ps, result, _)', tuple2))
     def inside_func_scope():
         for p, ctp in ezip(ps, tps):
             set_var_ctype(p, ctp)
         prop_body(b)
         return cft
-    return in_new_scope(Just(tret), inside_func_scope)
+    return in_new_scope(result, inside_func_scope)
 
 def prop_match(m, e, cs):
     et = prop_expr(e)
-    retT = Nothing()
+    overallResult = Nothing()
     for c in cs:
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         def prop_case():
             prop_pat(et, cp)
-            rt = prop_expr(ce)
-            retT = env(PROPSCOPE).retType
-            if isJust(retT):
-                unify(rt, fromJust(retT))
+            thisReturn = prop_expr(ce)
+            overallResult = env(PROPSCOPE).result
+            # todo: void results
+            if isJust(overallResult):
+                unify(thisReturn, fromJust(overallResult).type)
             else:
-                retT = Just(rt)
-            return retT
-        retT = in_new_scope(retT, prop_case)
-    return fromJust(retT)
+                overallResult = Just(Ret(thisReturn))
+            return overallResult
+        overallResult = in_new_scope(overallResult, prop_case)
+    return match(overallResult, "Just(Ret(t))")
 
 def prop_attr(e, s, f):
     t = prop_expr(s)
@@ -491,7 +514,7 @@ def prop_lhs(lhs):
 def prop_DT(form):
     dtT = vanilla_tdata(form)
     for c in form.ctors:
-        set_type(c, TFunc([f.type for f in c.fields], dtT, basic_meta()))
+        set_type(c, TFunc([f.type for f in c.fields], Ret(dtT), basic_meta()))
 
 def prop_func_defn(var, f):
     t = extrinsic(TypeOf, f)
@@ -532,7 +555,8 @@ def prop_assert(tst, msg):
     consume_value_as(CStr(), msg)
 
 def prop_return(e):
-    unify(prop_expr(e), env(PROPSCOPE).retType.just)
+    t = prop_expr(e)
+    unify_results(Ret(t), env(PROPSCOPE).result)
 
 def prop_writeextrinsic(s, extr, node, val):
     prop_expr(node)
@@ -560,7 +584,7 @@ def site_target_typeof(site):
     if isinstance(site, Expr):
         return extrinsic(TypeOf, site.target)
     elif isinstance(site, Pat):
-        return vanilla_tdata(extrinsic(TypeOf, site.ctor).retType.data)
+        return vanilla_tdata(extrinsic(TypeOf, site.ctor).result.type.data)
 
 def prop_top_func(topDefn, topVar, f):
 

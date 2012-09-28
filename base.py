@@ -329,18 +329,21 @@ def copy_meta(meta):
 def metas_equal(m1, m2):
     return m1.takesEnv == m2.takesEnv
 
-Type, TVar, TPrim, TVoid, \
-    TTuple, TFunc, TData, TArray, TWeak \
+Type, TVar, TPrim, TTuple, TFunc, TData, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TPrim', ('primType', PrimType),
-        'TVoid',
         'TTuple', ('tupleTypes', ['Type']),
-        'TFunc', ('paramTypes', ['Type']), ('retType', 'Type'),
+        'TFunc', ('paramTypes', ['Type']), ('result', 'Result(Type)'),
                  ('meta', FuncMeta),
         'TData', ('data', '*DataType'), ('appTypes', ['Type']),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
+
+Result, Ret, Void, Bottom = ADT('Result',
+        'Ret', ('type', 't'),
+        'Void',
+        'Bottom')
 
 def TInt():
     return TPrim(PInt())
@@ -352,9 +355,6 @@ def TStr():
     return TPrim(PStr())
 def TChar():
     return TPrim(PChar())
-
-def TPlainFunc(params, ret):
-    return TFunc(params, ret, plain_meta())
 
 def parse_new_type(t, tvars):
     return in_env(NEWTYPEVARS, None, lambda:
@@ -386,7 +386,7 @@ def parse_type(t):
     elif t is bool:
         return TBool()
     elif t is None:
-        return TVoid()
+        return None
     elif isinstance(t, tuple):
         return TTuple(map(parse_type, t))
     elif isinstance(t, list):
@@ -404,7 +404,7 @@ def parse_type(t):
         return t
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
 
-types_by_name = dict(str=TStr, int=TInt, float=TFloat, bool=TBool, void=TVoid)
+types_by_name = dict(str=TStr, int=TInt, float=TFloat, bool=TBool)
 
 def _type_by_name(t):
     if len(t) == 1:
@@ -420,6 +420,8 @@ def _type_by_name(t):
         return vanilla_tdata(extrinsic(FormSpec, DATATYPES[t]))
     elif t in types_by_name:
         return types_by_name[t]()
+    elif t == 'void':
+        return None
     else:
         return TForward(t, [])
 
@@ -464,10 +466,21 @@ def consume_type(toks):
     if toks and toks[0] == '->':
         toks.pop(0)
         params = t.tupleTypes if wasParens else [t]
-        if len(params) == 1 and matches(params[0], 'TVoid()'):
+        if len(params) == 1 and params[0] is None:
             params = []
-        t = TPlainFunc(params, consume_type(toks))
+        t = TFunc(params, consume_result(toks), plain_meta())
     return t
+
+def consume_result(toks):
+    tok = toks[0]
+    if tok == 'void':
+        toks.pop(0)
+        return Void()
+    elif tok == 'noreturn':
+        toks.pop(0)
+        return Bottom()
+    else:
+        return Ret(consume_type(toks))
 
 slashW = 'abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
 
@@ -563,13 +576,17 @@ def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
             ('TPrim(PBool())', TBool),
             ('TPrim(PStr())', TStr),
             ('TPrim(PChar())', TChar),
-            ('TVoid()', TVoid),
             ('TTuple(ts)', lambda ts: TTuple(map(copy, ts))),
             ('TFunc(args, ret, meta)', lambda args, ret:
-                TFunc(map(copy, args), copy(ret), copy_meta(meta))),
+                TFunc(map(copy, args), copy_result(ret), copy_meta(meta))),
             ('TData(data, apps)', _derive_data),
             ('TArray(t)', lambda t: TArray(copy(t))),
             ('TWeak(t)', lambda t: TWeak(copy(t))))
+
+    def copy_result(r):
+        return match(r, ('Ret(t)', copy),
+                        ('Void()', Void),
+                        ('Bottom()', Bottom))
     return copy(t)
 
 # Typeclasses

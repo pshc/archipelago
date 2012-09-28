@@ -62,8 +62,6 @@ def clone_by_type(src, t):
         return clone_structured(src)
     elif m('TPrim(_)'):
         return src
-    elif m('TVoid()'):
-        assert False, "No void values!"
     elif m('TTuple(tts)'):
         tts = m.arg
         assert isinstance(src, tuple)
@@ -109,8 +107,6 @@ def rewrite_by_type(obj, t):
         rewrite_by_type(obj, t_DT(type(obj)))
     elif m('TPrim(_)'):
         pass
-    elif m('TVoid()'):
-        assert False, "No void values!"
     elif m('TTuple(tts)'):
         tts = m.arg
         assert isinstance(obj, tuple)
@@ -232,8 +228,6 @@ def visit_by_type(obj, t, customVisitors=True):
                 visit_by_type(o, et)
     elif m('TWeak(_)'):
         pass
-    elif m('TVoid()'):
-        assert False, "No void values!"
     else:
         assert False, "Bad type to visit: %r" % (t,)
 
@@ -312,8 +306,6 @@ def mutate_by_type(obj, t, customMutators=True):
         return [mutate_by_type(o, et) for o in obj]
     elif m('TWeak(_)'):
         return obj
-    elif m('TVoid()'):
-        assert False, "No void values!"
     else:
         assert False, "Bad type to mutate: %r" % (t,)
 

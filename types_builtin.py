@@ -23,7 +23,7 @@ def _type_func_equal(as1, r1, m1, as2, r2, m2):
     for a1, a2 in ezip(as1, as2):
         if not type_equal(a1, a2):
             return False
-    if not type_equal(r1, r2):
+    if not results_equal(r1, r2):
         return False
     return metas_equal(m1, m2)
 
@@ -43,13 +43,18 @@ def type_equal(a, b):
     return match((a, b),
         ("(TVar(a), TVar(b))", lambda a, b: a is b),
         ("(TPrim(a), TPrim(b))", prim_equal),
-        ("(TVoid(), TVoid())", lambda: True),
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TFunc(args1, r1, m1), TFunc(args2, r2, m2))", _type_func_equal),
         ("(TData(d1, ts1), TData(d2, ts2))", _type_data_equal),
         ("(TArray(a), TArray(b))", type_equal),
         ("(TWeak(a), TWeak(b))", type_equal),
         ("_", lambda: False))
+
+def results_equal(a, b):
+    return match((a, b), ("(Ret(a), Ret(b))", type_equal),
+                         ("(Void(), Void())", lambda: True),
+                         ("(Bottom(), Bottom())", lambda: True),
+                         ("_", lambda: False))
 
 def _get_name(a):
     if not a or not has_extrinsic(Name, a):
@@ -72,15 +77,25 @@ def _type_repr(t):
                     ("TPrim(PStr())", lambda: 'str'),
                     ("TPrim(PChar())", lambda: 'char'),
                     ("TPrim(PBool())", lambda: 'bool'),
-                    ("TVoid()", lambda: 'void'),
-                    ("TTuple(ts)", lambda ts: '(%s)' %
+                    ("TTuple(ts)", lambda ts: 't(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),
-                    ("TFunc(s, r, _)", lambda s, r: '(%s)' %
-                        (' -> '.join(_type_repr(t) for t in s + [r]),)),
+                    ("TFunc(ps, r, _)", _func_repr),
                     ("TData(d, [])", _get_name),
                     ("_", lambda: '<bad type %s>' % type(t)))
     REPR_ENV.remove(t)
     return rstr
+
+def _func_repr(ps, result):
+    if len(ps) == 0:
+        s = 'void'
+    elif len(ps) == 1:
+        s = _type_repr(ps[0])
+    else:
+        s = '(%s)' % (', '.join(map(_type_repr, ps)),)
+    ret = match(result, ('Ret(t)', _type_repr),
+                        ('Void()', 'void')
+                        ('Bottom()', 'noreturn'))
+    return '%s -> %s' % (s, ret)
 
 def _cyclic_check_type_repr(t):
     global REPR_ENV
@@ -101,22 +116,28 @@ def map_type_vars(f, t):
     return match(t, ("tv==TVar(_)", f),
                     ("TData(dt, ts)", lambda dt, ts:
                         TData(dt, [map_type_vars(f, t) for t in ts])),
-                    ("TFunc(args, ret, meta)", lambda args, ret, meta:
-                        TFunc([map_type_vars(f, a) for a in args],
-                              map_type_vars(f, ret), copy_meta(meta))),
+                    ("TFunc(ps, res, meta)", lambda ps, res, meta:
+                        TFunc([map_type_vars(f, p) for p in ps],
+                              _map_result_tvars(f, res), copy_meta(meta))),
                     ("TTuple(ts)", lambda ts:
                         TTuple([map_type_vars(f, t) for t in ts])),
                     ("TArray(t)", lambda t: TArray(map_type_vars(f, t))),
                     ("TWeak(t)", lambda t: TWeak(map_type_vars(f, t))),
                     ("_", lambda: t))
 
+def _map_result_tvars(f, res):
+    return match(res, ("Ret(t)", lambda t: Ret(map_type_vars(f, t))),
+                      ("Void()", Void),
+                      ("Bottom()", Bottom))
+
 def visit_type_vars(f, t):
     visit = lambda t: visit_type_vars(f, t)
     visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
     return match(t, ("TVar(tv)", f),
                     ("TData(_, ts)", visit_many),
-                    ("TFunc(args, ret, _)", lambda args, ret:
-                        visit_many(args) and visit(ret)),
+                    ("TFunc(ps, Ret(ret), _)", lambda ps, ret:
+                        visit_many(ps) and visit(ret)),
+                    ("TFunc(ps, Void() or Bottom(), _)", visit_many),
                     ("TTuple(ts)", visit_many),
                     ("TArray(t)", visit),
                     ("TWeak(t)", visit),

@@ -12,7 +12,6 @@ def write_type(t):
     out(match(t,
         ('TPrim(PInt() or PBool())', lambda: 'int'),
         ('TPrim(PFloat())', lambda: 'float'),
-        ('TVoid()', lambda: 'void'),
         ('_', lambda: 'void *')))
 
 def write_params(ps, meta):
@@ -38,10 +37,23 @@ def write_params(ps, meta):
     out(')')
 
 def write_func_decl(name, params, ret, meta):
-    write_type(ret)
-    out(' %s' % (name,))
+    write_result(ret)
+    out(name)
     write_params(params, meta)
     out(';\n')
+
+def write_result(result):
+    m = match(result)
+    if m('Ret(t)'):
+        t = m.arg
+        write_type(t)
+        out(' ')
+    elif m('Void()'):
+        out('void ')
+    elif m('Bottom()'):
+        out('__dead2 void ')
+    else:
+        assert False
 
 def write_decls(decls, name):
     guard = name.upper() + '_H'

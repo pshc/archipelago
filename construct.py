@@ -180,6 +180,11 @@ def _resolve_walk(node, path):
             dest.appTypes[i] = appT
             _resolve_walk(appT, (dest.appTypes, i))
 
+        # Hack for Ret(_)
+        if len(path) == 3:
+            node, first, second = path
+            path = getattr(node, first), second
+
         # Assign using path
         assert len(path) == 2
         node, last = path
@@ -195,7 +200,8 @@ def _resolve_walk(node, path):
     elif isinstance(node, TFunc):
         for i, arg in enumerate(node.paramTypes):
             _resolve_walk(arg, (node.paramTypes, i))
-        _resolve_walk(node.retType, (node, 'retType'))
+        if matches(node.result, 'Ret(_)'):
+            _resolve_walk(node.result.type, (node, 'result', 'type'))
     elif isinstance(node, TData):
         for i, t in enumerate(node.appTypes):
             _resolve_walk(t, (node.appTypes, i))
@@ -240,13 +246,14 @@ def load_forms():
     def scan_type_deps(t):
         assert isinstance(t, Type), "%r is not a type" % (t,)
         match(t,
-            ('TTuple(ts)', lambda ts: map(scan_type_deps, ts)),
-            ('TFunc(a, r, _)', lambda a, r: map(scan_type_deps, a + [r])),
+            ('TTuple(ts)', lambda ts: map_(scan_type_deps, ts)),
+            ('TFunc(a, Ret(r), _)', lambda a, r: map_(scan_type_deps, a+[r])),
+            ('TFunc(a, _, _)', lambda a: map_(scan_type_deps, a)),
             ('TData(dt, apps)', found_dt),
             ('TArray(e)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
             ('TVar(tvar)', found_tvar),
-            ('TPrim(_) or TVoid()', lambda: None))
+            ('TPrim(_)', nop))
 
     while pending:
         dt = pending.pop()

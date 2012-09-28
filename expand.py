@@ -156,7 +156,6 @@ class AssertionExpander(vat.Mutator):
 
         message = self.mutate('message')
         call = E.Call(bfail, [message])
-        add_extrinsic(TypeOf, call, TVoid())
         return S.Cond([CondCase(check, Body([S.ExprStmt(call)]))])
 
 def convert_decl_types(decls):

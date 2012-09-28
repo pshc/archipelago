@@ -4,7 +4,7 @@ from base import *
 from types_builtin import *
 from globs import TypeOf
 
-CHECKSCOPE = new_env('CHECKSCOPE', Type)
+CHECKSCOPE = new_env('CHECKSCOPE', Result)
 
 CHECK = new_env('CHECK', Type)
 
@@ -19,7 +19,7 @@ def try_unite_tuples(src, list1, dest, list2):
 
 def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
     try_unite_tuples(sf, sargs, df, dargs)
-    try_unite(sret, dret)
+    try_unite_results(sf, sret, df, dret)
     if not metas_equal(smeta, dmeta):
         unification_failure(sf, df, "conflicting func metas")
 
@@ -47,14 +47,20 @@ def try_unite(src, dest):
         ("(sf==TFunc(sa, sr, sm), df==TFunc(da, dr, dm))", try_unite_funcs),
         ("(src==TData(a, ats), dest==TData(b, bts))", try_unite_datas),
         ("(src==TPrim(sp), dest==TPrim(dp))", try_unite_prims),
-        ("(TVoid(), TVoid())", nop),
         ("_", lambda: fail("type mismatch")))
+
+def try_unite_results(t1, a, t2, b):
+    match((a, b), ("(Ret(at), Ret(bt))", try_unite),
+                  ("(Void(), Void())", nop),
+                  ("(Bottom(), Bottom())", nop),
+                  ("_", lambda: unification_failure(t1, t2,
+                                "conflicting result types")))
 
 def typecheck(src, dest):
     in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
 
-def check(e):
-    typecheck(env(CHECK), e)
+def check(dest):
+    typecheck(env(CHECK), dest)
 
 def pat_tuple(ps):
     ts = match(env(CHECK), "TTuple(ps)")
@@ -70,11 +76,11 @@ def pat_capture(v, p):
 
 def pat_ctor(pat, ctor, args):
     ctorT = extrinsic(TypeOf, ctor)
-    fieldTs, dt = match(ctorT, ("TFunc(fs, dt, _)", tuple2))
+    fieldTs, dt = match(ctorT, ("TFunc(fs, Ret(dt), _)", tuple2))
     if has_extrinsic(Instantiation, pat):
         inst = extrinsic(Instantiation, pat)
         ctorT = checked_subst(inst, ctorT)
-        paramTs, pdt = match(ctorT, ("TFunc(ps, pdt, _)", tuple2))
+        paramTs, pdt = match(ctorT, ("TFunc(ps, Ret(pdt), _)", tuple2))
         check(pdt)
         # Check whether each field is affected by instantiation or not
         for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
@@ -130,15 +136,18 @@ def check_bind(bind, target):
 def check_inst_call(e, inst, f, args):
     # Instead of typecasting f, typecast its args backwards
     origT = extrinsic(TypeOf, f.target)
-    origArgTs, origRetT = match(origT, ("TFunc(args, ret, _)", tuple2))
+    origArgTs, origResult = match(origT, ("TFunc(args, res, _)", tuple2))
     t = checked_subst(inst, origT)
 
     # Avoid check_expr_as() here to avoid check_bind(), which would conflict
     typecheck(t, extrinsic(TypeOf, f))
 
-    argTs, retT = match(t, ("TFunc(args, ret, _)", tuple2))
-    maybe_typecast(inst, e, origRetT, retT)
-    check(retT)
+    argTs, result = match(t, ("TFunc(args, result, _)", tuple2))
+    if matches(result, "Ret(_)"):
+        maybe_typecast(inst, e, origResult.type, result.type)
+        check(result.type)
+    else:
+        pass # TODO: Check void
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
         maybe_typecast_reversed(inst, arg, newT, origT)
@@ -149,8 +158,9 @@ def check_call(e, f, args):
         check_inst_call(e, extrinsic(Instantiation, f), f, args)
         return
     t = check_expr_as_itself(f)
-    argts, rett = match(t, ("TFunc(args, ret, _)", tuple2))
-    check(rett)
+    argts, result = match(t, ("TFunc(args, res, _)", tuple2))
+    if matches(result, "Ret(_)"):
+        check(result.type)
     for arg, t in ezip(args, argts):
         check_expr_as(t, arg)
 
@@ -170,27 +180,31 @@ def check_logic(l, r):
 
 def check_ternary(c, t, f):
     check_expr_as(TBool(), c)
+    # void return not OK
     check_same(t)
     check_same(f)
 
 def check_func(f):
     ft = extrinsic(TypeOf, f)
-    tps, tret = match(ft, ('TFunc(ps, ret, _)', tuple2))
+    tps, tresult = match(ft, ('TFunc(ps, result, _)', tuple2))
     for p, tp in ezip(f.params, tps):
         typecheck(extrinsic(TypeOf, p), tp)
-    in_env(CHECKSCOPE, tret, lambda: check_body(f.body))
+    in_env(CHECKSCOPE, tresult, lambda: check_body(f.body))
 
 def check_match(m, e, cs):
     et = check_expr_as_itself(e)
-    retT = match(env(CHECK), ("TVoid()", Nothing),
-                             ("otherwise", Just))
+    retT = env(CHECK)
     for c in cs:
         cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
         check_pat_as(et, cp)
-        if isJust(retT):
-            check_expr_as(fromJust(retT), ce)
-        else:
-            check_expr_as_itself(ce)
+        check_expr_as(retT, ce)
+
+def check_void_match(m, e, cs):
+    et = check_expr_as_itself(e)
+    for c in cs:
+        cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
+        check_pat_as(et, cp)
+        check_expr_as_itself(ce)
 
 def check_attr(e, f, ft):
     check(ft)
@@ -277,7 +291,7 @@ def check_lhs_as_itself(a):
 def check_DT(form):
     dtT = vanilla_tdata(form)
     for ctor in form.ctors:
-        ctorT = TFunc([f.type for f in ctor.fields], dtT, basic_meta())
+        ctorT = TFunc([f.type for f in ctor.fields], Ret(dtT), basic_meta())
         typecheck(extrinsic(TypeOf, ctor), ctorT)
 
 def destructure_tuple(ps, t):
@@ -320,10 +334,10 @@ def check_assert(tst, msg):
     check_expr_as(TStr(), msg)
 
 def check_return(e):
-    check_expr_as(env(CHECKSCOPE), e)
+    check_expr_as(env(CHECKSCOPE).type, e)
 
 def check_returnnothing():
-    assert matches(env(CHECKSCOPE), "TVoid()")
+    assert not matches(env(CHECKSCOPE), "Ret(_)")
 
 def check_writeextrinsic(t, node, val):
     check_expr_as_boxed(node)
