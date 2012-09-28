@@ -11,7 +11,7 @@ class Structured(object):
 class CopiedCtors(object):
     pass
 
-_deferred_type_parses = []
+_deferred_type_parses = {}
 
 def _make_ctor(name, members, superclass):
     nms = tuple(nm for nm, t in members)
@@ -281,16 +281,22 @@ def _ctor_form(ctor):
     add_extrinsic(TrueRepresentation, form, ctor)
     add_extrinsic(FormSpec, ctor, form)
     del ctor.__types__
-    if _deferred_type_parses is not None:
-        _deferred_type_parses.append(form)
     return form
 
 def _dt_form(dt, tvs):
     if tvs is None:
         tvs = {}
+
+    def do_ctor(ctor):
+        form = _ctor_form(ctor)
+        if _deferred_type_parses is not None:
+            ctorForms = _deferred_type_parses.setdefault(dt, [])
+            ctorForms.append(form)
+        return form
+
     ctors = in_env(TVARS, tvs,
             lambda: in_env(NEWTYPEVARS, None,
-            lambda: map(_ctor_form, dt.ctors)))
+            lambda: map(do_ctor, dt.ctors)))
     opts = DTOpts(dt._opts.get('value', False))
     del dt._opts
     form = DataType(ctors, tvs.values(), opts)
@@ -513,13 +519,14 @@ def _apply_dict_type(k, v):
 # Parse the types in TypeVar, Type fields
 def _parse_deferred():
     global _deferred_type_parses
-    for ctor in _deferred_type_parses:
-        def parse():
-            for field in ctor.fields:
-                field.type = parse_type(field.type)
+    for dtForm, ctorForms in _deferred_type_parses.iteritems():
         tvars = {}
-        in_env(NEWTYPEVARS, None, lambda: in_env(TVARS, tvars, parse))
-        SUPERS[type(ctor)].tvars = tvars.values()
+        for ctor in ctorForms:
+            def parse():
+                for field in ctor.fields:
+                    field.type = parse_type(field.type)
+            in_env(NEWTYPEVARS, None, lambda: in_env(TVARS, tvars, parse))
+        extrinsic(FormSpec, dtForm).tvars = tvars.values()
     _deferred_type_parses = None
 _parse_deferred()
 
