@@ -354,7 +354,8 @@ def prop_call_result(call, f, s):
 
 def prop_call(call, f, s):
     result = prop_call_result(call, f, s)
-    return match(result, "Ret(t)")
+    assert matches(result, "Ret(_)"), "%s is void" % (call,)
+    return result.type
 
 def overload_num_call(f):
     if matches(f, "key('negate')"):
@@ -558,9 +559,16 @@ def prop_return(e):
     t = prop_expr(e)
     unify_results(Ret(t), env(PROPSCOPE).result)
 
+def prop_voidreturn():
+    assert not matches(env(PROPSCOPE).result, "Ret(_)")
+
 def prop_writeextrinsic(s, extr, node, val):
     prop_expr(node)
     consume_value_as(instantiate_type(s, extr.type), val)
+
+def prop_void_call(call, f, ps):
+    result = prop_call_result(call, f, ps)
+    assert not matches(result, "Ret(_)")
 
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
@@ -568,16 +576,30 @@ def prop_stmt(a):
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
-        ("ExprStmt(e)", prop_expr),
         ("Cond(cases)", prop_cond),
-        ("While(t, b)",prop_while),
+        ("Discard(expr)", prop_expr),
+        ("While(t, b)", prop_while),
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),
-        ("ReturnNothing()", nop),
-        ("s==WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic)))
+        ("ReturnNothing()", prop_voidreturn),
+        ("s==WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic),
+        ("call==VoidCall(f, ps)", prop_void_call)))
 
 def prop_body(body):
-    for s in body.stmts:
+    for i in xrange(len(body.stmts)):
+        s = body.stmts[i]
+
+        if matches(s, "Discard(Call(Bind(_), _))"):
+            # might want to change this into a VoidExpr
+            target = s.expr.func.target
+            if not matches(extrinsic(TypeOf, target), "TFunc(_, Ret(_), _)"):
+                # change into a voidcall
+                f, args = s.expr.func, s.expr.args
+                body.stmts[i] = S.VoidStmt(VoidCall(f, args))
+                res = prop_call_result(None, f, args)
+                assert not matches(res, "Ret(_)")
+                continue
+
         prop_stmt(s)
 
 def site_target_typeof(site):

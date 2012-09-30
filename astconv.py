@@ -42,7 +42,7 @@ def sym_call(path, args):
     syms = loaded_module_export_names[loaded_modules[mod]]
     sym = (sym, valueNamespace)
     assert sym in syms, "%s not found in %s" % (sym, syms.keys())
-    return E.Call(E.Bind(syms[sym]), args)
+    return S.VoidStmt(VoidCall(E.Bind(syms[sym]), args))
 
 def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
@@ -660,7 +660,7 @@ def conv_discard(s):
         assert isinstance(e, WriteExtrinsic)
         return [e]
 
-    return [S.ExprStmt(e)]
+    return [S.Discard(e)]
 
 def conv_ass(s):
     if isinstance(s, ast.AssName):
@@ -796,15 +796,15 @@ def conv_printnl(s):
                     f = 'bedrock._print_int'
                 else:
                     assert False, "Unknown format " + bit
-                ops.append(S.ExprStmt(sym_call(f, [args.pop(0)])))
+                ops.append(sym_call(f, [args.pop(0)]))
             else:
                 lit = E.Lit(StrLit(bit))
-                ops.append(S.ExprStmt(sym_call('bedrock._print_str', [lit])))
+                ops.append(sym_call('bedrock._print_str', [lit]))
         assert not args, "Format arguments remain: " + args
-        ops.append(S.ExprStmt(sym_call('bedrock._newline', [])))
+        ops.append(sym_call('bedrock._newline', []))
         return ops
     else:
-        return [S.ExprStmt(sym_call('bedrock.puts', [conv_expr(node)]))]
+        return [sym_call('bedrock.puts', [conv_expr(node)])]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):

@@ -605,11 +605,9 @@ def expr_binop(op, left, right, t):
 
 def write_call(e, f, args, rett):
     fx = express_casted(f)
-    argxs = [express_casted(arg) for arg in args]
+    argxs = map(express_casted, args)
 
-    if matches(rett, "IVoid()"):
-        call_void(fx.xpr, argxs)
-        return Nothing()
+    assert not matches(rett, "IVoid()")
 
     if has_extrinsic(LLVMTypeCast, e):
         src, dest = extrinsic(LLVMTypeCast, e)
@@ -617,7 +615,7 @@ def write_call(e, f, args, rett):
     else:
         x = call(rett, fx.xpr, argxs)
 
-    return Just(x)
+    return x.xpr
 
 def write_runtime_call(name, argxs, rett):
     fx = global_symbol(runtime_decl(name))
@@ -633,7 +631,7 @@ def expr_call(e, f, args):
         mret = LLVMBindable.express_called(f.target, args)
         if isJust(mret):
             return fromJust(mret)
-    return fromJust(write_call(e, f, args, typeof(e))).xpr
+    return write_call(e, f, args, typeof(e))
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
@@ -690,11 +688,11 @@ def expr_inenv(e, environ, init, expr):
     pop_env(envtx, ctxVar, old)
     return ret
 
-def expr_inenv_void(e, environ, init, expr):
+def voidexpr_inenv(e, environ, init, vexpr):
     envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
     ctx = extrinsic(expand.InEnvCtxVar, e)
     old = push_env(envtx, ctx, init)
-    write_void_stmt(expr)
+    write_voidexpr(vexpr)
     pop_env(envtx, ctx, old)
 
 def expr_match(m, e, cs):
@@ -784,9 +782,9 @@ def expr_with(var, expr):
     store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
     return express(expr)
 
-def expr_with_void(var, expr):
+def voidexpr_with(var, expr):
     store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
-    write_void_stmt(expr)
+    write_voidexpr(expr)
 
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
@@ -1078,25 +1076,17 @@ def write_dtstmt(form):
     if not env(DECLSONLY):
         newline()
 
-def write_void_call(e, f, a):
+def write_void_call(f, a):
     if matches(f, 'Bind(_)'):
         if LLVMBindable.express_called_void(f.target, a):
             return
-    t = write_call(e, f, a, IVoid())
-    assert isNothing(t)
+    fx = express_casted(f)
+    argxs = map(express_casted, a)
+    call_void(fx.xpr, argxs)
 
-def write_void_stmt(e):
-    match(e,
-        ('e==Call(f, a)', write_void_call),
-        ('e==InEnv(environ, init, expr)', expr_inenv_void),
-        ('WithVar(v, expr)', expr_with_void))
-
-def write_expr_stmt(e):
-    t = typeof(e)
-    if matches(t, 'IVoid()'):
-        write_void_stmt(e)
-    else:
-        express(e)
+def write_voidexpr(ve):
+    match(ve,
+        ('VoidCall(f, a)', write_void_call))
 
 def write_new_env(e):
     decl = env(DECLSONLY)
@@ -1226,10 +1216,11 @@ def write_stmt(stmt):
         ("stmt==Cond(cs)", write_cond),
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
-        ("ExprStmt(e)", write_expr_stmt),
+        ("Discard(e)", express),
         ("Nop()", lambda: None),
         ("Return(e)", write_return),
-        ("stmt==While(c, b)", write_while))
+        ("stmt==While(c, b)", write_while),
+        ("VoidStmt(e)", write_voidexpr))
 
 def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))

@@ -155,8 +155,8 @@ class AssertionExpander(vat.Mutator):
         add_extrinsic(TypeOf, bfail, extrinsic(TypeOf, fail))
 
         message = self.mutate('message')
-        call = E.Call(bfail, [message])
-        return S.Cond([CondCase(check, Body([S.ExprStmt(call)]))])
+        call = S.VoidStmt(VoidCall(bfail, [message]))
+        return S.Cond([CondCase(check, Body([call]))])
 
 def convert_decl_types(decls):
     map_(iconvert, decls.cdecls)
@@ -205,6 +205,20 @@ class MaybeConverter(vat.Mutator):
                     return null
         return self.mutate()
 
+def add_call_ctx(func, args):
+    if extrinsic(TypeOf, func).meta.takesEnv:
+        m = match(env(THREADENV))
+        if m('Just(ctx)'):
+            ctx = m.arg
+            bind = E.Bind(ctx)
+            copy_type(bind, ctx)
+            m.ret(bind)
+        else:
+            null = E.NullPtr()
+            add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+            m.ret(null)
+        args.append(m.result())
+
 class EnvExtrConverter(vat.Mutator):
     def Func(self, f):
         f.params = self.mutate('params')
@@ -223,19 +237,14 @@ class EnvExtrConverter(vat.Mutator):
     def Call(self, e):
         e.func = self.mutate('func')
         e.args = self.mutate('args')
-        if extrinsic(TypeOf, e.func).meta.takesEnv:
-            m = match(env(THREADENV))
-            if m('Just(ctx)'):
-                ctx = m.arg
-                bind = E.Bind(ctx)
-                copy_type(bind, ctx)
-                m.ret(bind)
-            else:
-                null = E.NullPtr()
-                add_extrinsic(LLVMTypeOf, null, IVoidPtr())
-                m.ret(null)
-            e.args.append(m.result())
+        add_call_ctx(e.func, e.args)
         return e
+
+    def VoidCall(self, c):
+        c.func = self.mutate('func')
+        c.args = self.mutate('args')
+        add_call_ctx(c.func, c.args)
+        return c
 
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])

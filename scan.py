@@ -165,13 +165,14 @@ def scan_stmt(stmt):
         ("Assign(lhs, e)", scan_assign),
         ("AugAssign(_, lhs, e)", scan_augassign),
         ("Break() or Continue()", nop),
-        ("ExprStmt(e)", scan_expr),
         ("Cond(cases)", scan_cond),
+        ("Discard(e)", scan_expr),
         ("While(t, b)", scan_while),
         ("Assert(t, m)", scan_assert),
         ("Return(e)", scan_expr),
         ("ReturnNothing()", nop),
-        ("WriteExtrinsic(_, e, val, _)", scan_writeextrinsic)))
+        ("WriteExtrinsic(_, e, val, _)", scan_writeextrinsic),
+        ("VoidCall(f, args)", scan_call)))
 
 def scan_body(body):
     map_(scan_stmt, body.stmts)

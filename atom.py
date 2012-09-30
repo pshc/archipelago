@@ -85,8 +85,11 @@ Lhs, LhsVar, LhsAttr = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
         'LhsAttr', ('sub', 'e'), ('attr', '*Field'))
 
+VoidExpr, VoidCall = ADT('VoidExpr',
+        'VoidCall', ('func', 'e'), ('args', ['e']))
+
 CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
-    ExprStmt, Return, ReturnNothing, While = \
+    Discard, Return, ReturnNothing, While, VoidStmt = \
     ADT('CoreStmt',
         'Assign', ('lhs', 'Lhs(e)'), ('expr', 'e'),
         'AugAssign', ('op', AugOp), ('lhs', 'Lhs(e)'), ('expr', 'e'),
@@ -94,10 +97,11 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'Cond', ('cases', ['CondCase(e)']),
         'Continue',
         'Defn', ('pat', Pat), ('expr', 'e'),
-        'ExprStmt', ('expr', 'e'),
+        'Discard', ('expr', 'e'),
         'Return', ('expr', 'e'),
         'ReturnNothing',
-        'While', ('test', 'e'), ('body', 'Body(e)'))
+        'While', ('test', 'e'), ('body', 'Body(e)'),
+        'VoidStmt', ('voidExpr', 'VoidExpr(e)'))
 
 Stmt, S, Assert, Nop, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),

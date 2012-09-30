@@ -143,26 +143,38 @@ def check_inst_call(e, inst, f, args):
     typecheck(t, extrinsic(TypeOf, f))
 
     argTs, result = match(t, ("TFunc(args, result, _)", tuple2))
-    if matches(result, "Ret(_)"):
-        maybe_typecast(inst, e, origResult.type, result.type)
-        check(result.type)
-    else:
-        pass # TODO: Check void
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
         maybe_typecast_reversed(inst, arg, newT, origT)
         check_expr_as(newT, arg)
 
+    if matches(result, "Ret(_)"):
+        maybe_typecast(inst, e, origResult.type, result.type)
+        check(result.type)
+    return result
+
 def check_call(e, f, args):
     if has_extrinsic(Instantiation, f):
-        check_inst_call(e, extrinsic(Instantiation, f), f, args)
-        return
-    t = check_expr_as_itself(f)
-    argts, result = match(t, ("TFunc(args, res, _)", tuple2))
-    if matches(result, "Ret(_)"):
+        res = check_inst_call(e, extrinsic(Instantiation, f), f, args)
+        assert matches(res, "Ret(_)")
+    else:
+        t = check_expr_as_itself(f)
+        argts, result = match(t, ("TFunc(args, res, _)", tuple2))
+        assert matches(result, "Ret(_)")
         check(result.type)
-    for arg, t in ezip(args, argts):
-        check_expr_as(t, arg)
+        for arg, t in ezip(args, argts):
+            check_expr_as(t, arg)
+
+def check_void_call(e, f, args):
+    if has_extrinsic(Instantiation, f):
+        res = check_inst_call(e, extrinsic(Instantiation, f), f, args)
+        assert not matches(res, "Ret(_)")
+    else:
+        t = check_expr_as_itself(f)
+        argts, result = match(t, ("TFunc(args, res, _)", tuple2))
+        assert not matches(result, "Ret(_)")
+        for arg, t in ezip(args, argts):
+            check_expr_as(t, arg)
 
 def check_tuplelit(es):
     ts = match(env(CHECK), "TTuple(ts)")
@@ -349,13 +361,14 @@ def check_stmt(a):
         ("Assign(lhs, e)", check_assign),
         ("AugAssign(_, lhs, e)", check_augassign),
         ("Break() or Continue()", nop),
-        ("ExprStmt(e)", check_expr_as_itself),
+        ("Discard(e)", check_expr_as_itself),
         ("Cond(cases)", check_cond),
         ("While(t, b)", check_while),
         ("Assert(t, m)", check_assert),
         ("Return(e)", check_return),
         ("ReturnNothing()", check_returnnothing),
-        ("WriteExtrinsic(Extrinsic(t), node, val, _)", check_writeextrinsic)))
+        ("WriteExtrinsic(Extrinsic(t), node, val, _)", check_writeextrinsic),
+        ("VoidStmt(call==VoidCall(f, args))", check_void_call)))
 
 def check_body(body):
     map_(check_stmt, body.stmts)
