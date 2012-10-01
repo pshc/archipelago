@@ -1,12 +1,15 @@
-LLVM
-- symbol clash resolution
-HM
+Prop
 - pure/side-effectful divide
 - figure out extrinsic types
 - poly unification
 Expand
 - closure to env conversion
+- global symbol clash resolution
+- expr flattening
 AST
 - block match format
+- block inenv format?
 ui
 - take valueTypes into account for atom indices
+vat
+- transmutation
