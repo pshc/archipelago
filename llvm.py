@@ -920,7 +920,8 @@ def with_pat_tuple(ps, txpr, func):
 def store_pat(pat, xpr):
     txpr = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
     match((pat, txpr), ('(PatVar(v), txpr)', store_pat_var),
-                       ('(PatTuple(ps), txpr)', store_pat_tuple))
+                       ('(PatTuple(ps), txpr)', store_pat_tuple),
+                       ('(PatWild(), _)', lambda: nop))
 
 def load_lhs(lhs):
     return match(lhs,

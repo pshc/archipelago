@@ -669,6 +669,8 @@ def conv_discard(s):
 
 def conv_ass(s):
     if isinstance(s, ast.AssName):
+        if s.name == '_':
+            return PatWild()
         assert not isJust(ident_exists(s.name)), \
                 "Unexpected reassignment of %s" % (s.name,)
         var = Var()
