@@ -353,6 +353,8 @@ class ExprStringifier(Visitor):
                 frag_comma()
             self.visit('args', i)
         frag(')')
+    def VoidCall(self, call):
+        self.Call(call)
 
     def Lit(self, lit):
         frag(repr(lit.literal.val))
@@ -392,8 +394,6 @@ class ExprStringifier(Visitor):
 
     def NullPtr(self, null):
         frag('null')
-    def WithVar(self, expr):
-        self.visit('expr')
 
     def FuncExpr(self, fe):
         frag('<function %s>' % (extrinsic(Name, fe.func),))
@@ -405,6 +405,8 @@ class ExprStringifier(Visitor):
         frag_comma()
         self.visit('expr')
         frag(')')
+    def VoidInEnv(self, e):
+        self.InEnv(e)
 
     def ScopeExtrinsic(self, e):
         frag('scope_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
