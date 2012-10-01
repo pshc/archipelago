@@ -70,6 +70,12 @@ def runtime_call(name, args):
     copy_type(bind, f)
     return E.Call(bind, args)
 
+def runtime_void_call(name, args):
+    f = RUNTIME[name]
+    bind = E.Bind(f)
+    copy_type(bind, f)
+    return S.VoidStmt(VoidCall(bind, args))
+
 class VarCloser(vat.Visitor):
     def TopFunc(self, top):
         in_env(EXFUNC, ExStaticDefn(), lambda: self.visit('func'))
@@ -219,6 +225,27 @@ def add_call_ctx(func, args):
             m.ret(null)
         args.append(m.result())
 
+def expand_inenv(e, returnsValue, exprMutator):
+    # Defer to the llvm pass until we have expression flattening
+    cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
+    m = match(env(THREADENV))
+    if m('Just(ctx)'):
+        ctx = m.arg
+        add_extrinsic(InEnvCtxVar, e, ctx)
+        e.expr = exprMutator()
+        return e
+    else:
+        # Don't have a ctx var yet, need to introduce one
+        ctx = new_ctx_var()
+        add_extrinsic(InEnvCtxVar, e, ctx)
+        e.expr = in_env(THREADENV, Just(ctx), exprMutator)
+        if returnsValue:
+            w = E.WithVar(ctx, e)
+            copy_type(w, e)
+        else:
+            w = VoidWithVar(ctx, e)
+        return w
+
 class EnvExtrConverter(vat.Mutator):
     def Func(self, f):
         f.params = self.mutate('params')
@@ -259,23 +286,12 @@ class EnvExtrConverter(vat.Mutator):
         return call
 
     def InEnv(self, e):
-        # Defer to the llvm pass until we have expression flattening
         e.init = self.mutate('init')
-        cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
-        m = match(env(THREADENV))
-        if m('Just(ctx)'):
-            ctx = m.arg
-            add_extrinsic(InEnvCtxVar, e, ctx)
-            e.expr = self.mutate('expr')
-            return e
-        else:
-            # Don't have a ctx var yet, need to introduce one
-            ctx = new_ctx_var()
-            add_extrinsic(InEnvCtxVar, e, ctx)
-            e.expr = in_env(THREADENV, Just(ctx), lambda: self.mutate('expr'))
-            w = E.WithVar(ctx, e)
-            copy_type(w, e)
-            return w
+        return expand_inenv(e, True, lambda: self.mutate('expr'))
+
+    def VoidInEnv(self, e):
+        e.init = self.mutate('init')
+        return expand_inenv(e, False, lambda: self.mutate('expr'))
 
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
@@ -305,9 +321,7 @@ class EnvExtrConverter(vat.Mutator):
         val = self.mutate('val')
         cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         cast_to_voidptr(val, extrinsic(LLVMTypeOf, val))
-        e = runtime_call(f, [extr, node, val])
-        add_extrinsic(LLVMTypeOf, e, IVoid())
-        return S.ExprStmt(e)
+        return runtime_void_call(f, [extr, node, val])
 
 def new_ctx_var():
     var = Var()

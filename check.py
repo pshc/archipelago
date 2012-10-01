@@ -228,6 +228,10 @@ def check_inenv(t, init, f):
     check_expr_as(t, init)
     check_same(f)
 
+def check_void_inenv(t, init, f):
+    check_expr_as(t, init)
+    check_voidexpr(f)
+
 def check_getextrinsic(t, node):
     check(t)
     check_expr_as_boxed(node)
@@ -355,6 +359,11 @@ def check_writeextrinsic(t, node, val):
     check_expr_as_boxed(node)
     check_expr_as(t, val)
 
+def check_voidexpr(e):
+    match(e,
+        ("call==VoidCall(f, args)", check_void_call),
+        ("VoidInEnv(Env(t), init, e)", check_void_inenv))
+
 def check_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(pat, e)", check_defn),
@@ -368,7 +377,7 @@ def check_stmt(a):
         ("Return(e)", check_return),
         ("ReturnNothing()", check_returnnothing),
         ("WriteExtrinsic(Extrinsic(t), node, val, _)", check_writeextrinsic),
-        ("VoidStmt(call==VoidCall(f, args))", check_void_call)))
+        ("VoidStmt(e)", check_voidexpr)))
 
 def check_body(body):
     map_(check_stmt, body.stmts)

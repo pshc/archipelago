@@ -1086,7 +1086,9 @@ def write_void_call(f, a):
 
 def write_voidexpr(ve):
     match(ve,
-        ('VoidCall(f, a)', write_void_call))
+        ('VoidCall(f, a)', write_void_call),
+        ('e==VoidInEnv(environ, init, expr)', voidexpr_inenv),
+        ('VoidWithVar(v, expr)', voidexpr_with))
 
 def write_new_env(e):
     decl = env(DECLSONLY)

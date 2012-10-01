@@ -649,18 +649,23 @@ def conv_break(s):
 def conv_continue(s):
     return [S.Continue()]
 
+def convert_to_voidexpr(e):
+    if isinstance(e, InEnv):
+        return VoidInEnv(e.env, e.init, convert_to_voidexpr(e.expr))
+    return VoidCall(e.func, e.args)
+
 @stmt(ast.Discard)
 def conv_discard(s):
     if isinstance(s.expr, ast.Const) and s.expr.value is None:
         return []
-    e = conv_expr(s.expr)
+    e = conv_callfunc(s.expr)
 
     # Dumb special case
     if isinstance(e, Stmt):
         assert isinstance(e, WriteExtrinsic)
         return [e]
 
-    return [S.Discard(e)]
+    return [S.VoidStmt(convert_to_voidexpr(e))]
 
 def conv_ass(s):
     if isinstance(s, ast.AssName):

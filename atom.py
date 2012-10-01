@@ -85,8 +85,10 @@ Lhs, LhsVar, LhsAttr = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
         'LhsAttr', ('sub', 'e'), ('attr', '*Field'))
 
-VoidExpr, VoidCall = ADT('VoidExpr',
-        'VoidCall', ('func', 'e'), ('args', ['e']))
+VoidExpr, VoidCall, VoidInEnv, VoidWithVar = ADT('VoidExpr',
+        'VoidCall', ('func', 'e'), ('args', ['e']),
+        'VoidInEnv', ('env', '*Env'), ('init', 'e'), ('expr', 'VoidExpr(e)'),
+        'VoidWithVar', ('var', Var), ('expr', 'VoidExpr(e)'))
 
 CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
     Discard, Return, ReturnNothing, While, VoidStmt = \

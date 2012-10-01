@@ -570,6 +570,15 @@ def prop_void_call(call, f, ps):
     result = prop_call_result(call, f, ps)
     assert not matches(result, "Ret(_)")
 
+def prop_void_inenv(t, init, f):
+    consume_value_as(ctype(t), init)
+    return prop_voidexpr(f)
+
+def prop_voidexpr(e):
+    match(e,
+        ("call==VoidCall(f, ps)", prop_void_call),
+        ("VoidInEnv(Env(t), init, e)", prop_void_inenv))
+
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(pat, e)", prop_defn),
@@ -583,7 +592,7 @@ def prop_stmt(a):
         ("Return(e)", prop_return),
         ("ReturnNothing()", prop_voidreturn),
         ("s==WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic),
-        ("call==VoidCall(f, ps)", prop_void_call)))
+        ("VoidStmt(e)", prop_voidexpr)))
 
 def prop_body(body):
     for i in xrange(len(body.stmts)):
