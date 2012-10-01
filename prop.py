@@ -586,7 +586,6 @@ def prop_stmt(a):
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
         ("Cond(cases)", prop_cond),
-        ("Discard(expr)", prop_expr),
         ("While(t, b)", prop_while),
         ("Assert(t, m)", prop_assert),
         ("Return(e)", prop_return),
@@ -595,21 +594,7 @@ def prop_stmt(a):
         ("VoidStmt(e)", prop_voidexpr)))
 
 def prop_body(body):
-    for i in xrange(len(body.stmts)):
-        s = body.stmts[i]
-
-        if matches(s, "Discard(Call(Bind(_), _))"):
-            # might want to change this into a VoidExpr
-            target = s.expr.func.target
-            if not matches(extrinsic(TypeOf, target), "TFunc(_, Ret(_), _)"):
-                # change into a voidcall
-                f, args = s.expr.func, s.expr.args
-                body.stmts[i] = S.VoidStmt(VoidCall(f, args))
-                res = prop_call_result(None, f, args)
-                assert not matches(res, "Ret(_)")
-                continue
-
-        prop_stmt(s)
+    map_(prop_stmt, body.stmts)
 
 def site_target_typeof(site):
     if isinstance(site, Expr):

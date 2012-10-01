@@ -370,7 +370,6 @@ def check_stmt(a):
         ("Assign(lhs, e)", check_assign),
         ("AugAssign(_, lhs, e)", check_augassign),
         ("Break() or Continue()", nop),
-        ("Discard(e)", check_expr_as_itself),
         ("Cond(cases)", check_cond),
         ("While(t, b)", check_while),
         ("Assert(t, m)", check_assert),

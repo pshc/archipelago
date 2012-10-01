@@ -91,7 +91,7 @@ VoidExpr, VoidCall, VoidInEnv, VoidWithVar = ADT('VoidExpr',
         'VoidWithVar', ('var', Var), ('expr', 'VoidExpr(e)'))
 
 CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
-    Discard, Return, ReturnNothing, While, VoidStmt = \
+    Return, ReturnNothing, While, VoidStmt = \
     ADT('CoreStmt',
         'Assign', ('lhs', 'Lhs(e)'), ('expr', 'e'),
         'AugAssign', ('op', AugOp), ('lhs', 'Lhs(e)'), ('expr', 'e'),
@@ -99,7 +99,6 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'Cond', ('cases', ['CondCase(e)']),
         'Continue',
         'Defn', ('pat', Pat), ('expr', 'e'),
-        'Discard', ('expr', 'e'),
         'Return', ('expr', 'e'),
         'ReturnNothing',
         'While', ('test', 'e'), ('body', 'Body(e)'),
