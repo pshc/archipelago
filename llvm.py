@@ -248,12 +248,18 @@ def call(rett, fx, argxs):
     newline()
     return TypedXpr(rett, tmp)
 
-def call_void(fx, argxs):
+def call_void(ftx, argxs):
     out('call ')
     out_t(IVoid())
-    out_xpr(fx)
+    out_xpr(ftx.xpr)
     write_args(argxs)
-    newline()
+    if ftx.type.meta.noReturn:
+        out(' noreturn')
+        newline()
+        out('unreachable')
+        term()
+    else:
+        newline()
 
 def write_args(args):
     out('(')
@@ -391,7 +397,7 @@ def t_str(t):
         ("IArray(n, t)", lambda n, et: "[%d x %s]" % (n, t_str(et))),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
-        ("IFunc(ps, r)", t_func_str),
+        ("IFunc(ps, r, _)", t_func_str),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
 
@@ -618,10 +624,11 @@ def write_call(e, f, args, rett):
     return x.xpr
 
 def write_runtime_call(name, argxs, rett):
-    fx = global_symbol(runtime_decl(name))
+    decl = runtime_decl(name)
+    fx = global_symbol(decl)
 
     if matches(rett, "IVoid()"):
-        call_void(fx, argxs)
+        call_void(TypedXpr(extrinsic(LLVMTypeOf, decl), fx), argxs)
         return Nothing()
     else:
         return Just(call(rett, fx, argxs))
@@ -1083,7 +1090,7 @@ def write_void_call(f, a):
             return
     fx = express_casted(f)
     argxs = map(express_casted, a)
-    call_void(fx.xpr, argxs)
+    call_void(fx, argxs)
 
 def write_voidexpr(ve):
     match(ve,
@@ -1135,37 +1142,41 @@ def write_params(ps, tps, fieldSymbols):
     out(')')
     return txs
 
-def write_top_func_decl(ref, tps, tret):
+def write_top_func_decl(ref, ft):
     out('declare ')
-    out_t(tret)
+    out_t(ft.ret)
     out_xpr(ref)
-    write_param_types(tps)
+    write_param_types(ft.params)
+    if ft.meta.noReturn:
+        out(' noreturn')
     newline()
 
 def write_top_func(var, f):
-    tps, tret = match(extrinsic(LLVMTypeOf, f), ("IFunc(ps, ret)", tuple2))
+    ft = extrinsic(LLVMTypeOf, f)
 
     if env(DECLSONLY):
-        write_top_func_decl(global_symbol(var), tps, tret)
+        write_top_func_decl(global_symbol(var), ft)
         return
     elif env(EXPORTSYMS):
         out('define ')
     else:
         out('define internal ')
-    out_t(tret)
+    out_t(ft.ret)
     out_global_symbol(var)
 
-    as_local(lambda: _write_top_func(f, f.params, f.body, tps, tret))
+    as_local(lambda: _write_top_func(f, ft))
     out('}\n\n')
 
-def _write_top_func(f, ps, body, tps, tret):
-    txs = write_params(ps, tps, False)
+def _write_top_func(f, ft):
+    txs = write_params(f.params, ft.params, False)
+    if ft.meta.noReturn:
+        out(' noreturn')
     out(' {')
     newline()
 
-    if len(ps) > 0:
+    if len(f.params) > 0:
         # write params to mem
-        for p, tx in ezip(ps, txs):
+        for p, tx in ezip(f.params, txs):
             out_local_var_reg(p)
             out(' = alloca ')
             out_t(tx.type)
@@ -1173,12 +1184,12 @@ def _write_top_func(f, ps, body, tps, tret):
             store_local_var(tx, p)
         newline()
 
-    write_body(body)
+    write_body(f.body)
 
     # Clean up
     last = env(LOCALS).currentBlock
     if last.used and last.needsTerminator:
-        assert matches(tret, 'IVoid()'), "No terminator for non-void return?"
+        assert matches(ft.ret, 'IVoid()'), "No terminator for non-void return?"
         out('ret void')
         term()
 
@@ -1234,8 +1245,7 @@ def imported_bindable_used(v):
 def write_top_cdecl(v):
     if not imported_bindable_used(v):
         return
-    tps, tret = match(extrinsic(LLVMTypeOf, v), ("IFunc(ps, ret)", tuple2))
-    write_top_func_decl(global_symbol(v), tps, tret)
+    write_top_func_decl(global_symbol(v), extrinsic(LLVMTypeOf, v))
 
 def write_top_var_func(v, f):
     if env(DECLSONLY) and not imported_bindable_used(v):

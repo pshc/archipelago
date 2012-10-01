@@ -1,5 +1,7 @@
 from base import *
 
+IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
+
 IType, IInt, IInt64, IFloat, IBool, IVoid, \
     IArray, ITuple, IData, IFunc, IPtr, IVoidPtr = ADT('IType',
         'IInt',
@@ -10,7 +12,7 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IArray', ('count', int), ('type', 'IType'),
         'ITuple', ('types', ['IType']),
         'IData', ('datatype', '*DataType'),
-        'IFunc', ('params', ['IType']), ('ret', 'IType'),
+        'IFunc', ('params', ['IType']), ('ret', 'IType'), ('meta', IFuncMeta),
         'IPtr', ('type', 'IType'),
         'IVoidPtr')
 
@@ -33,10 +35,17 @@ def convert_func_type(tps, result, meta):
     ips = map(convert_type, tps)
     if meta.takesEnv:
         ips.append(IVoidPtr())
-    res = match(result, ('Ret(t)', convert_type),
-                        ('Void()', IVoid),
-                        ('Bottom()', IVoid)) # todo
-    return IFunc(ips, res)
+    meta = IFuncMeta(False)
+    m = match(result)
+    if m('Ret(t)'):
+        t = m.arg
+        res = convert_type(t)
+    elif m('Void()'):
+        res = IVoid()
+    elif m('Bottom()'):
+        res = IVoid()
+        meta.noReturn = True
+    return IFunc(ips, res, meta)
 
 def itypes_equal(src, dest):
     same = lambda: True
@@ -51,7 +60,7 @@ def itypes_equal(src, dest):
             n1 == n2 and itypes_equal(t1, t2)),
         ('(ITuple(ts1), ITuple(ts2))', lambda ts1, ts2:
             all(itypes_equal(a, b) for a, b in ezip(ts1, ts2))),
-        ('(IFunc(ps1, r1), IFunc(ps2, r2))', lambda ps1, r1, ps2, r2:
+        ('(IFunc(ps1, r1, _), IFunc(ps2, r2, _))', lambda ps1, r1, ps2, r2:
             len(ps1) == len(ps2) and
             all(itypes_equal(a, b) for a, b in ezip(ps1, ps2)) and
             itypes_equal(r1, r2)),

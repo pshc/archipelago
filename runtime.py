@@ -1,8 +1,8 @@
 # Just the bare minimum to bootstrap bedrock
 
 malloc = cdecl('malloc', 'int -> a')
-fail = cdecl('fail', 'str -> void')
-match_fail = cdecl('match_fail', 'void -> void')
+fail = cdecl('fail', 'str -> noreturn')
+match_fail = cdecl('match_fail', 'void -> noreturn')
 
 _getenv = cdecl('_getenv', '(Env, c) -> a')
 _haveenv = cdecl('_haveenv', '(Env, c) -> bool')
