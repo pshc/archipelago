@@ -5,7 +5,8 @@ from types_builtin import subst
 # Sure could use graphs here!
 
 VatContents = DT('VatContents', ('copiedExtrinsics', ['*Extrinsic']),
-                                ('replacements', {'a': 'a'}))
+                                ('replacements', {'a': 'a'}),
+                                ('transmute', {'a': 'a'}))
 
 VAT = new_env('VAT', VatContents)
 
@@ -24,7 +25,7 @@ def orig_loc(obj):
     return extrinsic(Location, obj)
 
 def in_vat(func):
-    return in_env(VAT, VatContents([], {}), func)
+    return in_env(VAT, VatContents([], {}, False), func)
 
 # Clone structured data, recording information about its clone in the vat
 def clone(src, extrinsics):
@@ -40,10 +41,17 @@ def clone_structured(src, apps=None):
         if apps:
             ft = subst(apps, ft)
         fs.append(clone_by_type(getattr(src, fnm), ft))
+
     ctor_cls = extrinsic(TrueRepresentation, ctor)
+    vat = env(VAT)
+    if vat.transmute:
+        destData = vat.transmute.get(extrinsic(FormSpec, SUPERS[ctor_cls]))
+        if destData is not None:
+            ctor = transmuted_ctor(src, destData)
+            ctor_cls = extrinsic(TrueRepresentation, ctor)
+
     o = ctor_cls(*fs)
 
-    vat = env(VAT)
     for extr in vat.copiedExtrinsics:
         if has_extrinsic(extr, src):
             add_extrinsic(extr, o, extrinsic(extr, src))
@@ -87,6 +95,12 @@ def instance_ctor(obj):
     ctors = t_DT(type(obj)).data.ctors
     return ctors[obj._ctor_ix if len(ctors) > 1 else 0]
 
+def transmuted_ctor(obj, destData):
+    ctors = destData.ctors
+    ix = obj._ctor_ix if len(ctors) > 1 else 0
+    assert ix < len(ctors), "Don't know how to transmute %s!" % (obj,)
+    return ctors[ix]
+
 def type_app_list_to_map(tvars, appTs):
     apps = {}
     for tv, at in ezip(tvars, appTs):
@@ -117,7 +131,8 @@ def rewrite_by_type(obj, t):
         pass
     elif m('TData(data, appTs)'):
         data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data))
+        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, found %s %s" % (data, type(obj), obj)
         apps = appTs and type_app_list_to_map(data.tvars, appTs)
         ctor = instance_ctor(obj)
         repls = env(VAT).replacements
@@ -147,6 +162,16 @@ def rewrite_by_type(obj, t):
         assert False, "Shouldn't get here (should be rewritten in other cases)"
     else:
         assert False, "Bad type to rewrite: %r" % (t,)
+
+# Clone a structured object, changing its type in the process
+def transmute(obj, mapping, extrinsics):
+    vat = env(VAT)
+    vat.copiedExtrinsics = extrinsics
+    vat.transmute = dict((src.data, dest.data)
+            for src, dest in mapping.iteritems())
+    obj = clone_structured(obj)
+    vat.transmute = False
+    return obj
 
 # AST visitor&mutator (not really vat)
 
@@ -194,7 +219,7 @@ def visit_by_type(obj, t, customVisitors=True):
     elif m('TData(data, appTs)'):
         data, appTs = m.args
         assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
-                "Expected %s, got %s" % (data, obj)
+                "Expected %s, got %s %s" % (data, type(obj), obj)
         apps = appTs and type_app_list_to_map(data.tvars, appTs)
         visitor = env(VISIT)
 
