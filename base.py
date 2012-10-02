@@ -720,7 +720,7 @@ def pretty_brief(name, o):
         return col('Brown', extrinsic(Name, o))
     return None
 
-def _id(o):
+def short_id(o):
     return fmtcol('^DG@x{0:x}^N', id(o) % 0xfffff)
 
 def __repr__(o):
@@ -731,14 +731,15 @@ def __repr__(o):
     if has_extrinsic(PrettyPrinted, o):
         if has_extrinsic(Name, o):
             name = fmtcol('{0} ^Green"{1}"^N', name, extrinsic(Name, o))
-        return '<%s %s>' % (name, _id(o))
+        return '<%s %s>' % (name, short_id(o))
     add_extrinsic(PrettyPrinted, o, None)
 
     brief = pretty_brief(name, o)
     if brief is not None:
         return brief
     if has_extrinsic(Name, o):
-        name = fmtcol('{0} ^Green"{1}"^N {2}', name, extrinsic(Name,o), _id(o))
+        name = fmtcol('{0} ^Green"{1}"^N {2}', name, extrinsic(Name, o),
+                short_id(o))
     if len(t.__slots__) > 1:
         params = (repr(getattr(o, s)) for s in t.__slots__[:-1])
         comma = col('Blue', ', ')

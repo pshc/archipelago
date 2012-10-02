@@ -250,7 +250,7 @@ def _do_repr(s):
             if s in c.weakIndices:
                 c.write('<cyclic #%d>' % c.weakIndices[s])
             else:
-                c.write('<cyclic %s 0x%x>' % (dt.__name__, id(s)))
+                c.write('<cyclic %s %s>' % (dt.__name__, short_id(s)))
             return
         c.seen.add(s)
         name = dt.__name__
@@ -259,7 +259,7 @@ def _do_repr(s):
         for ext in c.exts:
             if has_extrinsic(ext, s):
                 name = '%s %s' % (name, extrinsic(ext, s))
-        c.write(name)
+        c.write('%s %s' % (name, short_id(s)))
         c.indent += 1
         form = extrinsic(FormSpec, dt)
         assert not isinstance(form, DataType)
@@ -269,7 +269,8 @@ def _do_repr(s):
             if isJust(p):
                 if isinstance(f, Structured):
                     if has_extrinsic(Name, f):
-                        c.write('->%s' % (extrinsic(Name, f),))
+                        c.write('->%s %s' % (extrinsic(Name, f),
+                                short_id(f)))
                     else:
                         if f not in c.weakIndices:
                             c.weakCtr += 1
