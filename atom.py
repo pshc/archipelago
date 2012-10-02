@@ -141,12 +141,6 @@ def with_context(desc, msg):
     desc = fmtcol("\n^DG^At:^N {0}\n{1}", env(STMTCTXT), desc)
     return fmtcol("^DG{0}^N\n^Red{1}^N", desc, msg)
 
-def builtin_ref(name):
-    return E.Bind(BUILTINS[name])
-
-def builtin_call(name, args):
-    return E.Call(builtin_ref(name), args)
-
 def lit_type(lit):
     return match(lit, ("IntLit(_)", TInt),
                       ("FloatLit(_)", TFloat),

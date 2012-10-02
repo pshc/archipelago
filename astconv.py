@@ -44,6 +44,13 @@ def sym_call(path, args):
     assert sym in syms, "%s not found in %s" % (sym, syms.keys())
     return S.VoidStmt(VoidCall(E.Bind(syms[sym]), args))
 
+def builtin_ref(name):
+    return E.Bind(BUILTINS[name])
+
+def builtin_call(name, args):
+    return E.Call(builtin_ref(name), args)
+
+
 def identifier(obj, name=None, namespace=valueNamespace,
                permissible_nms=frozenset(), export=False):
     scope = env(SCOPE)

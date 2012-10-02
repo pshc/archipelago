@@ -359,7 +359,7 @@ def prop_call(call, f, s):
 
 def overload_num_call(f):
     if matches(f, "key('negate')"):
-        return builtin_ref('fnegate')
+        return E.Bind(BUILTINS['fnegate'])
 
 def prop_logic(l, r):
     consume_value_as(CBool(), l)

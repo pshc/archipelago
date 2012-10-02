@@ -149,6 +149,9 @@ class LitExpander(vat.Mutator):
         else:
             return lit
 
+def builtin_call(name, args):
+    return E.Call(E.Bind(BUILTINS[name]), args)
+
 class AssertionExpander(vat.Mutator):
     def Assert(self, a):
         check = builtin_call('not', [self.mutate('test')])
