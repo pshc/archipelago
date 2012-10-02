@@ -568,7 +568,7 @@ def prop_writeextrinsic(s, extr, node, val):
 
 def prop_void_call(call, f, ps):
     result = prop_call_result(call, f, ps)
-    assert not matches(result, "Ret(_)")
+    assert not matches(result, "Ret(_)"), "%s doesn't return void" % (call,)
 
 def prop_void_inenv(t, init, f):
     consume_value_as(ctype(t), init)
