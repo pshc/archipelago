@@ -129,7 +129,7 @@ def setup_editor():
     glEnableVertexAttribArray(ATTRIB_POS)
     glEnableClientState(GL_VERTEX_ARRAY)
 
-    load_shader()
+    _ = load_shader()
 
 @annot('(float, float, float, float) -> void')
 def render_quad(x, y, w, h):
