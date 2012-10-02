@@ -66,13 +66,13 @@ def cast_to_voidptr(e, t):
 
 def runtime_call(name, args):
     f = RUNTIME[name]
-    bind = E.Bind(f)
+    bind = L.Bind(f)
     copy_type(bind, f)
-    return E.Call(bind, args)
+    return L.Call(bind, args)
 
 def runtime_void_call(name, args):
     f = RUNTIME[name]
-    bind = E.Bind(f)
+    bind = L.Bind(f)
     copy_type(bind, f)
     return S.VoidStmt(VoidCall(bind, args))
 
@@ -123,14 +123,14 @@ class FuncExpander(vat.Mutator):
         glob.newDecls.funcDecls.append(var)
         glob.newDefns.append(TopFunc(var, f))
         add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
-        bind = E.Bind(var)
+        bind = L.Bind(var)
         t = extrinsic(TypeOf, f)
         add_extrinsic(TypeOf, bind, t)
         add_extrinsic(TypeOf, var, t)
         return bind
 
 def expand_closures(unit):
-    t = t_DT(CompilationUnit)
+    t = t_DT(ExpandedUnit)
     vat.visit(VarCloser, unit, t)
     vat.mutate(FuncExpander, unit, t)
 
@@ -142,7 +142,7 @@ class LitExpander(vat.Mutator):
             add_extrinsic(Name, v, '.LC%d' % (vat.orig_loc(lit).index,))
             vat.set_orig(v, lit)
             env(EXGLOBAL).newDecls.lits.append(LitDecl(v, lit.literal))
-            expr = E.Bind(v)
+            expr = L.Bind(v)
             add_extrinsic(TypeOf, expr, TStr())
             add_extrinsic(TypeOf, v, TStr())
             return expr
@@ -150,7 +150,7 @@ class LitExpander(vat.Mutator):
             return lit
 
 def builtin_call(name, args):
-    return E.Call(E.Bind(BUILTINS[name]), args)
+    return L.Call(L.Bind(BUILTINS[name]), args)
 
 class AssertionExpander(vat.Mutator):
     def Assert(self, a):
@@ -160,7 +160,7 @@ class AssertionExpander(vat.Mutator):
 
         # temp
         fail = RUNTIME['fail']
-        bfail = E.Bind(fail)
+        bfail = L.Bind(fail)
         add_extrinsic(TypeOf, bfail, extrinsic(TypeOf, fail))
 
         message = self.mutate('message')
@@ -183,7 +183,7 @@ THREADENV = new_env('THREADENV', 'Maybe(Var)')
 InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
 
 class TypeConverter(vat.Visitor):
-    def t_Expr(self, e):
+    def t_LExpr(self, e):
         self.visit()
         iconvert(e)
         convert_cast(e)
@@ -209,7 +209,7 @@ class MaybeConverter(vat.Mutator):
                     return arg
                 else:
                     assert len(args) == 0
-                    null = E.NullPtr()
+                    null = NullPtr()
                     copy_type(null, call)
                     return null
         return self.mutate()
@@ -219,11 +219,11 @@ def add_call_ctx(func, args):
         m = match(env(THREADENV))
         if m('Just(ctx)'):
             ctx = m.arg
-            bind = E.Bind(ctx)
+            bind = L.Bind(ctx)
             copy_type(bind, ctx)
             m.ret(bind)
         else:
-            null = E.NullPtr()
+            null = NullPtr()
             add_extrinsic(LLVMTypeOf, null, IVoidPtr())
             m.ret(null)
         args.append(m.result())
@@ -243,7 +243,7 @@ def expand_inenv(e, returnsValue, exprMutator):
         add_extrinsic(InEnvCtxVar, e, ctx)
         e.expr = in_env(THREADENV, Just(ctx), exprMutator)
         if returnsValue:
-            w = E.WithVar(ctx, e)
+            w = WithVar(ctx, e)
             copy_type(w, e)
         else:
             w = VoidWithVar(ctx, e)
@@ -334,17 +334,17 @@ def new_ctx_var():
     return var
 
 def bind_env(e):
-    bind = E.Bind(e)
+    bind = L.Bind(e)
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
 def bind_env_ctx():
-    bind = E.Bind(fromJust(env(THREADENV)))
+    bind = L.Bind(fromJust(env(THREADENV)))
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
 def bind_extrinsic(extr):
-    bind = E.Bind(extr)
+    bind = L.Bind(extr)
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
@@ -478,7 +478,7 @@ def expand_decls(decls):
     _finish_decls(decls)
 
 def expand_unit(unit):
-    t = t_DT(CompilationUnit)
+    t = t_DT(ExpandedUnit)
     scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
     vat.mutate(LitExpander, unit, t)
     vat.mutate(AssertionExpander, unit, t)
@@ -519,12 +519,17 @@ def expand_module(decl_mod, defn_mod):
     expand_decls(decl_mod.root)
     new_decls = blank_module_decls()
 
-    # Clone defns as mutable replacements
-    def clone():
-        unit = vat.clone(defn_mod.root, [Name, TypeOf, TypeCast])
+    # Clone defns as mutable defns-using-LExprs
+    def transmute():
+        mapping = {
+            t_DT(CompilationUnit): t_DT(ExpandedUnit),
+            t_ADT(Expr): t_ADT(LExpr),
+        }
+        extrs = [Name, TypeOf, TypeCast]
+        unit = vat.transmute(defn_mod.root, mapping, extrs)
         vat.rewrite(unit)
         return unit
-    new_unit = vat.in_vat(clone)
+    new_unit = vat.in_vat(transmute)
 
     # Mutate clones
     in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),

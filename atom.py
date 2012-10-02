@@ -32,14 +32,14 @@ Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
         'PatVar', ('var', Var),
         'PatWild')
 
-MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'Expr'))
+MatchCase = DT('MatchCase', ('pat', Pat), ('result', 'e'))
 
 CoreLiteral, IntLit, FloatLit, StrLit = ADT('CoreLiteral',
         'IntLit', ('val', int),
         'FloatLit', ('val', float),
         'StrLit', ('val', str))
 
-CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit, NullPtr, WithVar = \
+CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit = \
     ADT('CoreExpr',
         'Attr', ('expr', 'CoreExpr'), ('field', '*Field'),
         'Bind', ('target', '*a'), # Binder a => a
@@ -47,10 +47,7 @@ CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit, NullPtr, WithVar = \
         'Lit', ('literal', CoreLiteral),
         'Ternary', ('test', 'CoreExpr'), ('then', 'CoreExpr'),
                    ('else_', 'CoreExpr'),
-        'TupleLit', ('vals', '[CoreExpr]'),
-        # XXX only used in the LLVM phase, move to own type
-        'NullPtr',
-        'WithVar', ('var', Var), ('expr', 'CoreExpr'))
+        'TupleLit', ('vals', '[CoreExpr]'))
 
 Expr, E, And, DictLit, FuncExpr, GenExpr, \
         GetEnv, HaveEnv, InEnv, \
@@ -69,7 +66,7 @@ Expr, E, And, DictLit, FuncExpr, GenExpr, \
         'HasExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
         'ListLit', ('vals', '[Expr]'),
-        'Match', ('expr', 'Expr'), ('cases', [MatchCase]),
+        'Match', ('expr', 'Expr'), ('cases', ['MatchCase(Expr)']),
         'Or', ('left', 'Expr'), ('right', 'Expr'))
 
 AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
@@ -124,9 +121,9 @@ ModuleDecls = DT('ModuleDecls',
 def blank_module_decls():
     return ModuleDecls([], [], [], [], [], [])
 
-TopFunc = DT('TopFunc', ('var', '*Var'), ('func', 'Func(Expr)'))
+TopFunc = DT('TopFunc', ('var', '*Var'), ('func', 'Func(e)'))
 
-CompilationUnit = DT('CompilationUnit', ('funcs', [TopFunc]))
+CompilationUnit = DT('CompilationUnit', ('funcs', ['TopFunc(Expr)']))
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')

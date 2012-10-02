@@ -125,11 +125,11 @@ def build_mod(decl_mod, defn_mod, plan):
 
     new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
     xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
-    defn_mod = Module(t_DT(atom.CompilationUnit), new_unit)
+    defn_mod = Module(t_DT(quilt.ExpandedUnit), new_unit)
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
     atom.write_mod_repr(view, xdecl_mod, [Name, TypeOf])
-    atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
+    atom.write_mod_repr(impv, defn_mod, [Name, quilt.LLVMTypeOf, TypeCast])
     native.serialize(xdecl_mod)
     native.serialize(defn_mod)
 

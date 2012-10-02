@@ -384,7 +384,7 @@ def runtime_decl(name):
 # TYPES
 
 def typeof(e):
-    assert isinstance(e, (Expr, Var, Field)), "%s is not type-y" % (e,)
+    assert isinstance(e, (LExpr, Var, Field)), "%s is not type-y" % (e,)
     return extrinsic(LLVMTypeOf, e)
 
 def t_str(t):
@@ -477,9 +477,9 @@ def expr_ternary(e, c, t, f):
 # Ought to specify a dependency on Bindable somehow
 LLVMBindable = new_typeclass('LLVMBindable',
         ('express', 'a -> Xpr'),
-        ('express_called', '(a, [Expr]) -> Maybe(Xpr)',
+        ('express_called', '(a, [LExpr]) -> Maybe(Xpr)',
                          lambda target, args: Nothing()),
-        ('express_called_void', '(a, [Expr]) -> bool',
+        ('express_called_void', '(a, [LExpr]) -> bool',
                          lambda target, args: False))
 
 @impl(LLVMBindable, Builtin)
@@ -971,9 +971,9 @@ def write_cond(stmt, cs):
             continue # breaks, really
 
         if i == 0:
-            out_comment('if %s:' % (stringify(case.test, 'Expr'),))
+            out_comment('if %s:' % (stringify(case.test, 'LExpr'),))
         else:
-            out_pretty(case, 'CondCase(Expr)')
+            out_pretty(case, 'CondCase(LExpr)')
         ex = express(case.test)
         then = new_label('then', csrs)
         e = endif
@@ -1221,7 +1221,7 @@ def write_while(stmt, cond, body):
     env(LOCALS).loopLabels = old_labels
 
 def write_stmt(stmt):
-    out_pretty(stmt, 'Stmt(Expr)')
+    out_pretty(stmt, 'Stmt(LExpr)')
     match(stmt,
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),

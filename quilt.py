@@ -1,4 +1,11 @@
 from base import *
+from atom import *
+
+LExpr, L, NullPtr, WithVar = ADT(('LExpr', Expr),
+        'NullPtr',
+        'WithVar', ('var', Var), ('expr', 'LExpr'))
+
+ExpandedUnit = DT('ExpandedUnit', ('funcs', ['TopFunc(LExpr)']))
 
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 

@@ -514,8 +514,11 @@ def tokenize_type(s):
 
 TForward = DT('TForward', ('name', str), ('appTypes', [Type]))
 
+def t_ADT(adt):
+    return vanilla_tdata(extrinsic(FormSpec, adt))
+
 def t_DT(dt):
-    return vanilla_tdata(extrinsic(FormSpec, SUPERS[dt]))
+    return t_ADT(SUPERS[dt])
 
 def _apply_list_type(t):
     listT = parse_type('List')
