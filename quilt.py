@@ -1,7 +1,8 @@
 from base import *
 from atom import *
 
-LExpr, L, NullPtr, WithVar = ADT(('LExpr', Expr),
+LExpr, L, Cast, NullPtr, WithVar = ADT(('LExpr', Expr),
+        'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
         'NullPtr',
         'WithVar', ('var', Var), ('expr', 'LExpr'))
 
@@ -24,7 +25,6 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IVoidPtr')
 
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
-LLVMTypeCast = new_extrinsic('LLVMTypeCast', (IType, IType))
 
 def convert_type(t):
     return match(t,

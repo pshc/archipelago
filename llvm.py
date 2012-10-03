@@ -339,6 +339,11 @@ def _do_cast(txpr, dest, liberal):
     if itypes_equal(src, dest):
         if liberal:
             return txpr
+
+        # TEMP
+        out_comment('pointless cast to itself: %s' % (src,))
+        return txpr
+
         assert False, "Pointless %s cast to itself" % (src,)
     kind = match((src, dest),
         ('(IInt() or IBool(), IVoidPtr() or IPtr(_))', lambda: 'inttoptr'),
@@ -610,18 +615,10 @@ def expr_binop(op, left, right, t):
         return tmp
 
 def write_call(e, f, args, rett):
-    fx = express_casted(f)
-    argxs = map(express_casted, args)
-
+    fx = express_typed(f)
+    argxs = map(express_typed, args)
     assert not matches(rett, "IVoid()")
-
-    if has_extrinsic(LLVMTypeCast, e):
-        src, dest = extrinsic(LLVMTypeCast, e)
-        x = cast(call(src, fx.xpr, argxs), dest)
-    else:
-        x = call(rett, fx.xpr, argxs)
-
-    return x.xpr
+    return call(rett, fx.xpr, argxs).xpr
 
 def write_runtime_call(name, argxs, rett):
     decl = runtime_decl(name)
@@ -679,7 +676,7 @@ def push_env(envtx, ctxVar, init):
     pctx = TypedXpr(IPtr(IVoidPtr()),
             Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),)))
 
-    i = express_casted(init)
+    i = express_typed(init)
     old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
     return fromJust(old)
 
@@ -785,6 +782,10 @@ def expr_listlit(lit, es):
     arr = get_element_ptr('listlit', xtmem, 1)
     return cast(TypedXpr(IPtr(t), arr), litt).xpr
 
+def expr_cast(src, dest, e):
+    x = express(e)
+    return cast(TypedXpr(src, x), dest).xpr
+
 def expr_with(var, expr):
     store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
     return express(expr)
@@ -808,19 +809,12 @@ def express(expr):
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
         ('e==Ternary(c, l, r)', expr_ternary),
+        ('Cast(src, dest, expr)', expr_cast),
         ('NullPtr()', lambda: Const("null")),
         ('WithVar(v, e)', expr_with))
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
-
-def express_casted(expr):
-    if not has_extrinsic(LLVMTypeCast, expr):
-        assert not has_extrinsic(TypeCast, expr), "typecast not converted"
-        return express_typed(expr)
-    ex = express(expr)
-    src, dest = extrinsic(LLVMTypeCast, expr)
-    return cast(TypedXpr(src, ex), dest)
 
 # PATTERN MATCHES
 
@@ -859,12 +853,12 @@ def match_pat_ctor(pat, ctor, ps, tx):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(expand.FieldSymbol, f), ctorval, index)
 
-        # move this cast check into match_pat maybe?
-        if has_extrinsic(LLVMTypeCast, p):
-            src, dest = extrinsic(LLVMTypeCast, p)
+        # TEMP
+        """
             val = cast(TypedXpr(src, val), dest).xpr
         else:
             assert not has_extrinsic(TypeCast, p), "pat cast not converted"
+        """
         match_pat(p, val)
 
 def match_pat_just(pat, p, tx):
@@ -1088,8 +1082,8 @@ def write_void_call(f, a):
     if matches(f, 'Bind(_)'):
         if LLVMBindable.express_called_void(f.target, a):
             return
-    fx = express_casted(f)
-    argxs = map(express_casted, a)
+    fx = express_typed(f)
+    argxs = map(express_typed, a)
     call_void(fx, argxs)
 
 def write_voidexpr(ve):

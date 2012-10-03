@@ -41,28 +41,19 @@ def copy_type(dest, src):
     # bleh... vat?
     add_extrinsic(LLVMTypeOf, dest, extrinsic(LLVMTypeOf, src))
 
-def convert_cast(e):
-    if has_extrinsic(TypeCast, e):
-        src, dest = extrinsic(TypeCast, e)
-        add_extrinsic(LLVMTypeCast, e, (convert_type(src), convert_type(dest)))
-
-def cast(e, src, dest):
+def cast(src, dest, e):
     assert not itypes_equal(src, dest), "%s already of %s type" % (e, src)
-    if has_extrinsic(LLVMTypeCast, e):
-        oldSrc, oldDest = extrinsic(LLVMTypeCast, e)
-        assert itypes_equal(oldDest, src), ("Casts on %s do not compose:\n" +
-                "%s->%s\n%s->%s") % (e, oldSrc, oldDest, src, dest)
-        update_extrinsic(LLVMTypeCast, e, (oldSrc, dest))
-    else:
-        add_extrinsic(LLVMTypeCast, e, (src, dest))
+    casted = Cast(src, dest, e)
+    add_extrinsic(LLVMTypeOf, casted, dest)
+    return casted
 
 def cast_from_voidptr(e, t):
-    if not matches(t, 'IVoidPtr()'):
-        cast(e, IVoidPtr(), t)
+    return match(t, ('IVoidPtr()', lambda: e),
+                    ('_', lambda: cast(IVoidPtr(), t, e)))
 
 def cast_to_voidptr(e, t):
-    if not matches(t, 'IVoidPtr()'):
-        cast(e, t, IVoidPtr())
+    return match(t, ('IVoidPtr()', lambda: e),
+                    ('_', lambda: cast(t, IVoidPtr(), e)))
 
 def runtime_call(name, args):
     f = RUNTIME[name]
@@ -182,19 +173,29 @@ def convert_decl_types(decls):
 THREADENV = new_env('THREADENV', 'Maybe(Var)')
 InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
 
-class TypeConverter(vat.Visitor):
+def convert_cast(e, castCtor):
+    if not has_extrinsic(TypeCast, e):
+        return e
+    src, dest = extrinsic(TypeCast, e)
+    casted = castCtor(convert_type(src), convert_type(dest), e)
+    add_extrinsic(LLVMTypeOf, casted, convert_type(dest))
+    return casted
+
+class TypeConverter(vat.Mutator):
     def t_LExpr(self, e):
-        self.visit()
+        e = self.mutate()
         iconvert(e)
-        convert_cast(e)
+        return convert_cast(e, Cast)
 
     def t_Pat(self, p):
-        self.visit()
+        p = self.mutate()
         iconvert(p)
-        convert_cast(p)
+        return p # TEMP
+        return convert_cast(p, PatCast)
 
     def Var(self, v):
         iconvert(v)
+        return v
 
 class MaybeConverter(vat.Mutator):
     def Call(self, call):
@@ -230,7 +231,7 @@ def add_call_ctx(func, args):
 
 def expand_inenv(e, returnsValue, exprMutator):
     # Defer to the llvm pass until we have expression flattening
-    cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
+    e.init = cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
     m = match(env(THREADENV))
     if m('Just(ctx)'):
         ctx = m.arg
@@ -280,8 +281,7 @@ class EnvExtrConverter(vat.Mutator):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
         t = extrinsic(LLVMTypeOf, e)
         add_extrinsic(LLVMTypeOf, call, t)
-        cast_from_voidptr(call, t)
-        return call
+        return cast_from_voidptr(call, t)
 
     def HaveEnv(self, e):
         call = runtime_call('_haveenv', [bind_env(e.env), bind_env_ctx()])
@@ -299,17 +299,16 @@ class EnvExtrConverter(vat.Mutator):
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
-        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
+        node = cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         call = runtime_call('_getextrinsic', [extr, node])
         t = extrinsic(LLVMTypeOf, e)
         add_extrinsic(LLVMTypeOf, call, t)
-        cast_from_voidptr(call, t)
-        return call
+        return cast_from_voidptr(call, t)
 
     def HasExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
-        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
+        node = cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         call = runtime_call('_hasextrinsic', [extr, node])
         copy_type(call, e)
         return call
@@ -322,8 +321,8 @@ class EnvExtrConverter(vat.Mutator):
         extr = bind_extrinsic(s.extrinsic)
         node = self.mutate('node')
         val = self.mutate('val')
-        cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
-        cast_to_voidptr(val, extrinsic(LLVMTypeOf, val))
+        node = cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
+        val = cast_to_voidptr(val, extrinsic(LLVMTypeOf, val))
         return runtime_void_call(f, [extr, node, val])
 
 def new_ctx_var():
@@ -488,7 +487,7 @@ def expand_unit(unit):
 
     _prepare_decls(env(EXGLOBAL).newDecls)
 
-    vat.visit(TypeConverter, unit, t)
+    vat.mutate(TypeConverter, unit, t)
     vat.mutate(MaybeConverter, unit, t)
     vat.mutate(EnvExtrConverter, unit, t)
 
@@ -499,7 +498,7 @@ def expand_unit(unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, StaticSymbol, LLVMTypeCast,
+    extrs = [Closure, StaticSymbol,
             vat.Original, GeneratedLocal, LocalSymbol,
             InEnvCtxVar]
 
