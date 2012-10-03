@@ -207,7 +207,7 @@ class MaybeConverter(vat.Mutator):
                 if len(args) == 1:
                     arg = self.mutate('args', 0)
                     t = i_ADT(Maybe)
-                    cast(arg, IVoidPtr(), t)
+                    arg = cast(IVoidPtr(), t, arg)
                     update_extrinsic(LLVMTypeOf, arg, t)
                     return arg
                 else:
