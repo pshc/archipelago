@@ -306,12 +306,14 @@ def mutate_by_type(obj, t, customMutators=True):
                    for f in ctor.fields)
 
         if customMutators:
-            ctorNm = extrinsic(Name, ctor)
-            if hasattr(mutator, ctorNm):
+            custom = getattr(mutator, extrinsic(Name, ctor), None)
+            if custom is None:
+                custom = getattr(mutator, 't_'+extrinsic(Name, data), None)
+            if custom is not None:
                 # Scope field types for recursive mutatino
                 old = mutator.obj, mutator.t, mutator.fts
                 mutator.obj, mutator.t, mutator.fts = obj, t, fts
-                obj = getattr(mutator, ctorNm)(obj)
+                obj = custom(obj)
                 mutator.obj, mutator.t, mutator.fts = old
                 return obj
 
