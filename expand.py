@@ -57,9 +57,12 @@ def cast_to_voidptr(e, t):
 
 def runtime_call(name, args):
     f = RUNTIME[name]
+    ft = extrinsic(LLVMTypeOf, f)
     bind = L.Bind(f)
-    copy_type(bind, f)
-    return L.Call(bind, args)
+    add_extrinsic(LLVMTypeOf, bind, ft)
+    call = L.Call(bind, args)
+    add_extrinsic(LLVMTypeOf, call, ft.ret)
+    return call
 
 def runtime_void_call(name, args):
     f = RUNTIME[name]
@@ -287,14 +290,10 @@ class EnvExtrConverter(vat.Mutator):
 
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
-        t = extrinsic(LLVMTypeOf, e)
-        add_extrinsic(LLVMTypeOf, call, t)
-        return cast_from_voidptr(call, t)
+        return cast_from_voidptr(call, extrinsic(LLVMTypeOf, e))
 
     def HaveEnv(self, e):
-        call = runtime_call('_haveenv', [bind_env(e.env), bind_env_ctx()])
-        add_extrinsic(LLVMTypeOf, call, IBool())
-        return call
+        return runtime_call('_haveenv', [bind_env(e.env), bind_env_ctx()])
 
     def InEnv(self, e):
         e.init = self.mutate('init')
@@ -309,17 +308,13 @@ class EnvExtrConverter(vat.Mutator):
         node = self.mutate('node')
         node = cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
         call = runtime_call('_getextrinsic', [extr, node])
-        t = extrinsic(LLVMTypeOf, e)
-        add_extrinsic(LLVMTypeOf, call, t)
-        return cast_from_voidptr(call, t)
+        return cast_from_voidptr(call, extrinsic(LLVMTypeOf, e))
 
     def HasExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
         node = self.mutate('node')
         node = cast_to_voidptr(node, extrinsic(LLVMTypeOf, node))
-        call = runtime_call('_hasextrinsic', [extr, node])
-        copy_type(call, e)
-        return call
+        return runtime_call('_hasextrinsic', [extr, node])
 
     def ScopeExtrinsic(self, e):
         return self.mutate('expr') # TEMP
