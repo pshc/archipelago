@@ -173,25 +173,27 @@ def convert_decl_types(decls):
 THREADENV = new_env('THREADENV', 'Maybe(Var)')
 InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
 
-def convert_cast(e, castCtor):
-    if not has_extrinsic(TypeCast, e):
-        return e
-    src, dest = extrinsic(TypeCast, e)
-    casted = castCtor(convert_type(src), convert_type(dest), e)
-    add_extrinsic(LLVMTypeOf, casted, convert_type(dest))
-    return casted
-
 class TypeConverter(vat.Mutator):
     def t_LExpr(self, e):
         e = self.mutate()
         iconvert(e)
-        return convert_cast(e, Cast)
+
+        if not has_extrinsic(TypeCast, e):
+            return e
+        src, dest = extrinsic(TypeCast, e)
+        casted = Cast(convert_type(src), convert_type(dest), e)
+        add_extrinsic(LLVMTypeOf, casted, convert_type(dest))
+        return casted
 
     def t_Pat(self, p):
         p = self.mutate()
         iconvert(p)
-        return p # TEMP
-        return convert_cast(p, PatCast)
+
+        if not has_extrinsic(TypeCast, p):
+            return p
+        src, dest = extrinsic(TypeCast, p)
+        add_extrinsic(LLVMPatCast, p, (convert_type(src), convert_type(dest)))
+        return p
 
     def Var(self, v):
         iconvert(v)
@@ -498,7 +500,7 @@ def expand_unit(unit):
 
 def in_intramodule_env(func):
     captures = {}
-    extrs = [Closure, StaticSymbol,
+    extrs = [Closure, StaticSymbol, LLVMPatCast,
             vat.Original, GeneratedLocal, LocalSymbol,
             InEnvCtxVar]
 

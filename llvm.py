@@ -852,13 +852,6 @@ def match_pat_ctor(pat, ctor, ps, tx):
     for p, f in ezip(ps, ctor.fields):
         index = extrinsic(expand.FieldIndex, f)
         val = extractvalue(extrinsic(expand.FieldSymbol, f), ctorval, index)
-
-        # TEMP
-        """
-            val = cast(TypedXpr(src, val), dest).xpr
-        else:
-            assert not has_extrinsic(TypeCast, p), "pat cast not converted"
-        """
         match_pat(p, val)
 
 def match_pat_just(pat, p, tx):
@@ -879,7 +872,12 @@ def match_pat_tuple(ps, tx):
     with_pat_tuple(ps, tx, match_pat)
 
 def match_pat(pat, xpr):
-    tx = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
+    if has_extrinsic(LLVMPatCast, pat):
+        src, dest = extrinsic(LLVMPatCast, pat)
+        tx = cast(TypedXpr(src, xpr), dest)
+    else:
+        tx = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
+
     match((pat, tx),
         ("(pat==PatCtor(c, ps), tx)", match_pat_ctor),
         ("(PatTuple(ps), tx)", match_pat_tuple),
