@@ -181,9 +181,13 @@ class TypeConverter(vat.Mutator):
         if not has_extrinsic(TypeCast, e):
             return e
         src, dest = extrinsic(TypeCast, e)
-        casted = Cast(convert_type(src), convert_type(dest), e)
-        add_extrinsic(LLVMTypeOf, casted, convert_type(dest))
-        return casted
+        isrc = convert_type(src)
+        idest = convert_type(dest)
+        if itypes_equal(isrc, idest):
+            assert types_punned(src, dest), \
+                    "Pointless non-pun cast %s -> %s" % (src, dest)
+            return e
+        return cast(isrc, idest, e)
 
     def t_Pat(self, p):
         p = self.mutate()
@@ -207,7 +211,9 @@ class MaybeConverter(vat.Mutator):
                 if len(args) == 1:
                     arg = self.mutate('args', 0)
                     t = i_ADT(Maybe)
-                    arg = cast(IVoidPtr(), t, arg)
+                    # Arg was probably cast to void* (for the just field)
+                    # cast it to Maybe, as the Just() is now omitted
+                    arg = cast_from_voidptr(arg, t)
                     update_extrinsic(LLVMTypeOf, arg, t)
                     return arg
                 else:

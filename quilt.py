@@ -27,6 +27,32 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
 LLVMPatCast = new_extrinsic('LLVMPatCast', (IType, IType))
 
+def types_punned(a, b):
+    # Determines whether two non-equal types convert to identical ITypes
+    assert not type_equal(a, b)
+    punny = lambda: True
+    # TODO: TFunc
+    return match((a, b),
+        ("(TVar(_), TVar(_))", punny),
+        ("(TPrim(PStr()), TVar(_))", punny),
+        ("(TVar(_), TPrim(PStr()))", punny),
+        ("(TData(d1, _), TData(d2, _))", lambda d1, d2:
+                d1 == d2 and not type_equal(a, b)),
+        ("(TArray(t1), TArray(t2))", types_punned),
+        ("(TTuple(a), TTuple(b))", tuples_punned),
+        ("_", lambda: False))
+
+def tuples_punned(a, b):
+    # We need at least one pun (and the rest equal)
+    pun = False
+    for t1, t2 in ezip(a, b):
+        if not type_equal(t1, t2):
+            if types_punned(a, b):
+                pun = True
+            else:
+                return False
+    return pun
+
 def convert_type(t):
     return match(t,
         ("TPrim(PInt())", IInt),

@@ -339,11 +339,6 @@ def _do_cast(txpr, dest, liberal):
     if itypes_equal(src, dest):
         if liberal:
             return txpr
-
-        # TEMP
-        out_comment('pointless cast to itself: %s' % (src,))
-        return txpr
-
         assert False, "Pointless %s cast to itself" % (src,)
     kind = match((src, dest),
         ('(IInt() or IBool(), IVoidPtr() or IPtr(_))', lambda: 'inttoptr'),
