@@ -13,6 +13,7 @@ TypeVars = base.new_extrinsic('TypeVars', [base.TypeVar])
 Instantiation = base.new_extrinsic('Instantiation', {'*TypeVar': base.Type})
 TypeCast = base.new_extrinsic('TypeCast', (base.Type, base.Type))
 InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})
+OrigRetType = base.new_extrinsic('OrigRetType', base.Type)
 
 loaded_modules = {}
 

@@ -609,12 +609,6 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
-def write_call(e, f, args, rett):
-    fx = express_typed(f)
-    argxs = map(express_typed, args)
-    assert not matches(rett, "IVoid()")
-    return call(rett, fx.xpr, argxs).xpr
-
 def write_runtime_call(name, argxs, rett):
     decl = runtime_decl(name)
     fx = global_symbol(decl)
@@ -630,7 +624,14 @@ def expr_call(e, f, args):
         mret = LLVMBindable.express_called(f.target, args)
         if isJust(mret):
             return fromJust(mret)
-    return write_call(e, f, args, typeof(e))
+
+    fx = express(f)
+    argxs = map(express_typed, args)
+
+    rett = typeof(e)
+    assert not matches(rett, "IVoid()")
+
+    return call(rett, fx, argxs).xpr
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
