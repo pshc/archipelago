@@ -478,9 +478,7 @@ def expr_ternary(e, c, t, f):
 LLVMBindable = new_typeclass('LLVMBindable',
         ('express', 'a -> Xpr'),
         ('express_called', '(a, [LExpr]) -> Maybe(Xpr)',
-                         lambda target, args: Nothing()),
-        ('express_called_void', '(a, [LExpr]) -> bool',
-                         lambda target, args: False))
+                         lambda target, args: Nothing()))
 
 @impl(LLVMBindable, Builtin)
 def express_Builtin(b):
@@ -1074,9 +1072,6 @@ def write_dtstmt(form):
         newline()
 
 def write_void_call(f, a):
-    if matches(f, 'Bind(_)'):
-        if LLVMBindable.express_called_void(f.target, a):
-            return
     fx = express_typed(f)
     argxs = map(express_typed, a)
     call_void(fx, argxs)
