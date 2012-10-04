@@ -752,11 +752,11 @@ def get_strlit_ptr(var):
     newline()
     return tmp
 
-def expr_tuplelit(lit, ts):
-    tt = match(typeof(lit), "IPtr(tt==ITuple(_))")
-    tmp = malloc(tt).xpr
-    txs = map(express_typed, ts)
-    struct = build_struct(tt, txs)
+def expr_tuplelit(lit, es):
+    tupt, tts = match(typeof(lit), ("IPtr(tupt==ITuple(tts))", tuple2))
+    tmp = malloc(tupt).xpr
+    txs = [TypedXpr(t, express(e)) for t, e in ezip(tts, es)]
+    struct = build_struct(tupt, txs)
     store_xpr(struct, tmp)
     return tmp
 
@@ -770,8 +770,9 @@ def expr_listlit(lit, es):
     lenx = TypedXpr(IInt(), Const(str(n)))
     if not itypes_equal(IInt(), t):
         lenx = cast(lenx, t)
-    txs = map(express_typed, es)
-    txs.insert(0, lenx)
+    txs = [lenx]
+    for e in es:
+        txs.append(TypedXpr(t, express(e)))
     array = build_struct(at, txs)
     store_xpr(array, xtmem.xpr)
     # Return pointer to second element
