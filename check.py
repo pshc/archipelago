@@ -84,7 +84,7 @@ def pat_ctor(pat, ctor, args):
         check(pdt)
         # Check whether each field is affected by instantiation or not
         for arg, (fieldT, paramT) in ezip(args, ezip(fieldTs, paramTs)):
-            maybe_typecast(inst, arg, fieldT, paramT)
+            _ = maybe_typecast(inst, arg, fieldT, paramT)
             in_env(CHECK, paramT, lambda: _check_pat(arg))
     else:
         check(dt)
@@ -113,17 +113,20 @@ def add_typecast(e, src, dest):
     add_extrinsic(TypeCast, e, (src, dest))
 
 def maybe_typecast(inst, e, fromT, toT):
-    if subst_affects(inst, fromT):
-        if env(GENOPTS).dumpInsts:
-            print fmtcol('^Blue^cast ^N{0} ^Blue^to^N {1}', fromT, toT)
-        add_typecast(e, fromT, toT)
+    if not subst_affects(inst, fromT):
+        return False
+    if env(GENOPTS).dumpInsts:
+        print fmtcol('^Blue^cast ^N{0} ^Blue^to^N {1}', fromT, toT)
+    add_typecast(e, fromT, toT)
+    return True
 
 def maybe_typecast_reversed(inst, e, fromT, toT):
-    if subst_affects(inst, toT):
-        if env(GENOPTS).dumpInsts:
-            print fmtcol('^LightBlue^revcast ^N{0} ^LightBlue^to^N {1}',
-                    fromT, toT)
-        add_typecast(e, fromT, toT)
+    if not subst_affects(inst, toT):
+        return False
+    if env(GENOPTS).dumpInsts:
+        print fmtcol('^LightBlue^rcast ^N{0} ^LightBlue^to^N {1}', fromT, toT)
+    add_typecast(e, fromT, toT)
+    return True
 
 def check_bind(bind, target):
     t = extrinsic(TypeOf, target)
@@ -145,12 +148,13 @@ def check_inst_call(e, inst, f, args):
     argTs, result = match(t, ("TFunc(args, result, _)", tuple2))
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
-        maybe_typecast_reversed(inst, arg, newT, origT)
+        _ = maybe_typecast_reversed(inst, arg, newT, origT)
         check_expr_as(newT, arg)
 
     if matches(result, "Ret(_)"):
-        maybe_typecast(inst, e, origResult.type, result.type)
+        _ = maybe_typecast(inst, e, origResult.type, result.type)
         check(result.type)
+
     return result
 
 def check_call(e, f, args):
