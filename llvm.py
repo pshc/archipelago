@@ -235,7 +235,7 @@ def malloc(t):
     nullx = ConstElementPtr(TypedXpr(IPtr(t), Const("null")), [1])
     sizeoft = IInt()
     sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), sizeoft)
-    mem = write_runtime_call('malloc', [TypedXpr(sizeoft, sizeof)], IVoidPtr())
+    mem = write_runtime_call('malloc', [TypedXpr(sizeoft, sizeof)])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
 
 def call(ftx, argxs):
@@ -571,7 +571,7 @@ def expr_unary(op, arg):
             l = cast(TypedXpr(IInt64(), l), IInt()).xpr
         return l
     elif op == 'buffer':
-        buf = write_runtime_call('malloc', [arg], IVoidPtr())
+        buf = write_runtime_call('malloc', [arg])
         return fromJust(buf)
     elif op == 'int_to_float':
         return cast(arg, IFloat()).xpr
@@ -608,13 +608,13 @@ def expr_binop(op, left, right, t):
         newline()
         return tmp
 
-def write_runtime_call(name, argxs, rett):
+def write_runtime_call(name, argxs):
     decl = runtime_decl(name)
     fx = global_symbol(decl)
     declt = extrinsic(LLVMTypeOf, decl)
     ftx = TypedXpr(declt, fx)
 
-    if matches(rett, "IVoid()"):
+    if matches(ftx.type, "IFunc(_, IVoid(), _)"):
         call_void(ftx, argxs)
         return Nothing()
     else:
@@ -676,12 +676,12 @@ def push_env(envtx, ctxVar, init):
             Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),)))
 
     i = TypedXpr(IVoidPtr(), express(init))
-    old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
+    old = write_runtime_call('_pushenv', [envtx, pctx, i])
     return TypedXpr(IVoidPtr(), fromJust(old))
 
 def pop_env(envtx, ctxVar, old):
     ctx = TypedXpr(typeof(ctxVar), load_var(ctxVar))
-    _ = write_runtime_call('_popenv', [envtx, ctx, old], IVoid())
+    _ = write_runtime_call('_popenv', [envtx, ctx, old])
 
 def expr_inenv(e, environ, init, expr):
     envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
@@ -724,7 +724,7 @@ def expr_match(m, e, cs):
 
     if next_case.used:
         out_label(next_case)
-        _ = write_runtime_call('match_fail', [], IVoid())
+        _ = write_runtime_call('match_fail', [])
         out('unreachable')
         term()
 
