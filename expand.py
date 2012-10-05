@@ -200,12 +200,6 @@ class TypeConverter(vat.Mutator):
         else:
             casted = cast(isrc, idest, e)
 
-        # need to respect the binding's instantiation if any
-        # hacky special case (only function returns) for now
-        if has_extrinsic(OrigRetType, e):
-            ft = convert_type(extrinsic(OrigRetType, e))
-            update_extrinsic(LLVMTypeOf, e, ft)
-
         return casted
 
     def t_Pat(self, p):
@@ -543,7 +537,7 @@ def expand_module(decl_mod, defn_mod):
             t_DT(CompilationUnit): t_DT(ExpandedUnit),
             t_ADT(Expr): t_ADT(LExpr),
         }
-        extrs = [Name, TypeOf, TypeCast, OrigRetType]
+        extrs = [Name, TypeOf, TypeCast]
         unit = vat.transmute(defn_mod.root, mapping, extrs)
         vat.rewrite(unit)
         return unit

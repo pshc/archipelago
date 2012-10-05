@@ -152,9 +152,7 @@ def check_inst_call(e, inst, f, args):
         check_expr_as(newT, arg)
 
     if matches(result, "Ret(_)"):
-        casted = maybe_typecast(inst, e, origResult.type, result.type)
-        if casted:
-            add_extrinsic(OrigRetType, e, origResult.type)
+        _ = maybe_typecast(inst, e, origResult.type, result.type)
         check(result.type)
 
     return result
