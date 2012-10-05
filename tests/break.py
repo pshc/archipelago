@@ -6,7 +6,6 @@ def test():
         break
         continue
 
-@annot('void -> int')
 def main():
     test()
     return 0

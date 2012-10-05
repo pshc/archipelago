@@ -1,5 +1,4 @@
 
-@annot('void -> int')
 def main():
     # ConstExpr tests
     assert 0 - 1 == -1, "Negative"

@@ -1,6 +1,5 @@
 from bedrock import *
 
-@annot('void -> int')
 def main():
     a = (4, 2)
     x, y = a

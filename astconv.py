@@ -735,16 +735,18 @@ def import_module(mod):
 @top_level(ast.Function)
 def conv_function(s):
     astannot = None
+
+    if s.name == 'main':
+        meta = plain_meta()
+        meta.takesEnv = False
+        astannot = ('void -> int', meta)
+
     if s.decorators:
         for dec in s.decorators.nodes:
             if isinstance(dec, ast.CallFunc):
                 if dec.node.name == 'annot':
-                    assert astannot is None
                     assert isinstance(dec.args[0], ast.Const)
                     meta = plain_meta()
-
-                    if s.name == 'main':
-                        meta.takesEnv = False
 
                     for arg in dec.args[1:]:
                         assert isinstance(arg, ast.Keyword)

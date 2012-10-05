@@ -14,6 +14,5 @@ def go():
     assert extrinsic(Moniker, actor) == 4, "Overwritten extrinsic"
     return 0
 
-@annot('void -> int')
 def main():
     return scope_extrinsic(Moniker, go)

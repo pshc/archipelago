@@ -2,7 +2,6 @@ from bedrock import *
 
 Account = DT('Account', ('balance', int))
 
-@annot('void -> int')
 def main():
     a = 1
     n = 0 

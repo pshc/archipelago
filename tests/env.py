@@ -23,7 +23,6 @@ def read2():
     assert env(TEST) == 2, "Second env"
     return 0
 
-@annot('void -> int')
 def main():
     in_env(TEST, 1, read)
     return in_env(TEST, 2, read2)

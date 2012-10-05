@@ -7,7 +7,6 @@ def fact(a):
     else:
         return a * fact(a-1)
 
-@annot('void -> int')
 def main():
     assert fact(10) == 3628800, "Factorial"
     return 0

@@ -1,5 +1,4 @@
 
-@annot('void -> int')
 def main():
     assert True or False, "Or"
     assert not (False or False), "Nor"

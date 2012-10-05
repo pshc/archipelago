@@ -1,6 +1,5 @@
 from bedrock import *
 
-@annot('void -> int')
 def main():
     empty = []
     assert len(empty) == 0, "Empty length"

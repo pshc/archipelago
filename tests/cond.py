@@ -11,7 +11,6 @@ def test(n):
         res = test(n-2) * 4
     return res
 
-@annot('void -> int')
 def main():
     assert test(8) == 256
     return 0
