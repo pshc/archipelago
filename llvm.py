@@ -241,10 +241,9 @@ def call(ftx, argxs):
     tmp = temp_reg()
     out_xpr(tmp)
     out(' = call ')
-    rett = ftx.type.ret
     out_t(ftx.type.ret)
     out_xpr(ftx.xpr)
-    write_args(argxs)
+    write_args(ftx.type.params, argxs)
     newline()
     return tmp
 
@@ -252,7 +251,7 @@ def call_void(ftx, argxs):
     out('call ')
     out_t(IVoid())
     out_xpr(ftx.xpr)
-    write_args(argxs)
+    write_args(ftx.type.params, argxs)
     if ftx.type.meta.noReturn:
         out(' noreturn')
         newline()
@@ -261,15 +260,16 @@ def call_void(ftx, argxs):
     else:
         newline()
 
-def write_args(args):
+def write_args(types, args):
     out('(')
     first = True
-    for tx in args:
+    for t, x in ezip(types, args):
         if first:
             first = False
         else:
             comma()
-        out_txpr(tx)
+        out_t(t)
+        out_xpr(x)
     out(')')
 
 def get_element_ptr(name, tx, index):
@@ -613,17 +613,15 @@ def write_runtime_call(name, argxs):
     declt = extrinsic(LLVMTypeOf, decl)
     ftx = TypedXpr(declt, fx)
 
-    argtxs = [TypedXpr(t, x) for t, x in ezip(ftx.type.params, argxs)]
-
     # TEMP
     if name == '_pushenv':
-        argtxs[1].type = IPtr(IVoidPtr())
+        ftx.type.params[1] = IPtr(IVoidPtr())
 
     if matches(ftx.type, "IFunc(_, IVoid(), _)"):
-        call_void(ftx, argtxs)
+        call_void(ftx, argxs)
         return Nothing()
     else:
-        return Just(call(ftx, argtxs))
+        return Just(call(ftx, argxs))
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
@@ -632,14 +630,14 @@ def expr_call(e, f, args):
             return fromJust(mret)
 
     fx = express(f)
-    argxs = map(express_typed, args)
+    argxs = map(express, args)
 
     # TEMP
-    rett = typeof(e)
-    assert not matches(rett, "IVoid()")
-    ftx = TypedXpr(IFunc(None, rett, None), fx)
+    ft = typeof(f)
+    ft.ret = typeof(e) # hack
+    assert not matches(ft, "IFunc(_, IVoid(), _)")
 
-    return call(ftx, argxs)
+    return call(TypedXpr(ft, fx), argxs)
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
@@ -1082,7 +1080,7 @@ def write_dtstmt(form):
 
 def write_void_call(f, a):
     fx = express_typed(f)
-    argxs = map(express_typed, a)
+    argxs = map(express, a)
     call_void(fx, argxs)
 
 def write_voidexpr(ve):
