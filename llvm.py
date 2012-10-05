@@ -236,17 +236,18 @@ def malloc(t):
     sizeoft = IInt()
     sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), sizeoft)
     mem = write_runtime_call('malloc', [TypedXpr(sizeoft, sizeof)], IVoidPtr())
-    return cast(fromJust(mem), IPtr(t))
+    return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
 
-def call(rett, fx, argxs):
+def call(ftx, argxs):
     tmp = temp_reg()
     out_xpr(tmp)
     out(' = call ')
-    out_t(rett)
-    out_xpr(fx)
+    rett = ftx.type.ret
+    out_t(ftx.type.ret)
+    out_xpr(ftx.xpr)
     write_args(argxs)
     newline()
-    return TypedXpr(rett, tmp)
+    return tmp
 
 def call_void(ftx, argxs):
     out('call ')
@@ -571,7 +572,7 @@ def expr_unary(op, arg):
         return l
     elif op == 'buffer':
         buf = write_runtime_call('malloc', [arg], IVoidPtr())
-        return fromJust(buf).xpr
+        return fromJust(buf)
     elif op == 'int_to_float':
         return cast(arg, IFloat()).xpr
     elif op == 'float_to_int':
@@ -610,12 +611,14 @@ def expr_binop(op, left, right, t):
 def write_runtime_call(name, argxs, rett):
     decl = runtime_decl(name)
     fx = global_symbol(decl)
+    declt = extrinsic(LLVMTypeOf, decl)
+    ftx = TypedXpr(declt, fx)
 
     if matches(rett, "IVoid()"):
-        call_void(TypedXpr(extrinsic(LLVMTypeOf, decl), fx), argxs)
+        call_void(ftx, argxs)
         return Nothing()
     else:
-        return Just(call(rett, fx, argxs))
+        return Just(call(ftx, argxs))
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
@@ -626,10 +629,12 @@ def expr_call(e, f, args):
     fx = express(f)
     argxs = map(express_typed, args)
 
+    # TEMP
     rett = typeof(e)
     assert not matches(rett, "IVoid()")
+    ftx = TypedXpr(IFunc(None, rett, None), fx)
 
-    return call(rett, fx, argxs).xpr
+    return call(ftx, argxs)
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
@@ -670,13 +675,13 @@ def push_env(envtx, ctxVar, init):
     pctx = TypedXpr(IPtr(IVoidPtr()),
             Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),)))
 
-    i = express_typed(init)
+    i = TypedXpr(IVoidPtr(), express(init))
     old = write_runtime_call('_pushenv', [envtx, pctx, i], envtx.type)
-    return fromJust(old)
+    return TypedXpr(IVoidPtr(), fromJust(old))
 
 def pop_env(envtx, ctxVar, old):
     ctx = TypedXpr(typeof(ctxVar), load_var(ctxVar))
-    write_runtime_call('_popenv', [envtx, ctx, old], IVoid())
+    _ = write_runtime_call('_popenv', [envtx, ctx, old], IVoid())
 
 def expr_inenv(e, environ, init, expr):
     envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
@@ -719,7 +724,7 @@ def expr_match(m, e, cs):
 
     if next_case.used:
         out_label(next_case)
-        write_runtime_call('match_fail', [], IVoid())
+        _ = write_runtime_call('match_fail', [], IVoid())
         out('unreachable')
         term()
 
