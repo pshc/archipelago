@@ -163,10 +163,17 @@ class AssertionExpander(vat.Mutator):
 
 def convert_decl_types(decls):
     map_(iconvert, decls.cdecls)
+
     for dt in decls.dts:
         for ctor in dt.ctors:
+            fts = []
             for field in ctor.fields:
-                add_extrinsic(LLVMTypeOf, field, convert_type(field.type))
+                ft = convert_type(field.type)
+                fts.append(ft)
+                add_extrinsic(LLVMTypeOf, field, ft)
+            ctort = IFunc(fts, IPtr(IData(dt)), IFuncMeta(False))
+            add_extrinsic(LLVMTypeOf, ctor, ctort)
+
     for env in decls.envs:
         add_extrinsic(LLVMTypeOf, env, convert_type(env.type))
     for lit in decls.lits:

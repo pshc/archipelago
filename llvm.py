@@ -624,20 +624,20 @@ def write_runtime_call(name, argxs):
         return Just(call(ftx, argxs))
 
 def expr_call(e, f, args):
-    if matches(f, 'Bind(_)'):
-        mret = LLVMBindable.express_called(f.target, args)
-        if isJust(mret):
-            return fromJust(mret)
+    assert matches(f, 'Bind(_)'), "TODO func objects"
 
-    fx = express(f)
+    mret = LLVMBindable.express_called(f.target, args)
+    if isJust(mret):
+        return fromJust(mret)
+
+    var = f.target # or ctor
+    ftx = TypedXpr(extrinsic(LLVMTypeOf, var), LLVMBindable.express(var))
     argxs = map(express, args)
 
-    # TEMP
-    ft = typeof(f)
-    ft.ret = typeof(e) # hack
-    assert not matches(ft, "IFunc(_, IVoid(), _)")
+    rett = match(ftx.type, "IFunc(_, t, _)")
+    assert not matches(rett, "IVoid()")
 
-    return call(TypedXpr(ft, fx), argxs)
+    return call(ftx, argxs)
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
