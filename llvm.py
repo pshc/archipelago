@@ -233,9 +233,8 @@ def store_xpr(txpr, dest):
 
 def malloc(t):
     nullx = ConstElementPtr(TypedXpr(IPtr(t), Const("null")), [1])
-    sizeoft = IInt()
-    sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), sizeoft)
-    mem = write_runtime_call('malloc', [TypedXpr(sizeoft, sizeof)])
+    sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), IInt())
+    mem = write_runtime_call('malloc', [sizeof])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
 
 def call(ftx, argxs):
@@ -571,7 +570,7 @@ def expr_unary(op, arg):
             l = cast(TypedXpr(IInt64(), l), IInt()).xpr
         return l
     elif op == 'buffer':
-        buf = write_runtime_call('malloc', [arg])
+        buf = write_runtime_call('malloc', [arg.xpr])
         return fromJust(buf)
     elif op == 'int_to_float':
         return cast(arg, IFloat()).xpr
@@ -614,11 +613,17 @@ def write_runtime_call(name, argxs):
     declt = extrinsic(LLVMTypeOf, decl)
     ftx = TypedXpr(declt, fx)
 
+    argtxs = [TypedXpr(t, x) for t, x in ezip(ftx.type.params, argxs)]
+
+    # TEMP
+    if name == '_pushenv':
+        argtxs[1].type = IPtr(IVoidPtr())
+
     if matches(ftx.type, "IFunc(_, IVoid(), _)"):
-        call_void(ftx, argxs)
+        call_void(ftx, argtxs)
         return Nothing()
     else:
-        return Just(call(ftx, argxs))
+        return Just(call(ftx, argtxs))
 
 def expr_call(e, f, args):
     if matches(f, 'Bind(_)'):
@@ -667,36 +672,35 @@ def expr_func(f, ps, body):
     assert not clos.isClosure, "TODO"
     return global_symbol(clos.func)
 
-def push_env(envtx, ctxVar, init):
+def push_env(envx, ctxVar, init):
     # XXX temp hack for this env impl
     # name_reg() would make it cleaner but yagni
     # taking this ptr-to-alloca breaks mem2reg
     # prefer to return a tuple from _pushenv or have it manage its own stack
-    pctx = TypedXpr(IPtr(IVoidPtr()),
-            Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),)))
+    pcx = Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),))
 
-    i = TypedXpr(IVoidPtr(), express(init))
-    old = write_runtime_call('_pushenv', [envtx, pctx, i])
-    return TypedXpr(IVoidPtr(), fromJust(old))
+    i = express(init)
+    old = write_runtime_call('_pushenv', [envx, pcx, i])
+    return fromJust(old)
 
-def pop_env(envtx, ctxVar, old):
-    ctx = TypedXpr(typeof(ctxVar), load_var(ctxVar))
-    _ = write_runtime_call('_popenv', [envtx, ctx, old])
+def pop_env(envx, ctxVar, old):
+    ctx = load_var(ctxVar)
+    _ = write_runtime_call('_popenv', [envx, ctx, old])
 
 def expr_inenv(e, environ, init, expr):
-    envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
+    envx = global_symbol(environ)
     ctxVar = extrinsic(expand.InEnvCtxVar, e)
-    old = push_env(envtx, ctxVar, init)
+    old = push_env(envx, ctxVar, init)
     ret = express(expr)
-    pop_env(envtx, ctxVar, old)
+    pop_env(envx, ctxVar, old)
     return ret
 
 def voidexpr_inenv(e, environ, init, vexpr):
-    envtx = TypedXpr(IVoidPtr(), global_symbol(environ))
+    envx = global_symbol(environ)
     ctx = extrinsic(expand.InEnvCtxVar, e)
-    old = push_env(envtx, ctx, init)
+    old = push_env(envx, ctx, init)
     write_voidexpr(vexpr)
-    pop_env(envtx, ctx, old)
+    pop_env(envx, ctx, old)
 
 def expr_match(m, e, cs):
     xpr = express(e)
