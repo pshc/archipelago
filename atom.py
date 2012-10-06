@@ -21,6 +21,7 @@ Env = DT('Env', ('type', Type))
 Extrinsic = DT('Extrinsic', ('type', Type))
 
 Var = DT('Var')
+GlobalVar = DT('GlobalVar')
 
 Pat, PatCtor, PatCapture, PatInt, PatStr, PatTuple, PatVar, PatWild = \
     ADT('Pat',
@@ -108,20 +109,20 @@ Stmt, S, Assert, Nop, WriteExtrinsic = \
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))
 
-LitDecl = DT('LitDecl', ('var', Var), ('literal', CoreLiteral))
+LitDecl = DT('LitDecl', ('var', GlobalVar), ('literal', CoreLiteral))
 
 ModuleDecls = DT('ModuleDecls',
-        ('cdecls', [Var]),
+        ('cdecls', [GlobalVar]),
         ('dts', [DataType]),
         ('envs', [Env]),
         ('extrinsics', [Extrinsic]),
         ('lits', [LitDecl]),
-        ('funcDecls', [Var]))
+        ('funcDecls', [GlobalVar]))
 
 def blank_module_decls():
     return ModuleDecls([], [], [], [], [], [])
 
-TopFunc = DT('TopFunc', ('var', '*Var'), ('func', 'Func(e)'))
+TopFunc = DT('TopFunc', ('var', '*GlobalVar'), ('func', 'Func(e)'))
 
 CompilationUnit = DT('CompilationUnit', ('funcs', ['TopFunc(Expr)']))
 
@@ -144,16 +145,17 @@ def lit_type(lit):
                       ("StrLit(_)", TStr))
 
 Bindable = new_typeclass('Bindable',
-        ('isVar', 'a -> Var', lambda v: Nothing()))
+        ('isLocalVar', 'a -> Var', lambda v: Nothing()))
 
 # This is silly
 # Maybe can have types opt-in to RTTI?
 # Or just use Bindable a => a in prop and expand
 
 @impl(Bindable, Var)
-def isVar_Var(var):
+def isLocalVar_Var(var):
     return Just(var)
 
+default_impl(Bindable, GlobalVar)
 default_impl(Bindable, Builtin)
 default_impl(Bindable, Ctor)
 
@@ -169,6 +171,7 @@ def isMaybe_Ctor(ctor):
     return name == 'Just' or name == 'Nothing'
 default_impl(Nullable, Builtin)
 default_impl(Nullable, Var)
+default_impl(Nullable, GlobalVar)
 
 @matcher('key')
 def _match_key(atom, ast):

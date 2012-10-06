@@ -103,7 +103,7 @@ def refs_existing(nm, namespace=valueNamespace):
     return fwd_ref
 
 def check_bind_kind(v):
-    if isinstance(v, (Var, Builtin, Ctor)):
+    if isinstance(v, (GlobalVar, Var, Builtin, Ctor)):
         return True
     elif isinstance(v, (DataType, Env, Extrinsic)):
         return True
@@ -229,7 +229,7 @@ def _make_dt(dt_nm, *args, **opts):
 
 @special_assignment('cdecl')
 def make_cdecl(nm, t):
-    var = Var()
+    var = GlobalVar()
     identifier(var, nm.value, export=True, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
@@ -239,7 +239,7 @@ def make_cdecl(nm, t):
 
 @special_assignment('cimport')
 def make_cimport(nm, t):
-    var = Var()
+    var = GlobalVar()
     identifier(var, nm.value, export=False, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
@@ -620,7 +620,9 @@ def conv_top_assign(s):
     else:
         reass = conv_try_reass(left)
         assert not isJust(reass), "Can't reassign in global scope"
-        var = match(conv_ass(left), "PatVar(v)")
+        assert isinstance(left, ast.AssName) and left.name != '_'
+        var = GlobalVar()
+        identifier(var, left.name, export=True)
         val = match(expra, "Lit(lit)")
         env(OMNI).decls.lits.append(LitDecl(var, val))
 
@@ -758,9 +760,9 @@ def conv_function(s):
                         else:
                             assert False, "Unknown meta option " + key
                     astannot = (dec.args[0].value, meta)
-    var = Var()
-    assert astannot, "Function %s has no type annot" % s.name
     glob = is_top_level()
+    var = GlobalVar() if glob else Var()
+    assert astannot, "Function %s has no type annot" % s.name
     identifier(var, s.name, export=glob)
     @inside_scope
     def build():

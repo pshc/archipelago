@@ -97,7 +97,7 @@ class ClosureExpander(vat.Mutator):
         info = ExInnerFunc(set())
         f = in_env(EXFUNC, info, lambda: self.mutate('func'))
         isClosure = len(info.closedVars) > 0
-        var = Var()
+        var = GlobalVar()
         glob = env(EXGLOBAL)
         glob.newDecls.funcDecls.append(var)
         glob.newDefns.append(TopFunc(var, f))
@@ -119,7 +119,7 @@ class ClosureExpander(vat.Mutator):
         return pat
 
     def Bind(self, bind):
-        mv = Bindable.isVar(bind.target)
+        mv = Bindable.isLocalVar(bind.target)
         if isJust(mv):
             m = match(env(EXFUNC))
             if m('f==ExInnerFunc(closedVars)'):
@@ -137,7 +137,7 @@ class LitExpander(vat.Mutator):
     def Lit(self, lit):
         m = match(lit.literal)
         if m('StrLit(_)'):
-            v = Var()
+            v = GlobalVar()
             add_extrinsic(Name, v, '.LC%d' % (vat.orig_loc(lit).index,))
             vat.set_orig(v, lit)
             env(EXGLOBAL).newDecls.lits.append(LitDecl(v, lit.literal))

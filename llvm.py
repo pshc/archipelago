@@ -384,7 +384,8 @@ def runtime_decl(name):
 # TYPES
 
 def typeof(e):
-    assert isinstance(e, (LExpr, Var, Field)), "%s is not type-y" % (e,)
+    assert isinstance(e, (LExpr, Var, GlobalVar, Field)), \
+            "%s is not type-y" % (e,)
     return extrinsic(LLVMTypeOf, e)
 
 def t_str(t):
@@ -486,8 +487,8 @@ def express_Builtin(b):
         ('key("True")', lambda: Const('true')),
         ('key("False")', lambda: Const('false')))
 
-@impl(LLVMBindable, Var)
-def express_Var(v):
+@impl(LLVMBindable, GlobalVar)
+def express_GlobalVar(v):
     if has_extrinsic(expand.GlobalSymbol, v):
         repl = extrinsic(expand.GlobalSymbol, v)
         if repl.isFunc:
@@ -496,10 +497,11 @@ def express_Var(v):
             return get_strlit_ptr(v)
         else:
             return load(repl.symbol, typeof(v), Global(repl.symbol)).xpr
-    elif has_extrinsic(expand.StaticSymbol, v):
-        return Global(extrinsic(expand.StaticSymbol, v))
-    else:
-        return load_var(v)
+    return Global(extrinsic(expand.StaticSymbol, v))
+
+@impl(LLVMBindable, Var)
+def express_Var(v):
+    return load_var(v)
 
 def load_var(v):
     # Would be nice: (need local_var_reg)

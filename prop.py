@@ -305,22 +305,16 @@ def _prop_pat(p):
         ("p==PatCtor(c, args)", pat_ctor))
     add_extrinsic(PendingType, p, env(INPAT))
 
-def inst_bind(bind, v):
-    t = extrinsic(TypeOf, v)
-    return instantiate_type(bind, extrinsic(TypeOf, v))
-
 def prop_bind(b, target):
-    v = Bindable.isVar(target)
-    if isJust(v):
-        return prop_bind_var(b, fromJust(v))
+    m = match(Bindable.isLocalVar(target))
+    if m('Just(v)'):
+        v = m.arg
+        return prop_local_var(v)
     else:
-        return inst_bind(b, target)
+        return instantiate_type(b, extrinsic(TypeOf, target))
 
-def prop_bind_var(b, v):
-    ct = env(PROPSCOPE).localVars.get(v)
-    if ct is not None:
-        return ct
-    return inst_bind(b, v)
+def prop_local_var(v):
+    return env(PROPSCOPE).localVars[v]
 
 def prop_lit(lit):
     return ctype(lit_type(lit))
@@ -496,9 +490,6 @@ def resolve_field_type(t, ft):
         tmap[tvar] = t
     return ctype_replaced(ft, tmap)
 
-def prop_lhs_var(lhs, v):
-    return prop_bind_var(lhs, v)
-
 def prop_lhs_attr(lhs, s, f):
     t = prop_expr(s)
     # TEMP: resolve the field name now that we have type info
@@ -507,7 +498,7 @@ def prop_lhs_attr(lhs, s, f):
 
 def prop_lhs(lhs):
     t = match(lhs,
-        ("LhsVar(v)", lambda v: env(PROPSCOPE).localVars[v]),
+        ("LhsVar(v)", prop_local_var),
         ("lhs==LhsAttr(s, f)", prop_lhs_attr))
     add_extrinsic(PendingType, lhs, t)
     return t
