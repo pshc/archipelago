@@ -7,8 +7,7 @@ import vat
 
 ExFunc, ExStaticDefn, ExInnerFunc = ADT('ExFunc',
         'ExStaticDefn',
-        'ExInnerFunc', ('closedVars', 'set([*Var])'),
-                       ('outerFunc', '*ExFunc'))
+        'ExInnerFunc', ('closedVars', 'set([*Var])'))
 
 EXFUNC = new_env('EXFUNC', ExFunc)
 
@@ -70,51 +69,34 @@ def runtime_void_call(name, args):
     copy_type(bind, f)
     return S.VoidStmt(VoidCall(bind, args))
 
-class VarCloser(vat.Visitor):
+class ClosureExpander(vat.Mutator):
     def TopFunc(self, top):
-        in_env(EXFUNC, ExStaticDefn(), lambda: self.visit('func'))
+        top.func = in_env(EXFUNC, ExStaticDefn(), lambda: self.mutate('func'))
+        return top
 
     def Defn(self, defn):
+        """
         m = match(defn)
-        if m("Defn(PatVar(var), FuncExpr(f))"):
-            # Extract function-in-function
-            var, f = m.args
-            info = ExInnerFunc(set(), env(EXFUNC))
-            in_env(EXFUNC, info, lambda: self.visit('expr'))
+        if m("Defn(PatVar(var), FuncExpr(_))"):
+            # Special case: extract `f := lambda [...]` form directly
+            var = m.arg
+            inner = ExInnerFunc(set())
+            f = match(in_env(EXFUNC, inner, lambda: self.mutate('expr')),
+                    "FuncExpr(f)")
             isClosure = len(info.closedVars) > 0
             glob = env(EXGLOBAL)
             glob.newDecls.funcDecls.append(var)
             glob.newDefns.append(TopFunc(var, f))
             add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
-
-    def PatCapture(self, pat):
-        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
-        self.visit('pattern')
-    def PatVar(self, pat):
-        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
-
-    def Bind(self, bind):
-        mv = Bindable.isVar(bind.target)
-        if isJust(mv):
-            m = match(env(EXFUNC))
-            if m('f==ExInnerFunc(closedVars, _)'):
-                f, closedVars = m.args
-                v = fromJust(mv)
-                if has_extrinsic(ClosedVarFunc, v):
-                    if extrinsic(ClosedVarFunc, v) is not f:
-                        closedVars.add(v)
-
-
-class FuncExpander(vat.Mutator):
-    def Defn(self, defn):
-        if matches(defn, "Defn(PatVar(_), FuncExpr(_))"):
             return Nop()
+        """
         return self.mutate()
 
     def FuncExpr(self, fe):
-        # Extract lambda expression
-        f = self.mutate('func')
-        isClosure = False # TODO
+        # Extract any other (inline) func expression
+        info = ExInnerFunc(set())
+        f = in_env(EXFUNC, info, lambda: self.mutate('func'))
+        isClosure = len(info.closedVars) > 0
         var = Var()
         glob = env(EXGLOBAL)
         glob.newDecls.funcDecls.append(var)
@@ -124,12 +106,32 @@ class FuncExpander(vat.Mutator):
         t = extrinsic(TypeOf, f)
         add_extrinsic(TypeOf, bind, t)
         add_extrinsic(TypeOf, var, t)
+        add_extrinsic(Name, var, "lambda")
+        set_orig(var, fe)
+        return bind
+
+    def PatCapture(self, pat):
+        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
+        pat.pattern = self.mutate('pattern')
+        return pat
+    def PatVar(self, pat):
+        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
+        return pat
+
+    def Bind(self, bind):
+        mv = Bindable.isVar(bind.target)
+        if isJust(mv):
+            m = match(env(EXFUNC))
+            if m('f==ExInnerFunc(closedVars)'):
+                f, closedVars = m.args
+                v = fromJust(mv)
+                if has_extrinsic(ClosedVarFunc, v):
+                    if extrinsic(ClosedVarFunc, v) is not f:
+                        closedVars.add(v)
         return bind
 
 def expand_closures(unit):
-    t = t_DT(ExpandedUnit)
-    vat.visit(VarCloser, unit, t)
-    vat.mutate(FuncExpander, unit, t)
+    vat.mutate(ClosureExpander, unit, t_DT(ExpandedUnit))
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):
