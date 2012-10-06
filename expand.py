@@ -87,6 +87,9 @@ class VarCloser(vat.Visitor):
             glob.newDefns.append(TopFunc(var, f))
             add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
 
+    def PatCapture(self, pat):
+        add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
+        self.visit('pattern')
     def PatVar(self, pat):
         add_extrinsic(ClosedVarFunc, pat.var, env(EXFUNC))
 
