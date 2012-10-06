@@ -141,27 +141,40 @@ InspectState = DT('InspectState', ('module', '*Module'), ('count', int))
 
 Inspection = new_env('Inspection', InspectState)
 
-def _inspect_node(node):
+def _inspect_node(node, t):
     if isinstance(node, Structured):
-        dtform = t_DT(type(node)).data
-        assert isinstance(dtform, DataType)
+        dtform, appTs = match(t, ("TData(dt, apps)", tuple2))
+        # Collect instantiations
+        apps = app_map(dtform, appTs)
+        adt = extrinsic(TrueRepresentation, dtform)
+        assert isinstance(node, adt), "%s %r is not a %s" % (
+                type(node), node, adt)
+        # If this is not a value type, record its index
         if not dtform.opts.valueType:
             assert not has_extrinsic(Location, node), \
                     "Multiply used %r" % (node,)
             state = env(Inspection)
             add_extrinsic(Location, node, Pos(state.module, state.count))
             state.count += 1
-        form = extrinsic(FormSpec, type(node))
-        assert isinstance(form, Ctor)
+
+        # Inspect fields
+        form = dtform.ctors[node._ctor_ix if len(dtform.ctors) > 1 else 0]
+        ctor = extrinsic(TrueRepresentation, form)
+        assert isinstance(node, ctor), "%r is not a %s" % (node, ctor)
         for field in form.fields:
             sub = getattr(node, extrinsic(Name, field))
-            # wow this sucks
-            if not matches(field.type, 'TWeak(_) or TArray(TWeak(_))'):
-                _inspect_node(sub)
+            ft = subst(apps, field.type)
+            if not isinstance(ft, TWeak):
+                _inspect_node(sub, ft)
 
     elif isinstance(node, list):
-        for sub in node:
-            _inspect_node(sub)
+        assert isinstance(t, TArray), "Unexpected array:\n%s\nfor:\n%s" % (
+                node, t)
+        et = t.elemType
+        if not isinstance(et, TWeak):
+            for item in node:
+                _inspect_node(item, et)
+
 
 def _cmp_digest(a, b):
     return cmp(extrinsic(ModDigest, a), extrinsic(ModDigest, b))
@@ -171,7 +184,8 @@ ModInspection = DT('ModInspection', ('atomCount', int),
 
 def inspect(module):
     inspect = InspectState(module, 0)
-    in_env(Inspection, inspect, lambda: _inspect_node(module.root))
+    in_env(Inspection, inspect,
+            lambda: _inspect_node(module.root, module.rootType))
     return inspect.count
 
 def serialize(module):
