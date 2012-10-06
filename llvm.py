@@ -489,15 +489,13 @@ def express_Builtin(b):
 
 @impl(LLVMBindable, GlobalVar)
 def express_GlobalVar(v):
-    if has_extrinsic(expand.GlobalSymbol, v):
-        repl = extrinsic(expand.GlobalSymbol, v)
-        if repl.isFunc:
-            return Global(repl.symbol)
-        elif has_extrinsic(LiteralSize, v):
-            return get_strlit_ptr(v)
-        else:
-            return load(repl.symbol, typeof(v), Global(repl.symbol)).xpr
-    return Global(extrinsic(expand.StaticSymbol, v))
+    repl = extrinsic(expand.GlobalSymbol, v)
+    if repl.isFunc:
+        return Global(repl.symbol)
+    elif has_extrinsic(LiteralSize, v):
+        return get_strlit_ptr(v)
+    else:
+        return load(repl.symbol, typeof(v), Global(repl.symbol)).xpr
 
 @impl(LLVMBindable, Var)
 def express_Var(v):
