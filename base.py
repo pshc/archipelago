@@ -469,6 +469,9 @@ def consume_type(toks):
         if len(params) == 1 and params[0] is None:
             params = []
         t = TFunc(params, consume_result(toks), plain_meta())
+        if toks and toks[0] == 'noenv':
+            toks.pop(0)
+            t.meta.takesEnv = False
     return t
 
 def consume_result(toks):

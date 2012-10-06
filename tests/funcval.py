@@ -1,22 +1,27 @@
 
-@annot('int -> int')
+@annot('int -> int', env=False)
 def triple(n):
     return n * 3
 
-@annot('(int -> int) -> int')
+@annot('(int -> int noenv) -> int', env=False)
 def apply_two(f):
     g = f
     return g(2)
 
+FV = new_env('FV', int)
+
+@annot('void -> int')
+def getctx():
+    return env(FV)
+
 @annot('void -> void')
 def make_multiple_func_vals():
-    # Sanity check ctx bindings
-    # XXX: test actual env operations, not just compilation success
-    f1 = triple
-    f2 = triple
-    assert f1(1) + f2(2) == 9, "Ctx-bound func vals"
+    # Sanity check multiple FuncVal ctx bindings
+    f1 = getctx
+    f2 = getctx
+    assert f1() + f2() == 8, "Ctx-bound func vals"
 
 def main():
     assert apply_two(triple) == 6, "Function object"
-    make_multiple_func_vals()
+    in_env(FV, 4, make_multiple_func_vals)
     return 0
