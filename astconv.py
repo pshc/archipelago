@@ -165,11 +165,12 @@ def conv_exprs(elist):
 def conv_type(t, tvars, dt=None):
     def unknown():
         assert isinstance(getattr(t, 'refAtom', None), basestring
-                ), 'Unknown type: %r' % (t,)
+                ), 'Unknown type: %s %r' % (type(t), t)
         type_nm = t.refAtom
         destroy_forward_ref(t)
         return type_ref(type_nm)
     return match(t,
+        ("t==DataType(_, _, _)", vanilla_tdata),
         ("Builtin(_)", lambda: t),
         ("TPrim(_)", lambda: t),
         ("Lit(StrLit(s))", lambda s: parse_new_type(s, tvars)),
