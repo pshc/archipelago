@@ -27,7 +27,8 @@ FieldIndex = new_extrinsic('FieldIndex', int)
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
 Closure = new_extrinsic('Closure', ClosureInfo)
 
-ClosedVarFunc = new_extrinsic('ClosedVar', ExFunc)
+ClosedVarFunc = new_extrinsic('ClosedVar', '*ExFunc')
+VarGlobalReplacement = new_extrinsic('VarGlobalReplacement', '*GlobalVar')
 
 StaticSymbol = new_extrinsic('StaticSymbol', str)
 
@@ -75,22 +76,17 @@ class ClosureExpander(vat.Mutator):
         return top
 
     def Defn(self, defn):
-        """
-        m = match(defn)
-        if m("Defn(PatVar(var), FuncExpr(_))"):
+        wasFuncExpr = matches(defn.expr, 'FuncExpr(_)')
+        defn = self.mutate()
+        if wasFuncExpr:
             # Special case: extract `f := lambda [...]` form directly
-            var = m.arg
-            inner = ExInnerFunc(set())
-            f = match(in_env(EXFUNC, inner, lambda: self.mutate('expr')),
-                    "FuncExpr(f)")
-            isClosure = len(info.closedVars) > 0
-            glob = env(EXGLOBAL)
-            glob.newDecls.funcDecls.append(var)
-            glob.newDefns.append(TopFunc(var, f))
-            add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
-            return Nop()
-        """
-        return self.mutate()
+            m = match(defn)
+            if m("Defn(PatVar(var), Bind(globalVar))"):
+                var, globalVar = m.args
+                add_extrinsic(VarGlobalReplacement, var, globalVar)
+                update_extrinsic(Name, globalVar, extrinsic(Name, var))
+                return Nop()
+        return defn
 
     def FuncExpr(self, fe):
         # Extract any other (inline) func expression
@@ -121,17 +117,26 @@ class ClosureExpander(vat.Mutator):
     def Bind(self, bind):
         mv = Bindable.isLocalVar(bind.target)
         if isJust(mv):
+            v = fromJust(mv)
+            wasClosed = False
             m = match(env(EXFUNC))
             if m('f==ExInnerFunc(closedVars)'):
                 f, closedVars = m.args
-                v = fromJust(mv)
                 if has_extrinsic(ClosedVarFunc, v):
                     if extrinsic(ClosedVarFunc, v) is not f:
                         closedVars.add(v)
+                        wasClosed = True
+
+            if has_extrinsic(VarGlobalReplacement, v):
+                assert not wasClosed, "TODO closed-over lambda?"
+                bind.target = extrinsic(VarGlobalReplacement, v)
+
         return bind
 
 def expand_closures(unit):
-    vat.mutate(ClosureExpander, unit, t_DT(ExpandedUnit))
+    scope_extrinsic(ClosedVarFunc, lambda:
+            scope_extrinsic(VarGlobalReplacement, lambda:
+            vat.mutate(ClosureExpander, unit, t_DT(ExpandedUnit))))
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):
@@ -496,7 +501,7 @@ def expand_decls(decls):
 
 def expand_unit(unit):
     t = t_DT(ExpandedUnit)
-    scope_extrinsic(ClosedVarFunc, lambda: expand_closures(unit))
+    expand_closures(unit)
     vat.mutate(LitExpander, unit, t)
     vat.mutate(AssertionExpander, unit, t)
 
