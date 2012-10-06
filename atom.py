@@ -349,6 +349,8 @@ class ExprStringifier(Visitor):
         frag(')')
     def VoidCall(self, call):
         self.Call(call)
+    def CallIndirect(self, call):
+        self.Call(call)
 
     def Lit(self, lit):
         frag(repr(lit.literal.val))
@@ -388,6 +390,10 @@ class ExprStringifier(Visitor):
 
     def NullPtr(self, null):
         frag('null')
+    def FuncVal(self, e):
+        ctx = match(e.ctx, ("Just(v)", lambda v: extrinsic(Name, v)),
+                           ("Nothing()", lambda: "null"))
+        frag('{&%s, %s}' % (extrinsic(Name, e.funcVar), ctx))
 
     def FuncExpr(self, fe):
         frag('<function %s>' % (extrinsic(Name, fe.func),))

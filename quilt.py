@@ -1,8 +1,11 @@
 from base import *
 from atom import *
 
-LExpr, L, Cast, NullPtr, WithVar = ADT(('LExpr', Expr),
+LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, WithVar = ADT(('LExpr', Expr),
+        'CallIndirect', ('func', 'LExpr'), ('args', ['LExpr']),
+                        ('takesEnv', bool),
         'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
+        'FuncVal', ('funcVar', '*GlobalVar'), ('ctx', 'Maybe(*Var)'),
         'NullPtr',
         'WithVar', ('var', Var), ('expr', 'LExpr'))
 
@@ -60,12 +63,12 @@ def convert_type(t):
         ("TPrim(PBool())", IBool),
         ("TPrim(PStr())", IVoidPtr),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(tps, result, meta)", convert_func_type),
+        ("TFunc(tps, result, meta)", _convert_func),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))))
 
-def convert_func_type(tps, result, meta):
+def _convert_func(tps, result, meta):
     ips = map(convert_type, tps)
     if meta.takesEnv:
         ips.append(IVoidPtr())
@@ -79,7 +82,11 @@ def convert_func_type(tps, result, meta):
     elif m('Bottom()'):
         res = IVoid()
         meta.noReturn = True
-    return IFunc(ips, res, meta)
+    return ITuple([IFunc(ips, res, meta), IVoidPtr()])
+
+def convert_func_type(t):
+    fval = match(t, ("TFunc(ps, res, m)", _convert_func))
+    return fval.types[0]
 
 def itypes_equal(src, dest):
     same = lambda: True

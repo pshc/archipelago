@@ -35,6 +35,9 @@ GeneratedLocal = new_extrinsic('GeneratedLocal', bool)
 def iconvert(a):
     add_extrinsic(LLVMTypeOf, a, convert_type(extrinsic(TypeOf, a)))
 
+def iconvert_func(a):
+    add_extrinsic(LLVMTypeOf, a, convert_func_type(extrinsic(TypeOf, a)))
+
 def copy_type(dest, src):
     # bleh... vat?
     add_extrinsic(LLVMTypeOf, dest, extrinsic(LLVMTypeOf, src))
@@ -131,10 +134,53 @@ class ClosureExpander(vat.Mutator):
 
         return bind
 
+class FuncValGenerator(vat.Mutator):
+    def Call(self, e):
+        if is_indirect_func(e.func):
+            e.func = self.mutate('func')
+            e.args = self.mutate('args')
+            ft = extrinsic(TypeOf, e.func)
+            indcall = CallIndirect(e.func, e.args, ft.meta.takesEnv)
+            add_extrinsic(TypeOf, indcall, extrinsic(TypeOf, e))
+            return indcall
+        else:
+            # skip e.func since no func val needs to be generated
+            e.args = self.mutate('args')
+            return e
+
+    def VoidCall(self, c):
+        if is_indirect_func(c.func):
+            return self.mutate()
+            """
+            ft = extrinsic(TypeOf, c.func)
+            #indcall = VoidCallIndirect(c.func, c.args, ft.meta.takesEnv)
+            add_extrinsic(TypeOf, indcall, extrinsic(TypeOf, e))
+            return indcall
+            """
+        else:
+            # skip c.func since no func val needs to be generated
+            c.args = self.mutate('args')
+            return c
+
+    def Bind(self, e):
+        if isNothing(Bindable.isLocalVar(e.target)):
+            t = extrinsic(TypeOf, e)
+            if matches(t, "TFunc(_, _, _)"):
+                assert isinstance(e.target, GlobalVar)
+                val = FuncVal(e.target, Nothing())
+                add_extrinsic(TypeOf, val, extrinsic(TypeOf, e))
+                return val
+        return self.mutate()
+
 def expand_closures(unit):
     scope_extrinsic(ClosedVarFunc, lambda:
             scope_extrinsic(VarGlobalReplacement, lambda:
             vat.mutate(ClosureExpander, unit, t_DT(ExpandedUnit))))
+
+def is_indirect_func(e):
+    if not matches(e, "Bind(_)"):
+        return True
+    return isJust(Bindable.isLocalVar(e.target))
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):
@@ -170,7 +216,7 @@ class AssertionExpander(vat.Mutator):
         return S.Cond([CondCase(check, Body([call]))])
 
 def convert_decl_types(decls):
-    map_(iconvert, decls.cdecls)
+    map_(iconvert_func, decls.cdecls)
 
     for dt in decls.dts:
         for ctor in dt.ctors:
@@ -186,29 +232,35 @@ def convert_decl_types(decls):
         add_extrinsic(LLVMTypeOf, env, convert_type(env.type))
     for lit in decls.lits:
         iconvert(lit.var)
-    map_(iconvert, decls.funcDecls)
+    map_(iconvert_func, decls.funcDecls)
 
 THREADENV = new_env('THREADENV', 'Maybe(Var)')
 InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
 
 class TypeConverter(vat.Mutator):
+    def Call(self, e):
+        # Direct calls need to convert to direct func types
+        if matches(e.func, "Bind(_)"):
+            iconvert_func(e.func)
+            e.args = self.mutate('args')
+        else:
+            e = self.mutate()
+        iconvert(e)
+        return convert_expr_casts(e)
+
+    def CallVoid(self, c):
+        if matches(c.func, "Bind(_)"):
+            iconvert_func(c.func)
+            c.args = self.mutate('args')
+        else:
+            c = self.mutate()
+        iconvert(c)
+        return c
+
     def t_LExpr(self, e):
         e = self.mutate()
         iconvert(e)
-
-        if not has_extrinsic(TypeCast, e):
-            return e
-        src, dest = extrinsic(TypeCast, e)
-        isrc = convert_type(src)
-        idest = convert_type(dest)
-        if itypes_equal(isrc, idest):
-            assert types_punned(src, dest), \
-                    "Pointless non-pun cast %s -> %s" % (src, dest)
-            casted = e
-        else:
-            casted = cast(isrc, idest, e)
-
-        return casted
+        return convert_expr_casts(e)
 
     def t_Pat(self, p):
         p = self.mutate()
@@ -223,6 +275,18 @@ class TypeConverter(vat.Mutator):
     def Var(self, v):
         iconvert(v)
         return v
+
+def convert_expr_casts(e):
+    if not has_extrinsic(TypeCast, e):
+        return e
+    src, dest = extrinsic(TypeCast, e)
+    isrc = convert_type(src)
+    idest = convert_type(dest)
+    if itypes_equal(isrc, idest):
+        assert types_punned(src, dest), \
+                "Pointless non-pun cast %s -> %s" % (src, dest)
+        return e
+    return cast(isrc, idest, e)
 
 class MaybeConverter(vat.Mutator):
     def Call(self, call):
@@ -291,10 +355,16 @@ class EnvExtrConverter(vat.Mutator):
             f.params.append(var)
 
         f.body = in_env(THREADENV, threadedVar, lambda: self.mutate('body'))
-        iconvert(f)
+        iconvert_func(f)
         return f
 
     def Call(self, e):
+        e.func = self.mutate('func')
+        e.args = self.mutate('args')
+        add_call_ctx(e.func, e.args)
+        return e
+
+    def IndirectCall(self, e):
         e.func = self.mutate('func')
         e.args = self.mutate('args')
         add_call_ctx(e.func, e.args)
@@ -305,6 +375,11 @@ class EnvExtrConverter(vat.Mutator):
         c.args = self.mutate('args')
         add_call_ctx(c.func, c.args)
         return c
+
+    def FuncVal(self, e):
+        assert isNothing(e.ctx)
+        e.ctx = env(THREADENV)
+        return e
 
     def GetEnv(self, e):
         call = runtime_call('_getenv', [bind_env(e.env), bind_env_ctx()])
@@ -486,6 +561,7 @@ def expand_decls(decls):
 def expand_unit(unit):
     t = t_DT(ExpandedUnit)
     expand_closures(unit)
+    vat.mutate(FuncValGenerator, unit, t)
     vat.mutate(LitExpander, unit, t)
     vat.mutate(AssertionExpander, unit, t)
 

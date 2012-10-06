@@ -251,8 +251,14 @@ def call_void(ftx, argxs):
     out('call ')
     out_t(IVoid())
     out_xpr(ftx.xpr)
-    write_args(ftx.type.params, argxs)
-    if ftx.type.meta.noReturn:
+
+    ft = ftx.type
+    # TEMP
+    if matches(ft, "ITuple([f, _])"):
+        ft = ft.types[0]
+
+    write_args(ft.params, argxs)
+    if ft.meta.noReturn:
         out(' noreturn')
         newline()
         out('unreachable')
@@ -400,12 +406,10 @@ def t_str(t):
         ("IArray(n, t)", lambda n, et: "[%d x %s]" % (n, t_str(et))),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
-        ("IFunc(ps, r, _)", t_func_str),
+        ("IFunc(ps, r, _)", lambda ps, r: "%s (%s)*" % (
+            t_str(r), ', '.join(map(t_str, ps)))),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IVoidPtr()", lambda: "i8*"))
-
-def t_func_str(ps, r):
-    return '%s (%s)' % (', '.join(t_str(p) for p in ps), t_str(r))
 
 def out_t(t):
     out('%s ' % (t_str(t),))
@@ -625,9 +629,7 @@ def write_runtime_call(name, argxs):
     else:
         return Just(call(ftx, argxs))
 
-def expr_call(e, f, args):
-    assert matches(f, 'Bind(_)'), "TODO func objects"
-
+def expr_call(f, args):
     mret = LLVMBindable.express_called(f.target, args)
     if isJust(mret):
         return fromJust(mret)
@@ -640,6 +642,19 @@ def expr_call(e, f, args):
     assert not matches(rett, "IVoid()")
 
     return call(ftx, argxs)
+
+def expr_call_indirect(f, args, takesEnv):
+    fvaltx = express_typed(f)
+    argxs = map(express, args)
+
+    ft = match(fvaltx.type, "ITuple([f==IFunc(_, _, _), _])")
+    assert not matches(ft.ret, "IVoid()")
+
+    fx = extractvalue('fptr', fvaltx, 0)
+    if takesEnv:
+        argxs.append(extractvalue('fctx', fvaltx, 1))
+
+    return call(TypedXpr(ft, fx), argxs)
 
 @impl(LLVMBindable, Builtin)
 def express_called_Builtin(target, args):
@@ -790,6 +805,17 @@ def expr_cast(src, dest, e):
     x = express(e)
     return cast(TypedXpr(src, x), dest).xpr
 
+def expr_funcval(e, f, ctx):
+    fx = LLVMBindable.express(f)
+    assert is_const(fx)
+    valt = typeof(e)
+    ft = match(valt, "ITuple([f, IVoidPtr()])")
+    valx = ConstStruct([TypedXpr(ft, fx), TypedXpr(IVoidPtr(), Const("null"))])
+    if isJust(ctx):
+        ctxtx = TypedXpr(IVoidPtr(), load_var(fromJust(ctx)))
+        valx = insertvalue(TypedXpr(valt, valx), ctxtx, 1)
+    return valx
+
 def expr_with(var, expr):
     store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
     return express(expr)
@@ -803,7 +829,7 @@ def express(expr):
     return match(expr,
         ('e==And(l, r)', expr_and),
         ('Bind(v)', LLVMBindable.express),
-        ('e==Call(f, args)', expr_call),
+        ('Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('e==InEnv(environ, init, expr)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
@@ -813,7 +839,9 @@ def express(expr):
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
         ('e==Ternary(c, l, r)', expr_ternary),
+        ('CallIndirect(f, args, takesEnv)', expr_call_indirect),
         ('Cast(src, dest, expr)', expr_cast),
+        ('e==FuncVal(f, ctx)', expr_funcval),
         ('NullPtr()', lambda: Const("null")),
         ('WithVar(v, e)', expr_with))
 
