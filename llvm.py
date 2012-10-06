@@ -314,22 +314,24 @@ def extractvalue(regname, tx, index):
     newline()
     return tmp
 
+def insertvalue(tx, value, index):
+    tmp = temp_reg()
+    out_xpr(tmp)
+    out(' = insertvalue ')
+    out_txpr(tx)
+    comma()
+    out_txpr(value)
+    comma()
+    out(str(index))
+    newline()
+    return tmp
+
 def build_struct(t, args):
-    i = 0
-    accum = Const('undef')
-    for argx in args:
-        new_val = temp_reg()
-        out_xpr(new_val)
-        out(' = insertvalue ')
-        out_t(t)
-        out_xpr(accum)
-        comma()
-        out_txpr(argx)
-        comma()
-        out(str(i))
-        newline()
-        i += 1
-        accum = new_val
+    accum = Const('zeroinitializer')
+    for i, argx in enumerate(args):
+        if matches(argx, 'Const("0" or "null")'):
+            continue
+        accum = insertvalue(TypedXpr(t, accum), argx, i)
     return TypedXpr(t, accum)
 
 def _do_cast(txpr, dest, liberal):
