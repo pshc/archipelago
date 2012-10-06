@@ -150,6 +150,14 @@ def occurs(typeVar, t):
 def subst_affects(mapping, t):
     return not visit_type_vars(lambda tv: tv not in mapping, t)
 
+def app_map(data, appTs):
+    apps = {}
+    for tv, at in ezip(data.tvars, appTs):
+        if isinstance(at, TVar) and at.typeVar is tv:
+            continue
+        apps[tv] = at
+    return apps
+
 def subst(mapping, t):
     return map_type_vars(lambda st: mapping.get(st.typeVar, st), t)
 

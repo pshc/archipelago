@@ -1,6 +1,6 @@
 from base import *
 from globs import *
-from types_builtin import subst
+from types_builtin import app_map, subst
 
 # Sure could use graphs here!
 
@@ -80,7 +80,7 @@ def clone_by_type(src, t):
         data, appTs = m.args
         assert isinstance(src, extrinsic(TrueRepresentation, data)), \
                 "Expected %s, got: %r" % (data, obj)
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        apps = appTs and app_map(data, appTs)
         return clone_structured(src, apps)
     elif m('TArray(et)'):
         et = m.arg
@@ -100,14 +100,6 @@ def transmuted_ctor(obj, destData):
     ix = obj._ctor_ix if len(ctors) > 1 else 0
     assert ix < len(ctors), "Don't know how to transmute %s!" % (obj,)
     return ctors[ix]
-
-def type_app_list_to_map(tvars, appTs):
-    apps = {}
-    for tv, at in ezip(tvars, appTs):
-        if isinstance(at, TVar) and at.typeVar is tv:
-            continue
-        apps[tv] = at
-    return apps
 
 # Update an object's weak references to point at new clones from this vat
 def rewrite(obj):
@@ -133,7 +125,7 @@ def rewrite_by_type(obj, t):
         data, appTs = m.args
         assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
                 "Expected %s, found %s %s" % (data, type(obj), obj)
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        apps = appTs and app_map(data, appTs)
         ctor = instance_ctor(obj)
         repls = env(VAT).replacements
         for field in ctor.fields:
@@ -220,7 +212,7 @@ def visit_by_type(obj, t, customVisitors=True):
         data, appTs = m.args
         assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
                 "Expected %s, got %s %s" % (data, type(obj), obj)
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        apps = appTs and app_map(data, appTs)
         visitor = env(VISIT)
 
         ctor = extrinsic(FormSpec, type(obj))
@@ -298,7 +290,7 @@ def mutate_by_type(obj, t, customMutators=True):
         data, appTs = m.args
         assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
                 "Expected %s, got: %r" % (data, obj)
-        apps = appTs and type_app_list_to_map(data.tvars, appTs)
+        apps = appTs and app_map(data, appTs)
         mutator = env(MUTATE)
 
         ctor = extrinsic(FormSpec, type(obj))

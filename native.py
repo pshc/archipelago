@@ -3,7 +3,7 @@ from bedrock import *
 from globs import *
 from hashlib import sha256
 from os import system
-from types_builtin import subst
+from types_builtin import app_map, subst
 
 ModuleMeta = DT('ModuleMeta', ('count', int), ('deps', [str]))
 
@@ -88,9 +88,7 @@ def _serialize_node(node, t):
         if not t.data.opts.valueType:
             env(Serialize).count += 1
         # Collect instantiations
-        apps = {}
-        for var, app in ezip(t.data.tvars, t.appTypes):
-            apps[var] = app
+        apps = app_map(t.data, t.appTypes)
         adt = extrinsic(TrueRepresentation, t.data)
         assert isinstance(node, adt), "%s %r is not a %s" % (
                 type(node), node, adt)
