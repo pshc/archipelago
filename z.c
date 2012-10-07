@@ -41,7 +41,8 @@ static env_entry *resize_env_table(env_entry *table, intptr_t count) {
 	return new_table;
 }
 
-static stack_entry *resize_env_stack(stack_entry *stack, intptr_t count) {
+static stack_entry *resize_env_stack(intptr_t *pstack, stack_entry *stack,
+			intptr_t count) {
 	stack_entry *new_stack;
 	new_stack = realloc(stack, (1 + count) * sizeof *stack);
 	if (!new_stack) {
@@ -49,6 +50,8 @@ static stack_entry *resize_env_stack(stack_entry *stack, intptr_t count) {
 		fail("No memory to extend env stack");
 	}
 	TABLE_COUNT(new_stack) = count;
+	if (new_stack != stack)
+		*pstack = (intptr_t) new_stack;
 	return new_stack;
 }
 
@@ -72,7 +75,7 @@ int _haveenv(env_id env, env_entry *table) {
 env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
 	int i;
 	intptr_t table_len, stack_len;
-	stack_entry *stack, *new_stack;
+	stack_entry *stack;
 
 	table_len = table ? TABLE_COUNT(table) : 0;
 	i = table_index(table, table_len, env);
@@ -88,12 +91,7 @@ env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
 		stack_len = TABLE_COUNT(stack) + 1;
 	}
 
-	new_stack = resize_env_stack(stack, stack_len);
-	/* TODO: move this thing into the resize_env_stack helper */
-	if (new_stack != stack) {
-		SLOT_VALUE(table, i) = (intptr_t) new_stack;
-		stack = new_stack;
-	}
+	stack = resize_env_stack(&SLOT_VALUE(table, i), stack, stack_len);
 
 	/* One-based due to length prefix */
 	stack[stack_len] = val;
@@ -104,7 +102,7 @@ env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
 env_entry *_popenv(env_id env, env_entry *table) {
 	int i;
 	intptr_t table_len, stack_len;
-	stack_entry *stack, *new_stack;
+	stack_entry *stack;
 
 	if (!table)
 		fail("Empty env table?!");
@@ -117,9 +115,8 @@ env_entry *_popenv(env_id env, env_entry *table) {
 	stack_len = TABLE_COUNT(stack) - 1;
 
 	if (stack_len) {
-		new_stack = resize_env_stack(stack, stack_len);
-		if (new_stack != stack)
-			SLOT_VALUE(table, i) = (intptr_t) new_stack;
+		stack = resize_env_stack(&SLOT_VALUE(table, i), stack,
+				stack_len);
 	}
 	else {
 		SLOT_VALUE(table, i) = 0;
