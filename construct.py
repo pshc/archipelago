@@ -69,25 +69,25 @@ def load_module_dep(src, deps, plan):
         add_extrinsic(Filename, decl_mod, name)
         view = 'views/%s' % (name,)
         if not isJust(defn_mod_m):
-            atom.write_mod_repr(view, decl_mod, [Name])
+            atom.write_mod_repr(view, decl_mod)
             prop.prop_module_decls(decl_mod.root)
-            atom.write_mod_repr(view, decl_mod, [Name, TypeOf])
+            atom.write_mod_repr(view, decl_mod, [TypeOf])
             return decl_mod, defn_mod_m
 
         defn_mod = fromJust(defn_mod_m)
 
         impv = view
         view += '_decls'
-        atom.write_mod_repr(view, decl_mod, [Name])
-        atom.write_mod_repr(impv, defn_mod, [Name])
+        atom.write_mod_repr(view, decl_mod)
+        atom.write_mod_repr(impv, defn_mod)
 
         scan.scan_root(defn_mod.root)
-        atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, InstMap])
+        atom.write_mod_repr(impv, defn_mod, [TypeOf, InstMap])
 
         prop.prop_module_decls(decl_mod.root)
-        atom.write_mod_repr(view, decl_mod, [Name, TypeOf])
+        atom.write_mod_repr(view, decl_mod, [TypeOf])
         prop.prop_compilation_unit(defn_mod.root)
-        atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, Instantiation])
+        atom.write_mod_repr(impv, defn_mod, [TypeOf, Instantiation])
 
         return decl_mod, defn_mod_m
     decl_mod, defn_mod = scope_extrinsic(InstMap,
@@ -121,15 +121,15 @@ def build_mod(decl_mod, defn_mod, plan):
     view = '%s_xdecls' % (impv,)
 
     casts = check.check_types(decl_mod, defn_mod)
-    atom.write_mod_repr(impv, defn_mod, [Name, TypeOf, TypeCast])
+    atom.write_mod_repr(impv, defn_mod, [TypeOf, TypeCast])
 
     new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
     xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
     defn_mod = Module(t_DT(quilt.ExpandedUnit), new_unit)
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
-    atom.write_mod_repr(view, xdecl_mod, [Name, TypeOf])
-    atom.write_mod_repr(impv, defn_mod, [Name, quilt.LLVMTypeOf, TypeCast])
+    atom.write_mod_repr(view, xdecl_mod, [TypeOf])
+    atom.write_mod_repr(impv, defn_mod, [quilt.LLVMTypeOf, TypeCast])
     native.serialize(xdecl_mod)
     native.serialize(defn_mod)
 
@@ -222,7 +222,7 @@ def load_builtins():
         exports[name] = sym
     astconv.loaded_module_export_names[mod] = exports
 
-    atom.write_mod_repr('views/symbols', mod, [Name])
+    atom.write_mod_repr('views/symbols', mod)
 
     native.serialize(mod)
 
@@ -269,7 +269,7 @@ def load_forms():
 
     mod = Module(t_DT(DtList), DtList(forms))
     add_extrinsic(Name, mod, 'forms')
-    atom.write_mod_repr('views/forms', mod, [Name])
+    atom.write_mod_repr('views/forms', mod)
     native.serialize(mod)
 
     names_mod = extrinsic_mod(Name, names, mod)

@@ -229,7 +229,7 @@ ModRepr = DT('ModRepr', ('write', 'str -> void'),
                         ('weakCtr', int))
 MODREPR = new_env('MODREPR', ModRepr)
 
-def write_mod_repr(filename, m, exts):
+def write_mod_repr(filename, m, exts=[]):
     with file(filename, 'w') as f:
         def write(x):
             f.write('%s%s\n' % ('  ' * env(MODREPR).indent, x))
@@ -247,13 +247,16 @@ def _do_repr(s):
                 c.write('<cyclic %s %s>' % (dt.__name__, short_id(s)))
             return
         c.seen.add(s)
-        name = dt.__name__
+        name = [dt.__name__]
         if s in c.weakIndices:
-            name = '%s #%d' % (name, c.weakIndices[s])
+            name.append('#%d' % (c.weakIndices[s],))
+        if has_extrinsic(Name, s):
+            name.append(fmtcol('^Red{0!r}^N', extrinsic(Name, s)))
+        name.append(short_id(s))
         for ext in c.exts:
             if has_extrinsic(ext, s):
-                name = '%s %s' % (name, extrinsic(ext, s))
-        c.write('%s %s' % (name, short_id(s)))
+                name.append(repr(extrinsic(ext, s)))
+        c.write(' '.join(name))
         c.indent += 1
         form = extrinsic(FormSpec, dt)
         assert not isinstance(form, DataType)
