@@ -1,9 +1,9 @@
 
-@annot('int -> int', env=False)
+@annot('int -> int noenv')
 def triple(n):
     return n * 3
 
-@annot('(int -> int noenv) -> int', env=False)
+@annot('(int -> int noenv) -> int noenv')
 def apply_two(f):
     g = f
     return g(2)

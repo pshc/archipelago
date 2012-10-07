@@ -747,27 +747,14 @@ def conv_function(s):
     astannot = None
 
     if s.name == 'main':
-        meta = plain_meta()
-        meta.takesEnv = False
-        astannot = ('void -> int', meta)
+        astannot = 'void -> int noenv'
 
     if s.decorators:
         for dec in s.decorators.nodes:
             if isinstance(dec, ast.CallFunc):
                 if dec.node.name == 'annot':
                     assert isinstance(dec.args[0], ast.Const)
-                    meta = plain_meta()
-
-                    for arg in dec.args[1:]:
-                        assert isinstance(arg, ast.Keyword)
-                        assert isinstance(arg.expr, ast.Name)
-                        key = arg.name
-                        val = {'True': True, 'False': False}[arg.expr.name]
-                        if key == 'env':
-                            meta.takesEnv = val
-                        else:
-                            assert False, "Unknown meta option " + key
-                    astannot = (dec.args[0].value, meta)
+                    astannot = dec.args[0].value
     glob = is_top_level()
     var = GlobalVar() if glob else Var()
     assert astannot, "Function %s has no type annot" % s.name

@@ -76,9 +76,8 @@ class Scanner(vat.Visitor):
             return
 
         tvars = {}
-        ftstr, ftmeta = extrinsic(AstType, f)
+        ftstr = extrinsic(AstType, f)
         ft = parse_new_type(ftstr, tvars)
-        ft.meta = ftmeta
         tps = ft.paramTypes
         ps = f.params
         assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps,ps)

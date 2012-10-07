@@ -764,7 +764,7 @@ Structured.__repr__ = __repr__
 
 # Type annotations
 
-def annot(t, **opts):
+def annot(t):
     return lambda func: func
 
 # Matching
