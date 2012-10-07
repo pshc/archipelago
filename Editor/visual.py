@@ -25,6 +25,16 @@ Vec2 = DT('Vec2', ('x', float), ('y', float))
 SceneNode = DT('SceneNode',
         ('position', Vec2))
 
+VisualState = DT('VisualState',
+    ('viewPos', Vec2),
+    ('program', int), ('mvMat', int), ('projMat', int))
+
+VISUAL = new_env('VISUAL', VisualState)
+
+@annot('void -> VisualState')
+def initial_visual_state():
+    return VisualState(Vec2(0.0, 0.0), 0, 0, 0)
+
 @annot('(int, int) -> void')
 def set_view_size(width, height):
     glViewport(0, 0, width, height)
@@ -34,8 +44,7 @@ def set_view_size(width, height):
         0.0, 0.0, -1.0, 0.0,
         -1.0, 1.0, 0.0, 1.0,
     ]
-    uniform = 0
-    glUniformMatrix4fv(uniform, 1, False, projMat)
+    glUniformMatrix4fv(env(VISUAL).projMat, 1, False, projMat)
 
 @annot('(float, float) -> void')
 def set_view_pos(x, y):
@@ -45,8 +54,9 @@ def set_view_pos(x, y):
         0.0, 0.0, 1.0, 0.0,
          -x,  -y, 0.0, 1.0,
     ]
-    uniform = 4
-    glUniformMatrix4fv(uniform, 1, False, mvMat)
+    vis = env(VISUAL)
+    glUniformMatrix4fv(vis.mvMat, 1, False, mvMat)
+    vis.viewPos = Vec2(x, y)
 
 @annot('(str, int) -> int')
 def compile_shader(src, kind):
@@ -100,36 +110,38 @@ def load_shader():
 
     glBindAttribLocation(program, ATTRIB_POS, "position")
 
+    vis = env(VISUAL)
+
     linked = link_program(program)
     if linked:
-        mvmat = glGetUniformLocation(program, "modelViewMatrix")
-        pmat = glGetUniformLocation(program, "projectionMatrix")
-        print 'mvmat %d pmat %d' % (mvmat, pmat)
+        vis.mvMat = glGetUniformLocation(program, "modelViewMatrix")
+        vis.projMat = glGetUniformLocation(program, "projectionMatrix")
 
     glDetachShader(program, vertShader)
     glDetachShader(program, fragShader)
     glDeleteShader(vertShader)
     glDeleteShader(fragShader)
-    if not linked:
-        glDeleteProgram(program)
-        program = 0
-    else:
-        print 'using program %d' % (program,)
+    if linked:
         glUseProgram(program)
+        vis.program = program
+    else:
+        glDeleteProgram(program)
+        vis.program = 0
     return program
 
 @annot('int -> void')
 def unload_shader(program):
     glDeleteProgram(program)
 
-@annot('void -> void')
+@annot('void -> Env', env=False)
 def setup_editor():
     glClearColor(0.0, 0.0, 0.0, 1.0)
 
     glEnableVertexAttribArray(ATTRIB_POS)
     glEnableClientState(GL_VERTEX_ARRAY)
 
-    _ = load_shader()
+    state = initial_visual_state()
+    return _make_ctx(VISUAL, state)
 
 @annot('(float, float, float, float) -> void')
 def render_quad(x, y, w, h):

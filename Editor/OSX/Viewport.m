@@ -6,14 +6,18 @@
 
 static float viewX = 0, viewY = 0;
 
+static void* VISUAL_ENV;
+
 - (void)prepareOpenGL
 {
     [super prepareOpenGL];
     GLint zeroOpacity = 0;
     [self.openGLContext setValues:&zeroOpacity forParameter:NSOpenGLCPSurfaceOpacity];
 
-    setup_editor();
-    set_view_pos(viewX, viewY);
+    VISUAL_ENV = setup_editor();
+    if (!load_shader(VISUAL_ENV))
+        NSAssert(NO, @"Exiting due to missing shader.");
+    set_view_pos(viewX, viewY, VISUAL_ENV);
 }
 
 - (BOOL)isOpaque
@@ -24,12 +28,12 @@ static float viewX = 0, viewY = 0;
 - (void)reshape
 {
     [super reshape];
-    set_view_size(self.frame.size.width, self.frame.size.height);
+    set_view_size(self.frame.size.width, self.frame.size.height, VISUAL_ENV);
 }
 
 - (void)drawRect:(NSRect)dirtyRect
 {
-    render_editor();
+    render_editor(VISUAL_ENV);
     [self.openGLContext flushBuffer];
 }
 
@@ -58,7 +62,7 @@ static float viewX = 0, viewY = 0;
 
     viewX -= dx;
     viewY -= dy;
-    set_view_pos(viewX, viewY);
+    set_view_pos(viewX, viewY, VISUAL_ENV);
     self.needsDisplay = YES;
 }
 
