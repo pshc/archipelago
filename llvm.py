@@ -619,10 +619,6 @@ def write_runtime_call(name, argxs):
     declt = extrinsic(LLVMTypeOf, decl)
     ftx = TypedXpr(declt, fx)
 
-    # TEMP
-    if name == '_pushenv':
-        ftx.type.params[1] = IPtr(IVoidPtr())
-
     if matches(ftx.type, "IFunc(_, IVoid(), _)"):
         call_void(ftx, argxs)
         return Nothing()
@@ -688,34 +684,30 @@ def expr_func(f, ps, body):
     return global_symbol(clos.func)
 
 def push_env(envx, ctxVar, init):
-    # XXX temp hack for this env impl
-    # name_reg() would make it cleaner but yagni
-    # taking this ptr-to-alloca breaks mem2reg
-    # prefer to return a tuple from _pushenv or have it manage its own stack
-    pcx = Const('%%%s' % (extrinsic(expand.LocalSymbol, ctxVar),))
-
-    i = express(init)
-    old = write_runtime_call('_pushenv', [envx, pcx, i])
-    return fromJust(old)
-
-def pop_env(envx, ctxVar, old):
     ctx = load_var(ctxVar)
-    _ = write_runtime_call('_popenv', [envx, ctx, old])
+    i = express(init)
+    ctx = fromJust(write_runtime_call('_pushenv', [envx, ctx, i]))
+    store_var(ctxVar, ctx)
+
+def pop_env(envx, ctxVar):
+    ctx = load_var(ctxVar)
+    ctx = fromJust(write_runtime_call('_popenv', [envx, ctx]))
+    store_var(ctxVar, ctx)
 
 def expr_inenv(e, environ, init, expr):
     envx = global_symbol(environ)
     ctxVar = extrinsic(expand.InEnvCtxVar, e)
-    old = push_env(envx, ctxVar, init)
+    push_env(envx, ctxVar, init)
     ret = express(expr)
-    pop_env(envx, ctxVar, old)
+    pop_env(envx, ctxVar)
     return ret
 
 def voidexpr_inenv(e, environ, init, vexpr):
     envx = global_symbol(environ)
     ctx = extrinsic(expand.InEnvCtxVar, e)
-    old = push_env(envx, ctx, init)
+    push_env(envx, ctx, init)
     write_voidexpr(vexpr)
-    pop_env(envx, ctx, old)
+    pop_env(envx, ctx)
 
 def expr_match(m, e, cs):
     xpr = express(e)
@@ -1323,9 +1315,6 @@ prelude = """; prelude
 %Type = type opaque
 %Env = type i8
 %Extrinsic = type i8
-; temp
-declare i8* @_pushenv(%Env*, i8**, i8*)
-declare void @_popenv(%Env*, i8*, i8*)
 
 """
 

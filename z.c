@@ -18,7 +18,7 @@ __dead2 void match_fail(void) {
 }
 
 static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
-	intptr_t i;
+	int i;
 	for (i = 0; i < count; i++)
 		if (SLOT_KEY(table, i) == key)
 			return i;
@@ -27,7 +27,10 @@ static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
 
 /* ENVS */
 
-static intptr_t *resize_env_table(intptr_t* table, intptr_t count) {
+typedef intptr_t env_id;
+typedef intptr_t stack_entry, env_entry;
+
+static env_entry *resize_env_table(env_entry *table, intptr_t count) {
 	intptr_t *new_table;
 	new_table = realloc(table, (1 + count*2) * sizeof *table);
 	if (!new_table) {
@@ -38,48 +41,93 @@ static intptr_t *resize_env_table(intptr_t* table, intptr_t count) {
 	return new_table;
 }
 
+static stack_entry *resize_env_stack(stack_entry *stack, intptr_t count) {
+	stack_entry *new_stack;
+	new_stack = realloc(stack, (1 + count) * sizeof *stack);
+	if (!new_stack) {
+		free(stack);
+		fail("No memory to extend env stack");
+	}
+	TABLE_COUNT(new_stack) = count;
+	return new_stack;
+}
 
-intptr_t _getenv(intptr_t env, intptr_t *ctx) {
-	intptr_t i;
-	if (!ctx)
+intptr_t _getenv(env_id env, env_entry *table) {
+	int i;
+	stack_entry *stack;
+
+	if (!table)
 		fail("Env not present (null context)");
-	i = table_index(ctx, TABLE_COUNT(ctx), env);
+	i = table_index(table, TABLE_COUNT(table), env);
 	if (i == -1)
 		fail("Env not present");
-	return SLOT_VALUE(ctx, i);
+	stack = (stack_entry *) SLOT_VALUE(table, i);
+	return stack[TABLE_COUNT(stack)];
 }
 
-int _haveenv(intptr_t env, intptr_t *ctx) {
-	return ctx && table_index(ctx, TABLE_COUNT(ctx), env) != -1;
+int _haveenv(env_id env, env_entry *table) {
+	return table && table_index(table, TABLE_COUNT(table), env) != -1;
 }
 
-intptr_t _pushenv(intptr_t env, intptr_t **pctx, intptr_t val) {
-	intptr_t index, count, old, *ctx;
-	ctx = *pctx;
-	count = ctx ? TABLE_COUNT(ctx) : 0;
-	index = table_index(ctx, count, env);
-	if (index == -1) {
-		index = count;
-		ctx = *pctx = resize_env_table(ctx, count+1);
-		SLOT_KEY(ctx, index) = env;
-		old = 0;
+env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
+	int i;
+	intptr_t table_len, stack_len;
+	stack_entry *stack, *new_stack;
+
+	table_len = table ? TABLE_COUNT(table) : 0;
+	i = table_index(table, table_len, env);
+	if (i == -1) {
+		i = table_len;
+		table = resize_env_table(table, table_len+1);
+		SLOT_KEY(table, i) = env;
+		stack = NULL;
+		stack_len = 1;
 	}
 	else {
-		old = SLOT_VALUE(ctx, index);
+		stack = (stack_entry *) SLOT_VALUE(table, i);
+		stack_len = TABLE_COUNT(stack) + 1;
 	}
-	SLOT_VALUE(ctx, index) = val;
-	return old;
+
+	new_stack = resize_env_stack(stack, stack_len);
+	/* TODO: move this thing into the resize_env_stack helper */
+	if (new_stack != stack) {
+		SLOT_VALUE(table, i) = (intptr_t) new_stack;
+		stack = new_stack;
+	}
+
+	/* One-based due to length prefix */
+	stack[stack_len] = val;
+
+	return table;
 }
 
-void _popenv(intptr_t env, intptr_t *ctx, intptr_t oldVal) {
-	intptr_t index;
-	/* TODO: shrink table if stack empty (we don't even know currently) */
-	if (!ctx)
+env_entry *_popenv(env_id env, env_entry *table) {
+	int i;
+	intptr_t table_len, stack_len;
+	stack_entry *stack, *new_stack;
+
+	if (!table)
 		fail("Empty env table?!");
-	index = table_index(ctx, TABLE_COUNT(ctx), env);
-	if (index == -1)
+	table_len = TABLE_COUNT(table);
+	i = table_index(table, table_len, env);
+	if (i == -1)
 		fail("Env missing?!");
-	SLOT_VALUE(ctx, index) = oldVal;
+
+	stack = (stack_entry *) SLOT_VALUE(table, i);
+	stack_len = TABLE_COUNT(stack) - 1;
+
+	if (stack_len) {
+		new_stack = resize_env_stack(stack, stack_len);
+		if (new_stack != stack)
+			SLOT_VALUE(table, i) = (intptr_t) new_stack;
+	}
+	else {
+		SLOT_VALUE(table, i) = 0;
+		free(stack);
+		/* ought to remove this id from the env table altogether */
+	}
+
+	return table;
 }
 
 /* EXTRINSICS */
@@ -113,7 +161,8 @@ void _addextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
 }
 
 void _updateextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
-	intptr_t index, *table;
+	int index;
+	intptr_t *table;
 
 	table = ATOM_TABLE(atom);
 	if (!table)
@@ -127,7 +176,8 @@ void _updateextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
 }
 
 intptr_t _getextrinsic(intptr_t extr, intptr_t **atom) {
-	intptr_t index, *table;
+	int index;
+	intptr_t *table;
 
 	table = ATOM_TABLE(atom);
 	if (!table)

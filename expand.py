@@ -586,7 +586,8 @@ def in_intramodule_env(func):
             InEnvCtxVar]
 
     # XXX workaround for insufficiently staged compilation
-    default_binds = set([RUNTIME['malloc'], RUNTIME['match_fail']])
+    defs = "malloc,match_fail,_pushenv,_popenv".split(',')
+    default_binds = set(RUNTIME[d] for d in defs)
 
     return in_env(IMPORTBINDS, default_binds,
             lambda: capture_scoped(extrs, captures, func))

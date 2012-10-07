@@ -7,7 +7,7 @@ match_fail = cdecl('match_fail', 'void -> noreturn')
 _getenv = cdecl('_getenv', '(Env, c) -> a')
 _haveenv = cdecl('_haveenv', '(Env, c) -> bool')
 _pushenv = cdecl('_pushenv', '(Env, c, v) -> c')
-_popenv = cdecl('_popenv', '(Env, c, v) -> void')
+_popenv = cdecl('_popenv', '(Env, c) -> c')
 
 _addextrinsic = cdecl('_addextrinsic', '(Extrinsic, a, b) -> void')
 _updateextrinsic = cdecl('_updateextrinsic', '(Extrinsic, a, b) -> void')
