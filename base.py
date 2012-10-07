@@ -383,7 +383,8 @@ def parse_type(t):
             ct = consume_type(toks)
             assert not toks, "%s remaining" % (toks,)
         except AssertionError, e:
-            raise AssertionError("%s while parsing %r" % (e, t))
+            e.args = ('%s while parsing %r' % (e.args[0], repr(t),),)
+            raise
         return ct
     elif t is int:
         return TInt()
