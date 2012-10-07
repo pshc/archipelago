@@ -110,7 +110,14 @@ def add_typecast(e, src, dest):
                           ('_', lambda: False)):
         # LLVM repr doesn't distinguish this case, so don't bother
         return
-    add_extrinsic(TypeCast, e, (src, dest))
+
+    if has_extrinsic(TypeCast, e):
+        # This is backwards
+        oldSrc, oldDest = extrinsic(TypeCast, e)
+        typecheck(dest, oldSrc)
+        update_extrinsic(TypeCast, e, (src, oldDest))
+    else:
+        add_extrinsic(TypeCast, e, (src, dest))
 
 def maybe_typecast(inst, e, fromT, toT):
     if not subst_affects(inst, fromT):
