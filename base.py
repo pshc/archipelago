@@ -1,6 +1,13 @@
 import compiler
 from types import FunctionType
 
+orig_zip = zip
+zip = None
+def ezip(first, second):
+    assert len(first) == len(second), "Length mismatch between:\n%s\n%s" % (
+            first, second)
+    return orig_zip(first, second)
+
 SUPERS = {}
 DATATYPES = {}
 CTORS = {}
@@ -65,12 +72,13 @@ def ADT(*ctors, **opts):
         shortcut = CopiedCtors()
         data.append(shortcut)
         for ctor in derivedFrom.ctors:
-            # copy ctor (without zip())
+            # copy ctor
             members = []
-            for i, field in enumerate(extrinsic(FormSpec, ctor).fields):
+            fields = extrinsic(FormSpec, ctor).fields
+            for field, val in ezip(fields, ctor.__slots__[:-1]):
                 newType = derive_copied_ctor_type(field.type, derivedFrom, t,
                         derivedSubsts or {}, tvars)
-                members.append((ctor.__slots__[i], newType))
+                members.append((val, newType))
 
             ctor_nm = ctor.__name__
             d = setup_ctor(ctor_nm, members)
@@ -983,13 +991,6 @@ def concat_map(f, xs):
 def map_(f, xs):
     for x in xs:
         f(x)
-
-orig_zip = zip
-zip = None
-def ezip(first, second):
-    assert len(first) == len(second), "Length mismatch between:\n%s\n%s" % (
-            first, second)
-    return orig_zip(first, second)
 
 def unzip(list):
     first = []
