@@ -326,15 +326,27 @@ TypeVar = DT('TypeVar')
 PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
         'PInt', 'PFloat', 'PStr', 'PChar', 'PBool')
 
-FuncMeta = DT('FuncMeta', ('takesEnv', bool))
+ParamMeta = DT('ParamMeta', ('held', bool))
 
-def plain_meta():
-    return FuncMeta(True)
-def basic_meta():
-    return FuncMeta(False)
+FuncMeta = DT('FuncMeta', ('params', [ParamMeta]),
+                          ('takesEnv', bool))
+
+def plain_meta(params):
+    return FuncMeta(params, True)
+def basic_meta(params):
+    return FuncMeta(params, False)
 def copy_meta(meta):
-    return FuncMeta(meta.takesEnv)
+    return FuncMeta(map(copy_param_meta, meta.params), meta.takesEnv)
+
+def plain_param_meta():
+    return ParamMeta(False)
+def copy_param_meta(pm):
+    return ParamMeta(pm.held)
+
 def metas_equal(m1, m2):
+    for p1, p2 in ezip(m1.params, m2.params):
+        if p1.held != p2.held:
+            return False
     return m1.takesEnv == m2.takesEnv
 
 Type, TVar, TPrim, TTuple, TFunc, TData, TArray, TWeak \
@@ -435,20 +447,33 @@ def _type_by_name(t):
         return TForward(t, [])
 
 def consume_type(toks):
-    wasParens = False
+    isParamList = False
+    paramMetas = None
     tok = toks.pop(0)
     if tok == '*':
         t = TWeak(consume_type(toks))
     elif tok == 't(' or tok == '(':
-        # tuple literal
-        wasParens = (tok == '(')
+        # tuple literal or parameter list
+        isParamList = (tok == '(')
+        if isParamList:
+            paramMetas = []
         ts = []
         while toks[0] != ')':
             ts.append(consume_type(toks))
-            if toks[0] == ',':
+            peek = toks[0]
+            # consume trailing `held` if present
+            pMeta = None
+            if isParamList and peek == 'held':
+                toks.pop(0)
+                pMeta = ParamMeta(True)
+                peek = toks[0]
+            # consume comma if next
+            if peek == ',':
                 toks.pop(0)
             else:
-                assert toks[0] == ')', "Expected comma or ), not " + toks[0]
+                assert peek == ')', "Expected comma or ), not " + peek
+            if isParamList:
+                paramMetas.append(pMeta or plain_param_meta())
         toks.pop(0)
         t = TTuple(ts)
     elif tok == '[':
@@ -474,13 +499,18 @@ def consume_type(toks):
     # might be followed by infix arrow
     if toks and toks[0] == '->':
         toks.pop(0)
-        params = t.tupleTypes if wasParens else [t]
+        if isParamList:
+            params = t.tupleTypes
+        else:
+            params, paramMetas = [t], [plain_param_meta()]
         if len(params) == 1 and params[0] is None:
-            params = []
-        t = TFunc(params, consume_result(toks), plain_meta())
+            params, paramMetas = [], []
+        meta = plain_meta(paramMetas)
+        t = TFunc(params, consume_result(toks), meta)
         if toks and toks[0] == 'noenv':
             toks.pop(0)
-            t.meta.takesEnv = False
+            meta.takesEnv = False
+        assert len(t.paramTypes) == len(t.meta.params), "Bad meta params"
     return t
 
 def consume_result(toks):

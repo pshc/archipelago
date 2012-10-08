@@ -378,8 +378,9 @@ def infer_func(f, ps, b):
             set_var_ctype(p, pt)
             pts.append(pt)
 
-        # XXX infer FuncMeta?
-        cft = CFunc(pts, result, plain_meta())
+        # TODO infer takesEnv?
+        meta = plain_meta([plain_param_meta() for p in pts])
+        cft = CFunc(pts, result, meta)
         # lambdas can't recurse, but this (sort of thing) would be nice
         #localVars[f] = cft
         prop_body(b)
@@ -506,7 +507,7 @@ def prop_lhs(lhs):
 def prop_DT(form):
     dtT = vanilla_tdata(form)
     for c in form.ctors:
-        set_type(c, TFunc([f.type for f in c.fields], Ret(dtT), basic_meta()))
+        set_type(c, ctor_type(c, dtT))
 
 def prop_func_defn(var, f):
     t = extrinsic(TypeOf, f)

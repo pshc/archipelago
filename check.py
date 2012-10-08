@@ -318,8 +318,7 @@ def check_lhs_as_itself(a):
 def check_DT(form):
     dtT = vanilla_tdata(form)
     for ctor in form.ctors:
-        ctorT = TFunc([f.type for f in ctor.fields], Ret(dtT), basic_meta())
-        typecheck(extrinsic(TypeOf, ctor), ctorT)
+        typecheck(extrinsic(TypeOf, ctor), ctor_type(ctor, dtT))
 
 def destructure_tuple(ps, t):
     ts = match(t, "CTuple(ts)")
