@@ -753,8 +753,11 @@ def conv_function(s):
         for dec in s.decorators.nodes:
             if isinstance(dec, ast.CallFunc):
                 if dec.node.name == 'annot':
+                    assert len(dec.args) == 1, "Bad annot: %s" % (dec,)
                     assert isinstance(dec.args[0], ast.Const)
                     astannot = dec.args[0].value
+                else:
+                    assert False, "Unexpected " + dec.node
     glob = is_top_level()
     var = GlobalVar() if glob else Var()
     assert astannot, "Function %s has no type annot" % s.name
