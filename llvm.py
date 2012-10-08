@@ -34,13 +34,19 @@ def setup_locals():
 
 TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
 
-Xpr, Reg, Tmp, Global, ConstStruct, Const, ConstOp, ConstCast, \
+XprKeyword, KNull, KZeroInitializer, KTrue, KFalse = ADT('XKeyword',
+    'KNull', 'KZeroInitializer', 'KTrue', 'KFalse')
+
+Xpr, Reg, Tmp, Global, ConstStruct, ConstInt, ConstFloat, ConstKeyword, \
+        ConstOp, ConstCast, \
     ConstElementPtr = ADT('Xpr',
         'Reg', ('label', 'str'), ('index', 'int'),
         'Tmp', ('index', 'int'),
         'Global', ('name', str),
         'ConstStruct', ('vals', [TypedXpr]),
-        'Const', ('frag', 'str'),
+        'ConstInt', ('frag', 'str'),
+        'ConstFloat', ('frag', 'str'),
+        'ConstKeyword', ('keyword', XprKeyword),
         'ConstOp', ('op', 'str'), ('args', [TypedXpr]),
         'ConstCast', ('kind', str), ('src', TypedXpr), ('dest', IType),
         'ConstElementPtr', ('src', TypedXpr), ('indexes', [int]))
@@ -49,7 +55,8 @@ def is_const(x):
     return match(x,
         ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
         ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
-        ('Const(_)', lambda: True), ('ConstOp(_, _)', lambda: True),
+        ('ConstInt(_)', lambda: True), ('ConstFloat(_)', lambda: True),
+        ('ConstKeyword(_)', lambda: True), ('ConstOp(_, _)', lambda: True),
         ('ConstCast(_, _, _)', lambda: True),
         ('ConstElementPtr(_, _)', lambda: True))
 
@@ -123,13 +130,20 @@ def xpr_str(x):
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
                     ('Global(name)', lambda name: '@%s' % (name,)),
                     ('ConstStruct(vals)', conststruct_str),
-                    ('Const(s)', identity),
+                    ('ConstInt(i)', str),
+                    ('ConstFloat(f)', str),
+                    ('ConstKeyword(k)', constkeyword_str),
                     ('ConstOp(f, args)', constop_str),
                     ('ConstCast(kind, src, dest)', constcast_str),
                     ('ConstElementPtr(src, ixs)', constelemptr_str))
 
 def txpr_str(txpr):
     return '%s %s' % (t_str(txpr.type), xpr_str(txpr.xpr))
+
+def constkeyword_str(k):
+    return match(k, ('KNull()', lambda: 'null'),
+                    ('KZeroInitializer()', lambda: 'zeroinitializer'),
+                    ('KTrue()', lambda: 'true'), ('KFalse()', lambda: 'false'))
 
 def constop_str(f, args):
     return '%s (%s)' % (f, ', '.join(map(txpr_str, args)))
@@ -163,6 +177,11 @@ def temp_reg_named(nm):
     reg = Reg(nm, lcl.tempCtr)
     lcl.tempCtr += 1
     return reg
+
+def null():
+    return ConstKeyword(KNull())
+def zeroinitializer():
+    return ConstKeyword(KZeroInitializer())
 
 def new_series(atom):
     return extrinsic(Location, atom).index
@@ -232,7 +251,7 @@ def store_xpr(txpr, dest):
     newline()
 
 def malloc(t):
-    nullx = ConstElementPtr(TypedXpr(IPtr(t), Const("null")), [1])
+    nullx = ConstElementPtr(TypedXpr(IPtr(t), null()), [1])
     sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), IInt())
     mem = write_runtime_call('malloc', [sizeof])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
@@ -333,11 +352,12 @@ def insertvalue(tx, value, index):
     return tmp
 
 def build_struct(t, args):
-    accum = Const('zeroinitializer')
-    for i, argx in enumerate(args):
-        if matches(argx, 'Const("0" or "null")'):
+    accum = ConstKeyword(KZeroInitializer())
+    for i, argtx in enumerate(args):
+        if matches(argtx.xpr, 'ConstInt(0) or ConstFloat(0.0) or ' +
+                    'ConstKeyword(KNull())'):
             continue
-        accum = insertvalue(TypedXpr(t, accum), argx, i)
+        accum = insertvalue(TypedXpr(t, accum), argtx, i)
     return TypedXpr(t, accum)
 
 def _do_cast(txpr, dest, liberal):
@@ -439,7 +459,7 @@ def expr_and(e, l, r):
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('and')
-    phi(truth, IBool(), [(right, both), (Const('false'), entry)])
+    phi(truth, IBool(), [(right, both), (ConstKeyword(KFalse()), entry)])
     return truth
 
 def expr_or(e, l, r):
@@ -457,7 +477,7 @@ def expr_or(e, l, r):
     # short-circuit with phi
     out_label(end)
     truth = temp_reg_named('or')
-    phi(truth, IBool(), [(right, both), (Const('true'), entry)])
+    phi(truth, IBool(), [(right, both), (ConstKeyword(KTrue()), entry)])
     return truth
 
 def expr_ternary(e, c, t, f):
@@ -489,9 +509,8 @@ LLVMBindable = new_typeclass('LLVMBindable',
 
 @impl(LLVMBindable, Builtin)
 def express_Builtin(b):
-    return match(b,
-        ('key("True")', lambda: Const('true')),
-        ('key("False")', lambda: Const('false')))
+    return match(b, ('key("True")', lambda: ConstKeyword(KTrue())),
+                    ('key("False")', lambda: ConstKeyword(KFalse())))
 
 @impl(LLVMBindable, GlobalVar)
 def express_GlobalVar(v):
@@ -571,7 +590,7 @@ def expr_unary(op, arg):
     if op == 'len':
         intT = intptr_type()
         arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
-        l = subscript('len', arg, TypedXpr(intT, Const('-1')))
+        l = subscript('len', arg, TypedXpr(intT, ConstInt(-1)))
         if IS64:
             l = cast(TypedXpr(IInt64(), l), IInt()).xpr
         return l
@@ -584,9 +603,12 @@ def expr_unary(op, arg):
         return cast(arg, IInt()).xpr
 
     floating = op.startswith('f')
-    pivotVal = '1' if op == 'not' else ('0.0' if floating else '0')
-    pivot = TypedXpr(arg.type, Const(pivotVal))
-    instr = 'fsub' if floating else 'sub'
+    if floating:
+        instr = 'fsub'
+        pivot = TypedXpr(IFloat(), ConstFloat(0.0))
+    else:
+        instr = 'sub'
+        pivot = TypedXpr(arg.type, ConstInt(1 if op == 'not' else 0))
     if is_const(arg.xpr):
         return ConstOp(instr, [pivot, arg])
     else:
@@ -659,9 +681,9 @@ def express_called_Builtin(target, args):
         assert len(args) == 1, '%s is unary' % (op,)
         arg = args[0]
         if op == 'negate' and matches(arg, 'Lit(IntLit(_))'):
-            return Just(Const('%d' % (-arg.literal.val,)))
+            return Just(ConstInt(-arg.literal.val))
         elif op == 'fnegate' and matches(arg, 'Lit(FloatLit(_))'):
-            return Just(Const('%f' % (-arg.literal.val,)))
+            return Just(ConstFloat(-arg.literal.val))
         return Just(expr_unary(op, express_typed(arg)))
 
     assert len(args) == 2, '%s requires two args' % (op,)
@@ -754,8 +776,8 @@ def expr_attr(e, f):
     return load(extrinsic(expand.FieldSymbol, f), typeof(f), fieldptr).xpr
 
 def expr_lit(lit):
-    return match(lit, ('IntLit(i)', lambda i: Const('%d' % (i,))),
-                      ('FloatLit(f)', lambda f: Const('%f' % (f,))))
+    return match(lit, ('IntLit(i)', ConstInt),
+                      ('FloatLit(f)', ConstFloat))
 
 def get_strlit_ptr(var):
     tmp = temp_reg()
@@ -781,7 +803,7 @@ def expr_listlit(lit, es):
     at = IArray(n + 1, t)
     xtmem = malloc(at)
     # Store length in first element
-    lenx = TypedXpr(IInt(), Const(str(n)))
+    lenx = TypedXpr(IInt(), ConstInt(n))
     if not itypes_equal(IInt(), t):
         lenx = cast(lenx, t)
     txs = [lenx]
@@ -802,18 +824,19 @@ def expr_funcval(e, f, ctx):
     assert is_const(fx)
     valt = typeof(e)
     ft = match(valt, "ITuple([f, IVoidPtr()])")
-    valx = ConstStruct([TypedXpr(ft, fx), TypedXpr(IVoidPtr(), Const("null"))])
+    valx = ConstStruct([TypedXpr(ft, fx),
+            TypedXpr(IVoidPtr(), null())])
     if isJust(ctx):
         ctxtx = TypedXpr(IVoidPtr(), load_var(fromJust(ctx)))
         valx = insertvalue(TypedXpr(valt, valx), ctxtx, 1)
     return valx
 
 def expr_with(var, expr):
-    store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
+    store_pat_var(var, TypedXpr(IVoidPtr(), zeroinitializer()))
     return express(expr)
 
 def voidexpr_with(var, expr):
-    store_pat_var(var, TypedXpr(IVoidPtr(), Const('zeroinitializer')))
+    store_pat_var(var, TypedXpr(IVoidPtr(), zeroinitializer()))
     write_voidexpr(expr)
 
 def express(expr):
@@ -834,7 +857,7 @@ def express(expr):
         ('CallIndirect(f, args, takesEnv)', expr_call_indirect),
         ('Cast(src, dest, expr)', expr_cast),
         ('e==FuncVal(f, ctx)', expr_funcval),
-        ('NullPtr()', lambda: Const("null")),
+        ('NullPtr()', null),
         ('WithVar(v, e)', expr_with))
 
 def express_typed(expr):
@@ -864,7 +887,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
         tx = cast(tx, IPtr(IData(ctor)))
         ixptr = get_element_ptr('ixptr', tx, fromJust(layout.discrimSlot))
         ix = load('ix', IInt(), ixptr)
-        index = Const(str(extrinsic(expand.CtorIndex, ctor)))
+        index = ConstInt(extrinsic(expand.CtorIndex, ctor))
         m = expr_binop('icmp eq', ix.xpr, index, ix.type)
         correctIx = new_label('got.%s' % (ctorSym,), new_series(pat))
         br_cond(m, correctIx, env(MATCH).failureBlock)
@@ -879,7 +902,7 @@ def match_pat_ctor(pat, ctor, ps, tx):
         match_pat(p, val)
 
 def match_pat_just(pat, p, tx):
-    m = expr_binop('icmp ne', tx.xpr, Const('null'), tx.type)
+    m = expr_binop('icmp ne', tx.xpr, null(), tx.type)
     lbl = new_label('just', new_series(pat))
     br_cond(m, lbl, env(MATCH).failureBlock)
     out_label(lbl)
@@ -887,7 +910,7 @@ def match_pat_just(pat, p, tx):
     match_pat(p, val)
 
 def match_pat_nothing(pat, tx):
-    m = expr_binop('icmp eq', tx.xpr, Const('null'), tx.type)
+    m = expr_binop('icmp eq', tx.xpr, null(), tx.type)
     lbl = new_label('nothing', new_series(pat))
     br_cond(m, lbl, env(MATCH).failureBlock)
     out_label(lbl)
@@ -1073,10 +1096,10 @@ def _write_ctor_body(ctor, layout, dtt):
     discrim = isJust(layout.discrimSlot)
     if discrim:
         index = extrinsic(expand.CtorIndex, ctor)
-        txs.insert(0, TypedXpr(IInt(), Const(str(index))))
+        txs.insert(0, TypedXpr(IInt(), ConstInt(index)))
 
     if isJust(layout.extrSlot):
-        txs.insert(0, TypedXpr(IVoidPtr(), Const("null")))
+        txs.insert(0, TypedXpr(IVoidPtr(), null()))
 
     struct = build_struct(ctort, txs)
     store_xpr(struct, inst.xpr)
