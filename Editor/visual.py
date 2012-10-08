@@ -133,7 +133,7 @@ def load_shader():
 def unload_shader(program):
     glDeleteProgram(program)
 
-@annot('void -> Env', env=False)
+@annot('void -> Env noenv')
 def setup_editor():
     glClearColor(0.0, 0.0, 0.0, 1.0)
 
