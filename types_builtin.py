@@ -178,14 +178,15 @@ def checked_subst(mapping, t):
     assert len(unseen) == 0, "Typevars %s unused in subst for %s" % (unseen, t)
     return s
 
+def is_strong(t):
+    return matches(t, "TData(_,_) or TArray(_) or TTuple(_) or TFunc(_,_,_)")
+
 def ctor_type(ctor, dtT):
     paramTypes = []
     paramMetas = []
     for f in ctor.fields:
         paramTypes.append(f.type)
-        held = matches(f.type, "TData(_, _) or TArray(_) " +
-                "or TTuple(_) or TFunc(_, _, _)")
-        paramMetas.append(ParamMeta(held))
+        paramMetas.append(ParamMeta(is_strong(f.type)))
     return TFunc(paramTypes, Ret(dtT), basic_meta(paramMetas))
 
 builtins_types = {
