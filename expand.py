@@ -495,14 +495,8 @@ LocalSymbol = new_extrinsic('LocalSymbol', str)
 EXLOCALS = new_env('EXLOCALS', {str: int})
 
 def unique_global(v, isFunc):
-    # Would prefer not to do this check
-    # Need firmer uniquer pass order
-    if has_extrinsic(GlobalSymbol, v):
-        symbol = extrinsic(GlobalSymbol, v).symbol
-    else:
-        symbol = extrinsic(Name, v)
-        add_extrinsic(GlobalSymbol, v, GlobalInfo(symbol, isFunc))
-    return symbol
+    symbol = extrinsic(Name, v)
+    add_extrinsic(GlobalSymbol, v, GlobalInfo(symbol, isFunc))
 
 def unique_local(v):
     name = extrinsic(Name, v)
@@ -514,15 +508,7 @@ def unique_local(v):
         name = '%s.no%d' % (name, index)
     add_extrinsic(LocalSymbol, v, name)
 
-class Uniquer(vat.Visitor):
-    def TopFunc(self, top):
-        # somewhat redundant with unique_decls()
-        # however currently we don't know which order they'll be called in...
-        sym = unique_global(top.var, True)
-        add_extrinsic(Name, top.func, sym)
-        # Don't visit top.var, it's not a local
-        self.visit('func')
-
+class LocalVarUniquer(vat.Visitor):
     def Func(self, func):
         in_env(EXLOCALS, {}, lambda: self.visit())
 
@@ -532,11 +518,7 @@ class Uniquer(vat.Visitor):
 def unique_decls(decls):
     for v in decls.cdecls:
         unique_global(v, True)
-
-        # XXX: avoid this check
-        # (shouldn't be uniquing the old decls anyway)
-        if not has_extrinsic(CFunction, v):
-            add_extrinsic(CFunction, v, True)
+        add_extrinsic(CFunction, v, True)
 
     for dt in decls.dts:
         unique_global(dt, True)
@@ -587,7 +569,7 @@ def expand_unit(unit):
     _finish_decls(env(EXGLOBAL).newDecls)
 
     vat.visit(ImportMarker, unit, t)
-    vat.visit(Uniquer, unit, t)
+    vat.visit(LocalVarUniquer, unit, t)
 
 def in_intramodule_env(func):
     captures = {}
