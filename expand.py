@@ -266,9 +266,9 @@ class TypeConverter(vat.Mutator):
         p = self.mutate()
         iconvert(p)
 
-        if not has_extrinsic(TypeCast, p):
+        if not original_has(TypeCast, p):
             return p
-        src, dest = extrinsic(TypeCast, p)
+        src, dest = original(TypeCast, p)
         add_extrinsic(LLVMPatCast, p, (convert_type(src), convert_type(dest)))
         return p
 
@@ -277,9 +277,9 @@ class TypeConverter(vat.Mutator):
         return v
 
 def convert_expr_casts(e):
-    if not has_extrinsic(TypeCast, e):
+    if not original_has(TypeCast, e):
         return e
-    src, dest = extrinsic(TypeCast, e)
+    src, dest = original(TypeCast, e)
     isrc = convert_type(src)
     idest = convert_type(dest)
     if itypes_equal(isrc, idest):
@@ -618,7 +618,7 @@ def expand_module(decl_mod, defn_mod):
             t_DT(CompilationUnit): t_DT(ExpandedUnit),
             t_ADT(Expr): t_ADT(LExpr),
         }
-        extrs = [Name, TypeOf, TypeCast]
+        extrs = [Name, TypeOf]
         unit = vat.transmute(defn_mod.root, mapping, extrs)
         vat.rewrite(unit)
         return unit

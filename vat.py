@@ -24,6 +24,14 @@ def orig_loc(obj):
         obj = extrinsic(Original, obj)
     return extrinsic(Location, obj)
 
+def original(extr, obj):
+    return extrinsic(extr, extrinsic(Original, obj))
+
+def original_has(extr, obj):
+    if not has_extrinsic(Original, obj):
+        return False
+    return has_extrinsic(extr, extrinsic(Original, obj))
+
 def in_vat(func):
     return in_env(VAT, VatContents([], {}, False), func)
 
