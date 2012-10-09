@@ -967,7 +967,7 @@ def store_pat(pat, xpr):
     txpr = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
     match((pat, txpr), ('(PatVar(v), txpr)', store_pat_var),
                        ('(PatTuple(ps), txpr)', store_pat_tuple),
-                       ('(PatWild(), _)', lambda: nop))
+                       ('(PatWild(), _)', nop))
 
 def load_lhs(lhs):
     return match(lhs,
@@ -1266,7 +1266,7 @@ def write_stmt(stmt):
         ("stmt==Cond(cs)", write_cond),
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
-        ("Nop()", lambda: None),
+        ("Nop()", nop),
         ("Return(e)", write_return),
         ("stmt==While(c, b)", write_while),
         ("VoidStmt(e)", write_voidexpr))

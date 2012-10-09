@@ -310,7 +310,7 @@ def frag_comma():
 class ExprStringifier(Visitor):
     def Attr(self, a):
         self.visit('expr')
-        frag('.%s' % (extrinsic(Name, a.field),))
+        frag('.%s' % (extrinsic(FieldSymbol, a.field),))
 
     def Bind(self, bind):
         t = bind.target
@@ -319,7 +319,12 @@ class ExprStringifier(Visitor):
             if matches(orig, "Lit(_)"):
                 frag(repr(orig.literal.val))
                 return
-        frag(extrinsic(Name, t) if has_extrinsic(Name, t) else '<unnamed>')
+        if Bindable.isLocalVar(t):
+            frag(var_name(t))
+        elif has_extrinsic(GlobalSymbol, t):
+            frag(global_name(t))
+        else:
+            frag(extrinsic(Name, t))
 
     def Call(self, call):
         if matches(call.func, 'Bind(Builtin())'):
@@ -396,15 +401,15 @@ class ExprStringifier(Visitor):
     def NullPtr(self, null):
         frag('null')
     def FuncVal(self, e):
-        ctx = match(e.ctx, ("Just(v)", lambda v: extrinsic(Name, v)),
+        ctx = match(e.ctx, ("Just(v)", var_name),
                            ("Nothing()", lambda: "null"))
-        frag('{&%s, %s}' % (extrinsic(Name, e.funcVar), ctx))
+        frag('{&%s, %s}' % (global_name(e.funcVar), ctx))
 
     def FuncExpr(self, fe):
         frag('<function %s>' % (extrinsic(Name, fe.func),))
 
     def InEnv(self, e):
-        frag('in_env(%s' % (extrinsic(Name, e.env),))
+        frag('in_env(%s' % (global_name(e.env),))
         frag_comma()
         self.visit('init')
         frag_comma()
@@ -414,7 +419,7 @@ class ExprStringifier(Visitor):
         self.InEnv(e)
 
     def ScopeExtrinsic(self, e):
-        frag('scope_extrinsic(%s' % (extrinsic(Name, e.extrinsic),))
+        frag('scope_extrinsic(%s' % (global_name(e.extrinsic),))
         frag_comma()
         self.visit('expr')
         frag(')')
@@ -428,17 +433,17 @@ class ExprStringifier(Visitor):
     # PATTERNS
 
     def PatVar(self, pat):
-        frag(extrinsic(Name, pat.var))
+        frag(var_name(pat.var))
 
     def PatWild(self, pat):
         frag('_')
 
     def LhsVar(self, lhs):
-        frag(extrinsic(Name, lhs.var))
+        frag(var_name(lhs.var))
 
     def LhsAttr(self, lhs):
         self.visit('sub')
-        frag('.%s' % (extrinsic(Name, lhs.attr),))
+        frag('.%s' % (extrinsic(FieldSymbol, lhs.attr),))
 
     # STMTS
 
@@ -494,11 +499,17 @@ class ExprStringifier(Visitor):
 
     def WriteExtrinsic(self, a):
         frag('add_extrinsic(' if a.isNew else 'update_extrinsic(')
-        frag(extrinsic(Name, a.extrinsic))
+        frag(global_name(a.extrinsic))
         frag_comma()
         self.visit('node')
         frag_comma()
         self.visit('val')
         frag(')')
+
+def var_name(var):
+    return extrinsic(LocalSymbol, var)
+
+def global_name(target):
+    return extrinsic(GlobalSymbol, target).symbol
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

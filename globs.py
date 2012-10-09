@@ -14,6 +14,11 @@ Instantiation = base.new_extrinsic('Instantiation', {'*TypeVar': base.Type})
 TypeCast = base.new_extrinsic('TypeCast', (base.Type, base.Type))
 InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})
 
+GlobalInfo = base.DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
+GlobalSymbol = base.new_extrinsic('GlobalSymbol', GlobalInfo)
+LocalSymbol = base.new_extrinsic('LocalSymbol', str)
+FieldSymbol = base.new_extrinsic('FieldSymbol', str)
+
 loaded_modules = {}
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

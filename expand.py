@@ -481,14 +481,8 @@ def dt_layout(dt):
             add_extrinsic(FieldIndex, field, ix + base)
 
 
-GlobalInfo = DT('GlobalInfo', ('symbol', str), ('isFunc', bool))
-GlobalSymbol = new_extrinsic('GlobalSymbol', GlobalInfo)
-
 CFunction = new_extrinsic('CFunction', bool)
 
-FieldSymbol = new_extrinsic('FieldSymbol', str)
-
-LocalSymbol = new_extrinsic('LocalSymbol', str)
 EXLOCALS = new_env('EXLOCALS', {str: int})
 
 def unique_global(v, isFunc):
@@ -496,7 +490,7 @@ def unique_global(v, isFunc):
     add_extrinsic(GlobalSymbol, v, GlobalInfo(symbol, isFunc))
 
 def unique_local(v):
-    name = extrinsic(Name, v)
+    name = extrinsic(Name, v) if has_extrinsic(Name, v) else 'tmp'
     lcls = env(EXLOCALS)
     index = lcls.get(name, 0) + 1
     lcls[name] = index
