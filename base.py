@@ -766,7 +766,7 @@ def pretty_brief(name, o):
     return None
 
 def short_id(o):
-    return fmtcol('^DG@x{0:x}^N', id(o) % 0xfffff)
+    return fmtcol('^LG@x{0:x}^N', id(o) % 0xfffff)
 
 def __repr__(o):
     if not in_extrinsic_scope(PrettyPrinted):
