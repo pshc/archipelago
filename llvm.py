@@ -444,42 +444,6 @@ def out_txpr(tx):
 
 # EXPRESSIONS
 
-def expr_and(e, l, r):
-    srs = new_series(e)
-    entry = new_label('and', srs)
-    out_label(entry)
-    left = express(l)
-    both = new_label('both', srs)
-    end = new_label('endand', srs)
-    br_cond(left, both, end)
-    # left was true
-    out_label(both)
-    right = express(r)
-    br(end)
-    # short-circuit with phi
-    out_label(end)
-    truth = temp_reg_named('and')
-    phi(truth, IBool(), [(right, both), (ConstKeyword(KFalse()), entry)])
-    return truth
-
-def expr_or(e, l, r):
-    srs = new_series(e)
-    entry = new_label('or', srs)
-    out_label(entry)
-    left = express(l)
-    both = new_label('both', srs)
-    end = new_label('endor', srs)
-    br_cond(left, end, both)
-    # left was false
-    out_label(both)
-    right = express(r)
-    br(end)
-    # short-circuit with phi
-    out_label(end)
-    truth = temp_reg_named('or')
-    phi(truth, IBool(), [(right, both), (ConstKeyword(KTrue()), entry)])
-    return truth
-
 def expr_ternary(e, c, t, f):
     cond = express(c)
     srs = new_series(e)
@@ -842,14 +806,12 @@ def voidexpr_with(var, expr):
 def express(expr):
     assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
     return match(expr,
-        ('e==And(l, r)', expr_and),
         ('Bind(v)', LLVMBindable.express),
         ('Call(f, args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('e==InEnv(environ, init, expr)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
-        ('e==Or(l, r)', expr_or),
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
