@@ -40,20 +40,18 @@ CoreLiteral, IntLit, FloatLit, StrLit = ADT('CoreLiteral',
         'FloatLit', ('val', float),
         'StrLit', ('val', str))
 
-CoreExpr, Attr, Bind, Call, Lit, Ternary, TupleLit = \
+CoreExpr, Attr, Bind, Call, Lit, TupleLit = \
     ADT('CoreExpr',
         'Attr', ('expr', 'CoreExpr'), ('field', '*Field'),
         'Bind', ('target', '*a'), # Binder a => a
         'Call', ('func', 'CoreExpr'), ('args', '[CoreExpr]'),
         'Lit', ('literal', CoreLiteral),
-        'Ternary', ('test', 'CoreExpr'), ('then', 'CoreExpr'),
-                   ('else_', 'CoreExpr'),
         'TupleLit', ('vals', '[CoreExpr]'))
 
 Expr, E, And, DictLit, FuncExpr, GenExpr, \
         GetEnv, HaveEnv, InEnv, \
         GetExtrinsic, HasExtrinsic, ScopeExtrinsic, \
-        ListLit, Match, Or = \
+        ListLit, Match, Or, Ternary = \
     ADT(('Expr', CoreExpr),
         'And', ('left', 'Expr'), ('right', 'Expr'),
         'DictLit', ('vals', '[(Expr, Expr)]'),
@@ -68,7 +66,9 @@ Expr, E, And, DictLit, FuncExpr, GenExpr, \
         'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
         'ListLit', ('vals', '[Expr]'),
         'Match', ('expr', 'Expr'), ('cases', ['MatchCase(Expr)']),
-        'Or', ('left', 'Expr'), ('right', 'Expr'))
+        'Or', ('left', 'Expr'), ('right', 'Expr'),
+        'Ternary', ('test', 'Expr'), ('then', 'Expr'),
+                   ('else_', 'Expr'))
 
 AugOp, AugAdd, AugSubtract, AugMultiply, AugDivide, AugModulo = ADT('AugOp',
         'AugAdd', 'AugSubtract', 'AugMultiply', 'AugDivide', 'AugModulo')
@@ -400,6 +400,8 @@ class ExprStringifier(Visitor):
 
     def NullPtr(self, null):
         frag('null')
+    def Undefined(self, undef):
+        frag('undef')
     def FuncVal(self, e):
         ctx = match(e.ctx, ("Just(v)", var_name),
                            ("Nothing()", lambda: "null"))

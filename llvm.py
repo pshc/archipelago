@@ -34,8 +34,8 @@ def setup_locals():
 
 TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
 
-XprKeyword, KNull, KZeroInitializer, KTrue, KFalse = ADT('XKeyword',
-    'KNull', 'KZeroInitializer', 'KTrue', 'KFalse')
+XprKeyword, KNull, KZeroInitializer, KUndef, KTrue, KFalse = ADT('XKeyword',
+    'KNull', 'KZeroInitializer', 'KUndef', 'KTrue', 'KFalse')
 
 Xpr, Reg, Tmp, Global, ConstStruct, ConstInt, ConstFloat, ConstKeyword, \
         ConstOp, ConstCast, \
@@ -143,6 +143,7 @@ def txpr_str(txpr):
 def constkeyword_str(k):
     return match(k, ('KNull()', lambda: 'null'),
                     ('KZeroInitializer()', lambda: 'zeroinitializer'),
+                    ('KUndef()', lambda: 'undef'),
                     ('KTrue()', lambda: 'true'), ('KFalse()', lambda: 'false'))
 
 def constop_str(f, args):
@@ -443,27 +444,6 @@ def out_txpr(tx):
     out_xpr(tx.xpr)
 
 # EXPRESSIONS
-
-def expr_ternary(e, c, t, f):
-    cond = express(c)
-    srs = new_series(e)
-    yes = new_label('yes', srs)
-    no = new_label('no', srs)
-    end = new_label('endternary', srs)
-    br_cond(cond, yes, no)
-
-    out_label(yes)
-    true = express(t)
-    br(end)
-
-    out_label(no)
-    false = express(f)
-    br(end)
-
-    out_label(end)
-    result = temp_reg_named('either')
-    phi(result, typeof(t), [(true, yes), (false, no)])
-    return result
 
 # Ought to specify a dependency on Bindable somehow
 LLVMBindable = new_typeclass('LLVMBindable',
@@ -815,11 +795,11 @@ def express(expr):
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
-        ('e==Ternary(c, l, r)', expr_ternary),
         ('CallIndirect(f, args, takesEnv)', expr_call_indirect),
         ('Cast(src, dest, expr)', expr_cast),
         ('e==FuncVal(f, ctx)', expr_funcval),
         ('NullPtr()', null),
+        ('Undefined()', lambda: ConstKeyword(KUndef())),
         ('WithVar(v, e)', expr_with))
 
 def express_typed(expr):

@@ -530,7 +530,7 @@ def conv_getattr(e):
 
 @expr(ast.IfExp)
 def conv_ifexp(e):
-    return E.Ternary(conv_expr(e.test), conv_expr(e.then), conv_expr(e.else_))
+    return Ternary(conv_expr(e.test), conv_expr(e.then), conv_expr(e.else_))
 
 def extract_arglist(s):
     names = s.argnames[:]

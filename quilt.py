@@ -1,12 +1,14 @@
 from base import *
 from atom import *
 
-LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, WithVar = ADT(('LExpr', Expr),
+LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, Undefined, WithVar = \
+    ADT(('LExpr', Expr),
         'CallIndirect', ('func', 'LExpr'), ('args', ['LExpr']),
                         ('takesEnv', bool),
         'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
         'FuncVal', ('funcVar', '*GlobalVar'), ('ctx', 'Maybe(*Var)'),
         'NullPtr',
+        'Undefined',
         'WithVar', ('var', Var), ('expr', 'LExpr'))
 
 ExpandedUnit = DT('ExpandedUnit', ('funcs', ['TopFunc(LExpr)']))

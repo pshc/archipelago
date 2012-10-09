@@ -69,6 +69,36 @@ class Flattener(vat.Mutator):
             add_extrinsic(TypeOf, b, TBool())
         return output
 
+    def Ternary(self, e):
+        rs = []
+
+        result = Var()
+        rs.append(result)
+        pat = PatVar(result)
+        rs.append(pat)
+        undef = Undefined()
+        rs.append(undef)
+        push_stmt(S.Defn(pat, undef))
+
+        test = self.mutate('test')
+
+        trueBlock = Body([])
+        trueResult = in_env(FLAT, trueBlock, lambda: self.mutate('then'))
+        trueBlock.stmts.append(S.Assign(LhsVar(result), trueResult))
+
+        falseBlock = Body([])
+        falseResult = in_env(FLAT, falseBlock, lambda: self.mutate('else_'))
+        falseBlock.stmts.append(S.Assign(LhsVar(result), falseResult))
+
+        push_stmt(S.Cond([CondCase(test, trueBlock),
+                          CondCase(true(), falseBlock)]))
+        output = L.Bind(result)
+        rs.append(output)
+        retType = extrinsic(TypeOf, e)
+        for r in rs:
+            add_extrinsic(TypeOf, r, retType)
+        return output
+
 def builtin_call(name, args):
     f = BUILTINS[name]
     ft = extrinsic(TypeOf, f)
@@ -77,6 +107,11 @@ def builtin_call(name, args):
     call = L.Call(bind, args)
     add_extrinsic(TypeOf, call, ft.result.type)
     return call
+
+def true():
+    bind = L.Bind(BUILTINS['True'])
+    add_extrinsic(TypeOf, bind, TBool())
+    return bind
 
 def flatten_unit(unit):
     vat.mutate(Flattener, unit, t_DT(ExpandedUnit))
