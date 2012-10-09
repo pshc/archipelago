@@ -30,8 +30,6 @@ Closure = new_extrinsic('Closure', ClosureInfo)
 ClosedVarFunc = new_extrinsic('ClosedVar', '*ExFunc')
 VarGlobalReplacement = new_extrinsic('VarGlobalReplacement', '*GlobalVar')
 
-GeneratedLocal = new_extrinsic('GeneratedLocal', bool)
-
 def iconvert(a):
     add_extrinsic(LLVMTypeOf, a, convert_type(extrinsic(TypeOf, a)))
 
@@ -435,7 +433,6 @@ def new_ctx_var():
     var = Var()
     add_extrinsic(Name, var, 'ctx')
     add_extrinsic(LLVMTypeOf, var, IVoidPtr())
-    add_extrinsic(GeneratedLocal, var, True)
     return var
 
 def bind_env(e):
@@ -456,7 +453,7 @@ def bind_extrinsic(extr):
 class ImportMarker(vat.Visitor):
     def Bind(self, bind):
         tar = bind.target
-        if has_extrinsic(GeneratedLocal, tar):
+        if Bindable.isLocalVar(tar):
             return
         external = has_extrinsic(CFunction, tar) and extrinsic(CFunction, tar)
         if not external:
@@ -574,7 +571,7 @@ def expand_unit(unit):
 def in_intramodule_env(func):
     captures = {}
     extrs = [Closure, LLVMPatCast,
-            vat.Original, GeneratedLocal, LocalSymbol,
+            vat.Original, LocalSymbol,
             InEnvCtxVar]
 
     # XXX workaround for insufficiently staged compilation
