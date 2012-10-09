@@ -706,7 +706,7 @@ GENOPTS = new_env('GENOPTS', GenOpts)
 import re
 _col_re = re.compile(r'\^(\w+)\^?')
 del re
-_col_shorts = {'N': 'Normal', 'DG': 'DarkGray'}
+_col_shorts = {'N': 'Normal', 'DG': 'DarkGray', 'LG': 'LightGray'}
 
 def col(c, s):
     colors = have_env(GENOPTS) and env(GENOPTS).color

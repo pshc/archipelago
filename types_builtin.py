@@ -72,17 +72,17 @@ def _type_repr(t):
     if t in seen:
         return '<cyclic 0x%x>' % id(t)
     seen.add(t)
-    rstr = match(t, ("TVar(a)", _get_name),
+    rstr = match(t, ("TVar(v)", lambda v: col('Green', _get_name(v))),
                     ("TPrim(PInt())", lambda: 'int'),
                     ("TPrim(PStr())", lambda: 'str'),
                     ("TPrim(PChar())", lambda: 'char'),
                     ("TPrim(PBool())", lambda: 'bool'),
-                    ("TTuple(ts)", lambda ts: 't(%s)' %
-                        (', '.join(_type_repr(t) for t in ts),)),
+                    ("TTuple(ts)", lambda ts: fmtcol('^Cyan^t(^N{0}^Cyan)^N',
+                        (col('Cyan', ', ').join(map(_type_repr, ts))))),
                     ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
                     ("TFunc(ps, res, m)", _func_repr),
                     ("TData(d, ps)", _tdata_repr),
-                    ("_", lambda: '<bad type %s>' % type(t)))
+                    ("_", lambda: mark('<bad type %s>' % type(t))))
     seen.remove(t)
     return rstr
 
@@ -92,29 +92,30 @@ def _func_repr(ps, result, meta):
     elif len(ps) == 1 and not meta.params[0].held:
         s = _type_repr(ps[0])
     else:
-        bits = ['(']
+        bits = [col('Cyan', '(')]
         first = True
         for param, pmeta in ezip(ps, meta.params):
             if first:
                 first = False
             else:
-                bits.append(', ')
+                bits.append(col('Cyan', ', '))
             bits.append(_type_repr(param))
             if pmeta.held:
-                bits.append(' held')
-        bits.append(')')
+                bits.append(col('LG', ' held'))
+        bits.append(col('Cyan', ')'))
         s = ''.join(bits)
     ret = match(result, ('Ret(t)', _type_repr),
                         ('Void()', lambda: 'void'),
                         ('Bottom()', lambda: 'noreturn'))
     if not meta.takesEnv:
-        ret += ' noenv'
-    return '%s -> %s' % (s, ret)
+        ret += col('LG', ' noenv')
+    return fmtcol('{0} ^Cyan->^N {1}', s, ret)
 
 def _tdata_repr(dt, apps):
     if not apps:
         return _get_name(dt)
-    return '%s(%s)' % (dt, ', '.join(_type_repr(a) for a in apps))
+    return fmtcol('{0}^LG(^N{1}^LG)^N', dt,
+            col('Cyan', ', ').join(map(_type_repr, apps)))
 
 def _cyclic_check_type_repr(t):
     return in_env(REPRENV, set(), lambda: _type_repr(t))
