@@ -61,17 +61,17 @@ def _get_name(a):
         return '?? %r' % (a,)
     return extrinsic(Name, a)
 
-REPR_ENV = None
+REPRENV = new_env('REPRENV', set([Type]))
 
 def _meta_type_repr(t, j):
     assert t is not j
     return _type_repr(j)
 
 def _type_repr(t):
-    global REPR_ENV
-    if t in REPR_ENV:
+    seen = env(REPRENV)
+    if t in seen:
         return '<cyclic 0x%x>' % id(t)
-    REPR_ENV.add(t)
+    seen.add(t)
     rstr = match(t, ("TVar(a)", _get_name),
                     ("TPrim(PInt())", lambda: 'int'),
                     ("TPrim(PStr())", lambda: 'str'),
@@ -79,33 +79,48 @@ def _type_repr(t):
                     ("TPrim(PBool())", lambda: 'bool'),
                     ("TTuple(ts)", lambda ts: 't(%s)' %
                         (', '.join(_type_repr(t) for t in ts),)),
-                    ("TFunc(ps, r, _)", _func_repr),
-                    ("TData(d, [])", _get_name),
+                    ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
+                    ("TFunc(ps, res, m)", _func_repr),
+                    ("TData(d, ps)", _tdata_repr),
                     ("_", lambda: '<bad type %s>' % type(t)))
-    REPR_ENV.remove(t)
+    seen.remove(t)
     return rstr
 
-def _func_repr(ps, result):
+def _func_repr(ps, result, meta):
     if len(ps) == 0:
         s = 'void'
-    elif len(ps) == 1:
+    elif len(ps) == 1 and not meta.params[0].held:
         s = _type_repr(ps[0])
     else:
-        s = '(%s)' % (', '.join(map(_type_repr, ps)),)
+        bits = ['(']
+        first = True
+        for param, pmeta in ezip(ps, meta.params):
+            if first:
+                first = False
+            else:
+                bits.append(', ')
+            bits.append(_type_repr(param))
+            if pmeta.held:
+                bits.append(' held')
+        bits.append(')')
+        s = ''.join(bits)
     ret = match(result, ('Ret(t)', _type_repr),
-                        ('Void()', 'void')
-                        ('Bottom()', 'noreturn'))
+                        ('Void()', lambda: 'void'),
+                        ('Bottom()', lambda: 'noreturn'))
+    if not meta.takesEnv:
+        ret += ' noenv'
     return '%s -> %s' % (s, ret)
 
+def _tdata_repr(dt, apps):
+    if not apps:
+        return _get_name(dt)
+    return '%s(%s)' % (dt, ', '.join(_type_repr(a) for a in apps))
+
 def _cyclic_check_type_repr(t):
-    global REPR_ENV
-    REPR_ENV = set()
-    r = _type_repr(t)
-    REPR_ENV = None
-    return r
+    return in_env(REPRENV, set(), lambda: _type_repr(t))
 
 def _inject_type_reprs():
-    temp = locals().copy()
+    temp = globals()
     for t in temp:
         if len(t) > 1 and t[0] == 'T' and t[1].lower() != t[1]:
             temp[t].__repr__ = _cyclic_check_type_repr
