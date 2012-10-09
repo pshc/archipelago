@@ -955,7 +955,22 @@ def write_cond(stmt, cs):
             out_comment('if %s:' % (stringify(case.test, 'LExpr'),))
         else:
             out_pretty(case, 'CondCase(LExpr)')
-        ex = express(case.test)
+
+        # Optimize out trivial NOTs
+        m = match(case.test)
+        converse = False
+        if m('Call(Bind(key("not")), [con])'):
+            con = m.arg
+            m = match(con)
+            if m('Call(Bind(key("not")), [concon])'):
+                concon = m.arg
+                ex = express(concon)
+            else:
+                ex = express(con)
+                converse = True
+        else:
+            ex = express(case.test)
+
         then = new_label('then', csrs)
         e = endif
         haveAnotherCase = False
@@ -964,7 +979,12 @@ def write_cond(stmt, cs):
             csrs = new_series(cs[i + 1])
             e = new_label('elif', csrs)
             elif_ = Just(e)
-        br_cond(ex, then, e)
+
+        if converse:
+            out_comment('`not` omitted; labels swapped')
+            br_cond(ex, e, then)
+        else:
+            br_cond(ex, then, e)
         out_label(then)
         write_body(case.body)
         if haveAnotherCase and not env(LOCALS).unreachable:
