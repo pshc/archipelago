@@ -116,7 +116,7 @@ class ClosureExpander(vat.Mutator):
         return pat
 
     def Bind(self, bind):
-        mv = Bindable.isLocalVar(bind.target)
+        mv = Bindable.asLocalVar(bind.target)
         if isJust(mv):
             v = fromJust(mv)
             wasClosed = False
@@ -163,7 +163,7 @@ class FuncValGenerator(vat.Mutator):
             return c
 
     def Bind(self, e):
-        if isNothing(Bindable.isLocalVar(e.target)):
+        if not Bindable.isLocalVar(e.target):
             t = extrinsic(TypeOf, e)
             if matches(t, "TFunc(_, _, _)"):
                 assert isinstance(e.target, GlobalVar)
@@ -180,7 +180,7 @@ def expand_closures(unit):
 def is_indirect_func(e):
     if not matches(e, "Bind(_)"):
         return True
-    return isJust(Bindable.isLocalVar(e.target))
+    return Bindable.isLocalVar(e.target)
 
 class LitExpander(vat.Mutator):
     def Lit(self, lit):

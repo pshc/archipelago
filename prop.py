@@ -306,7 +306,7 @@ def _prop_pat(p):
     add_extrinsic(PendingType, p, env(INPAT))
 
 def prop_bind(b, target):
-    m = match(Bindable.isLocalVar(target))
+    m = match(Bindable.asLocalVar(target))
     if m('Just(v)'):
         v = m.arg
         return prop_local_var(v)

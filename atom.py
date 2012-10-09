@@ -145,14 +145,16 @@ def lit_type(lit):
                       ("StrLit(_)", TStr))
 
 Bindable = new_typeclass('Bindable',
-        ('isLocalVar', 'a -> Var', lambda v: Nothing()))
+        ('isLocalVar', 'a -> bool', lambda v: False),
+        ('asLocalVar', 'a -> Maybe(Var)', lambda v: Nothing()))
 
 # This is silly
-# Maybe can have types opt-in to RTTI?
-# Or just use Bindable a => a in prop and expand
 
 @impl(Bindable, Var)
 def isLocalVar_Var(var):
+    return True
+@impl(Bindable, Var)
+def asLocalVar_Var(var):
     return Just(var)
 
 default_impl(Bindable, GlobalVar)
