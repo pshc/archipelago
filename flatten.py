@@ -19,6 +19,10 @@ class Flattener(vat.Mutator):
         push_stmt(stmt)
         return stmt
 
+    def Nop(self, s):
+        # don't push
+        return s
+
     def And(self, e):
         left = self.mutate('left')
         tmp = define_temp_var(left)

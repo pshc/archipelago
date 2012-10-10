@@ -1228,7 +1228,6 @@ def write_stmt(stmt):
         ("stmt==Cond(cs)", write_cond),
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
-        ("Nop()", nop),
         ("Return(e)", write_return),
         ("stmt==While(c, b)", write_while),
         ("VoidStmt(e)", write_voidexpr))
