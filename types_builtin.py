@@ -109,6 +109,8 @@ def _func_repr(ps, result, meta):
                         ('Bottom()', lambda: 'noreturn'))
     if not meta.envParam:
         ret += col('LG', ' noenv')
+    for environ in meta.requiredEnvs:
+        ret += fmtcol(' ^LG{0}^N', extrinsic(Name, environ))
     return fmtcol('{0} ^Cyan->^N {1}', s, ret)
 
 def _tdata_repr(dt, apps):
