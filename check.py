@@ -4,7 +4,9 @@ from base import *
 from types_builtin import *
 from globs import TypeOf
 
-CHECKSCOPE = new_env('CHECKSCOPE', Result)
+CheckScope = DT('CheckScope', ('result', Result),
+                              ('envsPresent', set(['*Env'])))
+CHECKSCOPE = new_env('CHECKSCOPE', CheckScope)
 
 CHECK = new_env('CHECK', Type)
 
@@ -143,6 +145,11 @@ def check_bind(bind, target):
         t = newT
     check(t)
 
+def check_call_envs(e, meta):
+    present = env(CHECKSCOPE).envsPresent
+    for environ in meta.requiredEnvs:
+        assert environ in present, "%s requires env %s" % (f, environ)
+
 def check_inst_call(e, inst, f, args):
     # Instead of typecasting f, typecast its args backwards
     origT = extrinsic(TypeOf, f.target)
@@ -152,7 +159,7 @@ def check_inst_call(e, inst, f, args):
     # Avoid check_expr_as() here to avoid check_bind(), which would conflict
     typecheck(t, extrinsic(TypeOf, f))
 
-    argTs, result = match(t, ("TFunc(args, result, _)", tuple2))
+    argTs, result, meta = match(t, ("TFunc(args, result, meta)", tuple3))
 
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
         _ = maybe_typecast_reversed(inst, arg, newT, origT)
@@ -162,30 +169,35 @@ def check_inst_call(e, inst, f, args):
         _ = maybe_typecast(inst, e, origResult.type, result.type)
         check(result.type)
 
+    check_call_envs(e, meta)
+    return result
+
+def check_straight_call(e, f, args):
+    t = check_expr_as_itself(f)
+    print t
+    argTs, result, meta = match(t, ("TFunc(args, result, meta)", tuple3))
+    for arg, t in ezip(args, argTs):
+        check_expr_as(t, arg)
+
+    if matches(result, "Ret(_)"):
+        check(result.type)
+
+    check_call_envs(e, meta)
     return result
 
 def check_call(e, f, args):
     if has_extrinsic(Instantiation, f):
         res = check_inst_call(e, extrinsic(Instantiation, f), f, args)
-        assert matches(res, "Ret(_)")
     else:
-        t = check_expr_as_itself(f)
-        argts, result = match(t, ("TFunc(args, res, _)", tuple2))
-        assert matches(result, "Ret(_)")
-        check(result.type)
-        for arg, t in ezip(args, argts):
-            check_expr_as(t, arg)
+        res = check_straight_call(e, f, args)
+    assert matches(res, "Ret(_)")
 
 def check_void_call(e, f, args):
     if has_extrinsic(Instantiation, f):
         res = check_inst_call(e, extrinsic(Instantiation, f), f, args)
-        assert not matches(res, "Ret(_)")
     else:
-        t = check_expr_as_itself(f)
-        argts, result = match(t, ("TFunc(args, res, _)", tuple2))
-        assert not matches(result, "Ret(_)")
-        for arg, t in ezip(args, argts):
-            check_expr_as(t, arg)
+        res = check_straight_call(e, f, args)
+    assert not matches(res, "Ret(_)")
 
 def check_tuplelit(es):
     ts = match(env(CHECK), "TTuple(ts)")
@@ -209,10 +221,10 @@ def check_ternary(c, t, f):
 
 def check_func(f):
     ft = extrinsic(TypeOf, f)
-    tps, tresult = match(ft, ('TFunc(ps, result, _)', tuple2))
-    for p, tp in ezip(f.params, tps):
+    for p, tp in ezip(f.params, ft.paramTypes):
         typecheck(extrinsic(TypeOf, p), tp)
-    in_env(CHECKSCOPE, tresult, lambda: check_body(f.body))
+    scope = CheckScope(ft.result, set(ft.meta.requiredEnvs))
+    in_env(CHECKSCOPE, scope, lambda: check_body(f.body))
 
 def check_match(m, e, cs):
     et = check_expr_as_itself(e)
@@ -235,13 +247,25 @@ def check_attr(e, f, ft):
     check_contains_field(t, f)
     check_expr_as(t, e)
 
-def check_inenv(t, init, f):
-    check_expr_as(t, init)
+def check_inenv(environ, init, f):
+    check_expr_as(environ.type, init)
+    present = env(CHECKSCOPE).envsPresent
+    introduced = environ not in present
+    if introduced:
+        present.add(environ)
     check_same(f)
+    if introduced:
+        present.remove(environ)
 
-def check_void_inenv(t, init, f):
-    check_expr_as(t, init)
+def check_void_inenv(environ, init, f):
+    check_expr_as(environ.type, init)
+    present = env(CHECKSCOPE).envsPresent
+    introduced = environ not in present
+    if introduced:
+        present.add(environ)
     check_voidexpr(f)
+    if introduced:
+        present.remove(environ)
 
 def check_getextrinsic(t, node):
     check(t)
@@ -283,7 +307,7 @@ def _check_expr(e):
         ("Attr(e, f==Field(ft))", check_attr),
         ("GetEnv(Env(t))", check),
         ("HaveEnv(_)", lambda: check(TBool())),
-        ("InEnv(Env(t), init, f)", check_inenv),
+        ("InEnv(environ, init, f)", check_inenv),
         ("GetExtrinsic(Extrinsic(t), node)", check_getextrinsic),
         ("HasExtrinsic(_, node)", check_hasextrinsic),
         ("ScopeExtrinsic(_, f)", check_same),
@@ -360,10 +384,10 @@ def check_assert(tst, msg):
     check_expr_as(TStr(), msg)
 
 def check_return(e):
-    check_expr_as(env(CHECKSCOPE).type, e)
+    check_expr_as(env(CHECKSCOPE).result.type, e)
 
 def check_returnnothing():
-    assert not matches(env(CHECKSCOPE), "Ret(_)")
+    assert not matches(env(CHECKSCOPE).result, "Ret(_)")
 
 def check_writeextrinsic(t, node, val):
     check_expr_as_boxed(node)
@@ -372,7 +396,7 @@ def check_writeextrinsic(t, node, val):
 def check_voidexpr(e):
     match(e,
         ("call==VoidCall(f, args)", check_void_call),
-        ("VoidInEnv(Env(t), init, e)", check_void_inenv))
+        ("VoidInEnv(environ, init, e)", check_void_inenv))
 
 def check_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
