@@ -15,7 +15,7 @@ def write_type(t):
         ('_', lambda: 'void *')))
 
 def write_params(ps, meta):
-    if len(ps) == 0 and not meta.takesEnv:
+    if len(ps) == 0 and not meta.envParam:
         out('(void)')
         return
     first = True
@@ -27,7 +27,7 @@ def write_params(ps, meta):
             out(', ')
         write_type(p)
 
-    if meta.takesEnv:
+    if meta.envParam:
         if first:
             first = False
         else:

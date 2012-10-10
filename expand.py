@@ -139,7 +139,7 @@ class FuncValGenerator(vat.Mutator):
             e.func = self.mutate('func')
             e.args = self.mutate('args')
             ft = extrinsic(TypeOf, e.func)
-            indcall = CallIndirect(e.func, e.args, ft.meta.takesEnv)
+            indcall = CallIndirect(e.func, e.args, ft.meta.envParam)
             add_extrinsic(TypeOf, indcall, extrinsic(TypeOf, e))
             return indcall
         else:
@@ -152,7 +152,7 @@ class FuncValGenerator(vat.Mutator):
             return self.mutate()
             """
             ft = extrinsic(TypeOf, c.func)
-            #indcall = VoidCallIndirect(c.func, c.args, ft.meta.takesEnv)
+            #indcall = VoidCallIndirect(c.func, c.args, ft.meta.envParam)
             add_extrinsic(TypeOf, indcall, extrinsic(TypeOf, e))
             return indcall
             """
@@ -308,7 +308,7 @@ class MaybeConverter(vat.Mutator):
         return self.mutate()
 
 def add_call_ctx(func, args):
-    if extrinsic(TypeOf, func).meta.takesEnv:
+    if extrinsic(TypeOf, func).meta.envParam:
         m = match(env(THREADENV))
         if m('Just(ctx)'):
             ctx = m.arg
@@ -347,7 +347,7 @@ class EnvExtrConverter(vat.Mutator):
         f.params = self.mutate('params')
 
         threadedVar = Nothing()
-        if extrinsic(TypeOf, f).meta.takesEnv:
+        if extrinsic(TypeOf, f).meta.envParam:
             # Add context parameter
             var = new_ctx_var()
             threadedVar = Just(var)

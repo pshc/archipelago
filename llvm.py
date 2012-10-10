@@ -605,7 +605,7 @@ def expr_call(f, args):
 
     return call(ftx, argxs)
 
-def expr_call_indirect(f, args, takesEnv):
+def expr_call_indirect(f, args, envParam):
     fvaltx = express_typed(f)
     argxs = map(express, args)
 
@@ -613,7 +613,7 @@ def expr_call_indirect(f, args, takesEnv):
     assert not matches(ft.ret, "IVoid()")
 
     fx = extractvalue('fptr', fvaltx, 0)
-    if takesEnv:
+    if envParam:
         argxs.append(extractvalue('fctx', fvaltx, 1))
 
     return call(TypedXpr(ft, fx), argxs)
@@ -795,7 +795,7 @@ def express(expr):
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
-        ('CallIndirect(f, args, takesEnv)', expr_call_indirect),
+        ('CallIndirect(f, args, envParam)', expr_call_indirect),
         ('Cast(src, dest, expr)', expr_cast),
         ('e==FuncVal(f, ctx)', expr_funcval),
         ('NullPtr()', null),

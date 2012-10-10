@@ -329,14 +329,14 @@ PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
 ParamMeta = DT('ParamMeta', ('held', bool))
 
 FuncMeta = DT('FuncMeta', ('params', [ParamMeta]),
-                          ('takesEnv', bool))
+                          ('envParam', bool))
 
 def plain_meta(params):
     return FuncMeta(params, True)
 def basic_meta(params):
     return FuncMeta(params, False)
 def copy_meta(meta):
-    return FuncMeta(map(copy_param_meta, meta.params), meta.takesEnv)
+    return FuncMeta(map(copy_param_meta, meta.params), meta.envParam)
 
 def plain_param_meta():
     return ParamMeta(False)
@@ -347,7 +347,7 @@ def metas_equal(m1, m2):
     for p1, p2 in ezip(m1.params, m2.params):
         if p1.held != p2.held:
             return False
-    return m1.takesEnv == m2.takesEnv
+    return m1.envParam == m2.envParam
 
 Type, TVar, TPrim, TTuple, TFunc, TData, TArray, TWeak \
     = ADT('Type',
@@ -509,7 +509,7 @@ def consume_type(toks):
         t = TFunc(params, consume_result(toks), meta)
         if toks and toks[0] == 'noenv':
             toks.pop(0)
-            meta.takesEnv = False
+            meta.envParam = False
         assert len(t.paramTypes) == len(t.meta.params), "Bad meta params"
     return t
 

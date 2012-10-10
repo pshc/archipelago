@@ -4,7 +4,7 @@ from atom import *
 LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, Undefined, WithVar = \
     ADT(('LExpr', Expr),
         'CallIndirect', ('func', 'LExpr'), ('args', ['LExpr']),
-                        ('takesEnv', bool),
+                        ('envParam', bool),
         'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
         'FuncVal', ('funcVar', '*GlobalVar'), ('ctx', 'Maybe(*Var)'),
         'NullPtr',
@@ -72,7 +72,7 @@ def convert_type(t):
 
 def _convert_func(tps, result, meta):
     ips = map(convert_type, tps)
-    if meta.takesEnv:
+    if meta.envParam:
         ips.append(IVoidPtr())
     meta = IFuncMeta(False)
     m = match(result)

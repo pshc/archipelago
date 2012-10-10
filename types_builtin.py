@@ -107,7 +107,7 @@ def _func_repr(ps, result, meta):
     ret = match(result, ('Ret(t)', _type_repr),
                         ('Void()', lambda: 'void'),
                         ('Bottom()', lambda: 'noreturn'))
-    if not meta.takesEnv:
+    if not meta.envParam:
         ret += col('LG', ' noenv')
     return fmtcol('{0} ^Cyan->^N {1}', s, ret)
 

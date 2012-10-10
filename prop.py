@@ -378,7 +378,7 @@ def infer_func(f, ps, b):
             set_var_ctype(p, pt)
             pts.append(pt)
 
-        # TODO infer takesEnv?
+        # TODO infer envParam?
         meta = plain_meta([plain_param_meta() for p in pts])
         cft = CFunc(pts, result, meta)
         # lambdas can't recurse, but this (sort of thing) would be nice

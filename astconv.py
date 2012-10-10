@@ -234,7 +234,7 @@ def make_cdecl(nm, t):
     identifier(var, nm.value, export=True, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
-    t.meta.takesEnv = False
+    t.meta.envParam = False
     add_extrinsic(TypeOf, var, t)
     env(OMNI).decls.cdecls.append(var)
 
@@ -244,7 +244,7 @@ def make_cimport(nm, t):
     identifier(var, nm.value, export=False, namespace=valueNamespace)
     tvars = {}
     t = conv_type(conv_special(t), tvars)
-    t.meta.takesEnv = False
+    t.meta.envParam = False
     add_extrinsic(TypeOf, var, t)
     env(OMNI).decls.cdecls.append(var)
 
@@ -848,7 +848,7 @@ def setup_builtin_module():
         tvars = {}
         t = parse_new_type(t, tvars)
         if isinstance(t, TFunc):
-            t.meta.takesEnv = False
+            t.meta.envParam = False
         builtin = Builtin()
         add_extrinsic(Name, builtin, name)
         add_extrinsic(TypeOf, builtin, t)
