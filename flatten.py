@@ -20,84 +20,59 @@ class Flattener(vat.Mutator):
         return stmt
 
     def And(self, e):
-        bools = []
-
         left = self.mutate('left')
-        tmp = Var()
-        bools.append(tmp)
-        pat = PatVar(tmp)
-        bools.append(pat)
-        push_stmt(S.Defn(pat, left))
-
-        thenBlock = Body([])
-        right = in_env(FLAT, thenBlock, lambda: self.mutate('right'))
-        thenBlock.stmts.append(S.Assign(LhsVar(tmp), right))
-
+        tmp = define_temp_var(left)
+        thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
         bindTmp = L.Bind(tmp)
-        bools.append(bindTmp)
+        add_extrinsic(TypeOf, bindTmp, TBool())
         then = CondCase(bindTmp, thenBlock)
         push_stmt(S.Cond([then]))
 
         output = L.Bind(tmp)
-        bools.append(output)
-        for b in bools:
-            add_extrinsic(TypeOf, b, TBool())
+        add_extrinsic(TypeOf, output, TBool())
         return output
 
     def Or(self, e):
-        bools = []
-
         left = self.mutate('left')
-        tmp = Var()
-        bools.append(tmp)
-        pat = PatVar(tmp)
-        bools.append(pat)
-        push_stmt(S.Defn(pat, left))
-
-        thenBlock = Body([])
-        right = in_env(FLAT, thenBlock, lambda: self.mutate('right'))
-        thenBlock.stmts.append(S.Assign(LhsVar(tmp), right))
-
+        tmp = define_temp_var(left)
+        thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
         bindTmp = L.Bind(tmp)
-        bools.append(bindTmp)
+        add_extrinsic(TypeOf, bindTmp, TBool())
         then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
         push_stmt(S.Cond([then]))
 
         output = L.Bind(tmp)
-        bools.append(output)
-        for b in bools:
-            add_extrinsic(TypeOf, b, TBool())
+        add_extrinsic(TypeOf, output, TBool())
         return output
 
     def Ternary(self, e):
-        rs = []
-
-        result = Var()
-        rs.append(result)
-        pat = PatVar(result)
-        rs.append(pat)
+        retType = extrinsic(TypeOf, e)
         undef = Undefined()
-        rs.append(undef)
-        push_stmt(S.Defn(pat, undef))
-
+        add_extrinsic(TypeOf, undef, retType)
+        result = define_temp_var(undef)
         test = self.mutate('test')
-
-        trueBlock = Body([])
-        trueResult = in_env(FLAT, trueBlock, lambda: self.mutate('then'))
-        trueBlock.stmts.append(S.Assign(LhsVar(result), trueResult))
-
-        falseBlock = Body([])
-        falseResult = in_env(FLAT, falseBlock, lambda: self.mutate('else_'))
-        falseBlock.stmts.append(S.Assign(LhsVar(result), falseResult))
-
+        trueBlock = store_scope_result(result, lambda: self.mutate('then'))
+        falseBlock = store_scope_result(result, lambda: self.mutate('else_'))
         push_stmt(S.Cond([CondCase(test, trueBlock),
                           CondCase(true(), falseBlock)]))
         output = L.Bind(result)
-        rs.append(output)
-        retType = extrinsic(TypeOf, e)
-        for r in rs:
-            add_extrinsic(TypeOf, r, retType)
+        add_extrinsic(TypeOf, output, retType)
         return output
+
+def define_temp_var(init):
+    t = extrinsic(TypeOf, init)
+    var = Var()
+    add_extrinsic(TypeOf, var, t)
+    pat = PatVar(var)
+    add_extrinsic(TypeOf, pat, t)
+    push_stmt(S.Defn(pat, init))
+    return var
+
+def store_scope_result(var, func):
+    body = Body([])
+    result = in_env(FLAT, body, func)
+    body.stmts.append(S.Assign(LhsVar(var), result))
+    return body
 
 def builtin_call(name, args):
     f = BUILTINS[name]
