@@ -329,14 +329,16 @@ PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
 ParamMeta = DT('ParamMeta', ('held', bool))
 
 FuncMeta = DT('FuncMeta', ('params', [ParamMeta]),
+                          ('requiredEnvs', ['*Env']),
                           ('envParam', bool))
 
 def plain_meta(params):
-    return FuncMeta(params, True)
+    return FuncMeta(params, [], True)
 def basic_meta(params):
-    return FuncMeta(params, False)
+    return FuncMeta(params, [], False)
 def copy_meta(meta):
-    return FuncMeta(map(copy_param_meta, meta.params), meta.envParam)
+    return FuncMeta(map(copy_param_meta, meta.params),
+            meta.requiredEnvs[:], meta.envParam)
 
 def plain_param_meta():
     return ParamMeta(False)

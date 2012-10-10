@@ -3,6 +3,7 @@ from atom import *
 from base import *
 from types_builtin import *
 from globs import TypeOf
+import vat
 
 INPAT = new_env('INPAT', '*Type')
 
@@ -378,7 +379,6 @@ def infer_func(f, ps, b):
             set_var_ctype(p, pt)
             pts.append(pt)
 
-        # TODO infer envParam?
         meta = plain_meta([plain_param_meta() for p in pts])
         cft = CFunc(pts, result, meta)
         # lambdas can't recurse, but this (sort of thing) would be nice
@@ -643,6 +643,7 @@ def prop_top_func(topDefn, topVar, f):
 def prop_compilation_unit(unit):
     for f in unit.funcs:
         in_env(STMTCTXT, f, lambda: prop_top_func(f, f.var, f.func))
+    vat.visit(EnvInference, unit, t_DT(CompilationUnit))
 
 def prop_top_lit(lit):
     add_extrinsic(TypeOf, lit.var, finalize_type(prop_lit(lit.literal)))
@@ -650,5 +651,37 @@ def prop_top_lit(lit):
 def prop_module_decls(decls):
     map_(prop_DT, decls.dts)
     map_(prop_top_lit, decls.lits)
+
+FuncEnvInfo = DT('FuncEnvInfo', ('envsNeeded', set(['*Env'])),
+                                ('conditionalEnvs', set(['*Env'])),
+                                ('envsProvided', set(['*Env'])))
+FUNCENVS = new_env('FUNCENVS', set(['*Env']))
+
+class EnvInference(vat.Visitor):
+    def Func(self, func):
+        info = FuncEnvInfo(set(), set(), set())
+        in_env(FUNCENVS, info, lambda: self.visit())
+        extrinsic(TypeOf, func).meta.requiredEnvs = list(info.envsNeeded)
+
+    def GetEnv(self, e):
+        scope = env(FUNCENVS)
+        if e.env in scope.envsProvided:
+            return # provided by an outer in_env()
+        if e.env in scope.conditionalEnvs:
+            return # preceeded by have_env() (very crude, no flow awareness)
+        scope.envsNeeded.add(e.env)
+
+    def HaveEnv(self, e):
+        env(FUNCENVS).conditionalEnvs.add(e.env)
+
+    def InEnv(self, e):
+        self.visit('init')
+        provided = env(FUNCENVS).envsProvided
+        introducing = e.env not in provided
+        if introducing:
+            provided.add(e.env)
+        self.visit('expr')
+        if introducing:
+            provided.remove(e.env)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
