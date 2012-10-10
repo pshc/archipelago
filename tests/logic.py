@@ -18,4 +18,6 @@ def main():
     assert not (False and should_be_skipped()), "And short-circuit"
 
     assert False if 2+2 == 3 else True, "Ternary"
+    assert should_be_skipped() if 0==1 else True, "Ternary short-circuit"
+    assert True if 1==1 else should_be_skipped(), "Ternary short-circuit"
     return 0
