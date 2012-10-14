@@ -839,7 +839,7 @@ def match_try(atom, ast):
             assert isinstance(atom, bool)
             return None if atom else []
         # Just a simple variable name match; always succeeds
-        return [] if ast.name == '_' else [atom]
+        return [] if ast.name == '_' else [(ast.name, atom)]
     elif isinstance(ast, compiler.ast.Const):
         # Literal match
         return [] if ast.value == atom else None
@@ -873,7 +873,10 @@ def match_try(atom, ast):
         # capture right side
         assert isinstance(ast.expr, compiler.ast.Name) and ast.expr.name != '_'
         capture_args = match_try(atom, ast.ops[0][1])
-        return [atom] + capture_args if capture_args is not None else None
+        if capture_args is None:
+            return None
+        capture_args.insert(0, (ast.expr.name, atom))
+        return capture_args
     assert False, "Unknown match case: %s" % ast
 
 match_asts = {}
@@ -893,7 +896,7 @@ def match(atom, *cases):
     for (case, f) in cases:
         call_args = match_try(atom, _get_match_case(case))
         if call_args is not None:
-            return f(*call_args)
+            return f(*(v for k, v in call_args))
     case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
     assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom, case_list)
 
@@ -918,9 +921,9 @@ class BlockMatcher(object):
         if args is None:
             return False
         if len(args) == 1:
-            self.arg = args[0]
+            self.arg = args[0][1]
         else:
-            self.args = args
+            self.args = [v for k, v in args]
         return True
 
 def matches(atom, case):
