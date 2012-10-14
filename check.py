@@ -19,44 +19,39 @@ def try_unite_tuples(src, list1, dest, list2):
     for s, d in ezip(list1, list2):
         try_unite(s, d)
 
-def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
-    try_unite_tuples(sf, sargs, df, dargs)
-    try_unite_results(sf, sret, df, dret)
-    if not metas_equal(smeta, dmeta):
-        unification_failure(sf, df, "conflicting func metas")
-
-def try_unite_datas(src, a, ats, dest, b, bts):
-    if a is not b:
-        unification_failure(src, dest, "mismatched datatypes")
-    assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
-    for at, bt in ezip(ats, bts):
-        try_unite(at, bt)
-
-def try_unite_prims(src, sp, dest, dp):
-    if not prim_equal(sp, dp):
-        unification_failure(src, dest, "primitive types")
-
-def try_unite_typevars(src, stv, dest, dtv):
-    if stv is not dtv:
-        unification_failure(src, dest, "typevars")
-
 def try_unite(src, dest):
     fail = lambda m: unification_failure(src, dest, m)
-    match((src, dest),
-        ("(src==TVar(stv), dest==TVar(dtv))", try_unite_typevars),
-        ("(src==TTuple(t1), dest==TTuple(t2))", try_unite_tuples),
-        ("(TArray(t1), TArray(t2))", try_unite),
-        ("(sf==TFunc(sa, sr, sm), df==TFunc(da, dr, dm))", try_unite_funcs),
-        ("(src==TData(a, ats), dest==TData(b, bts))", try_unite_datas),
-        ("(src==TPrim(sp), dest==TPrim(dp))", try_unite_prims),
-        ("_", lambda: fail("type mismatch")))
+    m = match((src, dest))
+    if m("(TVar(stv), TVar(dtv))"):
+        if m.stv is not m.dtv:
+            unification_failure(src, dest, "typevars")
+    elif m("(TTuple(t1), TTuple(t2))"):
+        try_unite_tuples(src, m.t1, dest, m.t2)
+    elif m("(TArray(t1), TArray(t2))"):
+        try_unite(m.t1, m.t2)
+    elif m("(TFunc(sa, sr, sm), TFunc(da, dr, dm))"):
+        try_unite_tuples(src, m.sa, dest, m.da)
+        try_unite_results(src, m.sr, dest, m.dr)
+        if not metas_equal(m.sm, m.dm):
+            unification_failure(src, dest, "conflicting func metas")
+    elif m("(TData(a, ats), TData(b, bts))"):
+        if m.a is not m.b:
+            unification_failure(src, dest, "mismatched datatypes")
+        assert len(m.ats) == len(m.a.tvars), "Wrong %s typevar count" % (m.a,)
+        for at, bt in ezip(m.ats, m.bts):
+            try_unite(at, bt)
+    elif m("(TPrim(sp), TPrim(dp))"):
+        if not prim_equal(m.sp, m.dp):
+            unification_failure(src, dest, "primitive types")
+    else:
+        fail("type mismatch")
 
 def try_unite_results(t1, a, t2, b):
-    match((a, b), ("(Ret(at), Ret(bt))", try_unite),
-                  ("(Void(), Void())", nop),
-                  ("(Bottom(), Bottom())", nop),
-                  ("_", lambda: unification_failure(t1, t2,
-                                "conflicting result types")))
+    m = match((a, b))
+    if m("(Ret(at), Ret(bt))"):
+        try_unite(m.at, m.bt)
+    elif not results_equal(a, b):
+        unification_failure(t1, t2, "conflicting result types")
 
 def typecheck(src, dest):
     in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))

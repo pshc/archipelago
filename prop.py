@@ -162,33 +162,12 @@ def try_unite_tuples(src, list1, dest, list2):
     for s, d in ezip(list1, list2):
         try_unite(s, d)
 
-def try_unite_funcs(sf, sargs, sret, smeta, df, dargs, dret, dmeta):
-    try_unite_tuples(sf, sargs, df, dargs)
-    try_unite_results(sf, sret, df, dret)
-    if not metas_equal(smeta, dmeta):
-        unification_failure(sf, df, "conflicting func metas")
-
 def try_unite_results(t1, a, t2, b):
     match((a, b), ("(Ret(at), Ret(bt))", try_unite),
                   ("(Void(), Void())", nop),
                   ("(Bottom(), Bottom())", nop),
                   ("_", lambda: unification_failure(t1, t2,
                                 "conflicting result types")))
-
-def try_unite_datas(src, a, ats, dest, b, bts):
-    if a is not b:
-        unification_failure(src, dest, "mismatched datatypes")
-    assert len(ats) == len(a.tvars), "Wrong %s typevar count" % (a,)
-    for at, bt in ezip(ats, bts):
-        try_unite(at, bt)
-
-def try_unite_prims(src, sp, dest, dp):
-    if not prim_equal(sp, dp):
-        unification_failure(src, dest, "primitive types")
-
-def try_unite_typevars(src, stv, dest, dtv):
-    if stv is not dtv:
-        unification_failure(src, dest, "typevars")
 
 def try_unite_two_metas(src, dest):
     if src is dest:
@@ -227,31 +206,57 @@ def try_unite(src, dest):
     if src is dest:
         return
     fail = lambda m: unification_failure(src, dest, m)
-    match((src, dest),
-        ("(CMeta(Subst(s)), CMeta(Subst(d)))", try_unite),
-        # two free vars
-        ("(src==CMeta(Free(_)), t==CMeta(Free(_) or InstVar(_) or Mono()))",
-                set_meta_subst),
-        ("(src==CMeta(InstVar(_)), t==CMeta(Free(_) or InstVar(_) or Mono()))",
-                set_meta_subst),
-        ("(src==CMeta(Mono()), t==CMeta(Mono()))", set_meta_subst),
-        ("(src==CMeta(Mono()), t==CMeta(Free(_) or InstVar(_)))",
-                copy_mono_subst),
-        # free -> some type (direct unification)
-        ("(CMeta(Subst(src)), dest)", try_unite),
-        ("(CMeta(Mono()), CVar(_))", lambda:
-            fail("Can't infer polytype for func params/ret; provide annot")),
-        ("(m==CMeta(_), dest)", set_meta_subst),
-        # some type -> free (possible generalization)
-        ("(dest, m==CMeta(_))", try_unite_meta_backwards),
 
-        ("(src==CVar(stv), dest==CVar(dtv))", try_unite_typevars),
-        ("(src==CTuple(t1), dest==CTuple(t2))", try_unite_tuples),
-        ("(CArray(t1), CArray(t2))", try_unite),
-        ("(sf==CFunc(sa, sr, sm), df==CFunc(da, dr, dm))", try_unite_funcs),
-        ("(src==CData(a, ats), dest==CData(b, bts))", try_unite_datas),
-        ("(src==CPrim(sp), dest==CPrim(dp))", try_unite_prims),
-        ("_", lambda: fail("type mismatch")))
+    m = match((src, dest))
+    if m('CMeta(Subst(s), CMeta(Subst(d)))'):
+        try_unite(m.s, m.d)
+
+        # two free vars
+    elif m("(CMeta(Free(_)), CMeta(Free(_) or InstVar(_) or Mono()))"):
+        set_meta_subst(src, dest)
+    elif m("(CMeta(InstVar(_)), CMeta(Free(_) or InstVar(_) or Mono()))"):
+        set_meta_subst(src, dest)
+    elif m("(CMeta(Mono()), CMeta(Mono()))"):
+        set_meta_subst(src, dest)
+    elif m("(CMeta(Mono()), CMeta(Free(_) or InstVar(_)))"):
+        copy_mono_subst(src, dest)
+
+        # free -> some type (direct unification)
+    elif m("(CMeta(Subst(src)), _)"):
+        try_unite(m.src, dest)
+    elif m("(CMeta(Mono()), CVar(_))"):
+        fail("Can't infer polytype for func params/ret; provide annot")
+    elif m("(CMeta(_), _)"):
+        set_meta_subst(src, dest)
+
+        # some type -> free (possible generalization)
+    elif m("(_, CMeta(_))"):
+        # XXX ought to narrow properly
+        try_unite(dest, src)
+
+    elif m("(CVar(stv), CVar(dtv))"):
+        if m.stv is not m.dtv:
+            unification_failure(src, dest, "typevars")
+    elif m("(CTuple(t1), CTuple(t2))"):
+        try_unite_tuples(src, m.t1, dest, m.t2)
+    elif m("(CArray(t1), CArray(t2))"):
+        try_unite(m.t1, m.t2)
+    elif m("(CFunc(sa, sr, sm), CFunc(da, dr, dm))"):
+        try_unite_tuples(src, m.sa, dest, m.da)
+        try_unite_results(src, m.sr, dest, m.dr)
+        if not metas_equal(m.sm, m.dm):
+            unification_failure(src, dest, "conflicting func metas")
+    elif m("(CData(a, ats), CData(b, bts))"):
+        if m.a is not m.b:
+            unification_failure(src, dest, "mismatched datatypes")
+        assert len(m.ats) == len(m.a.tvars), "Wrong %s typevar count" % (m.a,)
+        for at, bt in ezip(m.ats, m.bts):
+            try_unite(at, bt)
+    elif m("(CPrim(sp), CPrim(dp))"):
+        if not prim_equal(m.sp, m.dp):
+            unification_failure(src, dest, "primitive types")
+    else:
+        fail("type mismatch")
 
 def unify(src, dest):
     in_env(UNIFYCTXT, (src, dest), lambda: try_unite(src, dest))
