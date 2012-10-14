@@ -169,7 +169,6 @@ def check_inst_call(e, inst, f, args):
 
 def check_straight_call(e, f, args):
     t = check_expr_as_itself(f)
-    print t
     argTs, result, meta = match(t, ("TFunc(args, result, meta)", tuple3))
     for arg, t in ezip(args, argTs):
         check_expr_as(t, arg)
