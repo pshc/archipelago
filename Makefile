@@ -15,6 +15,9 @@ all: test
 debug: CODEGEN = ipdb construct.py $(OPTS)
 debug: remake_tests
 
+profile: CODEGEN = python -m cProfile -s time construct.py $(OPTS)
+profile: remake_tests
+
 setup: dirs mach/__init__.py ir/Makefile
 dirs: $(DIRS)
 $(DIRS):
