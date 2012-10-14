@@ -881,10 +881,10 @@ match_asts = {}
 def match(atom, *cases):
     # Block form
     if len(cases) == 0:
-        return match_blocks(atom)
+        return BlockMatcher(atom)
     elif len(cases) == 1 and isinstance(cases[0], basestring):
         # shortcut for single-case
-        m = match_blocks(atom)
+        m = BlockMatcher(atom)
         if m(cases[0]):
             m.ret(m.arg if hasattr(m, 'arg') else m.args)
         return m.result()
@@ -897,30 +897,31 @@ def match(atom, *cases):
     case_list = ''.join('* %s -> %s\n' % (p, f) for p, f in cases)
     assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom, case_list)
 
-def match_blocks(atom):
-    cases = []
-    def case(pat):
-        cases.append(pat)
-        args = match_try(atom, _get_match_case(pat))
+class BlockMatcher(object):
+    def __init__(self, atom):
+        self.atom = atom
+        self.cases = []
+
+    def ret(self, result):
+        self.success = result
+
+    def result(self):
+        if not hasattr(self, 'success'):
+            case_list = ''.join('* %s\n' % p for p in self.cases)
+            assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (
+                    self.atom, case_list)
+        return self.success
+
+    def __call__(self, pat):
+        self.cases.append(pat)
+        args = match_try(self.atom, _get_match_case(pat))
         if args is None:
             return False
         if len(args) == 1:
-            case.arg = args[0]
+            self.arg = args[0]
         else:
-            case.args = args
+            self.args = args
         return True
-    def ret(result):
-        case.success = result
-    case.ret = ret
-    def result():
-        if hasattr(case, 'success'):
-            return case.success
-        else:
-            case_list = ''.join('* %s\n' % p for p in cases)
-            assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom,
-                    case_list)
-    case.result = result
-    return case
 
 def matches(atom, case):
     return match_try(atom, _get_match_case(case)) is not None
