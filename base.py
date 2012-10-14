@@ -964,41 +964,6 @@ def _match_cons(atom, ast):
                 return car + cdr
     return None
 
-@matcher('all')
-def _match_all(atom, ast):
-    assert len(ast.args) == 2
-    assert isinstance(ast.args[0], compiler.ast.Name)
-    assert isinstance(atom, list)
-    results = []
-    all_singular = True
-    for i in atom:
-        r = match_try(i, ast.args[1])
-        if r is not None:
-            if len(r) != 1:
-                all_singular = False
-            results.append(r)
-    if ast.args[0].name == '_':
-        return []
-    return [[r[0] for r in results] if all_singular else results]
-
-@matcher('every')
-def _match_every(atom, ast):
-    assert len(ast.args) == 2
-    assert isinstance(ast.args[0], compiler.ast.Name)
-    assert isinstance(atom, list)
-    results = []
-    all_singular = True
-    for i in atom:
-        r = match_try(i, ast.args[1])
-        if r is None:
-            return None
-        if len(r) != 1:
-            all_singular = False
-        results.append(r)
-    if ast.args[0].name == '_':
-        return []
-    return [[r[0] for r in results] if all_singular else results]
-
 def maybe(no, yes, val):
     return match(val, ('Just(j)', yes), ('Nothing()', lambda: no))
 def mapMaybe(f, val):

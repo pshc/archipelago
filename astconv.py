@@ -407,30 +407,13 @@ def conv_match(*args):
               for a in argsa]
     return Match(expra, casesa)
 
-named_match_cases = {'key': [1], 'named': [1], 'sym': [2, 3],
-                     'contains': [1], 'cons': [2], 'all': [2], 'every': [2]}
-assert set(named_match_cases) == set(named_match_dispatch)
-
 def conv_match_try(node, bs):
     if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
         nm = node.node.name
-        named_matcher = named_match_cases.get(nm)
-        if nm in ('all', 'every'):
-            assert len(node.args) == 2 and isinstance(node.args[0], ast.Name)
-            i = conv_match_try(node.args[0], bs)
-            dummy = []
-            assert False, "yagni"
-            return builtin_ref(nm+'2', [i, conv_match_try(node.args[1],dummy)])
         args = [conv_match_try(n, bs) for n in node.args]
-        if named_matcher is not None:
-            assert len(args) in named_matcher, (
-                   "Bad number of args (%d) to %s matcher" % (len(args), nm))
-            assert False, "yagni"
-            return builtin_ref("%s%d" % (nm, len(args)), args)
-        else:
-            b = refs_existing(nm)
-            assert isinstance(b.target, Ctor), "Can't bind to %s" % (b,)
-            return PatCtor(b.target, args)
+        b = refs_existing(nm)
+        assert isinstance(b.target, Ctor), "Can't bind to %s" % (b,)
+        return PatCtor(b.target, args)
     elif isinstance(node, ast.Name):
         if node.name == '_':
             return PatWild()
