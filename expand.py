@@ -82,9 +82,8 @@ class ClosureExpander(vat.Mutator):
             # Special case: extract `f := lambda [...]` form directly
             m = match(defn)
             if m("Defn(PatVar(var), Bind(globalVar))"):
-                var, globalVar = m.args
-                add_extrinsic(VarGlobalReplacement, var, globalVar)
-                update_extrinsic(Name, globalVar, extrinsic(Name, var))
+                add_extrinsic(VarGlobalReplacement, m.var, m.globalVar)
+                update_extrinsic(Name, m.globalVar, extrinsic(Name, m.var))
                 return Nop()
         return defn
 
@@ -121,10 +120,9 @@ class ClosureExpander(vat.Mutator):
             wasClosed = False
             m = match(env(EXFUNC))
             if m('f==ExInnerFunc(closedVars)'):
-                f, closedVars = m.args
                 if has_extrinsic(ClosedVarFunc, v):
-                    if extrinsic(ClosedVarFunc, v) is not f:
-                        closedVars.add(v)
+                    if extrinsic(ClosedVarFunc, v) is not m.f:
+                        m.closedVars.add(v)
                         wasClosed = True
 
             if has_extrinsic(VarGlobalReplacement, v):
@@ -311,9 +309,8 @@ def add_call_ctx(func, args):
     if extrinsic(TypeOf, func).meta.envParam:
         m = match(env(THREADENV))
         if m('Just(ctx)'):
-            ctx = m.arg
-            bind = L.Bind(ctx)
-            copy_type(bind, ctx)
+            bind = L.Bind(m.ctx)
+            copy_type(bind, m.ctx)
             m.ret(bind)
         else:
             null = NullPtr()
@@ -326,8 +323,7 @@ def expand_inenv(e, returnsValue, exprMutator):
     e.init = cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
     m = match(env(THREADENV))
     if m('Just(ctx)'):
-        ctx = m.arg
-        add_extrinsic(InEnvCtxVar, e, ctx)
+        add_extrinsic(InEnvCtxVar, e, m.ctx)
         e.expr = exprMutator()
         return e
     else:

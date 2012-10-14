@@ -960,13 +960,11 @@ def write_cond(stmt, cs):
         m = match(case.test)
         converse = False
         if m('Call(Bind(key("not")), [con])'):
-            con = m.arg
-            m = match(con)
-            if m('Call(Bind(key("not")), [concon])'):
-                concon = m.arg
-                ex = express(concon)
+            m2 = match(m.con)
+            if m2('Call(Bind(key("not")), [concon])'):
+                ex = express(m2.concon)
             else:
-                ex = express(con)
+                ex = express(m.con)
                 converse = True
         else:
             ex = express(case.test)

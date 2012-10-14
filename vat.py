@@ -79,19 +79,17 @@ def clone_by_type(src, t):
     elif m('TPrim(_)'):
         return src
     elif m('TTuple(tts)'):
-        tts = m.arg
         assert isinstance(src, tuple)
-        return tuple(clone_by_type(v, tt) for v, tt in ezip(src, tts))
+        return tuple(clone_by_type(v, tt) for v, tt in ezip(src, m.tts))
     elif m('TFunc(_, _, _)'):
         return src
     elif m('TData(data, appTs)'):
-        data, appTs = m.args
-        assert isinstance(src, extrinsic(TrueRepresentation, data)), \
-                "Expected %s, got: %r" % (data, obj)
-        apps = appTs and app_map(data, appTs)
+        assert isinstance(src, extrinsic(TrueRepresentation, m.data)), \
+                "Expected %s, got: %r" % (m.data, obj)
+        apps = m.appTs and app_map(m.data, m.appTs)
         return clone_structured(src, apps)
     elif m('TArray(et)'):
-        et = m.arg
+        et = m.et
         assert isinstance(src, list)
         return [clone_by_type(s, et) for s in src]
     elif m('TWeak(_)'):
@@ -122,18 +120,16 @@ def rewrite_by_type(obj, t):
     elif m('TPrim(_)'):
         pass
     elif m('TTuple(tts)'):
-        tts = m.arg
         assert isinstance(obj, tuple)
-        for v, tt in ezip(obj, tts):
+        for v, tt in ezip(obj, m.tts):
             assert not isinstance(tt, TWeak), "TODO"
             rewrite_by_type(v, tt)
     elif m('TFunc(_, _, _)'):
         pass
     elif m('TData(data, appTs)'):
-        data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
-                "Expected %s, found %s %s" % (data, type(obj), obj)
-        apps = appTs and app_map(data, appTs)
+        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
+                "Expected %s, found %s %s" % (m.data, type(obj), obj)
+        apps = m.appTs and app_map(m.data, m.appTs)
         ctor = instance_ctor(obj)
         repls = env(VAT).replacements
         for field in ctor.fields:
@@ -148,7 +144,7 @@ def rewrite_by_type(obj, t):
             else:
                 rewrite_by_type(val, ft)
     elif m('TArray(et)'):
-        et = m.arg
+        et = m.et
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
             repls = env(VAT).replacements
@@ -212,15 +208,13 @@ def visit_by_type(obj, t, customVisitors=True):
     if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
         pass
     elif m('TTuple(tts)'):
-        tts = m.arg
         assert isinstance(obj, tuple)
-        for v, tt in ezip(obj, tts):
+        for v, tt in ezip(obj, m.tts):
             visit_by_type(v, tt)
     elif m('TData(data, appTs)'):
-        data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
-                "Expected %s, got %s %s" % (data, type(obj), obj)
-        apps = appTs and app_map(data, appTs)
+        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
+                "Expected %s, got %s %s" % (m.data, type(obj), obj)
+        apps = m.appTs and app_map(m.data, m.appTs)
         visitor = env(VISIT)
 
         ctor = extrinsic(FormSpec, type(obj))
@@ -230,7 +224,7 @@ def visit_by_type(obj, t, customVisitors=True):
         if customVisitors:
             custom = getattr(visitor, extrinsic(Name, ctor), None)
             if custom is None:
-                custom = getattr(visitor, 't_'+extrinsic(Name, data), None)
+                custom = getattr(visitor, 't_'+extrinsic(Name, m.data), None)
             if custom is not None:
                 # Scope field types for recursive visiting
                 old = visitor.obj, visitor.t, visitor.fts
@@ -246,11 +240,10 @@ def visit_by_type(obj, t, customVisitors=True):
             if not isinstance(ft, TWeak):
                 visit_by_type(getattr(obj, fnm), ft)
     elif m('TArray(et)'):
-        et = m.arg
         assert isinstance(obj, list)
-        if not isinstance(et, TWeak):
+        if not isinstance(m.et, TWeak):
             for o in obj:
-                visit_by_type(o, et)
+                visit_by_type(o, m.et)
     elif m('TWeak(_)'):
         pass
     else:
@@ -291,14 +284,12 @@ def mutate_by_type(obj, t, customMutators=True):
     if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
         return obj
     elif m('TTuple(tts)'):
-        tts = m.arg
         assert isinstance(obj, tuple)
-        return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, tts))
+        return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, m.tts))
     elif m('TData(data, appTs)'):
-        data, appTs = m.args
-        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
-                "Expected %s, got: %r" % (data, obj)
-        apps = appTs and app_map(data, appTs)
+        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
+                "Expected %s, got: %r" % (m.data, obj)
+        apps = m.appTs and app_map(m.data, m.appTs)
         mutator = env(MUTATE)
 
         ctor = extrinsic(FormSpec, type(obj))
@@ -308,7 +299,7 @@ def mutate_by_type(obj, t, customMutators=True):
         if customMutators:
             custom = getattr(mutator, extrinsic(Name, ctor), None)
             if custom is None:
-                custom = getattr(mutator, 't_'+extrinsic(Name, data), None)
+                custom = getattr(mutator, 't_'+extrinsic(Name, m.data), None)
             if custom is not None:
                 # Scope field types for recursive mutatino
                 old = mutator.obj, mutator.t, mutator.fts
@@ -326,7 +317,7 @@ def mutate_by_type(obj, t, customMutators=True):
                 setattr(obj, fnm, mutate_by_type(val, ft))
         return obj
     elif m('TArray(et)'):
-        et = m.arg
+        et = m.et
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
             return obj

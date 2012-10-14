@@ -45,8 +45,7 @@ def write_func_decl(name, params, ret, meta):
 def write_result(result):
     m = match(result)
     if m('Ret(t)'):
-        t = m.arg
-        write_type(t)
+        write_type(m.t)
         out(' ')
     elif m('Void()'):
         out('void ')

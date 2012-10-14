@@ -309,8 +309,7 @@ def _prop_pat(p):
 def prop_bind(b, target):
     m = match(Bindable.asLocalVar(target))
     if m('Just(v)'):
-        v = m.arg
-        return prop_local_var(v)
+        return prop_local_var(m.v)
     else:
         return instantiate_type(b, extrinsic(TypeOf, target))
 
@@ -518,10 +517,9 @@ def prop_func_defn(var, f):
 def prop_defn(pat, e):
     m = match(e)
     if m("FuncExpr(f)"):
-        f = m.arg
-        if has_extrinsic(TypeOf, f):
-            t = extrinsic(TypeOf, f)
-            prop_func_defn(match(pat, "PatVar(v)"), f)
+        if has_extrinsic(TypeOf, m.f):
+            t = extrinsic(TypeOf, m.f)
+            prop_func_defn(match(pat, "PatVar(v)"), m.f)
             return
 
     ct = prop_expr(e)

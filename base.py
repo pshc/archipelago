@@ -887,11 +887,7 @@ def match(atom, *cases):
         return BlockMatcher(atom)
     elif len(cases) == 1 and isinstance(cases[0], basestring):
         # shortcut for single-case
-        m = BlockMatcher(atom)
-        if m(cases[0]):
-            m.ret(m.arg if hasattr(m, 'arg') else m.args)
-        return m.result()
-
+        cases = ((cases[0], lambda *ss: ss[0] if len(ss) == 1 else ss),)
     # Try all the cases, find the first that doesn't fail
     for (case, f) in cases:
         call_args = match_try(atom, _get_match_case(case))
@@ -901,6 +897,8 @@ def match(atom, *cases):
     assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (atom, case_list)
 
 class BlockMatcher(object):
+    badNames = ['ret', 'result']
+
     def __init__(self, atom):
         self.atom = atom
         self.cases = []
@@ -920,10 +918,10 @@ class BlockMatcher(object):
         args = match_try(self.atom, _get_match_case(pat))
         if args is None:
             return False
-        if len(args) == 1:
-            self.arg = args[0][1]
-        else:
-            self.args = [v for k, v in args]
+        for name, val in args:
+            assert name not in BlockMatcher.badNames, "Bad arg name: %s" % name
+            assert not hasattr(self, name), "Duplicate name %s" % name
+            setattr(self, name, val)
         return True
 
 def matches(atom, case):

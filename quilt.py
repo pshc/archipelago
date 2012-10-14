@@ -77,8 +77,7 @@ def _convert_func(tps, result, meta):
     meta = IFuncMeta(False)
     m = match(result)
     if m('Ret(t)'):
-        t = m.arg
-        res = convert_type(t)
+        res = convert_type(m.t)
     elif m('Void()'):
         res = IVoid()
     elif m('Bottom()'):
