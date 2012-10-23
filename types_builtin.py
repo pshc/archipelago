@@ -131,36 +131,50 @@ _inject_type_reprs()
 
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
-    return match(t, ("tv==TVar(_)", f),
-                    ("TData(dt, ts)", lambda dt, ts:
-                        TData(dt, [map_type_vars(f, t) for t in ts])),
-                    ("TFunc(ps, res, meta)", lambda ps, res, meta:
-                        TFunc([map_type_vars(f, p) for p in ps],
-                              _map_result_tvars(f, res), copy_meta(meta))),
-                    ("TTuple(ts)", lambda ts:
-                        TTuple([map_type_vars(f, t) for t in ts])),
-                    ("TArray(t)", lambda t: TArray(map_type_vars(f, t))),
-                    ("TWeak(t)", lambda t: TWeak(map_type_vars(f, t))),
-                    ("_", lambda: t))
-
-def _map_result_tvars(f, res):
-    return match(res, ("Ret(t)", lambda t: Ret(map_type_vars(f, t))),
-                      ("Void()", Void),
-                      ("Bottom()", Bottom))
+    m = match(t)
+    if m('TVar(_)'):
+        return f(t)
+    elif m('TData(dt, ts)'):
+        return TData(m.dt, [map_type_vars(f, t) for t in m.ts])
+    elif m('TFunc(ps, res, meta)'):
+        ps = [map_type_vars(f, p) for p in m.ps]
+        m2 = match(m.res)
+        if m2('Ret(t)'):
+            m2.ret(Ret(map_type_vars(f, m2.t)))
+        elif m2('Void()'):
+            m2.ret(Void())
+        elif m2('Bottom()'):
+            m2.ret(Bottom())
+        return TFunc(ps, m2.result(), copy_meta(m.meta))
+    elif m('TTuple(ts)'):
+        return TTuple([map_type_vars(f, t) for t in m.ts])
+    elif m('TArray(t)'):
+        return TArray(map_type_vars(f, m.t))
+    elif m('TWeak(t)'):
+        return TWeak(map_type_vars(f, m.t))
+    else:
+        return t
 
 def visit_type_vars(f, t):
     visit = lambda t: visit_type_vars(f, t)
     visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
-    return match(t, ("TVar(tv)", f),
-                    ("TData(_, ts)", visit_many),
-                    ("TFunc(ps, Ret(ret), _)", lambda ps, ret:
-                        visit_many(ps) and visit(ret)),
-                    ("TFunc(ps, Void() or Bottom(), _)", visit_many),
-                    ("TTuple(ts)", visit_many),
-                    ("TArray(t)", visit),
-                    ("TWeak(t)", visit),
-                    ("_", lambda: True))
-
+    m = match(t)
+    if m('TVar(tv)'):
+        return f(m.tv)
+    elif m('TData(_, ts)'):
+        return visit_many(m.ts)
+    elif m('TFunc(ps, Ret(ret), _)'):
+        return visit_many(m.ps) and visit(m.ret)
+    elif m('TFunc(ps, Void() or Bottom(), _)'):
+        return visit_many(m.ps)
+    elif m('TTuple(ts)'):
+        return visit_many(m.ts)
+    elif m('TArray(t)'):
+        return visit(m.t)
+    elif m('TWeak(t)'):
+        return visit(m.t)
+    else:
+        return True
 
 def occurs(typeVar, t):
     return not visit_type_vars(lambda tv: tv is not typeVar, t)
