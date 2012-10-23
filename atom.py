@@ -176,16 +176,16 @@ default_impl(Nullable, Var)
 default_impl(Nullable, GlobalVar)
 
 @matcher('key')
-def _match_key(atom, ast):
-    assert len(ast.args) == 1
-    name = ast.args[0].value
+def _match_key(atom, args):
+    assert len(args) == 1
+    name = args[0]['val']
     target = BUILTINS.get(name)
     return [] if atom is target else None
 
 @matcher('sym')
-def _match_sym(atom, ast):
-    assert 2 <= len(ast.args) <= 3
-    mod_name = ast.args[0].value
+def _match_sym(atom, args):
+    assert 2 <= len(args) <= 3
+    mod_name = args[0].val
     assert mod_name in loaded_modules, "%s not loaded" % mod_name
     mod = loaded_modules[mod_name]
     if isinstance(atom, Ref):
@@ -197,19 +197,19 @@ def _match_sym(atom, ast):
                     break
             else:
                 return None
-            m = match_try(nm, ast.args[1])
-            if m is None or len(ast.args) == 2:
+            m = match_try(nm, args[1])
+            if m is None or len(args) == 2:
                 return m
-            msubs = match_try(atom.subs, ast.args[2])
+            msubs = match_try(atom.subs, args[2])
             if msubs is not None:
                 return m + msubs
     return None
 
 @matcher('named')
-def _match_named(atom, ast):
-    assert len(ast.args) == 1
+def _match_named(atom, args):
+    assert len(args) == 1
     if has_extrinsic(Name, atom):
-        return match_try(extrinsic(Name, atom), ast.args[0])
+        return match_try(extrinsic(Name, atom), args[0])
     return None
 
 def walk_deps(func, mod, seen):

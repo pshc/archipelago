@@ -1,4 +1,3 @@
-import compiler
 from types import FunctionType
 
 orig_zip = zip
@@ -531,7 +530,7 @@ slashW = 'abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
 def tokenize_type(s):
     word = ''
     lastDash = False
-    for i, c in enumerate(s):
+    for c in s:
         if lastDash:
             assert c == '>', "Broken arrow"
             yield '->'
@@ -805,77 +804,77 @@ def annot(t):
 named_match_dispatch = {}
 
 def match_try(atom, ast):
-    if isinstance(ast, compiler.ast.CallFunc
-                ) and isinstance(ast.node, compiler.ast.Name):
-        if ast.node.name in CTORS:
-            candidates = CTORS[ast.node.name]
+    t = ast['t']
+    if t == 'ctor':
+        ctor, args = ast['ctor'], ast['args']
+        if ctor in CTORS:
+            candidates = CTORS[ctor]
             for dt in candidates:
                 if atom.__class__ is dt:
                     break
             else:
                 return None
-            slots = filter(lambda s: s != '_ix', dt.__slots__)
-            assert len(ast.args) == len(slots), \
-                    "Ctor %s takes %d args: %s" % (ast.node.name,
-                            len(slots), ', '.join(slots))
+            slots = dt.__slots__
+            assert len(args) == len(slots)-1, \
+                    "Ctor %s takes %d args: %s (%d were given)" % (
+                        ctor, len(slots)-1, ', '.join(slots), len(args))
             # Found a matching constructor; now match its args recursively
             # Unlike the main match loop, if any fail here everything fails
             ctor_args = []
-            for arg_ast, attrname in ezip(ast.args, slots):
-                sub_args = match_try(getattr(atom, attrname), arg_ast)
+            for attrNm, arg in orig_zip(slots, args):
+                sub_args = match_try(getattr(atom, attrNm), arg)
                 if sub_args is None:
                     return None
                 ctor_args += sub_args
             return ctor_args
-        named_matcher = named_match_dispatch.get(ast.node.name)
+        named_matcher = named_match_dispatch.get(ctor)
         if named_matcher is not None:
-            return named_matcher(atom, ast)
-        assert False, "Unknown match: %s (%s)" % (ast.node.name, ast.args)
-    elif isinstance(ast, compiler.ast.Name):
-        if ast.name == 'True':
+            return named_matcher(atom, args)
+        assert False, "Unknown match: %s(%s)" % (ctor, args)
+    elif t == 'name':
+        name = ast['name']
+        if name == 'True':
             assert isinstance(atom, bool)
             return [] if atom else None
-        elif ast.name == 'False':
+        elif name == 'False':
             assert isinstance(atom, bool)
             return None if atom else []
-        # Just a simple variable name match; always succeeds
-        return [] if ast.name == '_' else [(ast.name, atom)]
-    elif isinstance(ast, compiler.ast.Const):
-        # Literal match
-        return [] if ast.value == atom else None
-    elif isinstance(ast, (compiler.ast.Tuple, compiler.ast.List)):
-        t = tuple if isinstance(ast, compiler.ast.Tuple) else list
-        if not isinstance(atom, t) or len(atom) != len(ast.nodes):
+        return [(name, atom)]
+    elif t == 'wildcard':
+        return []
+    elif t == 'const':
+        return [] if ast['val'] == atom else None
+    elif t is tuple or t is list:
+        if not isinstance(atom, t) or len(atom) != len(ast['pats']):
             return None
         tuple_args = []
-        for a, node in ezip(atom, ast.nodes):
+        for a, node in orig_zip(atom, ast['pats']):
             args = match_try(a, node)
             if args is None:
                 return None
             tuple_args += args
         return tuple_args
-    elif isinstance(ast, compiler.ast.Or):
+    elif t == 'or':
         # First that doesn't fail
-        for case in ast.nodes:
+        for case in ast['pats']:
             or_args = match_try(atom, case)
             if or_args is not None:
                 return or_args
         return None
-    elif isinstance(ast, compiler.ast.And):
+    elif t == 'and':
         and_args = []
-        for case in ast.nodes:
+        for case in ast['pats']:
             case_args = match_try(atom, case)
             if case_args is None:
                 return None
             and_args += case_args
         return and_args
-    elif isinstance(ast, compiler.ast.Compare) and ast.ops[0][0] == '==':
+    elif t == 'capture':
         # capture right side
-        assert isinstance(ast.expr, compiler.ast.Name) and ast.expr.name != '_'
-        capture_args = match_try(atom, ast.ops[0][1])
+        capture_args = match_try(atom, ast['pat'])
         if capture_args is None:
             return None
-        capture_args.insert(0, (ast.expr.name, atom))
+        capture_args.insert(0, (ast['name'], atom))
         return capture_args
     assert False, "Unknown match case: %s" % ast
 
@@ -927,12 +926,130 @@ class BlockMatcher(object):
 def matches(atom, case):
     return match_try(atom, _get_match_case(case)) is not None
 
-def _get_match_case(case):
-    ast = match_asts.get(case)
+def _get_match_case(pat):
+    ast = match_asts.get(pat)
     if ast is None:
-        ast = compiler.parse(case, mode='eval').node
-        match_asts[case] = ast
+        match_asts[pat] = ast = parse_match_pat(pat)
     return ast
+
+def parse_match_pat(pat):
+    try:
+        toks = tokenize_match_pat(pat)
+        ast, eof = consume_match_pat(toks.next(), toks)
+    except AssertionError, e:
+        rest = ' '.join(repr(t) for t in toks)
+        e.args = ('%s while parsing %r (rest: %s)' % (e.args[0], pat, rest),)
+        raise
+    assert eof == '$EOF', "Trailing characters in " + pat
+    return ast
+
+def _next_token(rest):
+    try:
+        return rest.next()
+    except StopIteration:
+        return '$EOF'
+
+def consume_match_pat(first, rest):
+    tok = _next_token(rest)
+    if first == '(' or first == '[':
+        ending = ')' if first == '(' else ']'
+        pats = []
+        while tok != ending:
+            pat, tok = consume_match_pat(tok, rest)
+            pats.append(pat)
+            if tok != ending:
+                assert tok == ',', "Expected list/tuple delimiter"
+                tok = rest.next()
+        tok = _next_token(rest)
+        result = {'t': tuple if first == '(' else list, 'pats': pats}
+    elif tok == '(':
+        assert first != '_', "Invalid wildcard ctor"
+        tok = _next_token(rest)
+        args = []
+        while tok != ')':
+            arg, tok = consume_match_pat(tok, rest)
+            args.append(arg)
+            if tok != ')':
+                assert tok == ',', "Expected arg delimiter"
+                tok = rest.next()
+        tok = _next_token(rest)
+        result = {'t': 'ctor', 'ctor': first, 'args': args}
+    elif tok == '==':
+        assert first != '_', "Pointless wildcard capture"
+        pat, tok = consume_match_pat(rest.next(), rest)
+        result = {'t': 'capture', 'name': first, 'pat': pat}
+    elif first == '_':
+        result = {'t': 'wildcard'}
+    elif isinstance(first, dict):
+        result = first
+    else:
+        assert first not in ',)[]', "Unexpected delimiter"
+        result = {'t': 'name', 'name': first}
+
+    if tok in ('or', 'and'):
+        pats = [result]
+        kind = tok
+        while tok == kind:
+            right, tok = consume_match_pat(rest.next(), rest)
+            pats.append(right)
+        result = {'t': kind, 'pats': pats}
+
+    return result, tok
+
+def tokenize_match_pat(s):
+    word = ''
+    lastEqual = False
+    strLit = False
+    numLit = False
+    for c in s:
+        if strLit:
+            if c == strLit:
+                yield {'t': 'const', 'val': word}
+                strLit = False
+                word = ''
+            else:
+                assert c != '\\', 'TODO'
+                word += c
+            continue
+        elif lastEqual:
+            assert c == '=', "Broken =="
+            yield '=='
+            lastEqual = False
+            continue
+        elif numLit:
+            if c == '.':
+                numLit = float
+                continue
+            elif c.isdigit():
+                word += c
+                continue
+            else:
+                yield {'t': 'const', 'val': numLit(word)}
+                numLit = False
+                word = ''
+                # fall through
+        elif not word and c in '0123456789-':
+            numLit = int
+            word = c
+            continue
+        elif c in slashW:
+            word += c
+            continue
+
+        if word:
+            yield word
+            word = ''
+        if c in ',()[]':
+            yield c
+        elif c in '\'"':
+            strLit = c
+        elif c == '=':
+            lastEqual = True
+        elif c != ' ':
+            assert False, "Unexpected char %r in %r" % (c, s)
+    assert not lastEqual and not numLit and not strLit, "Unexpected EOF"
+    if word:
+        yield word
 
 # decorator
 def matcher(name):
@@ -942,25 +1059,25 @@ def matcher(name):
     return takes_func
 
 @matcher('contains')
-def _match_contains(atom, ast):
+def _match_contains(atom, args):
     # Do any members of the list match?
-    assert len(ast.args) == 1
+    assert len(args) == 1
     assert isinstance(atom, list), "Expected list for 'contains"
     for item in atom:
-        item_args = match_try(item, ast.args[0])
+        item_args = match_try(item, args[0])
         if item_args is not None:
             return item_args
     return None
 
 @matcher('cons')
-def _match_cons(atom, ast):
+def _match_cons(atom, args):
     # Matches args to (head, tail)
-    assert len(ast.args) == 2
+    assert len(args) == 2
     assert isinstance(atom, list), "Expected list for 'cons"
     if len(atom):
-        car = match_try(atom[0], ast.args[0])
+        car = match_try(atom[0], args[0])
         if car is not None:
-            cdr = match_try(atom[1:], ast.args[1])
+            cdr = match_try(atom[1:], args[1])
             if cdr is not None:
                 return car + cdr
     return None
