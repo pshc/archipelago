@@ -9,6 +9,9 @@ CFLAGS = -ansi -pedantic -W -Wall -Werror
 ifdef DEBUG
   CODEGEN = ipdb construct.py $(OPTS)
 endif
+ifdef PROFILE
+  CODEGEN = python -m cProfile -s time construct.py $(OPTS)
+endif
 
 all: test
 
