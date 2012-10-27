@@ -5,7 +5,7 @@ HDR = new_env('HDR', None)
 
 def out(s):
     env(HDR).write(s)
-    if not env(GENOPTS).quiet:
+    if env(GENOPTS).dumpSource:
         sys.stdout.write(s)
 
 def write_type(t):

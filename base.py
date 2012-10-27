@@ -698,8 +698,10 @@ def default_impl(cls, targetT):
 
 # Global options
 
-GenOpts = DT('GenOpts', ('quiet', bool),
-                        ('color', None),
+GenOpts = DT('GenOpts', ('color', None),
+                        ('profile', bool),
+                        ('dumpViews', bool),
+                        ('dumpSource', bool),
                         ('dumpTypes', bool),
                         ('dumpInsts', bool))
 GENOPTS = new_env('GENOPTS', GenOpts)
@@ -1122,5 +1124,15 @@ def nop():
 
 def cdecl(name, type):
     return None
+
+startTime = 0
+def checkpoint(desc=None):
+    import time
+    global startTime
+    now = time.clock()
+    if desc and env(GENOPTS).profile:
+        ms = int(round((now - startTime) * 1000))
+        print '%s%sin %dms' % (desc, ' '*(30-len(desc)), ms)
+    startTime = now
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

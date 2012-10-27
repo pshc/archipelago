@@ -1,7 +1,7 @@
 TESTS := $(wildcard tests/*.py)
 TEST_TARGETS := $(TESTS:tests/%.py=%)
 DIRS = bin ir mods opt views
-OPTS = --color -q
+OPTS = --color
 CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -ansi -pedantic -W -Wall -Werror

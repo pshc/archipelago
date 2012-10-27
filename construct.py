@@ -82,31 +82,37 @@ def load_module_dep(src, deps, plan):
         atom.write_mod_repr(impv, defn_mod)
 
         scan.scan_root(defn_mod.root)
-        atom.write_mod_repr(impv, defn_mod, [TypeOf, InstMap])
 
         prop.prop_module_decls(decl_mod.root)
         atom.write_mod_repr(view, decl_mod, [TypeOf])
+        checkpoint()
         prop.prop_compilation_unit(defn_mod.root)
+        checkpoint('propped defns')
         atom.write_mod_repr(impv, defn_mod, [TypeOf, Instantiation])
+        checkpoint()
 
         return decl_mod, defn_mod_m
     decl_mod, defn_mod = scope_extrinsic(InstMap,
             lambda: scope_extrinsic(astconv.AstType,
             lambda: scope_extrinsic(astconv.AstHint, conv_mod)))
 
+    checkpoint()
     native.serialize(decl_mod)
     native.serialize(extrinsic_mod(Name, names, decl_mod))
     if isJust(defn_mod):
         mod = fromJust(defn_mod)
         native.serialize(mod)
         native.serialize(extrinsic_mod(Name, names, mod))
+        checkpoint('serialized decls and defns')
 
         expand.in_intramodule_env(
             lambda: check.in_check_env(
             lambda: build_mod(decl_mod, mod, plan)
         ))
     else:
+        checkpoint('serialized just decls')
         expand.expand_decls(decl_mod.root)
+        checkpoint('expanded decls')
         if isJust(plan.writeIR):
             write_mod_headers(decl_mod, fromJust(plan.writeIR))
 
@@ -114,29 +120,36 @@ def load_module_dep(src, deps, plan):
     loaded_modules[name] = decl_mod
     return decl_mod
 
-
 def build_mod(decl_mod, defn_mod, plan):
     name = extrinsic(Filename, decl_mod)
     impv = 'views/%s' % (name,)
     view = '%s_xdecls' % (impv,)
 
+    checkpoint()
     casts = check.check_types(decl_mod, defn_mod)
+    checkpoint('checked types')
     atom.write_mod_repr(impv, defn_mod, [TypeOf, TypeCast])
 
+    checkpoint()
     new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
+    checkpoint('expanded module')
     xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
     defn_mod = Module(t_DT(quilt.ExpandedUnit), new_unit)
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
     atom.write_mod_repr(view, xdecl_mod, [TypeOf])
     atom.write_mod_repr(impv, defn_mod, [quilt.LLVMTypeOf, TypeCast])
+    checkpoint()
     native.serialize(xdecl_mod)
     native.serialize(defn_mod)
+    checkpoint('serialized expanded module')
 
     compiled = False
     if isJust(plan.writeIR):
         ir = fromJust(plan.writeIR)
+        checkpoint()
         llvm.write_ir(decl_mod, xdecl_mod, defn_mod, ir)
+        checkpoint('wrote ir')
         compiled = llvm.compile(decl_mod)
         write_mod_headers(decl_mod, ir)
 
@@ -312,7 +325,7 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    genOpts = GenOpts(False, None, False, False)
+    genOpts = GenOpts(None, False, False, False, False, False)
     options = BuildOpts(Nothing(), False, False)
     while argv:
         arg = argv.pop(0)
@@ -321,11 +334,15 @@ def main():
             break
         elif arg.startswith('-'):
             # General options
-            if arg == '-q':
-                genOpts.quiet = True
-            elif arg == '--color':
+            if arg == '--color':
                 from IPython.utils.coloransi import TermColors
                 genOpts.color = TermColors
+            elif arg == '-p':
+                genOpts.profile = True
+            elif arg == '-v':
+                genOpts.dumpViews = True
+            elif arg == '-s':
+                genOpts.dumpSource = True
             elif arg == '-t':
                 genOpts.dumpTypes = True
             elif arg == '-i':

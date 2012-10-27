@@ -66,7 +66,7 @@ LiteralSize = new_extrinsic('LiteralSize', int)
 
 def imm_out(s):
     env(IR).write(s)
-    if not env(GENOPTS).quiet:
+    if env(GENOPTS).dumpSource:
         sys.stdout.write(s)
 
 def out(s):

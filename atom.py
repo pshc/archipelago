@@ -232,6 +232,8 @@ ModRepr = DT('ModRepr', ('write', 'str -> void'),
 MODREPR = new_env('MODREPR', ModRepr)
 
 def write_mod_repr(filename, m, exts=[]):
+    if not env(GENOPTS).dumpViews:
+        return
     with file(filename, 'w') as f:
         def write(x):
             f.write('%s%s\n' % ('  ' * env(MODREPR).indent, x))
