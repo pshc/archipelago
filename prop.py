@@ -515,8 +515,14 @@ def prop_defn(pat, e):
     m = match(e)
     if m("FuncExpr(f)"):
         if has_extrinsic(TypeOf, m.f):
-            t = extrinsic(TypeOf, m.f)
-            prop_func_defn(match(pat, "PatVar(v)"), m.f)
+            cft = ctype(extrinsic(TypeOf, m.f))
+            var = match(pat, "PatVar(v)")
+            add_extrinsic(PendingType, e, cft)
+            add_extrinsic(PendingType, pat, cft)
+            # don't use set_var_ctype since we don't need a pending type
+            env(PROPSCOPE).localVars[var] = cft
+
+            prop_func_defn(var, m.f)
             return
 
     ct = prop_expr(e)

@@ -756,7 +756,7 @@ def conv_function(s):
         env(OMNI).decls.funcDecls.append(var)
         env(OMNI).funcDefns.append(TopFunc(var, build()))
     else:
-        return [S.Defn(PatVar(var), FuncExpr(rest()))]
+        return [S.Defn(PatVar(var), FuncExpr(build()))]
 
 @stmt(ast.If)
 def conv_if(s):
