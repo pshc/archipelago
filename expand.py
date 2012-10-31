@@ -34,7 +34,7 @@ VarGlobalReplacement = new_extrinsic('VarGlobalReplacement', '*GlobalVar')
 def iconvert(a):
     add_extrinsic(LLVMTypeOf, a, convert_type(extrinsic(TypeOf, a)))
 
-def iconvert_func(a):
+def iconvert_func_var(a):
     add_extrinsic(LLVMTypeOf, a, convert_func_type(extrinsic(TypeOf, a)))
 
 def copy_type(dest, src):
@@ -98,7 +98,7 @@ class ClosureExpander(vat.Mutator):
         glob.newDefns.append(TopFunc(var, f))
         add_extrinsic(Closure, f, ClosureInfo(f, isClosure))
         bind = L.Bind(var)
-        t = extrinsic(TypeOf, f)
+        t = extrinsic(TypeOf, fe)
         add_extrinsic(TypeOf, bind, t)
         add_extrinsic(TypeOf, var, t)
         add_extrinsic(Name, var, "lambda")
@@ -213,7 +213,7 @@ class AssertionExpander(vat.Mutator):
         return S.Cond([CondCase(check, Body([call]))])
 
 def convert_decl_types(decls):
-    map_(iconvert_func, decls.cdecls)
+    map_(iconvert_func_var, decls.cdecls)
 
     for dt in decls.dts:
         for ctor in dt.ctors:
@@ -229,7 +229,7 @@ def convert_decl_types(decls):
         add_extrinsic(LLVMTypeOf, env, convert_type(env.type))
     for lit in decls.lits:
         iconvert(lit.var)
-    map_(iconvert_func, decls.funcDecls)
+    map_(iconvert_func_var, decls.funcDecls)
 
 THREADENV = new_env('THREADENV', 'Maybe(Var)')
 InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
@@ -238,7 +238,7 @@ class TypeConverter(vat.Mutator):
     def Call(self, e):
         # Direct calls need to convert to direct func types
         if matches(e.func, "Bind(_)"):
-            iconvert_func(e.func)
+            iconvert_func_var(e.func)
             e.args = self.mutate('args')
         else:
             e = self.mutate()
@@ -247,7 +247,7 @@ class TypeConverter(vat.Mutator):
 
     def CallVoid(self, c):
         if matches(c.func, "Bind(_)"):
-            iconvert_func(c.func)
+            iconvert_func_var(c.func)
             c.args = self.mutate('args')
         else:
             c = self.mutate()
@@ -339,19 +339,21 @@ def expand_inenv(e, returnsValue, exprMutator):
         return w
 
 class EnvExtrConverter(vat.Mutator):
-    def Func(self, f):
-        f.params = self.mutate('params')
-
+    def TopFunc(self, top):
         threadedVar = Nothing()
-        if extrinsic(TypeOf, f).meta.envParam:
+        ft = extrinsic(TypeOf, top.var)
+        if ft.meta.envParam:
             # Add context parameter
             var = new_ctx_var()
             threadedVar = Just(var)
-            f.params.append(var)
+            top.func.params.append(var)
 
-        f.body = in_env(THREADENV, threadedVar, lambda: self.mutate('body'))
-        iconvert_func(f)
-        return f
+        top.func = in_env(THREADENV, threadedVar, lambda: self.mutate('func'))
+        add_extrinsic(LLVMTypeOf, top.func, convert_func_type(ft))
+        return top
+
+    def FuncExpr(self, fe):
+        assert False
 
     def Call(self, e):
 

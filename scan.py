@@ -71,10 +71,15 @@ class Scanner(vat.Visitor):
     def Attr(self, e):
         self.visit()
 
-    def Func(self, f):
-        scan_func(f)
+    def FuncExpr(self, e):
+        scan_func(e.func, e)
+    def Defn(self, defn):
+        if matches(defn, "Defn(PatVar(_), FuncExpr(_))"):
+            scan_func(defn.expr.func, defn.pat.var)
+        else:
+            self.visit()
 
-def scan_func(f):
+def scan_func(f, typeDest):
     if not has_extrinsic(AstType, f):
         vat.visit(Scanner, f.body, "Body(Expr)")
         return
@@ -85,7 +90,7 @@ def scan_func(f):
     tps = ft.paramTypes
     ps = f.params
     assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps,ps)
-    set_type(f, ft)
+    set_type(typeDest, ft)
 
     closed = env(INWARD).closedVars
     closed.update(tvars)
@@ -107,7 +112,7 @@ def with_hint_maybe(e, func):
 def scan_unit(unit):
     def go():
         for top in unit.funcs:
-            in_env(STMTCTXT, top, lambda: scan_func(top.func))
+            in_env(STMTCTXT, top, lambda: scan_func(top.func, top.var))
     in_env(INWARD, Inward({}), go)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

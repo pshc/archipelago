@@ -213,8 +213,8 @@ def check_ternary(c, t, f):
     check_same(t)
     check_same(f)
 
-def check_func(f):
-    ft = extrinsic(TypeOf, f)
+def check_func(var, f):
+    ft = extrinsic(TypeOf, var)
     for p, tp in ezip(f.params, ft.paramTypes):
         typecheck(extrinsic(TypeOf, p), tp)
     scope = CheckScope(ft.result, set(ft.meta.requiredEnvs))
@@ -296,7 +296,7 @@ def _check_expr(e):
         ("ListLit(es)", check_listlit),
         ("And(l, r) or Or(l, r)", check_logic),
         ("Ternary(c, t, f)", check_ternary),
-        ("FuncExpr(f)", check_func),
+        ("e==FuncExpr(f)", check_func),
         ("m==Match(p, cs)", check_match),
         ("Attr(e, f==Field(ft))", check_attr),
         ("GetEnv(Env(t))", check),
@@ -409,10 +409,6 @@ def check_stmt(a):
 def check_body(body):
     map_(check_stmt, body.stmts)
 
-def check_top_func(var, func):
-    typecheck(extrinsic(TypeOf, func), extrinsic(TypeOf, var))
-    check_func(func)
-
 def check_module_decls(decls):
     for dt in decls.dts:
         in_env(STMTCTXT, dt, lambda: check_DT(dt))
@@ -422,7 +418,7 @@ def check_module_decls(decls):
 
 def check_compilation_unit(unit):
     for f in unit.funcs:
-        in_env(STMTCTXT, f, lambda: check_top_func(f.var, f.func))
+        in_env(STMTCTXT, f, lambda: check_func(f.var, f.func))
 
 def check_types(decl_mod, defn_mod):
     def go():

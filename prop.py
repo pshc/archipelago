@@ -381,14 +381,13 @@ def infer_func(f, ps, b):
         #localVars[f] = cft
         prop_body(b)
 
-        add_extrinsic(PendingType, f, cft)
         return cft
     return in_new_scope(result, inside_func)
 
-def prop_func_expr(f, ps, b):
-    if not has_extrinsic(TypeOf, f):
+def prop_func_expr(typeHolder, f, ps, b):
+    if not has_extrinsic(TypeOf, typeHolder):
         return infer_func(f, ps, b)
-    ft = extrinsic(TypeOf, f)
+    ft = extrinsic(TypeOf, typeHolder)
     cft = ctype(ft)
     tps, result = match(cft, ('TFunc(ps, result, _)', tuple2))
     def inside_func_scope():
@@ -447,7 +446,7 @@ def _prop_expr(e):
         ("call==Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
         ("Ternary(c, t, f)", prop_ternary),
-        ("FuncExpr(f==Func(ps, b))", prop_func_expr),
+        ("e==FuncExpr(f==Func(ps, b))", prop_func_expr),
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
         ("e==GetEnv(Env(t))", instantiate_type),
@@ -506,17 +505,16 @@ def prop_DT(form):
         set_type(c, ctor_type(c, dtT))
 
 def prop_func_defn(var, f):
-    t = extrinsic(TypeOf, f)
-    set_type(var, t)
-    ft = prop_func_expr(f, f.params, f.body)
+    t = extrinsic(TypeOf, var)
+    ft = prop_func_expr(var, f, f.params, f.body)
     unify(ft, ctype(t))
 
 def prop_defn(pat, e):
-    m = match(e)
-    if m("FuncExpr(f)"):
-        if has_extrinsic(TypeOf, m.f):
-            cft = ctype(extrinsic(TypeOf, m.f))
-            var = match(pat, "PatVar(v)")
+    m = match((pat, e))
+    if m("(PatVar(v), FuncExpr(f))"):
+        var = m.v
+        if has_extrinsic(TypeOf, var):
+            cft = ctype(extrinsic(TypeOf, var))
             add_extrinsic(PendingType, e, cft)
             add_extrinsic(PendingType, pat, cft)
             # don't use set_var_ctype since we don't need a pending type
@@ -658,11 +656,17 @@ FuncEnvInfo = DT('FuncEnvInfo', ('envsNeeded', set(['*Env'])),
                                 ('envsProvided', set(['*Env'])))
 FUNCENVS = new_env('FUNCENVS', set(['*Env']))
 
+def infer_func_envs(f, var, visitFunc):
+    info = FuncEnvInfo(set(), set(), set())
+    in_env(FUNCENVS, info, visitFunc)
+    extrinsic(TypeOf, var).meta.requiredEnvs = list(info.envsNeeded)
+
 class EnvInference(vat.Visitor):
-    def Func(self, func):
-        info = FuncEnvInfo(set(), set(), set())
-        in_env(FUNCENVS, info, lambda: self.visit())
-        extrinsic(TypeOf, func).meta.requiredEnvs = list(info.envsNeeded)
+    def TopFunc(self, top):
+        infer_func_envs(top.func, top.var, lambda: self.visit('func'))
+
+    def FuncExpr(self, fe):
+        infer_func_envs(fe.func, fe, lambda: self.visit('func'))
 
     def GetEnv(self, e):
         scope = env(FUNCENVS)
