@@ -30,24 +30,16 @@ MetaCell, Free, InstVar, Mono, Subst = ADT('MetaCell',
     'Subst', ('type', 'CType'))
 
 # instantiated types
-CType, CVar, CPrim, CTuple, CFunc, CData, CArray, CWeak, CMeta \
-    = ADT('CType',
-        'CVar', ('typeVar', '*TypeVar'),
-        'CPrim', ('primType', '*PrimType'),
-        'CTuple', ('tupleTypes', ['CType']),
-        'CFunc', ('paramTypes', ['CType']), ('result', 'Result(CType)'),
-                 ('meta', FuncMeta),
-        'CData', ('data', '*DataType'), ('appTypes', ['CType']),
-        'CArray', ('elemType', 'CType'),
-        'CWeak', ('refType', 'CType'),
+
+CType, C, CMeta = ADT(('CType', Type),
         'CMeta', ('cell', MetaCell))
 
 PendingType = new_extrinsic('PendingType', CType)
 
-def CInt(): return CPrim(PInt())
-def CFloat(): return CPrim(PFloat())
-def CBool(): return CPrim(PBool())
-def CStr(): return CPrim(PStr())
+def CInt(): return C.TPrim(PInt())
+def CFloat(): return C.TPrim(PFloat())
+def CBool(): return C.TPrim(PBool())
+def CStr(): return C.TPrim(PStr())
 
 InstInfo = DT('InstInfo', ('metas', {TypeVar: CType}),
                           ('hintLookup', {TypeVar: Type}))
@@ -67,7 +59,7 @@ def fresh_monotype():
 
 def inst_tvar(tv):
     if have_env(SUBST):
-        return env(SUBST).get(tv, CVar(tv))
+        return env(SUBST).get(tv, C.TVar(tv))
     inst = env(INST)
     t = inst.hintLookup.get(tv)
     if t is not None:
@@ -80,18 +72,18 @@ def inst_tvar(tv):
 
 def inst_tdata(dt, ts):
     assert len(ts) == len(dt.tvars)
-    return CData(dt, map(_inst_type, ts))
+    return C.TData(dt, map(_inst_type, ts))
 
 def _inst_type(s):
     return match(s,
         ('TVar(tv)', inst_tvar),
-        ('TPrim(p)', CPrim),
-        ('TTuple(ts)', lambda ts: CTuple(map(_inst_type, ts))),
+        ('TPrim(p)', C.TPrim),
+        ('TTuple(ts)', lambda ts: C.TTuple(map(_inst_type, ts))),
         ('TFunc(ps, r, meta)', lambda ps, r, meta:
-                CFunc(map(_inst_type, ps), _inst_result(r), copy_meta(meta))),
+                C.TFunc(map(_inst_type, ps), _inst_result(r), copy_meta(meta))),
         ('TData(dt, ts)', inst_tdata),
-        ('TArray(t)', lambda t: CArray(_inst_type(t))),
-        ('TWeak(t)', lambda t: CWeak(_inst_type(t))))
+        ('TArray(t)', lambda t: C.TArray(_inst_type(t))),
+        ('TWeak(t)', lambda t: C.TWeak(_inst_type(t))))
 
 def _inst_result(r):
     return match(r, ('Ret(t)', lambda t: Ret(_inst_type(t))),
@@ -131,14 +123,14 @@ def free_monotype():
 
 def _gen_type(s):
     return match(s,
-        ('CVar(tv)', TVar),
-        ('CPrim(p)', TPrim),
-        ('CTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
-        ('CFunc(ps, r, meta)', lambda ps, r, meta:
+        ('TVar(tv)', TVar),
+        ('TPrim(p)', TPrim),
+        ('TTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
+        ('TFunc(ps, r, meta)', lambda ps, r, meta:
                 TFunc(map(_gen_type, ps), _gen_result(r), copy_meta(meta))),
-        ('CData(dt, ts)', gen_tdata),
-        ('CArray(t)', lambda t: TArray(_gen_type(t))),
-        ('CWeak(t)', lambda t: TWeak(_gen_type(t))),
+        ('TData(dt, ts)', gen_tdata),
+        ('TArray(t)', lambda t: TArray(_gen_type(t))),
+        ('TWeak(t)', lambda t: TWeak(_gen_type(t))),
         ('CMeta(Free(Just(tvar)))', TVar),
         ('CMeta(f==Free(Nothing()))', capture_free),
         ('CMeta(InstVar(tv))', TVar),
@@ -224,7 +216,7 @@ def try_unite(src, dest):
         # free -> some type (direct unification)
     elif m("(CMeta(Subst(src)), _)"):
         try_unite(m.src, dest)
-    elif m("(CMeta(Mono()), CVar(_))"):
+    elif m("(CMeta(Mono()), TVar(_))"):
         fail("Can't infer polytype for func params/ret; provide annot")
     elif m("(CMeta(_), _)"):
         set_meta_subst(src, dest)
@@ -234,25 +226,25 @@ def try_unite(src, dest):
         # XXX ought to narrow properly
         try_unite(dest, src)
 
-    elif m("(CVar(stv), CVar(dtv))"):
+    elif m("(TVar(stv), TVar(dtv))"):
         if m.stv is not m.dtv:
             unification_failure(src, dest, "typevars")
-    elif m("(CTuple(t1), CTuple(t2))"):
+    elif m("(TTuple(t1), TTuple(t2))"):
         try_unite_tuples(src, m.t1, dest, m.t2)
-    elif m("(CArray(t1), CArray(t2))"):
+    elif m("(TArray(t1), TArray(t2))"):
         try_unite(m.t1, m.t2)
-    elif m("(CFunc(sa, sr, sm), CFunc(da, dr, dm))"):
+    elif m("(TFunc(sa, sr, sm), TFunc(da, dr, dm))"):
         try_unite_tuples(src, m.sa, dest, m.da)
         try_unite_results(src, m.sr, dest, m.dr)
         if not metas_equal(m.sm, m.dm):
             unification_failure(src, dest, "conflicting func metas")
-    elif m("(CData(a, ats), CData(b, bts))"):
+    elif m("(TData(a, ats), TData(b, bts))"):
         if m.a is not m.b:
             unification_failure(src, dest, "mismatched datatypes")
         assert len(m.ats) == len(m.a.tvars), "Wrong %s typevar count" % (m.a,)
         for at, bt in ezip(m.ats, m.bts):
             try_unite(at, bt)
-    elif m("(CPrim(sp), CPrim(dp))"):
+    elif m("(TPrim(sp), TPrim(dp))"):
         if not prim_equal(m.sp, m.dp):
             unification_failure(src, dest, "primitive types")
     else:
@@ -278,7 +270,7 @@ def set_var_ctype(v, ct):
     add_extrinsic(PendingType, v, ct)
 
 def pat_tuple(ps):
-    ts = match(env(INPAT), "CTuple(ps)")
+    ts = match(env(INPAT), "TTuple(ps)")
     for p, t in ezip(ps, ts):
         in_env(INPAT, t, lambda: _prop_pat(p))
 
@@ -291,7 +283,7 @@ def pat_capture(v, p):
 
 def pat_ctor(ref, ctor, args):
     ctorT = instantiate_type(ref, extrinsic(TypeOf, ctor))
-    fieldTs, dt = match(ctorT, ("CFunc(fs, Ret(dt), _)", tuple2))
+    fieldTs, dt = match(ctorT, ("TFunc(fs, Ret(dt), _)", tuple2))
     unify_m(dt)
     for arg, fieldT in ezip(args, fieldTs):
         in_env(INPAT, fieldT, lambda: _prop_pat(arg))
@@ -326,19 +318,19 @@ def prop_lit(lit):
 
 def prop_listlit(es):
     if len(es) == 0:
-        return CArray(fresh())
+        return C.TArray(fresh())
     else:
         t = prop_expr(es[0])
         for e in es[1:]:
             consume_value_as(t, e)
-        return CArray(t)
+        return C.TArray(t)
 
 def prop_call_result(call, f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
 
     # TEMP: resolve numeric operator overload
-    if 1 <= len(argts) <= 2 and matches(argts[0], "CPrim(PFloat())") and \
+    if 1 <= len(argts) <= 2 and matches(argts[0], "TPrim(PFloat())") and \
                 matches(f, "Bind(_)"):
         newf = overload_num_call(f.target)
         if newf:
@@ -346,7 +338,7 @@ def prop_call_result(call, f, s):
             call.func = f
             ft = prop_expr(f)
 
-    paramTypes, result = match(ft, ("CFunc(ps, res, _)", tuple2))
+    paramTypes, result = match(ft, ("TFunc(ps, res, _)", tuple2))
     for arg, param in ezip(argts, ft.paramTypes):
         unify(arg, param)
     return result
@@ -384,7 +376,7 @@ def infer_func(f, ps, b):
             pts.append(pt)
 
         meta = plain_meta([plain_param_meta() for p in pts])
-        cft = CFunc(pts, result, meta)
+        cft = C.TFunc(pts, result, meta)
         # lambdas can't recurse, but this (sort of thing) would be nice
         #localVars[f] = cft
         prop_body(b)
@@ -398,7 +390,7 @@ def prop_func_expr(f, ps, b):
         return infer_func(f, ps, b)
     ft = extrinsic(TypeOf, f)
     cft = ctype(ft)
-    tps, result = match(cft, ('CFunc(ps, result, _)', tuple2))
+    tps, result = match(cft, ('TFunc(ps, result, _)', tuple2))
     def inside_func_scope():
         for p, ctp in ezip(ps, tps):
             set_var_ctype(p, ctp)
@@ -436,12 +428,12 @@ def prop_inenv(t, init, f):
 
 def prop_getextrinsic(e, extr, node):
     t = prop_expr(node)
-    assert matches(t, "CData(_, _)"), "Can't get extr from %s" % (nodet,)
+    assert matches(t, "TData(_, _)"), "Can't get extr from %s" % (nodet,)
     return instantiate_type(e, extr.type)
 
 def prop_hasextrinsic(e, node):
     t = prop_expr(node)
-    assert matches(t, "CData(_, _)"), "Can't check for extr from %s" % (nodet,)
+    assert matches(t, "TData(_, _)"), "Can't check for extr from %s" % (nodet,)
     return CBool()
 
 def prop_expr(e):
@@ -450,7 +442,7 @@ def prop_expr(e):
 def _prop_expr(e):
     rt = match(e,
         ("Lit(lit)", prop_lit),
-        ("TupleLit(ts)", lambda ts: CTuple(map(prop_expr, ts))),
+        ("TupleLit(ts)", lambda ts: C.TTuple(map(prop_expr, ts))),
         ("ListLit(ss)", prop_listlit),
         ("call==Call(f, s)", prop_call),
         ("And(l, r) or Or(l, r)", prop_logic),
@@ -459,7 +451,7 @@ def _prop_expr(e):
         ("m==Match(p, cs)", prop_match),
         ("e==Attr(s, f)", prop_attr),
         ("e==GetEnv(Env(t))", instantiate_type),
-        ("HaveEnv(_)", lambda: CPrim(PBool())),
+        ("HaveEnv(_)", lambda: C.TPrim(PBool())),
         ("InEnv(Env(t), init, f)", prop_inenv),
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
@@ -475,7 +467,7 @@ def consume_value_as(ct, e):
     in_env(EXPRCTXT, e, lambda: unify(_prop_expr(e), ct))
 
 def extract_cdata(t):
-    return match(t, ('CData(dt, ts) or CMeta(Subst(CData(dt, ts)))', tuple2))
+    return match(t, ('TData(dt, ts) or CMeta(Subst(TData(dt, ts)))', tuple2))
 
 def resolve_field_by_name(t, f):
     dt, ts = extract_cdata(t)
