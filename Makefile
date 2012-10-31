@@ -12,6 +12,9 @@ endif
 ifdef PROFILE
   CODEGEN = python -m cProfile -s time construct.py $(OPTS)
 endif
+ifdef VIEW
+  OPTS := -v $(OPTS)
+endif
 
 all: test
 

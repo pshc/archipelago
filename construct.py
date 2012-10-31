@@ -138,7 +138,7 @@ def build_mod(decl_mod, defn_mod, plan):
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
     atom.write_mod_repr(view, xdecl_mod, [TypeOf])
-    atom.write_mod_repr(impv, defn_mod, [quilt.LLVMTypeOf, TypeCast])
+    atom.write_mod_repr(impv+'_x', defn_mod, [quilt.LLVMTypeOf, TypeCast])
     checkpoint()
     native.serialize(xdecl_mod)
     native.serialize(defn_mod)
