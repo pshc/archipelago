@@ -19,7 +19,8 @@ def record_tvar(tv):
         nm = extrinsic(Name, tv)
         it = env(INWARD).closedVars.get(nm)
         if it is not None:
-            insts[tv] = in_env(TVARS, {nm: tv}, lambda: parse_type(it))
+            assert isinstance(it, TypeVar)
+            insts[tv] = TVar(it)
 
 def scan_inst_data(tvs, apps):
     map_(record_tvar, tvs)
