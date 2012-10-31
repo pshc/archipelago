@@ -178,6 +178,8 @@ VISIT = new_env('VISIT', None)
 def visit(visitor, obj, t):
     inst = visitor()
     inst.obj = inst.t = inst.fts = None
+    if isinstance(t, basestring):
+        t = parse_type(t)
     in_env(VISIT, inst, lambda: visit_by_type(obj, t))
 
 class Visitor(object):

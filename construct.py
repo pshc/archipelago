@@ -81,7 +81,7 @@ def load_module_dep(src, deps, plan):
         atom.write_mod_repr(view, decl_mod)
         atom.write_mod_repr(impv, defn_mod)
 
-        scan.scan_root(defn_mod.root)
+        scan.scan_unit(defn_mod.root)
 
         prop.prop_module_decls(decl_mod.root)
         atom.write_mod_repr(view, decl_mod, [TypeOf])

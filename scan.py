@@ -102,8 +102,8 @@ def with_hint_maybe(e, func):
                 return
    func()
 
-def scan_root(root):
+def scan_unit(unit):
     in_env(INWARD, Inward({}), lambda:
-            vat.visit(Scanner, root, t_DT(CompilationUnit)))
+            vat.visit(Scanner, unit, t_DT(CompilationUnit)))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
