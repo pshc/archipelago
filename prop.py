@@ -34,6 +34,8 @@ MetaCell, Free, InstVar, Mono, Subst = ADT('MetaCell',
 CType, C, CMeta = ADT(('CType', Type),
         'CMeta', ('cell', MetaCell))
 
+CType.__repr__ = cyclic_check_type_repr
+
 PendingType = new_extrinsic('PendingType', CType)
 
 def CInt(): return C.TPrim(PInt())

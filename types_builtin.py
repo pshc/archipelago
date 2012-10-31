@@ -82,6 +82,7 @@ def _type_repr(t):
                     ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
                     ("TFunc(ps, res, m)", _func_repr),
                     ("TData(d, ps)", _tdata_repr),
+                    ("CMeta(cell)", repr),
                     ("_", lambda: mark('<bad type %s>' % type(t))))
     seen.remove(t)
     return rstr
@@ -119,14 +120,14 @@ def _tdata_repr(dt, apps):
     return fmtcol('{0}^LG(^N{1}^LG)^N', dt,
             col('Cyan', ', ').join(map(_type_repr, apps)))
 
-def _cyclic_check_type_repr(t):
+def cyclic_check_type_repr(t):
     return in_env(REPRENV, set(), lambda: _type_repr(t))
 
 def _inject_type_reprs():
     temp = globals()
     for t in temp:
-        if len(t) > 1 and t[0] == 'T' and t[1].lower() != t[1]:
-            temp[t].__repr__ = _cyclic_check_type_repr
+        if len(t) > 1 and t[0] == 'T' and t[1].isupper():
+            temp[t].__repr__ = cyclic_check_type_repr
 _inject_type_reprs()
 
 def map_type_vars(f, t):
