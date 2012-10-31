@@ -71,24 +71,25 @@ class Scanner(vat.Visitor):
         self.visit()
 
     def Func(self, f):
-        if not has_extrinsic(AstType, f):
-            self.visit('body')
-            return
+        scan_func(f)
 
-        tvars = {}
-        ftstr = extrinsic(AstType, f)
-        ft = parse_new_type(ftstr, tvars)
-        tps = ft.paramTypes
-        ps = f.params
-        assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps,ps)
-        set_type(f, ft)
+def scan_func(f):
+    if not has_extrinsic(AstType, f):
+        vat.visit(Scanner, f.body, "Body(Expr)")
+        return
 
-        closed = env(INWARD).closedVars
-        closed.update(tvars)
-        in_env(INWARD, Inward(closed), lambda: self.visit('body'))
+    tvars = {}
+    ftstr = extrinsic(AstType, f)
+    ft = parse_new_type(ftstr, tvars)
+    tps = ft.paramTypes
+    ps = f.params
+    assert len(tps) == len(ps), "Mismatched param count: %s\n%s" % (tps,ps)
+    set_type(f, ft)
 
-    def TopFunc(self, top):
-        in_env(STMTCTXT, top, lambda: self.visit('func'))
+    closed = env(INWARD).closedVars
+    closed.update(tvars)
+    in_env(INWARD, Inward(closed),
+            lambda: vat.visit(Scanner, f.body, "Body(Expr)"))
 
 def with_hint_maybe(e, func):
    if has_extrinsic(AstHint, e):
@@ -103,7 +104,9 @@ def with_hint_maybe(e, func):
    func()
 
 def scan_unit(unit):
-    in_env(INWARD, Inward({}), lambda:
-            vat.visit(Scanner, unit, t_DT(CompilationUnit)))
+    def go():
+        for top in unit.funcs:
+            in_env(STMTCTXT, top, lambda: scan_func(top.func))
+    in_env(INWARD, Inward({}), go)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
