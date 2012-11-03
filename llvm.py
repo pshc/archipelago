@@ -286,15 +286,15 @@ def call_void(ftx, argxs):
     else:
         newline()
 
-def write_args(types, args):
+def write_args(paramTypes, args):
     out('(')
     first = True
-    for t, x in ezip(types, args):
+    for p, x in ezip(paramTypes, args):
         if first:
             first = False
         else:
             comma()
-        out_t(t)
+        out_t(match(p, "IParam(t, _)"))
         out_xpr(x)
     out(')')
 
@@ -427,11 +427,14 @@ def t_str(t):
         ("IArray(n, t)", lambda n, et: "[%d x %s]" % (n, t_str(et))),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
         ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
-        ("IFunc(ps, r, _)", lambda ps, r: "%s (%s)*" % (
-            t_str(r), ', '.join(map(t_str, ps)))),
+        ("IFunc(ps, r, _)", _ifunc_str),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IWeak(t)", t_str),
         ("IVoidPtr()", lambda: "i8*"))
+
+def _ifunc_str(ps, r):
+    return "%s (%s)*" % (t_str(r), ', '.join(
+            t_str(match(p, "IParam(t, _)")) for p in ps))
 
 def out_t(t):
     out('%s ' % (t_str(t),))
@@ -1039,14 +1042,15 @@ def write_ctor(ctor, dt, layout):
     out_t(dtt)
     out_global_symbol(ctor)
     if env(DECLSONLY):
-        write_param_types(map(typeof, ctor.fields))
+        write_param_types(extrinsic(LLVMTypeOf, ctor).params)
         newline()
     else:
         as_local(lambda: _write_ctor_body(ctor, layout, dtt))
         out('}\n')
 
 def _write_ctor_body(ctor, layout, dtt):
-    txs = write_params(ctor.fields, map(typeof, ctor.fields), True)
+    pts = match(extrinsic(LLVMTypeOf, ctor), "IFunc(pts, _, _)")
+    txs = write_params(ctor.fields, pts, True)
     out(' {')
     newline()
 
@@ -1119,7 +1123,7 @@ def write_param_types(tps):
             first = False
         else:
             comma()
-        out_t_nospace(t)
+        out_t_nospace(match(t, "IParam(t, _)"))
     out(')')
 
 def write_params(ps, tps, fieldSymbols):
@@ -1133,7 +1137,7 @@ def write_params(ps, tps, fieldSymbols):
             comma()
         tmp = temp_reg_named(extrinsic(expand.FieldSymbol, p) if fieldSymbols
                 else extrinsic(expand.LocalSymbol, p))
-        tx = TypedXpr(tp, tmp)
+        tx = TypedXpr(match(tp, 'IParam(t, _)'), tmp)
         out_txpr(tx)
         txs.append(tx)
     out(')')

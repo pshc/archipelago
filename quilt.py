@@ -25,13 +25,19 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IArray', ('count', int), ('type', 'IType'),
         'ITuple', ('types', ['IType']),
         'IData', ('datatype', '*DataType'),
-        'IFunc', ('params', ['IType']), ('ret', 'IType'), ('meta', IFuncMeta),
+        'IFunc', ('params', ['IParam']), ('ret', 'IType'), ('meta', IFuncMeta),
         'IPtr', ('type', 'IType'),
         'IWeak', ('type', 'IType'),
         'IVoidPtr')
 
+IParam = DT('IParam', ('type', IType),
+                      ('held', bool))
+
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
 LLVMPatCast = new_extrinsic('LLVMPatCast', (IType, IType))
+
+def is_strong_ptr(t):
+    return matches(t, "IPtr(_) or IVoidPtr() or IArray(_, _)")
 
 def types_punned(a, b):
     # Determines whether two non-equal types convert to identical ITypes
@@ -66,16 +72,18 @@ def convert_type(t):
         ("TPrim(PBool())", IBool),
         ("TPrim(PStr())", IVoidPtr),
         ("TVar(_)", IVoidPtr),
-        ("TFunc(tps, result, meta)", _convert_func),
+        ("TFunc(pts, result, meta)", _convert_func),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))),
         ("TWeak(t)", lambda t: IWeak(convert_type(t))))
 
-def _convert_func(tps, result, meta):
-    ips = map(convert_type, tps)
+def _convert_func(pts, result, meta):
+    ips = []
+    for pt, pmeta in ezip(pts, meta.params):
+        ips.append(IParam(convert_type(pt), pmeta.held))
     if meta.envParam:
-        ips.append(IVoidPtr())
+        ips.append(IParam(IVoidPtr(), False))
     meta = IFuncMeta(False)
     m = match(result)
     if m('Ret(t)'):
@@ -113,10 +121,17 @@ def itypes_equal(src, dest):
         return all(itypes_equal(a, b) for a, b in ezip(m.ts1, m.ts2))
     elif m('(IFunc(ps1, r1, _), IFunc(ps2, r2, _))'):
         return len(m.ps1) == len(m.ps2) and \
-               all(itypes_equal(a, b) for a, b in ezip(m.ps1, m.ps2)) and \
+               all(iparams_equal(a, b) for a, b in ezip(m.ps1, m.ps2)) and \
                itypes_equal(m.r1, m.r2)
     else:
         return False
+
+def iparams_equal(src, dest):
+    if not itypes_equal(src, dest):
+        return False
+    if src.held != dest.held:
+        return False
+    return True
 
 def i_ADT(dt):
     return IPtr(IData(extrinsic(FormSpec, dt)))

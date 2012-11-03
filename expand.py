@@ -220,7 +220,7 @@ def convert_decl_types(decls):
             fts = []
             for field in ctor.fields:
                 ft = convert_type(field.type)
-                fts.append(ft)
+                fts.append(IParam(ft, is_strong_ptr(ft)))
                 add_extrinsic(LLVMTypeOf, field, ft)
             ctort = IFunc(fts, IPtr(IData(dt)), IFuncMeta(False))
             add_extrinsic(LLVMTypeOf, ctor, ctort)
