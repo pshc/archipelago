@@ -1222,6 +1222,8 @@ def write_while(stmt, cond, body):
     env(LOCALS).loopLabels = old_labels
 
 def write_stmt(stmt):
+    if has_extrinsic(IRComments, stmt):
+        map_(out_comment, extrinsic(IRComments, stmt))
     out_pretty(stmt, 'Stmt(LExpr)')
     match(stmt,
         ("Assign(lhs, e)", write_assign),
@@ -1233,7 +1235,8 @@ def write_stmt(stmt):
         ("Defn(pat, e)", write_defn),
         ("Return(e)", write_return),
         ("stmt==While(c, b)", write_while),
-        ("VoidStmt(e)", write_voidexpr))
+        ("VoidStmt(e)", write_voidexpr),
+        ("Nop()", nop))
 
 def write_body(body):
     map_(write_stmt, match(body, 'Body(ss)'))

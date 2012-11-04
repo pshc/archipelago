@@ -136,4 +136,6 @@ def iparams_equal(src, dest):
 def i_ADT(dt):
     return IPtr(IData(extrinsic(FormSpec, dt)))
 
+IRComments = new_extrinsic('IRComments', [str])
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

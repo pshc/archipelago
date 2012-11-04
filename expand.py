@@ -568,7 +568,7 @@ def in_intramodule_env(func):
     captures = {}
     extrs = [Closure, LLVMPatCast,
             vat.Original, LocalSymbol,
-            InEnvCtxVar]
+            InEnvCtxVar, IRComments]
 
     # XXX workaround for insufficiently staged compilation
     defs = "malloc,match_fail,_pushenv,_popenv".split(',')

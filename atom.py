@@ -483,6 +483,9 @@ class ExprStringifier(Visitor):
         frag(' := ')
         self.visit('expr')
 
+    def Nop(self, nop):
+        frag('nop')
+
     def Return(self, ret):
         frag('return ')
         self.visit('expr')
