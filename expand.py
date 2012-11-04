@@ -37,39 +37,6 @@ def iconvert(a):
 def iconvert_func_var(a):
     add_extrinsic(LLVMTypeOf, a, convert_func_type(extrinsic(TypeOf, a)))
 
-def copy_type(dest, src):
-    # bleh... vat?
-    add_extrinsic(LLVMTypeOf, dest, extrinsic(LLVMTypeOf, src))
-
-def cast(src, dest, e):
-    assert not itypes_equal(src, dest), "%s already of %s type" % (e, src)
-    casted = Cast(src, dest, e)
-    add_extrinsic(LLVMTypeOf, casted, dest)
-    return casted
-
-def cast_from_voidptr(e, t):
-    return match(t, ('IVoidPtr()', lambda: e),
-                    ('_', lambda: cast(IVoidPtr(), t, e)))
-
-def cast_to_voidptr(e, t):
-    return match(t, ('IVoidPtr()', lambda: e),
-                    ('_', lambda: cast(t, IVoidPtr(), e)))
-
-def runtime_call(name, args):
-    f = RUNTIME[name]
-    ft = extrinsic(LLVMTypeOf, f)
-    bind = L.Bind(f)
-    add_extrinsic(LLVMTypeOf, bind, ft)
-    call = L.Call(bind, args)
-    add_extrinsic(LLVMTypeOf, call, ft.ret)
-    return call
-
-def runtime_void_call(name, args):
-    f = RUNTIME[name]
-    bind = L.Bind(f)
-    copy_type(bind, f)
-    return S.VoidStmt(VoidCall(bind, args))
-
 class ClosureExpander(vat.Mutator):
     def TopFunc(self, top):
         top.func = in_env(EXFUNC, ExStaticDefn(), lambda: self.mutate('func'))
