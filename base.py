@@ -733,6 +733,14 @@ def fmtcol(s, *args):
 def mark(s):
     return col('Red', s)
 
+def colorless(f):
+    opts = env(GENOPTS)
+    hadColor = opts.color
+    opts.color = None
+    ret = f()
+    opts.color = hadColor
+    return ret
+
 # Pretty printing
 # (naive quadratic version)
 
