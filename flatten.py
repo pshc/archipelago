@@ -3,20 +3,20 @@ from atom import *
 from quilt import *
 import vat
 
-FLAT = new_env('FLAT', Body)
+NEWBODY = new_env('NEWBODY', Body)
 
-def push_stmt(s):
-    env(FLAT).stmts.append(s)
+def push_newbody(s):
+    env(NEWBODY).stmts.append(s)
 
-class Flattener(vat.Mutator):
+class CompoundFlattener(vat.Mutator):
     def Body(self, body):
         new_body = Body([])
-        _ = in_env(FLAT, new_body, lambda: self.mutate('stmts'))
+        _ = in_env(NEWBODY, new_body, lambda: self.mutate('stmts'))
         return new_body
 
     def t_Stmt(self, stmt):
         stmt = self.mutate()
-        push_stmt(stmt)
+        push_newbody(stmt)
         return stmt
 
     def Nop(self, s):
@@ -30,7 +30,7 @@ class Flattener(vat.Mutator):
         bindTmp = L.Bind(tmp)
         add_extrinsic(TypeOf, bindTmp, TBool())
         then = CondCase(bindTmp, thenBlock)
-        push_stmt(S.Cond([then]))
+        push_newbody(S.Cond([then]))
 
         output = L.Bind(tmp)
         add_extrinsic(TypeOf, output, TBool())
@@ -43,7 +43,7 @@ class Flattener(vat.Mutator):
         bindTmp = L.Bind(tmp)
         add_extrinsic(TypeOf, bindTmp, TBool())
         then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
-        push_stmt(S.Cond([then]))
+        push_newbody(S.Cond([then]))
 
         output = L.Bind(tmp)
         add_extrinsic(TypeOf, output, TBool())
@@ -57,7 +57,7 @@ class Flattener(vat.Mutator):
         test = self.mutate('test')
         trueBlock = store_scope_result(result, lambda: self.mutate('then'))
         falseBlock = store_scope_result(result, lambda: self.mutate('else_'))
-        push_stmt(S.Cond([CondCase(test, trueBlock),
+        push_newbody(S.Cond([CondCase(test, trueBlock),
                           CondCase(true(), falseBlock)]))
         output = L.Bind(result)
         add_extrinsic(TypeOf, output, retType)
@@ -69,12 +69,12 @@ def define_temp_var(init):
     add_extrinsic(TypeOf, var, t)
     pat = PatVar(var)
     add_extrinsic(TypeOf, pat, t)
-    push_stmt(S.Defn(pat, init))
+    push_newbody(S.Defn(pat, init))
     return var
 
 def store_scope_result(var, func):
     body = Body([])
-    result = in_env(FLAT, body, func)
+    result = in_env(NEWBODY, body, func)
     body.stmts.append(S.Assign(LhsVar(var), result))
     return body
 
@@ -93,6 +93,6 @@ def true():
     return bind
 
 def flatten_unit(unit):
-    vat.mutate(Flattener, unit, t_DT(ExpandedUnit))
+    vat.mutate(CompoundFlattener, unit, t_DT(ExpandedUnit))
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

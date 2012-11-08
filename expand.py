@@ -511,7 +511,6 @@ def expand_unit(unit):
     t = t_DT(ExpandedUnit)
 
     expand_closures(unit)
-    flatten.flatten_unit(unit)
 
     vat.mutate(FuncValGenerator, unit, t)
     vat.mutate(LitExpander, unit, t)
@@ -519,6 +518,8 @@ def expand_unit(unit):
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
+
+    flatten.flatten_unit(unit)
 
     _prepare_decls(env(EXGLOBAL).newDecls)
 
