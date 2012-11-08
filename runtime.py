@@ -1,6 +1,7 @@
 # Just the bare minimum to bootstrap bedrock
 
 malloc = cdecl('malloc', 'int -> a')
+free = cdecl('free', 'a -> void')
 fail = cdecl('fail', 'str -> noreturn')
 match_fail = cdecl('match_fail', 'void -> noreturn')
 

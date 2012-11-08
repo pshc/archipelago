@@ -538,7 +538,7 @@ def in_intramodule_env(func):
             InEnvCtxVar, IRComments]
 
     # XXX workaround for insufficiently staged compilation
-    defs = "malloc,match_fail,_pushenv,_popenv".split(',')
+    defs = "malloc,free,match_fail,_pushenv,_popenv".split(',')
     default_binds = set(RUNTIME[d] for d in defs)
 
     return in_env(IMPORTBINDS, default_binds,
