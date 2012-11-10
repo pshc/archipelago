@@ -38,16 +38,24 @@ NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 def empty_block():
     return Block([], TermInvalid(), [])
 
-def ensure_block():
+def start_new_block():
+    "Closes up the current block if any, then returns a fresh one."
+    new = empty_block()
     cfg = env(CFG)
     m = match(cfg.block)
     if m('Just(block)'):
+        old = m.block
+        jumps(old, new)
+    cfg.block = Just(new)
+    resolve_pending_exits(new)
+    return new
+
+def ensure_block():
+    m = match(env(CFG).block)
+    if m('Just(block)'):
         return m.block
     else:
-        block = empty_block()
-        cfg.block = Just(block)
-        resolve_pending_exits(block)
-        return block
+        return start_new_block()
 
 def block_push(stmt):
     ensure_block().stmts.append(stmt)
@@ -65,89 +73,71 @@ def resolve_pending_exits(destBlock):
     pending = cfg.pendingExits[level]
     del cfg.pendingExits[level]
     for block in pending:
+
+        # dumb hack
+        m = match(block.terminator)
+        if m('TermJumpCond(_, t, f)'):
+            if m.t is None:
+                assert m.f is not None
+                block.terminator.trueDest = destBlock
+                destBlock.entryBlocks.append(block)
+            elif m.f is None:
+                block.terminator.falseDest = destBlock
+                destBlock.entryBlocks.append(block)
+            else:
+                assert False
+            return
+
         jumps(block, destBlock)
 
 def finish_block(term):
-    "Closes up the current block (or makes an empty one) and returns it."
+    "Closes up the current block with a terminator."
     cfg = env(CFG)
-    m = match(cfg.block)
-    if m('Just(block)'):
-        finished = m.block
-        finished.terminator = term
-        cfg.pastBlocks.append(finished)
-        cfg.block = Nothing()
-        return finished
-    else:
-        new = empty_block()
-        resolve_pending_exits(new)
-        new.terminator = term
-        cfg.pastBlocks.append(new)
-        return new
-
-def new_block():
-    "Closes up the current block if any, then returns a fresh one."
-    new = empty_block()
-    cfg = env(CFG)
-    m = match(cfg.block)
-    if m('Just(block)'):
-        old = m.block
-        jumps(old, new)
-    cfg.block = Just(new)
-    resolve_pending_exits(new)
-    return new
+    if isNothing(cfg.block):
+        return
+    finished = fromJust(cfg.block)
+    assert matches(finished.terminator, 'TermInvalid()')
+    finished.terminator = term
+    cfg.pastBlocks.append(finished)
+    cfg.block = Nothing()
 
 def exit_to_level(level):
-    "Terminates current block, later resolving to the first block at level."
+    "Terminates current block, later resolving to the next block at level."
     cfg = env(CFG)
+    if isNothing(cfg.block):
+        return
     curLevel = cfg.level
     assert level <= curLevel, "Bad exit to inner level"
-    block = finish_block(TermInvalid())
+    block = fromJust(cfg.block)
     cfg.pendingExits.setdefault(level, []).append(block)
-
-def exit_to_block(dest):
-    "Terminates current block, jumping to the destination block."
-    exiting = finish_block(TermJump(dest))
-    dest.entryBlocks.append(exiting)
+    cfg.block = Nothing()
+    cfg.pastBlocks.append(block)
 
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
         blocks = []
-        state = ControlFlowState(Nothing(), 0, {}, blocks)
+        state = ControlFlowState(Just(empty_block()), 0, {}, blocks)
         in_env(CFG, state, lambda: self.visit('func'))
         assert state.level == 0
-
-        if 0 in state.pendingExits:
-            pending = state.pendingExits[0]
-            returningBlock = Block([], TermReturnNothing(), pending)
-            for block in pending:
-                block.terminator = TermJump(returningBlock)
-            blocks.append(block)
-
+        assert 0 not in state.pendingExits
         if len(blocks) == 0:
-            blocks.append(Block([], TermReturnNothing(), []))
+            b = empty_block()
+            b.terminator = TermReturnNothing()
+            blocks.append(b)
         bf = BlockFunc(top.var, top.func.params, blocks)
         env(NEWFUNCS).append(bf)
 
     def FuncExpr(self, fe):
-        assert False
+        assert False, "FuncExprs ought to be gone"
 
     def Body(self, body):
         cfg = env(CFG)
         outerLevel = cfg.level
         innerLevel = outerLevel + 1
+
         cfg.level = innerLevel
         self.visit()
-
-        if innerLevel in cfg.pendingExits:
-            # make an empty block for these pending exits to jump to
-            innerPending = cfg.pendingExits[innerLevel]
-            del cfg.pendingExits[innerLevel]
-            block = new_block()
-            for pendingBlock in innerPending:
-                jumps(pendingBlock, block)
-            # have this one jump to the next level out
-            cfg.pendingExits.setdefault(outerLevel, []).append(block)
-
+        assert innerLevel not in cfg.pendingExits, "Dangling exit?"
         cfg.level = outerLevel
 
     def Break(self, stmt):
@@ -155,49 +145,60 @@ class ControlFlowBuilder(vat.Visitor):
 
     def Cond(self, cond):
         cfg = env(CFG)
-        final = empty_block()
-        for case in cond.cases:
+        exitLevel = cfg.level
+        n = len(cond.cases)
+        for i, case in enumerate(cond.cases):
             if matches(case.test, "Bind(key('True'))"):
                 # makeshift else
+                _ = ensure_block()
                 vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
-                exit_to_block(final)
+                exit_to_level(exitLevel)
             else:
+                isLast = (i == n-1)
                 true = empty_block()
-                nextTest = empty_block()
+                nextTest = None if isLast else empty_block() # XXX hack
                 test, converse = elide_NOTs(case.test)
                 jump = TermJumpCond(test, nextTest, true) if converse else \
                         TermJumpCond(test, true, nextTest)
-                _ = finish_block(jump)
+                finish_block(jump)
                 cfg.block = Just(true)
                 vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
-                exit_to_block(final)
-                cfg.block = Just(nextTest)
+                exit_to_level(exitLevel)
+                if nextTest is not None:
+                    cfg.block = Just(nextTest)
 
-        cfg.block = Just(final)
-        resolve_pending_exits(final)
+        if exitLevel in cfg.pendingExits:
+            _ = start_new_block()
 
     def Continue(self, stmt):
-        exit_to_block(env(LOOP).entryBlock)
+        finish_block(TermJump(env(LOOP).entryBlock))
 
     def Return(self, stmt):
-        _ = finish_block(TermReturn(stmt.expr))
+        finish_block(TermReturn(stmt.expr))
 
     def ReturnNothing(self, stmt):
-        _ = finish_block(TermReturnNothing())
+        finish_block(TermReturnNothing())
 
     def While(self, stmt):
         cfg = env(CFG)
-        start = new_block()
-        body = new_block()
+        exitLevel = cfg.level
+        start = start_new_block()
+        body = start_new_block()
         def go():
             self.visit('body')
-            exit_to_block(start)
-        in_env(LOOP, LoopInfo(cfg.level, start), go)
-        end = ensure_block()
-        start.terminator = TermJumpCond(stmt.test, body, end)
+            finish_block(TermJump(start))
+        in_env(LOOP, LoopInfo(exitLevel, start), go)
 
-        # body.entryBlocks is already set up (already contains start)
-        end.entryBlocks.append(start)
+        if matches(stmt.test, 'key("True")'):
+            # maybe infinite loop; don't put the TermJumpCond in
+            if exitLevel in cfg.pendingExits:
+                # there was a break somewhere, so resolve it to here
+                _ = start_new_block()
+        else:
+            end = start_new_block()
+            start.terminator = TermJumpCond(stmt.test, body, end)
+            # body.entryBlocks is already set up (already contains start)
+            end.entryBlocks.append(start)
 
     def Assign(self, assign):
         block_push(assign)
@@ -234,17 +235,16 @@ def build_control_flow(unit):
     in_env(NEWFUNCS, funcs, lambda: vat.visit(ControlFlowBuilder, unit, t))
 
     for func in funcs:
-        print 'made', extrinsic(Name, func.var)
+        print 'FUNC', extrinsic(Name, func.var)
         for block in func.blocks:
-            print 'BLOCK'
             for stmt in block.stmts:
                 print '   ', stmt
-            print ' >>', match(block.terminator,
+            print '   ', match(block.terminator,
                 ('TermJump(d)', lambda d: 'jump'),
                 ('TermJumpCond(c, _, _)', lambda c: '?: %r' % (c,)),
                 ('TermReturnNothing()', lambda: 'ret void'),
                 ('TermReturn(e)', lambda e: 'ret %r' % (e,)))
-
+            print
 
     return funcs
 
