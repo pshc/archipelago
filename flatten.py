@@ -263,6 +263,35 @@ def elide_NOTs(test):
     else:
         return test, False
 
+def check_cfg_func(func):
+    assert len(func.blocks) > 0
+    entryCounts = {}
+    for src in func.blocks:
+        m = match(src.terminator)
+        if m('TermJump(dest)'):
+            assert src in m.dest.entryBlocks
+            entryCounts[m.dest] = entryCounts.get(m.dest, 0) + 1
+        elif m('TermJumpCond(_, d1, d2)'):
+            assert src in m.d1.entryBlocks
+            entryCounts[m.d1] = entryCounts.get(m.d1, 0) + 1
+            assert src in m.d2.entryBlocks
+            entryCounts[m.d2] = entryCounts.get(m.d2, 0) + 1
+        elif m('TermReturn(_) or TermReturnNothing() or TermUnreachable()'):
+            pass
+        else:
+            assert False, "Found %s" % (src.terminator,)
+    # check that all entry blocks are accounted for
+    first = True
+    for block in func.blocks:
+        n = len(block.entryBlocks)
+        lbl = block.label
+        if first:
+            first = False
+        else:
+            assert n > 0, "Block %s has no entry" % (lbl,)
+        if n > 0:
+            assert block in entryCounts, "Block %s never sees a jump" % (lbl,)
+            assert entryCounts[block] == n, "Bad entry count to %s" % (lbl,)
 
 def build_control_flow(unit):
     funcs = []
@@ -285,6 +314,7 @@ def build_control_flow(unit):
                 ('TermReturn(e)', lambda e: 'ret %r' % (e,)),
                 ('TermUnreachable()', lambda: 'unreachable'))
         print
+        check_cfg_func(func)
 
     return funcs
 
