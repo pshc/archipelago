@@ -10,12 +10,13 @@ Block = DT('Block', ('label', str),
                     ('entryBlocks', ['*Block']))
 
 Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
-    TermInvalid = ADT('Terminator',
+    TermUnreachable, TermInvalid = ADT('Terminator',
     'TermJump', ('dest', '*Block'),
     'TermJumpCond', ('expr', Expr), ('trueDest', '*Block'),
                     ('falseDest', '*Block'),
     'TermReturnNothing',
     'TermReturn', ('expr', Expr),
+    'TermUnreachable',
     'TermInvalid')
 
 ControlFlowState = DT('ControlFlowState',
@@ -48,6 +49,7 @@ def start_new_block(label, index):
     if m('Just(block)'):
         old = m.block
         jumps(old, new)
+        cfg.pastBlocks.append(old)
     cfg.block = Just(new)
     resolve_pending_exits(new)
     return new
@@ -97,6 +99,14 @@ def finish_block(term):
     finished.terminator = term
     cfg.pastBlocks.append(finished)
     cfg.block = Nothing()
+
+def finish_jump(block):
+    "Finishes with TermJump and also updates entryBlock on the dest block."
+    cfg = env(CFG)
+    if isNothing(cfg.block):
+        return
+    block.entryBlocks.append(fromJust(cfg.block))
+    finish_block(TermJump(block))
 
 def exit_to_level(level):
     "Terminates current block, later resolving to the next block at level."
@@ -173,10 +183,14 @@ class ControlFlowBuilder(vat.Visitor):
             test, converse = elide_NOTs(case.test)
             jump = TermJumpCond(test, nextTest, true) if converse else \
                     TermJumpCond(test, true, nextTest)
+            curBlock = fromJust(cfg.block)
+            true.entryBlocks.append(curBlock)
             if isLast:
                 # resolve the conditional fall-through later (hack)
                 pends = cfg.pendingExits.setdefault(exitLevel, [])
-                pends.append(fromJust(cfg.block))
+                pends.append(curBlock)
+            else:
+                nextTest.entryBlocks.append(curBlock)
             finish_block(jump)
             cfg.block = Just(true)
             vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
@@ -188,7 +202,7 @@ class ControlFlowBuilder(vat.Visitor):
             _ = start_new_block('endif', orig_index(cond))
 
     def Continue(self, stmt):
-        finish_block(TermJump(env(LOOP).entryBlock))
+        finish_jump(env(LOOP).entryBlock)
 
     def Return(self, stmt):
         finish_block(TermReturn(stmt.expr))
@@ -203,7 +217,7 @@ class ControlFlowBuilder(vat.Visitor):
         body = start_new_block('whilebody', orig_index(stmt))
         def go():
             self.visit('body')
-            finish_block(TermJump(start))
+            finish_jump(start)
         in_env(LOOP, LoopInfo(exitLevel, start), go)
 
         if matches(stmt.test, 'key("True")'):
@@ -225,6 +239,10 @@ class ControlFlowBuilder(vat.Visitor):
         block_push(stmt)
     def VoidStmt(self, stmt):
         block_push(stmt)
+        m = match(stmt.voidExpr)
+        if m('VoidCall(Bind(f), _)'):
+            if matches(extrinsic(TypeOf, m.f), 'TFunc(_, Bottom(), _)'):
+                finish_block(TermUnreachable())
     # ugh what is this doing here
     def WriteExtrinsic(self, stmt):
         block_push(stmt)
@@ -254,7 +272,9 @@ def build_control_flow(unit):
     for func in funcs:
         print 'FUNC', extrinsic(Name, func.var)
         for block in func.blocks:
-            print '%s:' % (block.label,)
+            if block.entryBlocks:
+                print fmtcol('{0}: ^LG; entry from {1}^N', block.label,
+                        ', '.join(b.label for b in block.entryBlocks))
             for stmt in block.stmts:
                 print '   ', stmt
             print '   ', match(block.terminator,
@@ -262,7 +282,9 @@ def build_control_flow(unit):
                 ('TermJumpCond(c, t, f)', lambda c, t, f:
                     'j %r, %s, %s' % (c, t.label, f.label)),
                 ('TermReturnNothing()', lambda: 'ret void'),
-                ('TermReturn(e)', lambda e: 'ret %r' % (e,)))
+                ('TermReturn(e)', lambda e: 'ret %r' % (e,)),
+                ('TermUnreachable()', lambda: 'unreachable'))
+        print
 
     return funcs
 
