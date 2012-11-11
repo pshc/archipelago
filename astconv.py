@@ -790,20 +790,20 @@ def conv_printnl(s):
         for bit in re.split(r'(%.)', node.left.value):
             if bit.startswith('%'):
                 if bit == '%s':
-                    f = 'bedrock._print_str'
+                    f = 'runtime._print_str'
                 elif bit == '%d':
-                    f = 'bedrock._print_int'
+                    f = 'runtime._print_int'
                 else:
                     assert False, "Unknown format " + bit
                 ops.append(sym_call(f, [args.pop(0)]))
             else:
                 lit = E.Lit(StrLit(bit))
-                ops.append(sym_call('bedrock._print_str', [lit]))
+                ops.append(sym_call('runtime._print_str', [lit]))
         assert not args, "Format arguments remain: " + args
-        ops.append(sym_call('bedrock._newline', []))
+        ops.append(sym_call('runtime._newline', []))
         return ops
     else:
-        return [sym_call('bedrock.puts', [conv_expr(node)])]
+        return [sym_call('runtime.puts', [conv_expr(node)])]
 
 @top_level(ast.Printnl)
 def ignore_debug_print(s):
