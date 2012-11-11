@@ -177,7 +177,11 @@ class AssertionExpander(vat.Mutator):
 
         message = self.mutate('message')
         call = S.VoidStmt(VoidCall(bfail, [message]))
-        return S.Cond([CondCase(check, Body([call]))])
+        case = CondCase(check, Body([call]))
+        set_orig(case, a)
+        cond = S.Cond([case])
+        set_orig(cond, a)
+        return cond
 
 def convert_decl_types(decls):
     map_(iconvert_func_var, decls.cdecls)
