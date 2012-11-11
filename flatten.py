@@ -4,7 +4,8 @@ from quilt import *
 import vat
 
 # maybe we should just build entryBlocks later?
-Block = DT('Block', ('stmts', ['Stmt(Expr)']),
+Block = DT('Block', ('label', str),
+                    ('stmts', ['Stmt(Expr)']),
                     ('terminator', 'Terminator'),
                     ('entryBlocks', ['*Block']))
 
@@ -35,12 +36,13 @@ BlockFunc = DT('BlockFunc', ('var', Var),
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
-def empty_block():
-    return Block([], TermInvalid(), [])
+def empty_block(label, index):
+    label = '%s.%d' % (label, index)
+    return Block(label, [], TermInvalid(), [])
 
-def start_new_block():
+def start_new_block(label, index):
     "Closes up the current block if any, then returns a fresh one."
-    new = empty_block()
+    new = empty_block(label, index)
     cfg = env(CFG)
     m = match(cfg.block)
     if m('Just(block)'):
@@ -50,15 +52,10 @@ def start_new_block():
     resolve_pending_exits(new)
     return new
 
-def ensure_block():
+def block_push(stmt):
     m = match(env(CFG).block)
     if m('Just(block)'):
-        return m.block
-    else:
-        return start_new_block()
-
-def block_push(stmt):
-    ensure_block().stmts.append(stmt)
+        m.block.stmts.append(stmt)
 
 def jumps(src, dest):
     assert matches(src.terminator, 'TermInvalid()')
@@ -86,7 +83,7 @@ def resolve_pending_exits(destBlock):
                 destBlock.entryBlocks.append(block)
             else:
                 assert False
-            return
+            continue
 
         jumps(block, destBlock)
 
@@ -113,15 +110,22 @@ def exit_to_level(level):
     cfg.block = Nothing()
     cfg.pastBlocks.append(block)
 
+def orig_index(stmt):
+    return vat.orig_loc(stmt).index
+
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
         blocks = []
-        state = ControlFlowState(Just(empty_block()), 0, {}, blocks)
+        state = ControlFlowState(Just(empty_block('', 0)), 0, {}, blocks)
         in_env(CFG, state, lambda: self.visit('func'))
         assert state.level == 0
         assert 0 not in state.pendingExits
-        if len(blocks) == 0:
-            b = empty_block()
+        if isJust(state.block):
+            last = fromJust(state.block)
+            last.terminator = TermReturnNothing()
+            blocks.append(last)
+        elif len(blocks) == 0:
+            b = empty_block('', 0)
             b.terminator = TermReturnNothing()
             blocks.append(b)
         bf = BlockFunc(top.var, top.func.params, blocks)
@@ -132,13 +136,13 @@ class ControlFlowBuilder(vat.Visitor):
 
     def Body(self, body):
         cfg = env(CFG)
-        outerLevel = cfg.level
-        innerLevel = outerLevel + 1
+        outer = cfg.level
+        inner = outer + 1
 
-        cfg.level = innerLevel
+        cfg.level = inner
         self.visit()
-        assert innerLevel not in cfg.pendingExits, "Dangling exit?"
-        cfg.level = outerLevel
+        assert inner not in cfg.pendingExits, "Dangling exit?"
+        cfg.level = outer
 
     def Break(self, stmt):
         exit_to_level(env(LOOP).level)
@@ -148,27 +152,40 @@ class ControlFlowBuilder(vat.Visitor):
         exitLevel = cfg.level
         n = len(cond.cases)
         for i, case in enumerate(cond.cases):
+            assert isJust(cfg.block), "Unreachable case?"
+
             if matches(case.test, "Bind(key('True'))"):
                 # makeshift else
-                _ = ensure_block()
+                block = fromJust(cfg.block)
+                if block.label[:4] == 'elif':
+                    block.label = 'else' + block.label[4:]
                 vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
                 exit_to_level(exitLevel)
-            else:
-                isLast = (i == n-1)
-                true = empty_block()
-                nextTest = None if isLast else empty_block() # XXX hack
-                test, converse = elide_NOTs(case.test)
-                jump = TermJumpCond(test, nextTest, true) if converse else \
-                        TermJumpCond(test, true, nextTest)
-                finish_block(jump)
-                cfg.block = Just(true)
-                vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
-                exit_to_level(exitLevel)
-                if nextTest is not None:
-                    cfg.block = Just(nextTest)
+                continue
+
+            isLast = (i == n-1)
+            true = empty_block('then', orig_index(case))
+
+            # XXX type hack
+            nextTest = None if isLast else \
+                    empty_block('elif', orig_index(cond.cases[i+1]))
+
+            test, converse = elide_NOTs(case.test)
+            jump = TermJumpCond(test, nextTest, true) if converse else \
+                    TermJumpCond(test, true, nextTest)
+            if isLast:
+                # resolve the conditional fall-through later (hack)
+                pends = cfg.pendingExits.setdefault(exitLevel, [])
+                pends.append(fromJust(cfg.block))
+            finish_block(jump)
+            cfg.block = Just(true)
+            vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
+            exit_to_level(exitLevel)
+            if not isLast:
+                cfg.block = Just(nextTest)
 
         if exitLevel in cfg.pendingExits:
-            _ = start_new_block()
+            _ = start_new_block('endif', orig_index(cond))
 
     def Continue(self, stmt):
         finish_block(TermJump(env(LOOP).entryBlock))
@@ -182,8 +199,8 @@ class ControlFlowBuilder(vat.Visitor):
     def While(self, stmt):
         cfg = env(CFG)
         exitLevel = cfg.level
-        start = start_new_block()
-        body = start_new_block()
+        start = start_new_block('while', orig_index(stmt))
+        body = start_new_block('whilebody', orig_index(stmt))
         def go():
             self.visit('body')
             finish_block(TermJump(start))
@@ -193,9 +210,9 @@ class ControlFlowBuilder(vat.Visitor):
             # maybe infinite loop; don't put the TermJumpCond in
             if exitLevel in cfg.pendingExits:
                 # there was a break somewhere, so resolve it to here
-                _ = start_new_block()
+                _ = start_new_block('endwhile', orig_index(stmt))
         else:
-            end = start_new_block()
+            end = start_new_block('endwhile', orig_index(stmt))
             start.terminator = TermJumpCond(stmt.test, body, end)
             # body.entryBlocks is already set up (already contains start)
             end.entryBlocks.append(start)
@@ -237,14 +254,15 @@ def build_control_flow(unit):
     for func in funcs:
         print 'FUNC', extrinsic(Name, func.var)
         for block in func.blocks:
+            print '%s:' % (block.label,)
             for stmt in block.stmts:
                 print '   ', stmt
             print '   ', match(block.terminator,
-                ('TermJump(d)', lambda d: 'jump'),
-                ('TermJumpCond(c, _, _)', lambda c: '?: %r' % (c,)),
+                ('TermJump(d)', lambda d: 'j %s' % (d.label,)),
+                ('TermJumpCond(c, t, f)', lambda c, t, f:
+                    'j %r, %s, %s' % (c, t.label, f.label)),
                 ('TermReturnNothing()', lambda: 'ret void'),
                 ('TermReturn(e)', lambda e: 'ret %r' % (e,)))
-            print
 
     return funcs
 
