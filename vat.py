@@ -290,7 +290,7 @@ def mutate_by_type(obj, t, customMutators=True):
         return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, m.tts))
     elif m('TData(data, appTs)'):
         assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
-                "Expected %s, got: %r" % (m.data, obj)
+                "Expected %s, got %r: %r" % (m.data, type(obj), obj)
         apps = m.appTs and app_map(m.data, m.appTs)
         mutator = env(MUTATE)
 
