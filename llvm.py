@@ -792,45 +792,6 @@ def write_field_specs(fields, layout):
     else:
         out(' }')
 
-def write_ctor(ctor, dt, layout):
-    dtt = IPtr(IData(dt))
-    out('declare ' if env(DECLSONLY) else 'define ')
-    out_t(dtt)
-    out_global_symbol(ctor)
-    if env(DECLSONLY):
-        write_param_types(extrinsic(LLVMTypeOf, ctor).params)
-        newline()
-    else:
-        as_local(lambda: _write_ctor_body(ctor, layout, dtt))
-        out('}\n')
-
-def _write_ctor_body(ctor, layout, dtt):
-    pts = match(extrinsic(LLVMTypeOf, ctor), "IFunc(pts, _, _)")
-    txs = write_params(ctor.fields, pts, True)
-    out(' {')
-    newline()
-
-    ctort = IData(ctor)
-    inst = malloc(ctort)
-
-    # Ought to sanity check slot indices here, but it's kind of awkward
-    discrim = isJust(layout.discrimSlot)
-    if discrim:
-        index = extrinsic(expand.CtorIndex, ctor)
-        txs.insert(0, TypedXpr(IInt(), ConstInt(index)))
-
-    if isJust(layout.extrSlot):
-        txs.insert(0, TypedXpr(IVoidPtr(), null()))
-
-    struct = build_struct(ctort, txs)
-    store_xpr(struct, inst.xpr)
-
-    if discrim:
-        inst = cast(inst, dtt)
-    out('ret ')
-    out_txpr(inst)
-    newline()
-
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
     if isJust(layout.discrimSlot):
@@ -840,7 +801,6 @@ def write_dtstmt(form):
         out('%%%s = type ' % (global_symbol(ctor).name,))
         write_field_specs(ctor.fields, layout)
         newline()
-        write_ctor(ctor, form, layout)
     if not env(DECLSONLY):
         newline()
 

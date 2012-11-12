@@ -419,6 +419,82 @@ def bind_extrinsic(extr):
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
+
+def generate_ctors(dts, flat_mod):
+    ctor_funcs = []
+    for dt in dts:
+        for ctor in dt.ctors:
+            ctor_funcs.append(generate_ctor(ctor, dt))
+    flat_mod.funcs = ctor_funcs + flat_mod.funcs
+
+# XXX terrible temporary hack
+def reserved_field(index, dt):
+    discrim = isJust(extrinsic(DataLayout, dt).discrimSlot)
+    valueADT = discrim and dt.opts.valueType
+    dummy = t_DT(ValueADTLayout if valueADT else DTLayout).data.ctors[0]
+    field = dummy.fields[index]
+    assert extrinsic(FieldIndex, field) == index
+    return field
+
+def generate_ctor(ctor, dt):
+    ctort = IPtr(IDataCtor(ctor))
+    inst = Var()
+    add_extrinsic(Name, inst, 'inst')
+    add_extrinsic(LLVMTypeOf, inst, ctort)
+
+    sizeof = SizeOf(IPtr(IDataCtor(ctor)))
+    add_extrinsic(LLVMTypeOf, sizeof, IInt())
+    instPtr = runtime_call('malloc', [sizeof])
+    instPtr = cast(IVoidPtr(), IPtr(IDataCtor(ctor)), instPtr)
+    pat = PatVar(inst)
+    add_extrinsic(LLVMTypeOf, pat, ctort)
+    instDefn = S.Defn(pat, instPtr)
+
+    ps = []
+    stmts = [instDefn]
+
+    def assign_field(field, ft, val):
+        instBind = L.Bind(inst)
+        add_extrinsic(LLVMTypeOf, instBind, ctort)
+        lhs = LhsAttr(instBind, field)
+        add_extrinsic(LLVMTypeOf, lhs, ft)
+        add_extrinsic(LLVMTypeOf, val, ft)
+        stmts.append(S.Assign(lhs, val))
+
+    layout = extrinsic(DataLayout, dt)
+    m = match(layout.extrSlot)
+    if m('Just(index)'):
+        field = reserved_field(m.index, dt)
+        assign_field(field, IVoidPtr(), NullPtr())
+
+    discrim = isJust(layout.discrimSlot)
+    if discrim:
+        index = extrinsic(CtorIndex, ctor)
+        field = reserved_field(fromJust(layout.discrimSlot), dt)
+        assign_field(field, IInt(), L.Lit(IntLit(index)))
+
+    for field in ctor.fields:
+        ft = extrinsic(LLVMTypeOf, field)
+        param = Var()
+        add_extrinsic(Name, param, extrinsic(Name, field))
+        add_extrinsic(LLVMTypeOf, param, ft)
+        ps.append(param)
+        assign_field(field, ft, L.Bind(param))
+
+    retVal = L.Bind(inst)
+    add_extrinsic(LLVMTypeOf, retVal, ctort)
+    if discrim:
+        retVal = cast(IPtr(IDataCtor(ctor)), IPtr(IData(dt)), retVal)
+    block = Block('.0', stmts, TermReturn(retVal), [])
+
+    funcVar = GlobalVar()
+    add_extrinsic(Name, funcVar, extrinsic(Name, ctor))
+    add_extrinsic(LLVMTypeOf, funcVar, extrinsic(LLVMTypeOf, ctor))
+    glob = env(EXGLOBAL)
+    glob.newDecls.funcDecls.append(funcVar)
+    return BlockFunc(funcVar, ps, [block])
+
+
 class ImportMarker(vat.Visitor):
     def Bind(self, bind):
         tar = bind.target
@@ -510,7 +586,7 @@ def expand_decls(decls):
     _prepare_decls(decls)
     _finish_decls(decls)
 
-def expand_unit(unit):
+def expand_unit(old_decl_mod, unit):
     t = t_DT(ExpandedUnit)
 
     expand_closures(unit)
@@ -530,6 +606,8 @@ def expand_unit(unit):
     vat.mutate(TypeConverter, flat, t)
     vat.mutate(MaybeConverter, flat, t)
     vat.mutate(EnvExtrConverter, flat, t)
+
+    generate_ctors(old_decl_mod.root.dts, flat)
 
     _finish_decls(env(EXGLOBAL).newDecls)
 
@@ -574,7 +652,7 @@ def expand_module(decl_mod, defn_mod):
 
     # Mutate clones
     glob = ExGlobal(new_decls, [], [decl_mod, defn_mod])
-    flat_unit = in_env(EXGLOBAL, glob, lambda: expand_unit(new_unit))
+    flat_unit = in_env(EXGLOBAL, glob, lambda: expand_unit(decl_mod, new_unit))
 
     return new_decls, flat_unit
 
