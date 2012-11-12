@@ -514,12 +514,11 @@ def write_runtime_call(name, argxs):
     else:
         return Just(call(ftx, argxs))
 
-def expr_call(f, args):
-    mret = LLVMBindable.express_called(f.target, args)
+def expr_call(var, args):
+    mret = LLVMBindable.express_called(var, args)
     if isJust(mret):
         return fromJust(mret)
 
-    var = f.target
     ftx = TypedXpr(extrinsic(LLVMTypeOf, var), LLVMBindable.express(var))
     argxs = map(express, args)
 
@@ -674,7 +673,7 @@ def voidexpr_with(var, expr):
 def express(expr):
     return match(expr,
         ('Bind(v)', LLVMBindable.express),
-        ('Call(f, args)', expr_call),
+        ('Call(Bind(var), args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('e==InEnv(environ, init, expr)', expr_inenv),
         ('m==Match(p, cs)', expr_match),
