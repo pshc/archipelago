@@ -13,6 +13,29 @@ LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, Undefined, WithVar = \
 
 ExpandedUnit = DT('ExpandedUnit', ('funcs', ['TopFunc(LExpr)']))
 
+
+Block = DT('Block', ('label', str),
+                    ('stmts', ['Stmt(LExpr)']),
+                    ('terminator', 'Terminator'),
+                    ('entryBlocks', ['*Block']))
+
+Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
+    TermUnreachable, TermInvalid = ADT('Terminator',
+    'TermJump', ('dest', '*Block'),
+    'TermJumpCond', ('expr', LExpr), ('trueDest', '*Block'),
+                    ('falseDest', '*Block'),
+    'TermReturnNothing',
+    'TermReturn', ('expr', LExpr),
+    'TermUnreachable',
+    'TermInvalid')
+
+BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
+                            ('params', [Var]),
+                            ('blocks', [Block]))
+
+BlockUnit = DT('BlockUnit', ('funcs', [BlockFunc]))
+
+
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 
 IType, IInt, IInt64, IFloat, IBool, IVoid, \

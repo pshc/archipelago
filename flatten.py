@@ -3,22 +3,6 @@ from atom import *
 from quilt import *
 import vat
 
-# maybe we should just build entryBlocks later?
-Block = DT('Block', ('label', str),
-                    ('stmts', ['Stmt(Expr)']),
-                    ('terminator', 'Terminator'),
-                    ('entryBlocks', ['*Block']))
-
-Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
-    TermUnreachable, TermInvalid = ADT('Terminator',
-    'TermJump', ('dest', '*Block'),
-    'TermJumpCond', ('expr', Expr), ('trueDest', '*Block'),
-                    ('falseDest', '*Block'),
-    'TermReturnNothing',
-    'TermReturn', ('expr', Expr),
-    'TermUnreachable',
-    'TermInvalid')
-
 ControlFlowState = DT('ControlFlowState',
         ('block', 'Maybe(Block)'),
         ('level', int),
@@ -30,10 +14,6 @@ CFG = new_env('CFG', ControlFlowState)
 LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
 LOOP = new_env('LOOP', int)
-
-BlockFunc = DT('BlockFunc', ('var', Var),
-                            ('params', [Var]),
-                            ('blocks', [Block]))
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
@@ -317,7 +297,7 @@ def build_control_flow(unit):
             print
 
     map_(check_cfg_func, funcs)
-    return funcs
+    return BlockUnit(funcs)
 
 NEWBODY = new_env('NEWBODY', Body)
 
