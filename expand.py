@@ -310,18 +310,17 @@ def expand_inenv(e, returnsValue, exprMutator):
         return w
 
 class EnvExtrConverter(vat.Mutator):
-    def TopFunc(self, top):
+    def BlockFunc(self, func):
         threadedVar = Nothing()
-        ft = extrinsic(TypeOf, top.var)
+        ft = extrinsic(TypeOf, func.var)
         if ft.meta.envParam:
             # Add context parameter
             var = new_ctx_var()
             threadedVar = Just(var)
-            top.func.params.append(var)
+            func.params.append(var)
 
-        top.func = in_env(THREADENV, threadedVar, lambda: self.mutate('func'))
-        add_extrinsic(LLVMTypeOf, top.func, convert_func_type(ft))
-        return top
+        _ = in_env(THREADENV, threadedVar, lambda: self.mutate('blocks'))
+        return func
 
     def FuncExpr(self, fe):
         assert False
@@ -470,7 +469,7 @@ def unique_local(v):
     add_extrinsic(LocalSymbol, v, name)
 
 class LocalVarUniquer(vat.Visitor):
-    def Func(self, func):
+    def BlockFunc(self, func):
         in_env(EXLOCALS, {}, lambda: self.visit())
 
     def Var(self, var):
@@ -523,18 +522,20 @@ def expand_unit(unit):
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
-    flatten.flatten_unit(unit)
+    flat = flatten.flatten_unit(unit)
+    t = t_DT(BlockUnit)
 
     _prepare_decls(env(EXGLOBAL).newDecls)
 
-    vat.mutate(TypeConverter, unit, t)
-    vat.mutate(MaybeConverter, unit, t)
-    vat.mutate(EnvExtrConverter, unit, t)
+    vat.mutate(TypeConverter, flat, t)
+    vat.mutate(MaybeConverter, flat, t)
+    vat.mutate(EnvExtrConverter, flat, t)
 
     _finish_decls(env(EXGLOBAL).newDecls)
 
-    vat.visit(ImportMarker, unit, t)
-    vat.visit(LocalVarUniquer, unit, t)
+    vat.visit(ImportMarker, flat, t)
+    vat.visit(LocalVarUniquer, flat, t)
+    return flat
 
 def in_intramodule_env(func):
     captures = {}
@@ -572,9 +573,9 @@ def expand_module(decl_mod, defn_mod):
     new_unit = vat.in_vat(transmute)
 
     # Mutate clones
-    in_env(EXGLOBAL, ExGlobal(new_decls, [], [decl_mod, defn_mod]),
-        lambda: expand_unit(new_unit))
+    glob = ExGlobal(new_decls, [], [decl_mod, defn_mod])
+    flat_unit = in_env(EXGLOBAL, glob, lambda: expand_unit(new_unit))
 
-    return (new_decls, new_unit)
+    return new_decls, flat_unit
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

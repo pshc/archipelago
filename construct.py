@@ -131,10 +131,10 @@ def build_mod(decl_mod, defn_mod, plan):
     atom.write_mod_repr(impv, defn_mod, [TypeOf, TypeCast])
 
     checkpoint()
-    new_decls, new_unit = expand.expand_module(decl_mod, defn_mod)
+    new_decls, flat_unit = expand.expand_module(decl_mod, defn_mod)
     checkpoint('expanded module')
     xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
-    defn_mod = Module(t_DT(quilt.ExpandedUnit), new_unit)
+    defn_mod = Module(t_DT(quilt.BlockUnit), flat_unit)
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))
     add_extrinsic(Name, defn_mod, name)
     atom.write_mod_repr(view, xdecl_mod, [TypeOf])

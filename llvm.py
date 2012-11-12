@@ -5,32 +5,16 @@ import mach
 import os
 import sys
 
-Label = DT('Label', ('name', str),
-                    ('used', bool),
-                    ('needsTerminator', bool))
-
 IR = new_env('IR', file)
 
 IRLocals = DT('IRLocals', ('needIndent', bool),
-                          ('unreachable', bool),
-                          ('tempCtr', int),
-                          ('entryBlock', Label),
-                          ('currentBlock', Label),
-                          ('labelsUsed', set([str])),
-                          ('loopLabels', 'Maybe((Label, Label))'))
+                          ('tempCtr', int))
 
 LOCALS = new_env('LOCALS', IRLocals)
 
 EXPORTSYMS = new_env('EXPORTSYMS', bool)
 
 DECLSONLY = new_env('DECLSONLY', bool)
-
-def setup_ir(filename):
-    return file(filename, 'wb') # really ought to close explicitly
-
-def setup_locals():
-    entry = Label(':entry:', True, True)
-    return IRLocals(False, False, 0, entry, entry, set(), Nothing())
 
 TypedXpr = DT('TypedXpr', ('type', IType), ('xpr', 'Xpr'))
 
@@ -105,22 +89,8 @@ def out_pretty(a, t):
 def out_local_var_reg(v):
     out('%%%s' % (extrinsic(expand.LocalSymbol, v),))
 
-def out_label(label):
-    lcl = env(LOCALS)
-    if lcl.currentBlock.needsTerminator:
-        out('br label %%%s\n\n%s:\n' % (label.name, label.name))
-    else:
-        imm_out('\n%s:\n' % (label.name,))
-    lcl.currentBlock = label
-    lcl.needIndent = True
-    lcl.unreachable = False
-
-def out_naked_label_ref(label, naked):
-    out(('%%%s' if naked else 'label %%%s') % (label.name,))
-    label.used = True
-
-def out_label_ref(label):
-    out_naked_label_ref(label, False)
+def out_block_ref(block):
+    out('label %%%s' % (block.label,))
 
 def out_xpr(x):
     out(xpr_str(x))
@@ -162,11 +132,6 @@ def constelemptr_str(src, ixs):
 def clear_indent():
     env(LOCALS).needIndent = False
 
-def term():
-    env(LOCALS).currentBlock.needsTerminator = False
-    newline()
-    env(LOCALS).unreachable = True
-
 def temp_reg():
     lcl = env(LOCALS)
     reg = Tmp(lcl.tempCtr)
@@ -184,47 +149,7 @@ def null():
 def zeroinitializer():
     return ConstKeyword(KZeroInitializer())
 
-def new_series(atom):
-    return extrinsic(Location, atom).index
-
-def new_label(nm, series):
-    lcl = env(LOCALS)
-    nm = '%s.%d' % (nm, series)
-    assert nm not in lcl.labelsUsed, "Repeated label %s" % (nm,)
-    lcl.labelsUsed.add(nm)
-    label = Label(nm, False, True)
-    return label
-
 # INSTRUCTIONS
-
-def br(label):
-    out('br ')
-    out_label_ref(label)
-    term()
-
-def br_cond(cond, true, false):
-    out('br i1 ')
-    out_xpr(cond)
-    comma()
-    out_label_ref(true)
-    comma()
-    out_label_ref(false)
-    term()
-
-def phi(reg, t, srcs):
-    assert len(srcs) > 1
-    out_xpr(reg)
-    out(' = phi ')
-    out_t(t)
-    for i, (xpr, lbl) in enumerate(srcs):
-        if i > 0:
-            comma()
-        out('[ ')
-        out_xpr(xpr)
-        comma()
-        out_naked_label_ref(lbl, True)
-        out(' ]')
-    newline()
 
 def load(regname, t, xpr):
     tmp = temp_reg_named(regname)
@@ -280,11 +205,7 @@ def call_void(ftx, argxs):
     write_args(ft.params, argxs)
     if ft.meta.noReturn:
         out(' noreturn')
-        newline()
-        out('unreachable')
-        term()
-    else:
-        newline()
+    newline()
 
 def write_args(paramTypes, args):
     out('(')
@@ -680,43 +601,8 @@ def voidexpr_inenv(e, environ, init, vexpr):
     pop_env(envx, ctx)
 
 def expr_match(m, e, cs):
-    xpr = express(e)
-    msrs = new_series(m)
-    next_case = new_label('case', new_series(cs[0]))
-    success = new_label('matchresult', msrs)
-    phi_srcs = []
-    for i, c in enumerate(cs):
-        if i > 0:
-            assert next_case.used, "Unreachable match case"
-        out_label(next_case)
-        cp, ce = match(c, ("MatchCase(cp, ce)", tuple2))
-        if i + 1 < len(cs):
-            next_case = new_label('case', new_series(cs[i+1]))
-        else:
-            next_case = new_label('failed', msrs)
-        info = MatchState(next_case)
-        in_env(MATCH, info, lambda: match_pat(cp, xpr))
-        x = express(ce)
-        here = env(LOCALS).currentBlock
-        phi_srcs.append((x, here))
-        here.used = True
-        if not env(LOCALS).unreachable:
-            br(success)
-
-    if next_case.used:
-        out_label(next_case)
-        _ = write_runtime_call('match_fail', [])
-        out('unreachable')
-        term()
-
-    assert success.used
-    out_label(success)
-    if len(phi_srcs) < 2:
-        x, lbl = phi_srcs[0]
-        return x
-    tmp = temp_reg_named('match')
-    phi(tmp, typeof(m), phi_srcs)
-    return tmp
+    out_comment('todo match expr')
+    return express(e)
 
 def expr_attr(e, f):
     tx = express_typed(e)
@@ -788,7 +674,6 @@ def voidexpr_with(var, expr):
     write_voidexpr(expr)
 
 def express(expr):
-    assert not env(LOCALS).unreachable, "Unreachable expr: %s" % (expr,)
     return match(expr,
         ('Bind(v)', LLVMBindable.express),
         ('Call(f, args)', expr_call),
@@ -808,74 +693,6 @@ def express(expr):
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
-
-# PATTERN MATCHES
-
-MatchState = DT('MatchState', ('failureBlock', Label))
-
-MATCH = new_env('MATCH', MatchState)
-
-def match_pat_ctor(pat, ctor, ps, tx):
-    # XXX maybe codegen
-    if Nullable.isMaybe(ctor):
-        ctorNm = global_symbol(ctor).name
-        if ctorNm == 'Just':
-            match_pat_just(pat, ps[0], tx)
-        else:
-            assert ctorNm == 'Nothing'
-            match_pat_nothing(pat, tx)
-        return
-
-    form = match(tx.type, "IPtr(IData(form))")
-    layout = extrinsic(expand.DataLayout, form)
-    ctorSym = global_symbol(ctor).name
-    if isJust(layout.discrimSlot):
-        tx = cast(tx, IPtr(IData(ctor)))
-        ixptr = get_element_ptr('ixptr', tx, fromJust(layout.discrimSlot))
-        ix = load('ix', IInt(), ixptr)
-        index = ConstInt(extrinsic(expand.CtorIndex, ctor))
-        m = expr_binop('icmp eq', ix.xpr, index, ix.type)
-        correctIx = new_label('got.%s' % (ctorSym,), new_series(pat))
-        br_cond(m, correctIx, env(MATCH).failureBlock)
-        out_label(correctIx)
-
-    datat = match(tx.type, "IPtr(t==IData(_))")
-    ctorval = load(ctorSym, datat, tx.xpr)
-
-    for p, f in ezip(ps, ctor.fields):
-        index = extrinsic(expand.FieldIndex, f)
-        val = extractvalue(extrinsic(expand.FieldSymbol, f), ctorval, index)
-        match_pat(p, val)
-
-def match_pat_just(pat, p, tx):
-    m = expr_binop('icmp ne', tx.xpr, null(), tx.type)
-    lbl = new_label('just', new_series(pat))
-    br_cond(m, lbl, env(MATCH).failureBlock)
-    out_label(lbl)
-    val = cast(tx, extrinsic(LLVMTypeOf, p)).xpr
-    match_pat(p, val)
-
-def match_pat_nothing(pat, tx):
-    m = expr_binop('icmp eq', tx.xpr, null(), tx.type)
-    lbl = new_label('nothing', new_series(pat))
-    br_cond(m, lbl, env(MATCH).failureBlock)
-    out_label(lbl)
-
-def match_pat_tuple(ps, tx):
-    with_pat_tuple(ps, tx, match_pat)
-
-def match_pat(pat, xpr):
-    if has_extrinsic(LLVMPatCast, pat):
-        src, dest = extrinsic(LLVMPatCast, pat)
-        tx = cast(TypedXpr(src, xpr), dest)
-    else:
-        tx = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
-
-    match((pat, tx),
-        ("(pat==PatCtor(c, ps), tx)", match_pat_ctor),
-        ("(PatTuple(ps), tx)", match_pat_tuple),
-        ("(PatVar(v), tx)", store_pat_var),
-        ("(PatWild(), _)", nop))
 
 # STATEMENTS
 
@@ -929,70 +746,6 @@ def write_augassign(op, lhs, e):
     left = load_lhs(lhs)
     ex = expr_binop(aug_op(op), left, right, typeof(e))
     store_lhs(lhs, ex)
-
-def write_break():
-    begin, end = env(LOCALS).loopLabels
-    br(end)
-
-def write_continue():
-    begin, end = env(LOCALS).loopLabels
-    br(begin)
-
-def write_cond(stmt, cs):
-    n = len(cs)
-    srs = new_series(stmt)
-    csrs = new_series(cs[0])
-    elif_ = Nothing()
-    endif = new_label('endif', srs)
-    for i, case in enumerate(cs):
-        if isJust(elif_):
-            out_label(fromJust(elif_))
-
-        # Makeshift else
-        if matches(case.test, "Bind(key('True'))"):
-            assert i == n-1, "Dead cond case"
-            out_comment('else:')
-            write_body(case.body)
-            continue # breaks, really
-
-        if i == 0:
-            out_comment('if %s:' % (stringify(case.test, 'LExpr'),))
-        else:
-            out_pretty(case, 'CondCase(LExpr)')
-
-        # Optimize out trivial NOTs
-        m = match(case.test)
-        converse = False
-        if m('Call(Bind(key("not")), [con])'):
-            m2 = match(m.con)
-            if m2('Call(Bind(key("not")), [concon])'):
-                ex = express(m2.concon)
-            else:
-                ex = express(m.con)
-                converse = True
-        else:
-            ex = express(case.test)
-
-        then = new_label('then', csrs)
-        e = endif
-        haveAnotherCase = False
-        if i + 1 < n:
-            haveAnotherCase = True
-            csrs = new_series(cs[i + 1])
-            e = new_label('elif', csrs)
-            elif_ = Just(e)
-
-        if converse:
-            out_comment('`not` omitted; labels swapped')
-            br_cond(ex, e, then)
-        else:
-            br_cond(ex, then, e)
-        out_label(then)
-        write_body(case.body)
-        if haveAnotherCase and not env(LOCALS).unreachable:
-            br(endif)
-    if endif.used:
-        out_label(endif)
 
 def write_local_func_defn(f):
     assert has_extrinsic(expand.Closure, f)
@@ -1073,7 +826,7 @@ def _write_ctor_body(ctor, layout, dtt):
         inst = cast(inst, dtt)
     out('ret ')
     out_txpr(inst)
-    term()
+    newline()
 
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
@@ -1143,7 +896,7 @@ def write_params(ps, tps, fieldSymbols):
     out(')')
     return txs
 
-def write_top_func_decl(ref, ft):
+def write_func_decl(ref, ft):
     out('declare ')
     out_t(ft.ret)
     out_xpr(ref)
@@ -1152,23 +905,23 @@ def write_top_func_decl(ref, ft):
         out(' noreturn')
     newline()
 
-def write_top_func(var, f):
-    ft = extrinsic(LLVMTypeOf, f)
+def write_func(f):
+    ft = extrinsic(LLVMTypeOf, f.var)
 
     if env(DECLSONLY):
-        write_top_func_decl(global_symbol(var), ft)
+        write_func_decl(global_symbol(f.var), ft)
         return
     elif env(EXPORTSYMS):
         out('define ')
     else:
         out('define internal ')
     out_t(ft.ret)
-    out_global_symbol(var)
+    out_global_symbol(f.var)
 
-    as_local(lambda: _write_top_func(f, ft))
+    as_local(lambda: _write_func(f, ft))
     out('}\n\n')
 
-def _write_top_func(f, ft):
+def _write_func(f, ft):
     txs = write_params(f.params, ft.params, False)
     if ft.meta.noReturn:
         out(' noreturn')
@@ -1185,41 +938,8 @@ def _write_top_func(f, ft):
             store_local_var(tx, p)
         newline()
 
-    write_body(f.body)
-
-    # Clean up
-    last = env(LOCALS).currentBlock
-    if last.used and last.needsTerminator:
-        assert matches(ft.ret, 'IVoid()'), "No terminator for non-void return?"
-        out('ret void')
-        term()
-
-def write_return(expr):
-    xt = express_typed(expr)
-    out('ret ')
-    out_txpr(xt)
-    term()
-
-def write_while(stmt, cond, body):
-    srs = new_series(stmt)
-    begin = new_label('while', srs)
-    body_label = new_label('whilebody', srs)
-    exit = new_label('endwhile', srs)
-
-    # for break and continue
-    old_labels = env(LOCALS).loopLabels
-    env(LOCALS).loopLabels = (begin, exit)
-
-    out_label(begin)
-    ex = express(cond)
-    br_cond(ex, body_label, exit)
-    out_label(body_label)
-    write_body(body)
-    if not env(LOCALS).unreachable:
-        br(begin)
-    out_label(exit)
-
-    env(LOCALS).loopLabels = old_labels
+    for block in f.blocks:
+        write_block(block)
 
 def write_stmt(stmt):
     if has_extrinsic(IRComments, stmt):
@@ -1228,18 +948,42 @@ def write_stmt(stmt):
     match(stmt,
         ("Assign(lhs, e)", write_assign),
         ("AugAssign(op, lhs, e)", write_augassign),
-        ("Break()", write_break),
-        ("Continue()", write_continue),
-        ("stmt==Cond(cs)", write_cond),
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
-        ("Return(e)", write_return),
-        ("stmt==While(c, b)", write_while),
         ("VoidStmt(e)", write_voidexpr),
         ("Nop()", nop))
 
-def write_body(body):
-    map_(write_stmt, match(body, 'Body(ss)'))
+def write_block(block):
+    if block.label != '.0':
+        imm_out('\n%s:\n' % (block.label,))
+    env(LOCALS).needIndent = True
+    map_(write_stmt, block.stmts)
+
+    m = match(block.terminator)
+    if m('TermJump(dest)'):
+        out('br ')
+        out_block_ref(m.dest)
+    elif m('TermJumpCond(c, t, f)'):
+        out_comment('if %s' % (stringify(m.c, 'LExpr'),))
+        cx = express(m.c)
+        out('br i1 ')
+        out_xpr(cx)
+        comma()
+        out_block_ref(m.t)
+        comma()
+        out_block_ref(m.f)
+    elif m('TermReturn(e)'):
+        out_comment('return %s' % (stringify(m.e, 'LExpr'),))
+        tx = express_typed(m.e)
+        out('ret ')
+        out_txpr(tx)
+    elif m('TermReturnNothing()'):
+        out('ret void')
+    elif m('TermUnreachable()'):
+        out('unreachable')
+    else:
+        assert False
+    newline()
 
 def imported_bindable_used(v):
     return v in env(expand.IMPORTBINDS)
@@ -1247,7 +991,7 @@ def imported_bindable_used(v):
 def write_top_cdecl(v):
     if not imported_bindable_used(v):
         return
-    write_top_func_decl(global_symbol(v), extrinsic(LLVMTypeOf, v))
+    write_func_decl(global_symbol(v), extrinsic(LLVMTypeOf, v))
 
 def write_top_var_func(v, f):
     if env(DECLSONLY) and not imported_bindable_used(v):
@@ -1293,13 +1037,11 @@ def write_top_decls(decls):
     map_(write_top_cdecl, decls.funcDecls)
 
 def as_local(f):
-    lcl = setup_locals()
-    in_env(LOCALS, lcl, f)
-    assert not lcl.currentBlock.needsTerminator, "Last block not terminated?"
+    in_env(LOCALS, IRLocals(False, 0), f)
 
 def write_unit(unit):
-    for top in unit.funcs:
-        in_env(EXPORTSYMS, True, lambda: write_top_func(top.var, top.func))
+    for func in unit.funcs:
+        write_func(func)
 
 prelude = """; prelude
 %Type = type opaque
@@ -1336,13 +1078,13 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
         newline()
         out('; main')
         newline()
-        def go():
+        def go2():
             for decl in decls:
                 write_top_decls(decl.root)
-            write_unit(defn_mod.root)
-        in_env(DECLSONLY, False, go)
+            in_env(EXPORTSYMS, True, lambda: write_unit(defn_mod.root))
+        in_env(DECLSONLY, False, go2)
 
-    in_env(IR, setup_ir(filename),
+    in_env(IR, file(filename, 'wb'), # really ought to close explicitly
         lambda: scope_extrinsic(LiteralSize,
         go))
 
