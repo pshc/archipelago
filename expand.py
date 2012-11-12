@@ -419,13 +419,7 @@ def bind_extrinsic(extr):
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
-
-def generate_ctors(dts, flat_mod):
-    ctor_funcs = []
-    for dt in dts:
-        for ctor in dt.ctors:
-            ctor_funcs.append(generate_ctor(ctor, dt))
-    flat_mod.funcs = ctor_funcs + flat_mod.funcs
+CtorReplacement = new_extrinsic('CtorReplacement', '*GlobalVar')
 
 # XXX terrible temporary hack
 def reserved_field(index, dt):
@@ -492,7 +486,25 @@ def generate_ctor(ctor, dt):
     add_extrinsic(LLVMTypeOf, funcVar, extrinsic(LLVMTypeOf, ctor))
     glob = env(EXGLOBAL)
     glob.newDecls.funcDecls.append(funcVar)
+
+    add_extrinsic(CtorReplacement, ctor, funcVar)
+    set_orig(funcVar, ctor)
+
     return BlockFunc(funcVar, ps, [block])
+
+class CtorReplacer(vat.Mutator):
+    def Bind(self, bind):
+        if has_extrinsic(CtorReplacement, bind.target):
+            bind.target = extrinsic(CtorReplacement, bind.target)
+        return bind
+
+def replace_ctors(decls, flat):
+    ctor_funcs = []
+    for dt in decls.dts:
+        for ctor in dt.ctors:
+            ctor_funcs.append(generate_ctor(ctor, dt))
+    flat.funcs = ctor_funcs + flat.funcs
+    vat.mutate(CtorReplacer, flat, t_DT(BlockUnit))
 
 
 class ImportMarker(vat.Visitor):
@@ -607,7 +619,7 @@ def expand_unit(old_decl_mod, unit):
     vat.mutate(MaybeConverter, flat, t)
     vat.mutate(EnvExtrConverter, flat, t)
 
-    generate_ctors(old_decl_mod.root.dts, flat)
+    replace_ctors(old_decl_mod.root, flat)
 
     _finish_decls(env(EXGLOBAL).newDecls)
 
@@ -631,7 +643,7 @@ def in_intramodule_env(func):
 def in_intermodule_env(func):
     captures = {}
     extrs = [LLVMTypeOf, DataLayout, CtorIndex, FieldIndex,
-            GlobalSymbol, CFunction, FieldSymbol]
+            GlobalSymbol, CFunction, FieldSymbol, CtorReplacement]
     return capture_scoped(extrs, captures, func)
 
 def expand_module(decl_mod, defn_mod):

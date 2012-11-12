@@ -408,10 +408,6 @@ def load_var(v):
     newline()
     return tmp
 
-@impl(LLVMBindable, Ctor)
-def express_Ctor(c):
-    return global_symbol(c)
-
 @impl(LLVMBindable, Extrinsic)
 def express_Extrinsic(extr):
     return global_symbol(extr)
@@ -523,7 +519,7 @@ def expr_call(f, args):
     if isJust(mret):
         return fromJust(mret)
 
-    var = f.target # or ctor
+    var = f.target
     ftx = TypedXpr(extrinsic(LLVMTypeOf, var), LLVMBindable.express(var))
     argxs = map(express, args)
 
