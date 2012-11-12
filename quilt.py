@@ -38,8 +38,8 @@ BlockUnit = DT('BlockUnit', ('funcs', [BlockFunc]))
 
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 
-IType, IInt, IInt64, IFloat, IBool, IVoid, \
-    IArray, ITuple, IData, IFunc, IPtr, IWeak, IVoidPtr = ADT('IType',
+IType, IInt, IInt64, IFloat, IBool, IVoid, IArray, ITuple, \
+    IData, IDataCtor, IFunc, IPtr, IWeak, IVoidPtr = ADT('IType',
         'IInt',
         'IInt64',
         'IFloat',
@@ -48,6 +48,7 @@ IType, IInt, IInt64, IFloat, IBool, IVoid, \
         'IArray', ('count', int), ('type', 'IType'),
         'ITuple', ('types', ['IType']),
         'IData', ('datatype', '*DataType'),
+        'IDataCtor', ('ctor', '*Ctor'),
         'IFunc', ('params', ['IParam']), ('ret', 'IType'), ('meta', IFuncMeta),
         'IPtr', ('type', 'IType'),
         'IWeak', ('type', 'IType'),

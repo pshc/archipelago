@@ -347,7 +347,7 @@ def t_str(t):
         ("IVoid()", lambda: "void"),
         ("IArray(n, t)", lambda n, et: "[%d x %s]" % (n, t_str(et))),
         ("ITuple(ts)", lambda ts: "{%s}" % (', '.join(map(t_str, ts)))),
-        ("IData(dt)", lambda dt: "%%%s" % extrinsic(Name, dt)),
+        ("IData(dt) or IDataCtor(dt)", lambda dt: "%%%s" % extrinsic(Name,dt)),
         ("IFunc(ps, r, _)", _ifunc_str),
         ("IPtr(p)", lambda p: t_str(p) + "*"),
         ("IWeak(t)", t_str),
