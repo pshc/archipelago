@@ -176,10 +176,12 @@ def store_xpr(txpr, dest):
     out_xpr(dest)
     newline()
 
-def malloc(t):
+def sizeof(t):
     nullx = ConstElementPtr(TypedXpr(IPtr(t), null()), [1])
-    sizeof = ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), IInt())
-    mem = write_runtime_call('malloc', [sizeof])
+    return ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), IInt())
+
+def malloc(t):
+    mem = write_runtime_call('malloc', [sizeof(t)])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
 
 def call(ftx, argxs):
@@ -688,6 +690,7 @@ def express(expr):
         ('Cast(src, dest, expr)', expr_cast),
         ('e==FuncVal(f, ctx)', expr_funcval),
         ('NullPtr()', null),
+        ('SizeOf(t)', sizeof),
         ('Undefined()', lambda: ConstKeyword(KUndef())),
         ('WithVar(v, e)', expr_with))
 
