@@ -298,24 +298,25 @@ def build_control_flow(unit):
     t = t_DT(ExpandedUnit)
     in_env(NEWFUNCS, funcs, lambda: vat.visit(ControlFlowBuilder, unit, t))
 
-    for func in funcs:
-        print 'FUNC', extrinsic(Name, func.var)
-        for block in func.blocks:
-            if block.entryBlocks:
-                print fmtcol('{0}: ^LG; entry from {1}^N', block.label,
-                        ', '.join(b.label for b in block.entryBlocks))
-            for stmt in block.stmts:
-                print '   ', stmt
-            print '   ', match(block.terminator,
-                ('TermJump(d)', lambda d: 'j %s' % (d.label,)),
-                ('TermJumpCond(c, t, f)', lambda c, t, f:
-                    'j %r, %s, %s' % (c, t.label, f.label)),
-                ('TermReturnNothing()', lambda: 'ret void'),
-                ('TermReturn(e)', lambda e: 'ret %r' % (e,)),
-                ('TermUnreachable()', lambda: 'unreachable'))
-        print
-        check_cfg_func(func)
+    if env(GENOPTS).dumpBlocks:
+        for func in funcs:
+            print 'FUNC', extrinsic(Name, func.var)
+            for block in func.blocks:
+                if block.entryBlocks:
+                    print fmtcol('{0}: ^LG; entry from {1}^N', block.label,
+                            ', '.join(b.label for b in block.entryBlocks))
+                for stmt in block.stmts:
+                    print '   ', stmt
+                print '   ', match(block.terminator,
+                    ('TermJump(d)', lambda d: 'j %s' % (d.label,)),
+                    ('TermJumpCond(c, t, f)', lambda c, t, f:
+                        'j %r, %s, %s' % (c, t.label, f.label)),
+                    ('TermReturnNothing()', lambda: 'ret void'),
+                    ('TermReturn(e)', lambda e: 'ret %r' % (e,)),
+                    ('TermUnreachable()', lambda: 'unreachable'))
+            print
 
+    map_(check_cfg_func, funcs)
     return funcs
 
 NEWBODY = new_env('NEWBODY', Body)

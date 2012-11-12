@@ -703,8 +703,12 @@ GenOpts = DT('GenOpts', ('color', None),
                         ('dumpViews', bool),
                         ('dumpSource', bool),
                         ('dumpTypes', bool),
-                        ('dumpInsts', bool))
+                        ('dumpInsts', bool),
+                        ('dumpBlocks', bool))
 GENOPTS = new_env('GENOPTS', GenOpts)
+
+def default_gen_opts():
+    return GenOpts(None, False, False, False, False, False, False)
 
 import re
 _col_re = re.compile(r'\^(\w+)\^?')

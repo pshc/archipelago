@@ -325,7 +325,7 @@ def main():
     import sys
     files = []
     argv = sys.argv[1:]
-    genOpts = GenOpts(None, False, False, False, False, False)
+    genOpts = default_gen_opts()
     options = BuildOpts(Nothing(), False, False)
     while argv:
         arg = argv.pop(0)
@@ -347,6 +347,8 @@ def main():
                 genOpts.dumpTypes = True
             elif arg == '-i':
                 genOpts.dumpInsts = True
+            elif arg == '-b':
+                genOpts.dumpBlocks = True
             # Build options
             elif arg == '--c-header':
                 options.writeHeaders = True
