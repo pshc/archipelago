@@ -118,7 +118,8 @@ class ControlFlowBuilder(vat.Visitor):
             b = empty_block('', 0)
             b.terminator = TermReturnNothing()
             blocks.append(b)
-        bf = BlockFunc(top.var, top.func.params, blocks)
+        params = map(LVar, top.func.params)
+        bf = BlockFunc(top.var, params, blocks)
         env(NEWFUNCS).append(bf)
 
     def FuncExpr(self, fe):

@@ -317,7 +317,7 @@ class EnvExtrConverter(vat.Mutator):
             # Add context parameter
             var = new_ctx_var()
             threadedVar = Just(var)
-            func.params.append(var)
+            func.params.append(LVar(var))
 
         _ = in_env(THREADENV, threadedVar, lambda: self.mutate('blocks'))
         return func
@@ -469,10 +469,10 @@ def generate_ctor(ctor, dt):
 
     for field in ctor.fields:
         ft = extrinsic(LLVMTypeOf, field)
-        param = Var()
+        param = Register()
         add_extrinsic(Name, param, extrinsic(Name, field))
         add_extrinsic(LLVMTypeOf, param, ft)
-        ps.append(param)
+        ps.append(LRegister(param))
         assign_field(field, ft, L.Bind(param))
 
     retVal = L.Bind(inst)
@@ -562,6 +562,9 @@ class LocalVarUniquer(vat.Visitor):
 
     def Var(self, var):
         unique_local(var)
+
+    def Register(self, reg):
+        unique_local(reg)
 
 def unique_decls(decls):
     for v in decls.cdecls:

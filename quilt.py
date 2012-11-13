@@ -30,8 +30,18 @@ Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
     'TermUnreachable',
     'TermInvalid')
 
+Register = DT('Register')
+
+@impl(Bindable, Register)
+def isLocalVar_Register(reg):
+    return True
+
+LLocal, LVar, LRegister = ADT('BlockParam',
+    'LVar', ('var', Var),
+    'LRegister', ('register', Register))
+
 BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
-                            ('params', [Var]),
+                            ('params', [LLocal]),
                             ('blocks', [Block]))
 
 BlockUnit = DT('BlockUnit', ('funcs', [BlockFunc]))

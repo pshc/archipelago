@@ -397,6 +397,10 @@ def express_GlobalVar(v):
 def express_Var(v):
     return load_var(v)
 
+@impl(LLVMBindable, Register)
+def express_Register(r):
+    return Reg(extrinsic(expand.LocalSymbol, r), 0)
+
 def load_var(v):
     # Would be nice: (need local_var_reg)
     #return load(extrinsic(LocalSymbol, v), typeof(v), local_var_reg(v)).xpr
@@ -846,7 +850,11 @@ def write_params(ps, tps):
             first = False
         else:
             comma()
-        tmp = temp_reg_named(extrinsic(expand.LocalSymbol, p))
+        tmp = match(p,
+            ('LVar(v)',
+                lambda v: temp_reg_named(extrinsic(expand.LocalSymbol, v))),
+            ('LRegister(r)',
+                lambda r: Reg(extrinsic(expand.LocalSymbol, r), 0)))
         tx = TypedXpr(match(tp, 'IParam(t, _)'), tmp)
         out_txpr(tx)
         txs.append(tx)
@@ -888,11 +896,13 @@ def _write_func(f, ft):
     if len(f.params) > 0:
         # write params to mem
         for p, tx in ezip(f.params, txs):
-            out_local_var_reg(p)
-            out(' = alloca ')
-            out_t(tx.type)
-            newline()
-            store_local_var(tx, p)
+            m = match(p)
+            if m('LVar(v)'):
+                out_local_var_reg(m.v)
+                out(' = alloca ')
+                out_t(tx.type)
+                newline()
+                store_local_var(tx, m.v)
         newline()
 
     for block in f.blocks:
