@@ -46,6 +46,8 @@ def is_const(x):
 
 LiteralSize = new_extrinsic('LiteralSize', int)
 
+LocalReg = new_extrinsic('LocalReg', Xpr)
+
 # GLOBAL OUTPUT
 
 def imm_out(s):
@@ -85,9 +87,6 @@ def out_comment(s):
 
 def out_pretty(a, t):
     out_comment(stringify(a, t))
-
-def out_local_var_reg(v):
-    out('%%%s' % (extrinsic(expand.LocalSymbol, v),))
 
 def out_block_ref(block):
     out('label %%%s' % (block.label,))
@@ -165,7 +164,7 @@ def store_local_var(txpr, var):
     out_txpr(txpr)
     comma()
     out_t_ptr(txpr.type)
-    out_local_var_reg(var)
+    out_xpr(extrinsic(LocalReg, var))
     newline()
 
 def store_xpr(txpr, dest):
@@ -402,15 +401,8 @@ def express_Register(r):
     return Reg(extrinsic(expand.LocalSymbol, r))
 
 def load_var(v):
-    # Would be nice: (need local_var_reg)
-    #return load(extrinsic(LocalSymbol, v), typeof(v), local_var_reg(v)).xpr
-    tmp = temp_reg_named(extrinsic(expand.LocalSymbol, v))
-    out_xpr(tmp)
-    out(' = load ')
-    out_t_ptr(typeof(v))
-    out_local_var_reg(v)
-    newline()
-    return tmp
+    reg = extrinsic(LocalReg, v)
+    return load(reg.label, typeof(v), reg).xpr
 
 @impl(LLVMBindable, Extrinsic)
 def express_Extrinsic(extr):
@@ -712,7 +704,9 @@ def store_lhs(lhs, x):
         ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
 def store_pat_var(v, txpr):
-    out_local_var_reg(v)
+    reg = Reg(extrinsic(expand.LocalSymbol, v))
+    add_extrinsic(LocalReg, v, reg)
+    out_xpr(reg)
     out(' = alloca ')
     out_t_nospace(txpr.type)
     newline()
@@ -898,7 +892,9 @@ def _write_func(f, ft):
         for p, tx in ezip(f.params, txs):
             m = match(p)
             if m('LVar(v)'):
-                out_local_var_reg(m.v)
+                reg = Reg(extrinsic(expand.LocalSymbol, m.v))
+                add_extrinsic(LocalReg, m.v, reg)
+                out_xpr(reg)
                 out(' = alloca ')
                 out_t(tx.type)
                 newline()
@@ -1008,7 +1004,7 @@ def as_local(f):
 
 def write_unit(unit):
     for func in unit.funcs:
-        write_func(func)
+        scope_extrinsic(LocalReg, lambda: write_func(func))
 
 prelude = """; prelude
 %Type = type opaque
