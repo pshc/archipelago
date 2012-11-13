@@ -24,7 +24,7 @@ XprKeyword, KNull, KZeroInitializer, KUndef, KTrue, KFalse = ADT('XKeyword',
 Xpr, Reg, Tmp, Global, ConstStruct, ConstInt, ConstFloat, ConstKeyword, \
         ConstOp, ConstCast, \
     ConstElementPtr = ADT('Xpr',
-        'Reg', ('label', 'str'), ('index', 'int'),
+        'Reg', ('label', 'str'),
         'Tmp', ('index', 'int'),
         'Global', ('name', str),
         'ConstStruct', ('vals', [TypedXpr]),
@@ -37,7 +37,7 @@ Xpr, Reg, Tmp, Global, ConstStruct, ConstInt, ConstFloat, ConstKeyword, \
 
 def is_const(x):
     return match(x,
-        ('Reg(_, _)', lambda: False), ('Tmp(_)', lambda: False),
+        ('Reg(_)', lambda: False), ('Tmp(_)', lambda: False),
         ('Global(_)', lambda: True), ('ConstStruct(_)', lambda: True),
         ('ConstInt(_)', lambda: True), ('ConstFloat(_)', lambda: True),
         ('ConstKeyword(_)', lambda: True), ('ConstOp(_, _)', lambda: True),
@@ -96,7 +96,7 @@ def out_xpr(x):
     out(xpr_str(x))
 
 def xpr_str(x):
-    return match(x, ('Reg(nm, i)', lambda nm, i: '%%%s.%d' % (nm, i)),
+    return match(x, ('Reg(nm)', lambda nm: '%%%s' % (nm,)),
                     ('Tmp(i)', lambda i: '%%.%d' % (i,)),
                     ('Global(name)', lambda name: '@%s' % (name,)),
                     ('ConstStruct(vals)', conststruct_str),
@@ -140,7 +140,7 @@ def temp_reg():
 
 def temp_reg_named(nm):
     lcl = env(LOCALS)
-    reg = Reg(nm, lcl.tempCtr)
+    reg = Reg('%s.%d' % (nm, lcl.tempCtr))
     lcl.tempCtr += 1
     return reg
 
@@ -399,7 +399,7 @@ def express_Var(v):
 
 @impl(LLVMBindable, Register)
 def express_Register(r):
-    return Reg(extrinsic(expand.LocalSymbol, r), 0)
+    return Reg(extrinsic(expand.LocalSymbol, r))
 
 def load_var(v):
     # Would be nice: (need local_var_reg)
