@@ -837,7 +837,7 @@ def write_param_types(tps):
         out_t_nospace(match(t, "IParam(t, _)"))
     out(')')
 
-def write_params(ps, tps, fieldSymbols):
+def write_params(ps, tps):
     out('(')
     first = True
     txs = []
@@ -846,8 +846,7 @@ def write_params(ps, tps, fieldSymbols):
             first = False
         else:
             comma()
-        tmp = temp_reg_named(extrinsic(expand.FieldSymbol, p) if fieldSymbols
-                else extrinsic(expand.LocalSymbol, p))
+        tmp = temp_reg_named(extrinsic(expand.LocalSymbol, p))
         tx = TypedXpr(match(tp, 'IParam(t, _)'), tmp)
         out_txpr(tx)
         txs.append(tx)
@@ -880,7 +879,7 @@ def write_func(f):
     out('}\n\n')
 
 def _write_func(f, ft):
-    txs = write_params(f.params, ft.params, False)
+    txs = write_params(f.params, ft.params)
     if ft.meta.noReturn:
         out(' noreturn')
     out(' {')
