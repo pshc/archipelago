@@ -402,6 +402,12 @@ class ExprStringifier(Visitor):
 
     def NullPtr(self, null):
         frag('null')
+    def SizeOf(self, sizeof):
+        m = match(sizeof)
+        if m("SizeOf(IPtr(IData(dt) or IDataCtor(dt)))"):
+            frag('sizeof %s' % (extrinsic(Name, m.dt),))
+        else:
+            frag('sizeof ...')
     def Undefined(self, undef):
         frag('undef')
     def FuncVal(self, e):
