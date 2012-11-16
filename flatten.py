@@ -7,6 +7,7 @@ ControlFlowState = DT('ControlFlowState',
         ('block', 'Maybe(Block)'),
         ('level', int),
         ('pendingExits', {int: ['*Block']}),
+        ('scopeVars', ['*Var']),
         ('pastBlocks', [Block]))
 
 CFG = new_env('CFG', ControlFlowState)
@@ -19,7 +20,7 @@ NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
 def empty_block(label, index):
     label = '%s.%d' % (label, index)
-    return Block(label, [], TermInvalid(), [])
+    return Block(label, [], [], TermInvalid(), [])
 
 def start_new_block(label, index):
     "Closes up the current block if any, then returns a fresh one."
@@ -69,6 +70,19 @@ def resolve_pending_exits(destBlock):
 
         jumps(block, destBlock)
 
+def is_gc_var(var):
+    t = extrinsic(TypeOf, var)
+    return is_strong_type(t) and not matches(t, "TFunc(_, _, _)") # todo
+
+def null_out_scope_vars():
+    cfg = env(CFG)
+    if isJust(cfg.block):
+        nullOuts = fromJust(cfg.block).nullOuts
+        for var in cfg.scopeVars:
+            if is_gc_var(var):
+                nullOuts.append(var)
+    cfg.scopeVars = []
+
 def finish_block(term):
     "Closes up the current block with a terminator."
     cfg = env(CFG)
@@ -106,7 +120,7 @@ def orig_index(stmt):
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
         blocks = []
-        state = ControlFlowState(Just(empty_block('', 0)), 0, {}, blocks)
+        state = ControlFlowState(Just(empty_block('', 0)), 0, {}, [], blocks)
         in_env(CFG, state, lambda: self.visit('func'))
         assert state.level == 0
         assert 0 not in state.pendingExits
@@ -127,15 +141,24 @@ class ControlFlowBuilder(vat.Visitor):
 
     def Body(self, body):
         cfg = env(CFG)
-        outer = cfg.level
-        inner = outer + 1
+        outerLevel = cfg.level
+        innerLevel = outerLevel + 1
+        outerDefns = cfg.scopeVars
 
-        cfg.level = inner
+        cfg.level = innerLevel
+        cfg.scopeVars = []
+
         self.visit()
-        assert inner not in cfg.pendingExits, "Dangling exit?"
-        cfg.level = outer
+        assert innerLevel not in cfg.pendingExits, "Dangling exit?"
+        # this assumes that finish() is going to get called soon,
+        # which is safe enough for now, but really fragile
+        null_out_scope_vars()
+
+        cfg.scopeVars = outerDefns
+        cfg.level = outerLevel
 
     def Break(self, stmt):
+        null_out_scope_vars()
         exit_to_level(env(LOOP).level)
 
     def Cond(self, cond):
@@ -150,6 +173,7 @@ class ControlFlowBuilder(vat.Visitor):
                 block = fromJust(cfg.block)
                 if block.label[:4] == 'elif':
                     block.label = 'else' + block.label[4:]
+                # exit_to_level really ought to occur while inside body
                 vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
                 exit_to_level(exitLevel)
                 continue
@@ -174,6 +198,7 @@ class ControlFlowBuilder(vat.Visitor):
                 nextTest.entryBlocks.append(curBlock)
             finish_block(jump)
             cfg.block = Just(true)
+            # exit_to_level really ought to occur while inside body
             vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
             exit_to_level(exitLevel)
             if not isLast:
@@ -183,12 +208,15 @@ class ControlFlowBuilder(vat.Visitor):
             _ = start_new_block('endif', orig_index(cond))
 
     def Continue(self, stmt):
+        null_out_scope_vars()
         finish_jump(env(LOOP).entryBlock)
 
     def Return(self, stmt):
+        env(CFG).scopeVars = []
         finish_block(TermReturn(stmt.expr))
 
     def ReturnNothing(self, stmt):
+        env(CFG).scopeVars = []
         finish_block(TermReturnNothing())
 
     def While(self, stmt):
@@ -218,11 +246,13 @@ class ControlFlowBuilder(vat.Visitor):
         block_push(assign)
     def Defn(self, stmt):
         block_push(stmt)
+        self.visit('pat')
     def VoidStmt(self, stmt):
         block_push(stmt)
         m = match(stmt.voidExpr)
         if m('VoidCall(Bind(f), _)'):
             if matches(extrinsic(TypeOf, m.f), 'TFunc(_, Bottom(), _)'):
+                null_out_scope_vars()
                 finish_block(TermUnreachable())
     # ugh what is this doing here
     def WriteExtrinsic(self, stmt):
@@ -230,6 +260,11 @@ class ControlFlowBuilder(vat.Visitor):
 
     def t_Stmt(self, stmt):
         assert False, "Can't deal with %s" % stmt
+
+    def PatVar(self, pat):
+        env(CFG).scopeVars.append(pat.var)
+    def PatCapture(self, pat):
+        env(CFG).scopeVars.append(pat.var)
 
 def elide_NOTs(test):
     "Optimizes out trivial NOTs."

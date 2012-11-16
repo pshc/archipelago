@@ -479,7 +479,7 @@ def generate_ctor(ctor, dt):
     add_extrinsic(LLVMTypeOf, retVal, ctort)
     if discrim:
         retVal = cast(IPtr(IDataCtor(ctor)), IPtr(IData(dt)), retVal)
-    block = Block('.0', stmts, TermReturn(retVal), [])
+    block = Block('.0', stmts, [], TermReturn(retVal), [])
 
     funcVar = GlobalVar()
     add_extrinsic(Name, funcVar, extrinsic(Name, ctor))

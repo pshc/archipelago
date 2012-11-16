@@ -17,6 +17,7 @@ ExpandedUnit = DT('ExpandedUnit', ('funcs', ['TopFunc(LExpr)']))
 
 Block = DT('Block', ('label', str),
                     ('stmts', ['Stmt(LExpr)']),
+                    ('nullOuts', ['*Var']),
                     ('terminator', 'Terminator'),
                     ('entryBlocks', ['*Block']))
 

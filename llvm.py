@@ -922,6 +922,10 @@ def write_block(block):
     env(LOCALS).needIndent = True
     map_(write_stmt, block.stmts)
 
+    for var in block.nullOuts:
+        out_comment("%s's scope ends" % (extrinsic(expand.LocalSymbol, var),))
+        store_local_var(TypedXpr(typeof(var), null()), var)
+
     m = match(block.terminator)
     if m('TermJump(dest)'):
         out('br ')
