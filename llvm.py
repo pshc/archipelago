@@ -704,12 +704,16 @@ def store_lhs(lhs, x):
         ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
 
 def store_pat_var(v, txpr):
-    reg = Reg(extrinsic(expand.LocalSymbol, v))
-    add_extrinsic(LocalReg, v, reg)
-    out_xpr(reg)
-    out(' = alloca ')
-    out_t_nospace(txpr.type)
-    newline()
+    # might already be set up by GC business
+    if not has_extrinsic(LocalReg, v):
+        t = txpr.type
+        reg = Reg(extrinsic(expand.LocalSymbol, v))
+        add_extrinsic(LocalReg, v, reg)
+        out_xpr(reg)
+        out(' = alloca ')
+        out_t_nospace(t)
+        newline()
+
     store_local_var(txpr, v)
 
 def store_pat_tuple(ps, txpr):
@@ -887,18 +891,30 @@ def _write_func(f, ft):
     out(' {')
     newline()
 
-    if len(f.params) > 0:
+    if len(f.gcVars) > 0 or len(f.params) > 0:
+        for var in f.gcVars:
+            reg = Reg(extrinsic(expand.LocalSymbol, var))
+            add_extrinsic(LocalReg, var, reg)
+            out_xpr(reg)
+            out(' = alloca ')
+            t = extrinsic(LLVMTypeOf, var)
+            out_t(t)
+            newline()
+
         # write params to mem
         for p, tx in ezip(f.params, txs):
             m = match(p)
             if m('LVar(v)'):
-                reg = Reg(extrinsic(expand.LocalSymbol, m.v))
-                add_extrinsic(LocalReg, m.v, reg)
-                out_xpr(reg)
-                out(' = alloca ')
-                out_t(tx.type)
-                newline()
+                # this is kind of a goofy check
+                if not has_extrinsic(LocalReg, m.v):
+                    reg = Reg(extrinsic(expand.LocalSymbol, m.v))
+                    add_extrinsic(LocalReg, m.v, reg)
+                    out_xpr(reg)
+                    out(' = alloca ')
+                    out_t(tx.type)
+                    newline()
                 store_local_var(tx, m.v)
+
         newline()
 
     for block in f.blocks:

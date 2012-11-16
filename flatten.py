@@ -7,6 +7,7 @@ ControlFlowState = DT('ControlFlowState',
         ('block', 'Maybe(Block)'),
         ('level', int),
         ('pendingExits', {int: ['*Block']}),
+        ('gcVars', ['*Var']),
         ('scopeVars', ['*Var']),
         ('pastBlocks', [Block]))
 
@@ -17,6 +18,9 @@ LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 LOOP = new_env('LOOP', int)
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
+
+def initial_cfg_state():
+    return ControlFlowState(Just(empty_block('', 0)), 0, {}, [], [], [])
 
 def empty_block(label, index):
     label = '%s.%d' % (label, index)
@@ -119,11 +123,11 @@ def orig_index(stmt):
 
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
-        blocks = []
-        state = ControlFlowState(Just(empty_block('', 0)), 0, {}, [], blocks)
+        state = initial_cfg_state()
         in_env(CFG, state, lambda: self.visit('func'))
         assert state.level == 0
         assert 0 not in state.pendingExits
+        blocks = state.pastBlocks
         if isJust(state.block):
             last = fromJust(state.block)
             last.terminator = TermReturnNothing()
@@ -133,7 +137,8 @@ class ControlFlowBuilder(vat.Visitor):
             b.terminator = TermReturnNothing()
             blocks.append(b)
         params = map(LVar, top.func.params)
-        bf = BlockFunc(top.var, params, blocks)
+        # params might need to also be in gcVars?
+        bf = BlockFunc(top.var, state.gcVars, params, blocks)
         env(NEWFUNCS).append(bf)
 
     def FuncExpr(self, fe):
@@ -261,10 +266,11 @@ class ControlFlowBuilder(vat.Visitor):
     def t_Stmt(self, stmt):
         assert False, "Can't deal with %s" % stmt
 
-    def PatVar(self, pat):
-        env(CFG).scopeVars.append(pat.var)
-    def PatCapture(self, pat):
-        env(CFG).scopeVars.append(pat.var)
+    def Var(self, var):
+        cfg = env(CFG)
+        cfg.scopeVars.append(var)
+        if is_gc_var(var):
+            cfg.gcVars.append(var)
 
 def elide_NOTs(test):
     "Optimizes out trivial NOTs."

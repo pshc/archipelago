@@ -42,6 +42,7 @@ LLocal, LVar, LRegister = ADT('BlockParam',
     'LRegister', ('register', Register))
 
 BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
+                            ('gcVars', ['*Var']),
                             ('params', [LLocal]),
                             ('blocks', [Block]))
 

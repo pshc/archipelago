@@ -490,7 +490,8 @@ def generate_ctor(ctor, dt):
     add_extrinsic(CtorReplacement, ctor, funcVar)
     set_orig(funcVar, ctor)
 
-    return BlockFunc(funcVar, ps, [block])
+    gcVars = [inst] # also ps?
+    return BlockFunc(funcVar, gcVars, ps, [block])
 
 class CtorReplacer(vat.Mutator):
     def Bind(self, bind):
