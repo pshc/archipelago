@@ -898,7 +898,7 @@ def _write_func(f, ft):
     txs = write_params(f.params, ft.params)
     if ft.meta.noReturn:
         out(' noreturn')
-    out(' {')
+    out(' gc "shadow-stack" {')
     newline()
 
     if len(f.gcVars) > 0 or len(f.params) > 0:
@@ -909,6 +909,13 @@ def _write_func(f, ft):
             out(' = alloca ')
             t = extrinsic(LLVMTypeOf, var)
             out_t(t)
+            newline()
+
+            pt = cast_if_needed(TypedXpr(IPtr(t), reg), IPtr(IVoidPtr()))
+            out('call void @llvm.gcroot(')
+            out_txpr(pt)
+            comma()
+            out('i8* null)')
             newline()
 
         # write params to mem
@@ -1040,6 +1047,7 @@ prelude = """; prelude
 %Type = type opaque
 %Env = type i8
 %Extrinsic = type i8
+declare void @llvm.gcroot(i8** %ptrloc, i8* %metadata)
 
 """
 

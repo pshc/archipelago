@@ -429,7 +429,7 @@ def generate_ctor(ctor, dt):
 
     sizeof = SizeOf(IPtr(IDataCtor(ctor)))
     add_extrinsic(LLVMTypeOf, sizeof, IInt())
-    instPtr = runtime_call('malloc', [sizeof])
+    instPtr = runtime_call('gc_alloc', [sizeof])
     instPtr = cast(IVoidPtr(), IPtr(IDataCtor(ctor)), instPtr)
     pat = PatVar(inst)
     add_extrinsic(LLVMTypeOf, pat, ctort)
@@ -528,6 +528,7 @@ def dt_layout(dt):
     if not dt.opts.valueType:
         info.extrSlot = base
         base += 1
+    if dt.opts.garbageCollected:
         info.gcSlot = base
         base += 1
     if len(dt.ctors) > 1:

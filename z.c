@@ -1,7 +1,13 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define ATOM_TABLE(atom) ((atom)[0])
+struct nom_atom {
+	intptr_t *extrs;
+	uint32_t gc_flags;
+	uint32_t discrim;
+};
+
 #define TABLE_COUNT(table) ((table)[0])
 #define SLOT_KEY(table, index) ((table)[1 + (index)*2])
 #define SLOT_VALUE(table, index) ((table)[2 + (index)*2])
@@ -129,7 +135,7 @@ env_entry *_popenv(env_id env, env_entry *table) {
 
 /* EXTRINSICS */
 
-static intptr_t *resize_atom_table(intptr_t **atom, intptr_t* table,
+static intptr_t *resize_atom_table(struct nom_atom *atom, intptr_t* table,
                                    intptr_t count) {
 	intptr_t *new_table;
 	new_table = realloc(table, (1 + count*2) * sizeof *table);
@@ -138,15 +144,15 @@ static intptr_t *resize_atom_table(intptr_t **atom, intptr_t* table,
 		fail("No memory to extend extrinsic table");
 	}
 	if (new_table != table)
-		ATOM_TABLE(atom) = new_table;
+		atom->extrs = new_table;
 	TABLE_COUNT(new_table) = count;
 	return new_table;
 }
 
-void _addextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
+void _addextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
 	intptr_t count, *table;
 
-	table = ATOM_TABLE(atom);
+	table = atom->extrs;
 	count = table ? TABLE_COUNT(table) : 0;
 
 	if (table_index(table, count, extr) != -1)
@@ -157,11 +163,11 @@ void _addextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
 	SLOT_VALUE(table, count) = val;
 }
 
-void _updateextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
+void _updateextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
 	int index;
 	intptr_t *table;
 
-	table = ATOM_TABLE(atom);
+	table = atom->extrs;
 	if (!table)
 		fail("Extrinsic not already present (empty table)");
 
@@ -172,11 +178,11 @@ void _updateextrinsic(intptr_t extr, intptr_t **atom, intptr_t val) {
 	SLOT_VALUE(table, index) = val;
 }
 
-intptr_t _getextrinsic(intptr_t extr, intptr_t **atom) {
+intptr_t _getextrinsic(intptr_t extr, struct nom_atom *atom) {
 	int index;
 	intptr_t *table;
 
-	table = ATOM_TABLE(atom);
+	table = atom->extrs;
 	if (!table)
 		fail("Extrinsic not found (empty table)");
 
@@ -187,12 +193,122 @@ intptr_t _getextrinsic(intptr_t extr, intptr_t **atom) {
 	return SLOT_VALUE(table, index);
 }
 
-int _hasextrinsic(intptr_t extr, intptr_t **atom) {
+int _hasextrinsic(intptr_t extr, struct nom_atom *atom) {
 	intptr_t *table;
-	table = ATOM_TABLE(atom);
+	table = atom->extrs;
 	if (!table)
 		return 0;
 	return table_index(table, TABLE_COUNT(table), extr) != -1;
+}
+
+/* GC */
+
+struct frame_map {
+	uint32_t num_roots, num_meta;
+	/* const void *meta[0]; */
+};
+
+struct shadow_stack {
+	struct shadow_stack *next;
+	const struct frame_map *map;
+	void *roots;
+};
+
+extern struct shadow_stack *llvm_gc_root_chain;
+
+static void *heap[64];
+static uint32_t heap_count = 0;
+
+static void push_heap_ptr(void *ptr) {
+	if (heap_count >= sizeof heap / sizeof *heap)
+		fail("Out of GC heap entries"); /* pffft */
+	heap[heap_count++] = ptr;
+}
+
+static void pop_heap_ptr(uint32_t i) {
+	if (!heap_count)
+		fail("Popping empty heap");
+	if (i >= heap_count)
+		fail("Bad GC heap pop");
+	for (heap_count--; i < heap_count; i++)
+		heap[i] = heap[i + 1];
+}
+
+static void visit_gc_root(void **root) {
+	struct nom_atom *atom;
+	uint8_t *c;
+	int i;
+
+	printf("   root %016lx ", (intptr_t) root);
+	fflush(stdout);
+	atom = *root;
+	if (!atom) {
+		puts("is null");
+		return;
+	}
+	printf("is 0x%016lx: ", (intptr_t) atom);
+	fflush(stdout);
+
+	c = (uint8_t *) atom;
+	for (i = 0; i < 16; i++) {
+		printf("%02x ", c[i]);
+		if (i % 4 == 3)
+			putchar(' ');
+	}
+	putchar('\n');
+
+	atom->gc_flags = 0xaabbccdd;
+}
+
+void gc_collect(void) {
+	struct shadow_stack *r;
+	uint32_t i, n;
+	void **roots;
+	struct nom_atom *atom;
+
+	puts("=== marking...");
+	for (r = llvm_gc_root_chain; r; r = r->next) {
+		if (r->map->num_meta)
+			fail("Unexpected meta entries in stack roots");
+		printf(" stack frame %lx\n", (intptr_t) r);
+		i = 0;
+		n = r->map->num_roots;
+		roots = (void **) &r->roots;
+		for (i = 0; i < n; i++)
+			visit_gc_root(&roots[i]);
+	}
+
+	puts("=== sweeping...");
+	/* heap_count may decrease due to pop_heap_ptr(); watch out! */
+	for (i = 0; i < heap_count; i++) {
+		atom = heap[i];
+		printf(" 0x%016lx is ", (intptr_t) atom);
+		if (atom->gc_flags == 0xaabbccdd) {
+			atom->gc_flags = 0;
+			puts("live");
+		}
+		else {
+			printf("dead. ");
+			/* this heap entry will disappear, so decrement i */
+			pop_heap_ptr(i--);
+			free(atom);
+			puts("freed.");
+		}
+	}
+
+	puts("=== done collection.");
+}
+
+void *gc_alloc(size_t size) {
+	void *p;
+
+	gc_collect();
+	p = malloc(size);
+	if (!p)
+		fail("OOM");
+	push_heap_ptr(p);
+	printf("Allocated 0x%016lx.\n", (intptr_t) p);
+	return p;
 }
 
 /* TEMP */

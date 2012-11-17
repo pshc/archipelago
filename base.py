@@ -265,7 +265,8 @@ value_types = (basestring, bool, int, float, tuple, type(None))
 
 Field = DT('Field', ('type', 'Type'))
 Ctor = DT('Ctor', ('fields', [Field]))
-DTOpts = DT('DTOpts', ('valueType', bool))
+DTOpts = DT('DTOpts', ('valueType', bool),
+                      ('garbageCollected', bool))
 DataType = DT('DataType', ('ctors', [Ctor]),
                           ('tvars', ['TypeVar']),
                           ('opts', DTOpts))
@@ -304,8 +305,12 @@ def _dt_form(dt, tvs):
     ctors = in_env(TVARS, tvs,
             lambda: in_env(NEWTYPEVARS, None,
             lambda: map(do_ctor, dt.ctors)))
-    opts = DTOpts(dt._opts.get('value', False))
+
+    valueType = dt._opts.get('value', False)
+    gc = not valueType # temp
+    opts = DTOpts(valueType, gc)
     del dt._opts
+
     form = DataType(ctors, tvs.values(), opts)
     add_extrinsic(Name, form, dt.__name__)
     add_extrinsic(TrueRepresentation, form, dt)
