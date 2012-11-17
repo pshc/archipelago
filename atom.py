@@ -79,9 +79,11 @@ CondCase = DT('CondCase', ('test', 'e'), ('body', 'Body(e)'))
 
 Func = DT('Func', ('params', [Var]), ('body', 'Body(e)'))
 
-Lhs, LhsVar, LhsAttr = ADT('Lhs',
+Lhs, LhsVar, LhsAttr, LhsSlot = ADT('Lhs',
         'LhsVar', ('var', '*Var'),
-        'LhsAttr', ('sub', 'e'), ('attr', '*Field'))
+        'LhsAttr', ('sub', 'e'), ('attr', '*Field'),
+        # TODO move to quilt
+        'LhsSlot', ('sub', 'e'), ('index', int))
 
 VoidExpr, VoidCall, VoidInEnv, VoidWithVar = ADT('VoidExpr',
         'VoidCall', ('func', 'e'), ('args', ['e']),
@@ -454,6 +456,10 @@ class ExprStringifier(Visitor):
     def LhsAttr(self, lhs):
         self.visit('sub')
         frag('.%s' % (extrinsic(FieldSymbol, lhs.attr),))
+
+    def LhsSlot(self, lhs):
+        self.visit('sub')
+        frag('.slot[%d]' % (lhs.index,))
 
     # STMTS
 

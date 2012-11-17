@@ -421,15 +421,6 @@ def bind_extrinsic(extr):
 
 CtorReplacement = new_extrinsic('CtorReplacement', '*GlobalVar')
 
-# XXX terrible temporary hack
-def reserved_field(index, dt):
-    discrim = isJust(extrinsic(DataLayout, dt).discrimSlot)
-    valueADT = discrim and dt.opts.valueType
-    dummy = t_DT(ValueADTLayout if valueADT else DTLayout).data.ctors[0]
-    field = dummy.fields[index]
-    assert extrinsic(FieldIndex, field) == index
-    return field
-
 def generate_ctor(ctor, dt):
     ctort = IPtr(IDataCtor(ctor))
     inst = Var()
@@ -447,25 +438,25 @@ def generate_ctor(ctor, dt):
     ps = []
     stmts = [instDefn]
 
-    def assign_field(field, ft, val):
+    def assign_slot(slot, ft, val):
         instBind = L.Bind(inst)
         add_extrinsic(LLVMTypeOf, instBind, ctort)
-        lhs = LhsAttr(instBind, field)
+        lhs = LhsSlot(instBind, slot)
         add_extrinsic(LLVMTypeOf, lhs, ft)
         add_extrinsic(LLVMTypeOf, val, ft)
         stmts.append(S.Assign(lhs, val))
 
     layout = extrinsic(DataLayout, dt)
-    m = match(layout.extrSlot)
-    if m('Just(index)'):
-        field = reserved_field(m.index, dt)
-        assign_field(field, IVoidPtr(), NullPtr())
+    if layout.extrSlot >= 0:
+        assign_slot(layout.extrSlot, IVoidPtr(), NullPtr())
 
-    discrim = isJust(layout.discrimSlot)
+    if layout.gcSlot >= 0:
+        assign_slot(layout.gcSlot, IInt(), L.Lit(IntLit(0)))
+
+    discrim = layout.discrimSlot >= 0
     if discrim:
         index = extrinsic(CtorIndex, ctor)
-        field = reserved_field(fromJust(layout.discrimSlot), dt)
-        assign_field(field, IInt(), L.Lit(IntLit(index)))
+        assign_slot(layout.discrimSlot, IInt(), L.Lit(IntLit(index)))
 
     for field in ctor.fields:
         ft = extrinsic(LLVMTypeOf, field)
@@ -473,7 +464,14 @@ def generate_ctor(ctor, dt):
         add_extrinsic(Name, param, extrinsic(Name, field))
         add_extrinsic(LLVMTypeOf, param, ft)
         ps.append(LRegister(param))
-        assign_field(field, ft, L.Bind(param))
+
+        instBind = L.Bind(inst)
+        add_extrinsic(LLVMTypeOf, instBind, ctort)
+        lhs = LhsAttr(instBind, field)
+        val = L.Bind(param)
+        add_extrinsic(LLVMTypeOf, lhs, ft)
+        add_extrinsic(LLVMTypeOf, val, ft)
+        stmts.append(S.Assign(lhs, val))
 
     retVal = L.Bind(inst)
     add_extrinsic(LLVMTypeOf, retVal, ctort)
@@ -519,18 +517,21 @@ class ImportMarker(vat.Visitor):
         if external:
             env(IMPORTBINDS).add(tar)
 
-LayoutInfo = DT('LayoutInfo', ('extrSlot', 'Maybe(int)'),
-                              ('discrimSlot', 'Maybe(int)'))
+LayoutInfo = DT('LayoutInfo', ('extrSlot', int),
+                              ('gcSlot', int),
+                              ('discrimSlot', int))
 DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
 def dt_layout(dt):
     base = 0
-    info = LayoutInfo(Nothing(), Nothing())
+    info = LayoutInfo(-1, -1, -1)
     if not dt.opts.valueType:
-        info.extrSlot = Just(base)
+        info.extrSlot = base
+        base += 1
+        info.gcSlot = base
         base += 1
     if len(dt.ctors) > 1:
-        info.discrimSlot = Just(base)
+        info.discrimSlot = base
         base += 1
     add_extrinsic(DataLayout, dt, info)
     for i, ctor in enumerate(dt.ctors):

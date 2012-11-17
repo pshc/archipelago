@@ -47,8 +47,4 @@ def maybe_(no, val):
 def fromJust(val):
     return match(val, ('Just(j)', lambda j: j))
 
-# REALLY DUMB HACK - these are just for codegen slot offset lookups
-DTLayout = DT('DTLayout', ('extrs', 'a'), ('ix', int), value=True)
-ValueADTLayout = DT('ValueADTLayout', ('ix', int), value=True)
-
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

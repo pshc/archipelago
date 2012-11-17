@@ -698,10 +698,16 @@ def store_attr(dest, f, val):
     fieldptr = get_field_ptr(tx, f)
     store_xpr(TypedXpr(typeof(f), val), fieldptr)
 
+def store_slot(lhs, dest, ix, val):
+    tx = express_typed(dest)
+    slotptr = get_element_ptr('slot', tx, ix)
+    store_xpr(TypedXpr(extrinsic(LLVMTypeOf, lhs), val), slotptr)
+
 def store_lhs(lhs, x):
     match(lhs,
         ('LhsVar(v)', lambda v: store_var(v, x)),
-        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)))
+        ('LhsAttr(e, f)', lambda e, f: store_attr(e, f, x)),
+        ('LhsSlot(e, ix)', lambda e, ix: store_slot(lhs, e, ix, x)))
 
 def store_pat_var(v, txpr):
     # might already be set up by GC business
@@ -762,11 +768,15 @@ def write_field_specs(fields, layout):
         out('{ ')
 
     specs = []
-    if isJust(layout.extrSlot):
-        assert fromJust(layout.extrSlot) == len(specs)
+    if layout.extrSlot >= 0:
+        assert layout.extrSlot == len(specs)
         specs.append((IVoidPtr(), "extrinsics"))
-    if isJust(layout.discrimSlot):
-        assert fromJust(layout.discrimSlot) == len(specs)
+    if layout.gcSlot >= 0:
+        assert layout.gcSlot == len(specs)
+        assert layout.gcSlot == 1 # TEMP
+        specs.append((IInt(), "gc"))
+    if layout.discrimSlot >= 0:
+        assert layout.discrimSlot == len(specs)
         specs.append((IInt(), "discrim"))
     for f in fields:
         assert extrinsic(expand.FieldIndex, f) == len(specs)
@@ -791,7 +801,7 @@ def write_field_specs(fields, layout):
 
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
-    if isJust(layout.discrimSlot):
+    if layout.discrimSlot >= 0:
         out('%%%s = type opaque' % (global_symbol(form).name,))
         newline()
     for ctor in form.ctors:
