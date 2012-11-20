@@ -5,8 +5,6 @@ OPTS = --color
 CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -g -std=c99 -pedantic -W -Wall -Werror
-RUNTIME = gc/runtime.c z.c
-RUNTIME_OBJS := ir/gc_runtime.o ir/z.o
 
 ifdef DEBUG
   CODEGEN = ipdb construct.py $(OPTS)
@@ -48,12 +46,14 @@ Editor/x86/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
 Editor/arm/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
 	@$(CODEGEN) --arm --c-header -o Editor/arm/ $<
 
-runtime: $(RUNTIME_OBJS)
+runtime: ir/gc_runtime.o ir/z.o gc/bluefin.so
 
 ir/gc_runtime.o: gc/runtime.c ir
 	$(CC) $(CFLAGS) -c -o $@ $<
 ir/z.o: z.c ir
 	$(CC) $(CFLAGS) -c -o $@ $<
+gc/bluefin.so: gc/bluefin.cc
+	$(MAKE) -C gc bluefin.so
 
 remake_tests: setup runtime
 	$(CODEGEN) --test -- $(TESTS)
@@ -71,3 +71,4 @@ test: remake_tests
 clean:
 	rm -rf -- $(DIRS) *.pyc
 	@$(MAKE) -C Editor clean
+	@$(MAKE) -C gc clean

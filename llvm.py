@@ -890,10 +890,11 @@ def _write_func(f, ft):
     out(env(ARCH).abiAttrs)
     out(' nounwind ssp')
     if len(f.gcVars) > 0:
-        out(' gc "shadow-stack"')
+        out(' gc "bluefin"')
     out(' {')
     newline()
 
+    # prologue
     if len(f.gcVars) > 0 or len(f.params) > 0:
         for var in f.gcVars:
             reg = Reg(extrinsic(expand.LocalSymbol, var))
@@ -1211,7 +1212,7 @@ def compile(mod):
     s = ll + '.s'
     o = ll + '.o'
     try:
-        if subprocess.call(['llc', '-o', s, ll]) != 0:
+        if subprocess.call(['llc', '-load=gc/bluefin.so', '-o', s, ll]) != 0:
             return False
         if subprocess.call(['cc', '-c']+env(ARCH).cFlags+['-o', o, s]) != 0:
             return False

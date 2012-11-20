@@ -35,17 +35,12 @@ struct vector {
 };
 
 struct frame_map {
-	uint32_t num_roots, num_meta;
-	/* const void *meta[1]; */
+	struct frame_map *prev;
+	uint32_t num_roots;
+	struct gc_atom *roots[1];
 };
 
-struct shadow_stack {
-	struct shadow_stack *next;
-	const struct frame_map *map;
-	void *roots;
-};
-
-extern struct shadow_stack *llvm_gc_root_chain;
+extern struct frame_map *bluefin_root;
 
 static void *heap[64] = {0};
 static size_t heap_count = 0;
@@ -122,25 +117,13 @@ static void read_atom_spec(struct gc_atom *atom, const uint8_t *spec) {
 	}
 }
 
-static void visit_gc_root(void **root) {
-	GC_PRINTF("   root %016lx ", (uintptr_t) root);
-	struct gc_atom *atom = *root;
-	if (!atom) {
-		GC_PUTS("is null");
-		return;
-	}
-	GC_PRINTF("is 0x%016lx: ", (uintptr_t) atom);
-
-	mark_gc_atom(atom);
-}
-
 static void mark_gc_atom(struct gc_atom *atom) {
 	if (atom->gc.flags & GC_MARK) {
 		GC_PUTS("(already marked)");
 		return;
 	}
 
-	GC_PRINTF("   ");
+	GC_PRINTF("   marking %016lx: ", (uintptr_t) atom);
 	for (int i = 0; i < 16; i++) {
 		GC_PRINTF("%02x ", ((uint8_t *) atom)[i]);
 		if (i % 4 == 3)
@@ -160,14 +143,18 @@ static void mark_gc_atom(struct gc_atom *atom) {
 
 void gc_collect(void) {
 	GC_PUTS("=== marking...");
-	for (struct shadow_stack *r = llvm_gc_root_chain; r; r = r->next) {
-		if (r->map->num_meta)
-			fail("Unexpected meta entries in stack roots");
-		GC_PRINTF(" stack frame %lx\n", (uintptr_t) r);
-		uint32_t i = 0;
-		void **roots = (void **) &r->roots;
-		for (uint32_t n = r->map->num_roots; i < n; i++)
-			visit_gc_root(&roots[i]);
+
+	struct frame_map *frame = bluefin_root;
+	GC_PRINTF("top frame %016lx\n", (uintptr_t) frame);
+	for (; frame; frame = frame->prev) {
+		uint32_t n = frame->num_roots;
+		GC_PRINTF(" stack frame %016lx with %u roots\n",
+				(uintptr_t) frame, (unsigned int) n);
+		for (uint32_t i = 0; i < n; i++) {
+			struct gc_atom *root = frame->roots[i];
+			if (root)
+				mark_gc_atom(root);
+		}
 	}
 
 	GC_PUTS("=== sweeping...");
