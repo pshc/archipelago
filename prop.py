@@ -424,6 +424,16 @@ def prop_match(m, e, cs):
         overallResult = in_new_scope(overallResult, prop_case)
     return match(overallResult, "Just(Ret(t))")
 
+def prop_block_match(e, cs):
+    et = prop_expr(e)
+    overallResult = Nothing()
+    for c in cs:
+        cp, cb = match(c, ("MatchCase(cp, cb)", tuple2))
+        def prop_case():
+            prop_pat(et, cp)
+            prop_body(cb)
+        in_new_scope(overallResult, prop_case)
+
 def prop_attr(e, s, f):
     t = prop_expr(s)
     # TEMP: resolve the field name now that we have type info
@@ -589,6 +599,7 @@ def prop_stmt(a):
         ("Assign(lhs, e)", prop_assign),
         ("AugAssign(_, lhs, e)", prop_augassign),
         ("Break() or Continue()", nop),
+        ("BlockMatch(e, cs)", prop_block_match),
         ("Cond(cases)", prop_cond),
         ("While(t, b)", prop_while),
         ("Assert(t, m)", prop_assert),

@@ -370,6 +370,13 @@ def check_augassign(a, e):
     check_lhs_as(TInt(), a)
     check_expr_as(TInt(), e)
 
+def check_block_match(p, cs):
+    et = check_expr_as_itself(p)
+    for c in cs:
+        cp, cb = match(c, ("MatchCase(cp, cb)", tuple2))
+        check_pat_as(et, cp)
+        check_body(cb)
+
 def check_cond(cases):
     for case in cases:
         check_expr_as(TBool(), case.test)
@@ -404,6 +411,7 @@ def check_stmt(a):
         ("Assign(lhs, e)", check_assign),
         ("AugAssign(_, lhs, e)", check_augassign),
         ("Break() or Continue()", nop),
+        ("BlockMatch(p, cs)", check_block_match),
         ("Cond(cases)", check_cond),
         ("While(t, b)", check_while),
         ("Assert(t, m)", check_assert),

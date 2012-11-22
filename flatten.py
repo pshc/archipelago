@@ -357,6 +357,16 @@ class CompoundFlattener(vat.Mutator):
         push_newbody(stmt)
         return stmt
 
+    def BlockMatch(self, bm):
+        expr = self.mutate('expr')
+        et = extrinsic(TypeOf, expr)
+        pat = PatWild()
+        add_extrinsic(TypeOf, pat, et)
+        defn = S.Defn(pat, expr)
+        add_extrinsic(IRComments, defn, ['todo block match'])
+        push_newbody(defn)
+        return defn
+
     def Nop(self, s):
         # don't push
         return s
