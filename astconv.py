@@ -6,6 +6,7 @@ import re
 
 ScopeContext = DT('ScopeContext', ('indent', int),
                                   ('syms', {(str, bool): object}),
+                                  ('blockMatch', bool),
                                   ('prevContext', None))
 SCOPE = new_env('SCOPE', ScopeContext)
 
@@ -24,7 +25,7 @@ AstHint = new_extrinsic('AstHint', {str: str})
 def ast_envs():
     decls = blank_module_decls()
     omni = OmniContext(decls, [], {}, {}, {}, set(), set())
-    scope = ScopeContext(0, {}, None)
+    scope = ScopeContext(0, {}, False, None)
     return omni, scope
 
 def is_top_level():
@@ -133,7 +134,7 @@ def destroy_forward_ref(ref):
 def inside_scope(f):
     def new_scope(*args, **kwargs):
         prev = env(SCOPE)
-        new = ScopeContext(prev.indent + 1, {}, prev)
+        new = ScopeContext(prev.indent + 1, {}, False, prev)
         return in_env(SCOPE, new, lambda: f(*args, **kwargs))
     new_scope.__name__ = f.__name__
     return new_scope
@@ -392,25 +393,46 @@ def conv_byneed_rebound(f, bs):
                      ('_', lambda: E.Call(f, map(E.Bind, bs))))
     return e
 
+BlockMatchBindings = DT('BlockMatchBindings', ('bindings', {str: Var}))
+
 @inside_scope
 def conv_match_case(code, f):
     bs = []
-    c = conv_match_try(compiler.parse(code, mode='eval').node, bs)
+    c = conv_match_try(compiler.parse(code, mode='eval').node, bs, True)
     e = conv_byneed_rebound(f, bs)
     return MatchCase(c, e)
+
+@inside_scope
+def conv_block_match_case(m, test, body):
+    assert isinstance(test, ast.CallFunc) and isinstance(test.node,
+            ast.Name) and test.node.name == m, \
+            "Bad m(...) block pat: %s" % (test,)
+    args = test.args
+    assert len(args) == 1 and isinstance(args[0], ast.Const), "Need m(<str>)"
+    pat = args[0].value
+
+    bs = []
+    c = conv_match_try(compiler.parse(pat, mode='eval').node, bs, False)
+    db = dict(bs)
+    assert len(db) == len(bs), "Duplicate names?"
+    env(SCOPE).syms[(m, valueNamespace)] = BlockMatchBindings(db)
+    return MatchCase(c, Body(conv_stmts_noscope(body)))
 
 @special_call('match')
 def conv_match(*args):
     expra = conv_expr(args[0])
+    if len(args) == 1:
+        return BlockMatch(expra, None) # stupid overload
     argsa = conv_exprs(args[1:])
     casesa = [match(a, ('TupleLit([Lit(StrLit(c)), f])', conv_match_case))
               for a in argsa]
     return Match(expra, casesa)
 
-def conv_match_try(node, bs):
+def conv_match_try(node, bs, asLocalVars):
+    recurse = lambda n: conv_match_try(n, bs, asLocalVars)
     if isinstance(node, ast.CallFunc) and isinstance(node.node, ast.Name):
         nm = node.node.name
-        args = [conv_match_try(n, bs) for n in node.args]
+        args = map(recurse, node.args)
         b = refs_existing(nm)
         assert isinstance(b.target, Ctor), "Can't bind to %s" % (b,)
         return PatCtor(b.target, args)
@@ -418,8 +440,12 @@ def conv_match_try(node, bs):
         if node.name == '_':
             return PatWild()
         i = Var()
-        identifier(i, node.name)
-        bs.append(i)
+        if asLocalVars:
+            identifier(i, node.name)
+            bs.append(i)
+        else:
+            add_extrinsic(Name, i, node.name)
+            bs.append((node.name, i))
         return PatVar(i)
     elif isinstance(node, ast.Const):
         val = node.value
@@ -429,21 +455,31 @@ def conv_match_try(node, bs):
             return PatStr(val)
         assert False
     elif isinstance(node, ast.Tuple):
-        return PatTuple([conv_match_try(n,bs) for n in node.nodes])
+        return PatTuple(map(recurse, node.nodes))
     elif isinstance(node, ast.Or):
         assert False, "yagni?"
-        return PatOr([conv_match_try(n, bs) for n in node.nodes])
+        return PatOr(map(recurse, node.nodes))
     elif isinstance(node, ast.And):
         assert False, "yagni?"
-        return PatAnd([conv_match_try(n, bs) for n in node.nodes])
+        return PatAnd(map(recurse, node.nodes))
     elif isinstance(node, ast.Compare) and node.ops[0][0] == '==':
         assert isinstance(node.expr, ast.Name) and node.expr.name != '_'
         i = Var()
-        identifier(i, node.expr.name)
-        bs.append(i)
-        return PatCapture(i, conv_match_try(node.ops[0][1], bs))
+        if asLocalVars:
+            identifier(i, node.expr.name)
+            bs.append(i)
+        else:
+            add_extrinsic(Name, i, node.expr.name)
+            bs.append((node.expr.name, i))
+        return PatCapture(i, recurse(node.ops[0][1]))
     assert False, "Unknown match case: %s" % node
 
+def setup_block_match(m, blockMatch):
+    env(SCOPE).blockMatch = (m, blockMatch)
+    return []
+
+def cleanup_block_match():
+    env(SCOPE).blockMatch = False
 
 SpecialAssignment = DT('SpecialAssignment', ('func', None), ('args', ['a']))
 
@@ -465,7 +501,11 @@ def conv_callfunc(e):
                     if isinstance(arg, ast.Keyword):
                         info[arg.name] = conv_expr(arg.expr)
                 return spec(*normal_args, **info)
-            return spec(*normal_args)
+            s = spec(*normal_args)
+            # hack for match() overload
+            if isinstance(s, BlockMatch):
+                return SpecialAssignment(setup_block_match, [s])
+            return s
     return E.Call(conv_expr(e.node), map(conv_expr, normal_args))
 
 @expr(ast.Compare)
@@ -508,8 +548,18 @@ def conv_genexprinner(e):
 
 @expr(ast.Getattr)
 def conv_getattr(e):
+    expr = conv_expr(e.expr)
+    m = match(expr)
+    if m('Bind(obj)'):
+        # Look for block match's m.<pat var>
+        if isinstance(m.obj, BlockMatchBindings):
+            nm = e.attrname
+            binds = m.obj.bindings
+            assert nm in binds, "%s not in %s" % (nm, binds)
+            return E.Bind(binds[nm])
+
     # Resolve field name later
-    return E.Attr(conv_expr(e.expr), e.attrname)
+    return E.Attr(expr, e.attrname)
 
 @expr(ast.IfExp)
 def conv_ifexp(e):
@@ -589,6 +639,8 @@ def conv_assign(s):
     assert len(s.nodes) == 1
     left = s.nodes[0]
     expra = conv_expr(s.expr)
+    if isinstance(expra, SpecialAssignment):
+        return expra.func(left.name, *expra.args)
     reass = conv_try_reass(left)
     if isJust(reass):
         return [S.Assign(fromJust(reass), expra)]
@@ -606,7 +658,8 @@ def conv_top_assign(s):
         right = expra.args[0]
         if isinstance(right, ast.Const):
             right = right.value
-        assert left.name == right, "Name mismatch %s, %s" % (left.name, right)
+        name = left.name
+        assert name == right, "Name mismatch %s, %s" % (name, right)
         expra.func(*expra.args)
     else:
         reass = conv_try_reass(left)
@@ -760,6 +813,13 @@ def conv_function(s):
 
 @stmt(ast.If)
 def conv_if(s):
+    if env(SCOPE).blockMatch:
+        m, bm = env(SCOPE).blockMatch
+        assert not bm.cases
+        bm.cases = [conv_block_match_case(m, t, b) for t, b in s.tests]
+        cleanup_block_match()
+        return [bm]
+
     conds = []
     for (test, body) in s.tests:
         conds.append(CondCase(conv_expr(test), Body(conv_stmts(body))))
@@ -817,7 +877,9 @@ def conv_return(s):
 
 @inside_scope
 def conv_stmts(stmts):
-    return concat([conv_stmt(stmt) for stmt in stmts])
+    stmts = concat([conv_stmt(stmt) for stmt in stmts])
+    assert not env(SCOPE).blockMatch, "Dangling block match?"
+    return stmts
 
 def conv_stmts_noscope(stmts):
     return concat([conv_stmt(stmt) for stmt in stmts])

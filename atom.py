@@ -104,9 +104,10 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'While', ('test', 'e'), ('body', 'Body(e)'),
         'VoidStmt', ('voidExpr', 'VoidExpr(e)'))
 
-Stmt, S, Assert, Nop, WriteExtrinsic = \
+Stmt, S, Assert, BlockMatch, Nop, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
         'Assert', ('test', 'e'), ('message', 'e'),
+        'BlockMatch', ('expr', 'e'), ('cases', '[MatchCase(Body(e))]'),
         'Nop',
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))
