@@ -329,4 +329,48 @@ def mutate_by_type(obj, t, customMutators=True):
     else:
         assert False, "Bad type to mutate: %r" % (t,)
 
+# COMBINATORIAL EXPLOSIONS
+
+REIFIED_MONOTYPES = {}
+
+def cement_type(t):
+    key = type_key(t)
+    if key in CONCRETE_TYPES:
+        return CONCRETE_TYPES[key]
+    else:
+        assert False
+
+def type_key(t):
+    m = match(t)
+    if m('TPrim(prim)'):
+        return prim_key(m.prim)
+    elif m('TData(dt, ts)'):
+        nm = extrinsic(Name, dt)
+        return '%s(%s)' % (nm, ', '.join(type_key(a) for a in m.ts))
+    elif m('TArray(t)'):
+        return '[%s]' % (type_key(m.t),)
+    elif m('TWeak(t)'):
+        return '*%s' % (type_key(m.t),)
+    elif m('TTuple(ts)'):
+        return 't(%s)' % (', '.join(type_key(t) for t in m.ts),)
+    elif m('TVar(tv)'):
+        return 'ax%x' % (id(tv),)
+    elif m('TFunc(ps, r, _)'):
+        ts = map(m.ps, type_key)
+        ts.append(match(m.r, ('Ret(t)', type_key),
+                             ('Void()', lambda: 'void'),
+                             ('Bottom()', lambda: 'bottom')))
+        return 'f(%s)' % (' -> '.join(ts),)
+    else:
+        assert False
+
+def prim_key(p):
+    m = match(p)
+    if m('PInt()'): return 'int'
+    elif m('PFloat()'): return 'float'
+    elif m('PStr()'): return 'str'
+    elif m('PChar()'): return 'char'
+    elif m('PBool()'): return 'bool'
+    else: assert False
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
