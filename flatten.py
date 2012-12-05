@@ -314,7 +314,9 @@ def check_cfg_func(func):
             assert n > 0, "Block %s has no entry" % (lbl,)
         if n > 0:
             assert block in entryCounts, "Block %s never sees a jump" % (lbl,)
-            assert entryCounts[block] == n, "Bad entry count to %s" % (lbl,)
+            assert entryCounts[block] == n, \
+                    "Saw %d jumps to %s, but it specifies %d entryBlocks!" % (
+                    entryCounts[block], lbl, n,)
 
 def build_control_flow(unit):
     funcs = []
