@@ -446,6 +446,12 @@ def builtin_call(name, args):
     add_extrinsic(TypeOf, call, ft.result.type)
     return call
 
+def runtime_void_call(name, args):
+    f = RUNTIME[name]
+    b = L.Bind(f)
+    add_extrinsic(TypeOf, b, extrinsic(TypeOf, f))
+    return S.VoidStmt(VoidCall(b, args))
+
 def true():
     bind = L.Bind(BUILTINS['True'])
     add_extrinsic(TypeOf, bind, TBool())

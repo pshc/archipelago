@@ -170,14 +170,9 @@ class AssertionExpander(vat.Mutator):
         add_extrinsic(TypeOf, check.func, extrinsic(TypeOf, check.func.target))
         add_extrinsic(TypeOf, check, TBool())
 
-        # temp
-        fail = RUNTIME['fail']
-        bfail = L.Bind(fail)
-        add_extrinsic(TypeOf, bfail, extrinsic(TypeOf, fail))
-
         message = self.mutate('message')
-        call = S.VoidStmt(VoidCall(bfail, [message]))
-        case = CondCase(check, Body([call]))
+        fail = flatten.runtime_void_call('fail', [message])
+        case = CondCase(check, Body([fail]))
         set_orig(case, a)
         cond = S.Cond([case])
         set_orig(cond, a)
