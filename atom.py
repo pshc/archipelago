@@ -243,6 +243,12 @@ def write_mod_repr(filename, m, exts=[]):
         init = ModRepr(write, 0, exts, set(), {}, 0)
         in_env(MODREPR, init, lambda: _do_repr(m.root))
 
+def tree(atom, exts=[]):
+    def write(x):
+        print '%s%s' % ('  ' * env(MODREPR).indent, x)
+    init = ModRepr(write, 0, exts, set(), {}, 10000)
+    in_env(MODREPR, init, lambda: _do_repr(atom))
+
 def _do_repr(s):
     c = env(MODREPR)
     if isinstance(s, Structured):
