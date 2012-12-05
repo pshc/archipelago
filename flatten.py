@@ -118,6 +118,11 @@ def exit_to_level(level):
     cfg.block = Nothing()
     cfg.pastBlocks.append(block)
 
+def build_body_and_exit_to_level(body, exitLevel):
+    # exit_to_level really ought to occur while inside body
+    vat.visit(ControlFlowBuilder, body, 'Body(LExpr)')
+    exit_to_level(exitLevel)
+
 def orig_index(stmt):
     return vat.orig_loc(stmt).index
 
@@ -178,9 +183,7 @@ class ControlFlowBuilder(vat.Visitor):
                 block = fromJust(cfg.block)
                 if block.label[:4] == 'elif':
                     block.label = 'else' + block.label[4:]
-                # exit_to_level really ought to occur while inside body
-                vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
-                exit_to_level(exitLevel)
+                build_body_and_exit_to_level(case.body, exitLevel)
                 continue
 
             isLast = (i == n-1)
@@ -203,9 +206,7 @@ class ControlFlowBuilder(vat.Visitor):
                 nextTest.entryBlocks.append(curBlock)
             finish_block(jump)
             cfg.block = Just(true)
-            # exit_to_level really ought to occur while inside body
-            vat.visit(ControlFlowBuilder, case.body, 'Body(Expr)')
-            exit_to_level(exitLevel)
+            build_body_and_exit_to_level(case.body, exitLevel)
             if not isLast:
                 cfg.block = Just(nextTest)
 
