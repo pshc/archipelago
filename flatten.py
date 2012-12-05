@@ -412,7 +412,7 @@ class CompoundFlattener(vat.Mutator):
         trueBlock = store_scope_result(result, lambda: self.mutate('then'))
         falseBlock = store_scope_result(result, lambda: self.mutate('else_'))
         trueCase = CondCase(test, trueBlock)
-        falseCase = CondCase(true(), falseBlock)
+        falseCase = CondCase(bind_true(), falseBlock)
         set_orig(trueCase, e.then)
         set_orig(falseCase, e.else_)
         cond = S.Cond([trueCase, falseCase])
@@ -452,7 +452,7 @@ def runtime_void_call(name, args):
     add_extrinsic(TypeOf, b, extrinsic(TypeOf, f))
     return S.VoidStmt(VoidCall(b, args))
 
-def true():
+def bind_true():
     bind = L.Bind(BUILTINS['True'])
     add_extrinsic(TypeOf, bind, TBool())
     return bind
