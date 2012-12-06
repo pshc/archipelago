@@ -526,12 +526,14 @@ def dt_layout(dt):
     if dt.opts.garbageCollected:
         info.gcSlot = base
         base += 1
-    if len(dt.ctors) > 1:
+    discrim = len(dt.ctors) > 1
+    if discrim:
         info.discrimSlot = base
         base += 1
     add_extrinsic(DataLayout, dt, info)
     for i, ctor in enumerate(dt.ctors):
-        add_extrinsic(CtorIndex, ctor, i)
+        if discrim:
+            add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):
             add_extrinsic(FieldIndex, field, ix + base)
 
