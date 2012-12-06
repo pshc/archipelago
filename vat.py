@@ -256,6 +256,8 @@ MUTATE = new_env('MUTATE', None)
 def mutate(mutator, obj, t):
     inst = mutator()
     inst.obj = inst.t = inst.fts = None
+    if isinstance(t, basestring):
+        t = parse_type(t)
     return in_env(MUTATE, inst, lambda: mutate_by_type(obj, t))
 
 class Mutator(object):
