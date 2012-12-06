@@ -275,12 +275,10 @@ def _do_repr(s):
         assert not isinstance(form, DataType)
         for field in form.fields:
             f = getattr(s, extrinsic(Name, field))
-            p = match(field.type, ("TWeak(p)", Just), ("_", Nothing))
-            if isJust(p):
+            if matches(field.type, "TWeak(_)"):
                 if isinstance(f, Structured):
                     if has_extrinsic(Name, f):
-                        c.write('->%s %s' % (extrinsic(Name, f),
-                                short_id(f)))
+                        c.write('->%s %s' % (extrinsic(Name, f), short_id(f)))
                     else:
                         if f not in c.weakIndices:
                             c.weakCtr += 1
