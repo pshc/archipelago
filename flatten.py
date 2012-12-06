@@ -15,7 +15,11 @@ CFG = new_env('CFG', ControlFlowState)
 
 LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
-LOOP = new_env('LOOP', int)
+LOOP = new_env('LOOP', LoopInfo)
+
+PatMatchInfo = DT('PatMatchInfo', ('failProof', bool), ('failBlock', '*Block'))
+
+PATMATCH = new_env('PATMATCH', PatMatchInfo)
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
@@ -45,7 +49,8 @@ def block_push(stmt):
         m.block.stmts.append(stmt)
 
 def jumps(src, dest):
-    assert matches(src.terminator, 'TermInvalid()')
+    assert matches(src.terminator, 'TermInvalid()'), \
+            "Block %s's terminator already resolved?!" % (src,)
     src.terminator = TermJump(dest)
     dest.entryBlocks.append(src)
 
@@ -170,6 +175,43 @@ class ControlFlowBuilder(vat.Visitor):
     def Break(self, stmt):
         null_out_scope_vars()
         exit_to_level(env(LOOP).level)
+
+    def NextCase(self, stmt):
+        assert isJust(env(CFG).block)
+        null_out_scope_vars()
+        pm = env(PATMATCH)
+        pm.failProof = False
+        finish_jump(pm.failBlock)
+
+    def BlockCond(self, cond):
+        cfg = env(CFG)
+        exitLevel = cfg.level
+        n = len(cond.cases)
+
+        for i in xrange(n-1):
+            case = cond.cases[i]
+            assert isJust(cfg.block), "Unreachable case %s?" % (case,)
+
+            nextTest = empty_block('matchcase', orig_index(cond.cases[i+1]))
+
+            info = PatMatchInfo(True, nextTest)
+            in_env(PATMATCH, info, lambda:
+                    vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
+            assert not info.failProof
+            build_body_and_exit_to_level(case.body, exitLevel)
+            cfg.block = Just(nextTest)
+
+        # last case
+        case = cond.cases[n-1]
+        assert isJust(cfg.block), "Unreachable case %s?" % (case,)
+        info = PatMatchInfo(True, None)
+        in_env(PATMATCH, info, lambda:
+                vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
+        assert info.failProof
+        build_body_and_exit_to_level(case.body, exitLevel)
+
+        if exitLevel in cfg.pendingExits:
+            _ = start_new_block('endmatch', orig_index(cond))
 
     def Cond(self, cond):
         cfg = env(CFG)
@@ -360,6 +402,10 @@ class CompoundFlattener(vat.Mutator):
         push_newbody(stmt)
         return stmt
 
+    def Nop(self, s):
+        # don't push
+        return s
+
     def BlockMatch(self, bm):
         expr = self.mutate('expr')
         et = extrinsic(TypeOf, expr)
@@ -370,9 +416,45 @@ class CompoundFlattener(vat.Mutator):
         push_newbody(defn)
         return defn
 
-    def Nop(self, s):
-        # don't push
-        return s
+    def Match(self, e):
+        inVar = define_temp_var(self.mutate('expr'))
+        add_extrinsic(Name, inVar, 'in')
+
+        outT = extrinsic(TypeOf, e)
+        outInit = Undefined()
+        add_extrinsic(TypeOf, outInit, outT)
+        outVar = define_temp_var(outInit)
+        add_extrinsic(Name, outVar, 'out')
+
+        flatCases = []
+        failProof = False
+        for case in e.cases:
+            assert not failProof, "Fail-proof case isn't last?!"
+            testBody = Body([])
+            failProof = in_env(NEWBODY, testBody, lambda:
+                    flatten_pat(inVar, case.pat))
+
+            resultBody = store_scope_result(outVar, lambda:
+                    vat.mutate(CompoundFlattener, case.result, 'LExpr'))
+
+            expandedCase = BlockCondCase(testBody, resultBody)
+            set_orig(expandedCase, case)
+            flatCases.append(expandedCase)
+
+        if not failProof:
+            # could fall-through the last case, so add an "else" failure case
+            matchFailure = Body([runtime_void_call('match_fail', [])])
+            elseCase = BlockCondCase(Body([]), matchFailure)
+            set_orig(elseCase, e)
+            flatCases.append(elseCase)
+
+        cond = BlockCond(flatCases)
+        set_orig(cond, e)
+        push_newbody(cond)
+
+        outBind = L.Bind(outVar)
+        add_extrinsic(TypeOf, outBind, outT)
+        return outBind
 
     def And(self, e):
         left = self.mutate('left')
@@ -459,6 +541,89 @@ def bind_true():
     bind = L.Bind(BUILTINS['True'])
     add_extrinsic(TypeOf, bind, TBool())
     return bind
+
+# PATTERN MATCHING
+
+def flatten_pat(inVar, origPat):
+    inBind = L.Bind(inVar)
+    inT = extrinsic(TypeOf, inVar)
+    add_extrinsic(TypeOf, inBind, inT)
+
+    m = match(origPat)
+    if m('PatVar(var)'):
+        push_newbody(S.Defn(origPat, inBind))
+        return True
+    elif m('PatWild()'):
+        return True
+    elif m('PatCtor(ctor, args)'):
+        failProof = True
+        if has_extrinsic(CtorIndex, m.ctor):
+            failProof = False
+            jumpNext = NextCase()
+            set_orig(jumpNext, origPat)
+
+            # TEMP: will check against ctorindex
+            bindFalse = L.Bind(BUILTINS['False'])
+            add_extrinsic(TypeOf, bindFalse, TBool())
+            ixFailCase = CondCase(bindFalse, Body([jumpNext]))
+            set_orig(ixFailCase, origPat)
+            ixCheck = S.Cond([ixFailCase])
+            set_orig(ixCheck, origPat)
+            push_newbody(ixCheck)
+
+        for field, argPat in ezip(m.ctor.fields, m.args):
+
+            # dumb special case shortcut
+            # should really write this inside-out or by-need to avoid
+            # capturing values I don't need
+            if matches(argPat, 'PatWild()'):
+                continue
+
+            # read attr from input object
+            argT = extrinsic(TypeOf, argPat)
+            fieldValue = L.Attr(inBind, field)
+            add_extrinsic(TypeOf, fieldValue, argT)
+            fieldVar = define_temp_var(fieldValue)
+            add_extrinsic(Name, fieldVar, extrinsic(Name, field))
+            # match against its value recursively
+            if not flatten_pat(fieldVar, argPat):
+                failProof = False
+        return failProof
+
+    elif m('PatTuple(pats)'):
+        # extract tuple values with tmp defn
+        defnVars = []
+        defnPats = []
+        subPats = m.pats
+        for subPat in subPats:
+            t = extrinsic(TypeOf, subPat)
+
+            m = match(subPat)
+            if m('PatWild()'):
+                # once again, dumb hacky shortcut
+                defnVars.append(None)
+                m.ret(PatWild())
+            else:
+                v = Var()
+                add_extrinsic(TypeOf, v, t)
+                defnVars.append(v)
+                m.ret(PatVar(v))
+            dPat = m.result()
+            add_extrinsic(TypeOf, dPat, t)
+            defnPats.append(dPat)
+        defnTuple = PatTuple(defnPats)
+        add_extrinsic(TypeOf, defnTuple, extrinsic(TypeOf, origPat))
+        push_newbody(S.Defn(defnTuple, inBind))
+
+        # now recurse with these bindings
+        failProof = True
+        for defnVar, subPat in ezip(defnVars, subPats):
+            if defnVar is not None:
+                if not flatten_pat(defnVar, subPat):
+                    failProof = False
+        return failProof
+    else:
+        assert False, "Can't handle pattern %s yet" % (pat,)
 
 def flatten_unit(unit):
     vat.mutate(CompoundFlattener, unit, t_DT(ExpandedUnit))

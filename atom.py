@@ -77,6 +77,8 @@ Body = DT('Body', ('stmts', '[Stmt(e)]'))
 
 CondCase = DT('CondCase', ('test', 'e'), ('body', 'Body(e)'))
 
+BlockCondCase = DT('BlockCondCase', ('test', 'Body(e)'), ('body', 'Body(e)'))
+
 Func = DT('Func', ('params', [Var]), ('body', 'Body(e)'))
 
 Lhs, LhsVar, LhsAttr, LhsSlot = ADT('Lhs',
@@ -104,10 +106,12 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'While', ('test', 'e'), ('body', 'Body(e)'),
         'VoidStmt', ('voidExpr', 'VoidExpr(e)'))
 
-Stmt, S, Assert, BlockMatch, Nop, WriteExtrinsic = \
+Stmt, S, Assert, BlockCond, BlockMatch, NextCase, Nop, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
         'Assert', ('test', 'e'), ('message', 'e'),
+        'BlockCond', ('cases', '[BlockCondCase(e)]'),
         'BlockMatch', ('expr', 'e'), ('cases', '[MatchCase(Body(e))]'),
+        'NextCase',
         'Nop',
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))

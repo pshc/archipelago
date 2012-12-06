@@ -593,10 +593,6 @@ def voidexpr_inenv(e, environ, init, vexpr):
     write_voidexpr(vexpr)
     pop_env(envx, ctx)
 
-def expr_match(m, e, cs):
-    out_comment('todo match expr')
-    return express(e)
-
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
@@ -672,7 +668,6 @@ def express(expr):
         ('Call(Bind(var), args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('e==InEnv(environ, init, expr)', expr_inenv),
-        ('m==Match(p, cs)', expr_match),
         ('Attr(e, f)', expr_attr),
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),

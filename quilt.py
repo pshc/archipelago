@@ -48,6 +48,8 @@ BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
 
 BlockUnit = DT('BlockUnit', ('funcs', [BlockFunc]))
 
+CtorIndex = new_extrinsic('CtorIndex', int)
+FieldIndex = new_extrinsic('FieldIndex', int)
 
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 

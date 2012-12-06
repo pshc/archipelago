@@ -20,9 +20,6 @@ EXGLOBAL = new_env('EXGLOBAL', ExGlobal)
 
 IMPORTBINDS = new_env('IMPORTBINDS', set(['a'])) # Bindable
 
-CtorIndex = new_extrinsic('CtorIndex', int)
-FieldIndex = new_extrinsic('FieldIndex', int)
-
 # DEFNS
 
 ClosureInfo = DT('ClosureInfo', ('func', Func), ('isClosure', bool))
