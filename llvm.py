@@ -728,7 +728,12 @@ def with_pat_tuple(ps, txpr, func):
         func(p, extractvalue('t%d' % (i,), tupval, i))
 
 def store_pat(pat, xpr):
-    txpr = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
+    if has_extrinsic(LLVMPatCast, pat):
+        src, dest = extrinsic(LLVMPatCast, pat)
+        txpr = cast(TypedXpr(src, xpr), dest)
+    else:
+        txpr = TypedXpr(extrinsic(LLVMTypeOf, pat), xpr)
+
     match((pat, txpr), ('(PatVar(v), txpr)', store_pat_var),
                        ('(PatTuple(ps), txpr)', store_pat_tuple),
                        ('(PatWild(), _)', nop))
