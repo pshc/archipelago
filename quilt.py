@@ -1,13 +1,15 @@
 from base import *
 from atom import *
 
-LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, SizeOf, Undefined, WithVar = \
+LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, AttrIx, SizeOf, Undefined, \
+        WithVar = \
     ADT(('LExpr', Expr),
         'CallIndirect', ('func', 'LExpr'), ('args', ['LExpr']),
                         ('envParam', bool),
         'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
         'FuncVal', ('funcVar', '*GlobalVar'), ('ctx', 'Maybe(*Var)'),
         'NullPtr',
+        'AttrIx', ('expr', 'LExpr'),
         'SizeOf', ('type', 'IType'),
         'Undefined',
         'WithVar', ('var', Var), ('expr', 'LExpr'))

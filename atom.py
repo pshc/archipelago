@@ -324,6 +324,9 @@ class ExprStringifier(Visitor):
     def Attr(self, a):
         self.visit('expr')
         frag('.%s' % (extrinsic(FieldSymbol, a.field),))
+    def AttrIx(self, a):
+        self.visit('expr')
+        frag('._ix')
 
     def Bind(self, bind):
         t = bind.target
