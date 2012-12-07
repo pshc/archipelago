@@ -226,9 +226,17 @@ class TypeConverter(vat.Mutator):
         p = self.mutate()
         iconvert(p)
 
-        if not original_has(TypeCast, p):
+        if original_has(TypeCast, p):
+            cast = original(TypeCast, p)
+        elif has_extrinsic(TypeCast, p):
+            # bleh, hack for patmatch TCtor casts
+            # on the other hand: do we even ever generate TypeCasts on patterns
+            #                    in any other case? should this be the only
+            #                    `if` case here?
+            cast = extrinsic(TypeCast, p)
+        else:
             return p
-        src, dest = original(TypeCast, p)
+        src, dest = cast
         add_extrinsic(LLVMPatCast, p, (convert_type(src), convert_type(dest)))
         return p
 

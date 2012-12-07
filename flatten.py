@@ -516,6 +516,20 @@ def define_temp_var(init):
     push_newbody(S.Defn(pat, init))
     return var
 
+def cast_to_ctor(inVar, ctor):
+    inT = extrinsic(TypeOf, inVar)
+    ctorT = TCtor(ctor, inT.appTypes)
+    bind = L.Bind(inVar)
+    add_extrinsic(TypeOf, bind, inT)
+
+    var = Var()
+    add_extrinsic(TypeOf, var, ctorT)
+    pat = PatVar(var)
+    add_extrinsic(TypeOf, pat, ctorT)
+    add_extrinsic(TypeCast, pat, (inT, ctorT))
+    push_newbody(S.Defn(pat, bind))
+    return var
+
 def store_scope_result(var, func):
     body = Body([])
     result = in_env(NEWBODY, body, func)
@@ -561,6 +575,12 @@ def flatten_pat(inVar, origPat):
             failProof = False
             jumpNext = NextCase()
             set_orig(jumpNext, origPat)
+
+            # cast to this ctor and check ix
+            inVar = cast_to_ctor(inVar, m.ctor)
+            inT = extrinsic(TypeOf, inVar)
+            inBind = L.Bind(inVar)
+            add_extrinsic(TypeOf, inBind, inT)
 
             # TEMP: will check against ctorindex
             bindFalse = L.Bind(BUILTINS['False'])
