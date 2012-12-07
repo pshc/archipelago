@@ -228,6 +228,7 @@ class TypeConverter(vat.Mutator):
 
         if original_has(TypeCast, p):
             cast = original(TypeCast, p)
+            assert not has_extrinsic(TypeCast, p)
         elif has_extrinsic(TypeCast, p):
             # bleh, hack for patmatch TCtor casts
             # on the other hand: do we even ever generate TypeCasts on patterns
