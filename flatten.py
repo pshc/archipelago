@@ -579,10 +579,13 @@ def flatten_pat(inVar, origPat):
 
             inVar = cast_to_ctor(inVar, m.ctor)
 
-            # TEMP: will check against ctorindex
-            bindFalse = L.Bind(BUILTINS['False'])
-            add_extrinsic(TypeOf, bindFalse, TBool())
-            ixFailCase = CondCase(bindFalse, Body([jumpNext]))
+            # check ix, fall-through if failed
+            readIx = AttrIx(bind_var(inVar))
+            add_extrinsic(TypeOf, readIx, TInt())
+            index = L.Lit(IntLit(extrinsic(CtorIndex, m.ctor)))
+            add_extrinsic(TypeOf, index, TInt())
+            ixCheck = builtin_call('!=', [readIx, index])
+            ixFailCase = CondCase(ixCheck, Body([jumpNext]))
             set_orig(ixFailCase, origPat)
             ixCheck = S.Cond([ixFailCase])
             set_orig(ixCheck, origPat)

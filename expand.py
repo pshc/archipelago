@@ -537,6 +537,7 @@ def dt_layout(dt):
         base += 1
     add_extrinsic(DataLayout, dt, info)
     for i, ctor in enumerate(dt.ctors):
+        add_extrinsic(DataLayout, ctor, info)
         if discrim:
             add_extrinsic(CtorIndex, ctor, i)
         for ix, field in enumerate(ctor.fields):

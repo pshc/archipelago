@@ -598,6 +598,13 @@ def expr_attr(e, f):
     fieldptr = get_field_ptr(tx, f)
     return load(extrinsic(expand.FieldSymbol, f), typeof(f), fieldptr).xpr
 
+def expr_attr_ix(e):
+    tx = express_typed(e)
+    ctor = match(typeof(e), "IPtr(IDataCtor(ctor))")
+    index = extrinsic(expand.DataLayout, ctor).discrimSlot
+    ixptr = get_element_ptr('ix', tx, index)
+    return load('_ix', IInt(), ixptr).xpr
+
 def expr_lit(lit):
     return match(lit, ('IntLit(i)', ConstInt),
                       ('FloatLit(f)', ConstFloat))
@@ -669,6 +676,7 @@ def express(expr):
         ('FuncExpr(f==Func(ps, body))', expr_func),
         ('e==InEnv(environ, init, expr)', expr_inenv),
         ('Attr(e, f)', expr_attr),
+        ('AttrIx(e)', expr_attr_ix),
         ('Lit(lit)', expr_lit),
         ('lit==TupleLit(es)', expr_tuplelit),
         ('lit==ListLit(es)', expr_listlit),
