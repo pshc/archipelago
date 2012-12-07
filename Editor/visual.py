@@ -60,6 +60,8 @@ def set_view_pos(x, y):
 
 @annot('(str, int) -> int')
 def compile_shader(src, kind):
+    dummy = Just(src) # temp
+
     shader = glCreateShader(kind)
     glShaderSource(shader, 1, [src], Nothing())
 
