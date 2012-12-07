@@ -355,7 +355,7 @@ def metas_equal(m1, m2):
             return False
     return m1.envParam == m2.envParam
 
-Type, TVar, TPrim, TTuple, TFunc, TData, TArray, TWeak \
+Type, TVar, TPrim, TTuple, TFunc, TData, TCtor, TArray, TWeak \
     = ADT('Type',
         'TVar', ('typeVar', '*TypeVar'),
         'TPrim', ('primType', PrimType),
@@ -363,6 +363,7 @@ Type, TVar, TPrim, TTuple, TFunc, TData, TArray, TWeak \
         'TFunc', ('paramTypes', ['Type']), ('result', 'Result(Type)'),
                  ('meta', FuncMeta),
         'TData', ('data', '*DataType'), ('appTypes', ['Type']),
+        'TCtor', ('ctor', '*Ctor'), ('appTypes', ['Type']),
         'TArray', ('elemType', 'Type'),
         'TWeak', ('refType', 'Type'))
 
@@ -783,6 +784,8 @@ def pretty_brief(name, o):
         return 't%r' % (tuple(o.vals),)
     elif name == 'DataType':
         return col('Brown', extrinsic(Name, o))
+    elif name == 'Ctor':
+        return col('Yellow', extrinsic(Name, o))
     return None
 
 def short_id(o):

@@ -46,6 +46,7 @@ def type_equal(a, b):
         ("(TTuple(ts1), TTuple(ts2))", _type_tuple_equal),
         ("(TFunc(args1, r1, m1), TFunc(args2, r2, m2))", _type_func_equal),
         ("(TData(d1, ts1), TData(d2, ts2))", _type_data_equal),
+        ("(TCtor(c1, ts1), TCtor(c2, ts2))", _type_data_equal),
         ("(TArray(a), TArray(b))", type_equal),
         ("(TWeak(a), TWeak(b))", type_equal),
         ("_", lambda: False))
@@ -82,6 +83,7 @@ def _type_repr(t):
                     ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
                     ("TFunc(ps, res, m)", _func_repr),
                     ("TData(d, ps)", _tdata_repr),
+                    ("TCtor(c, ps)", _tdata_repr),
                     ("TWeak(t)", lambda t: '*%s' % (_type_repr(t),)),
                     ("CMeta(cell)", repr),
                     ("_", lambda: mark('<bad type %s>' % type(t))))
@@ -138,6 +140,8 @@ def map_type_vars(f, t):
         return f(t)
     elif m('TData(dt, ts)'):
         return TData(m.dt, [map_type_vars(f, t) for t in m.ts])
+    elif m('TCtor(ctor, ts)'):
+        return TCtor(m.ctor, [map_type_vars(f, t) for t in m.ts])
     elif m('TFunc(ps, res, meta)'):
         ps = [map_type_vars(f, p) for p in m.ps]
         m2 = match(m.res)
@@ -163,7 +167,7 @@ def visit_type_vars(f, t):
     m = match(t)
     if m('TVar(tv)'):
         return f(m.tv)
-    elif m('TData(_, ts)'):
+    elif m('TData(_, ts) or TCtor(_, ts)'):
         return visit_many(m.ts)
     elif m('TFunc(ps, Ret(ret), _)'):
         return visit_many(m.ps) and visit(m.ret)
@@ -213,7 +217,8 @@ def checked_subst(mapping, t):
     return s
 
 def is_strong_type(t):
-    return matches(t, "TData(_,_) or TArray(_) or TTuple(_) or TFunc(_,_,_)")
+    return matches(t, "TData(_, _) or TCtor(_, _) or TArray(_) or TTuple(_)" +
+            " or TFunc(_, _, _)")
 
 def ctor_type(ctor, dtT):
     paramTypes = []

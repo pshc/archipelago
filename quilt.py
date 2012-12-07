@@ -113,6 +113,7 @@ def convert_type(t):
         ("TVar(_)", IVoidPtr),
         ("TFunc(pts, result, meta)", _convert_func),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
+        ("TCtor(ctor, _)", lambda ctor: IPtr(IDataCtor(ctor))),
         ("TArray(t)", lambda t: IPtr(IArray(0, convert_type(t)))),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))),
         ("TWeak(t)", lambda t: IWeak(convert_type(t))))
