@@ -146,6 +146,7 @@ if __name__ == '__main__':
     spec = load_spec(sys.argv[1])
     path = os.path.dirname(inspect.getfile(inspect.currentframe()))
     gl_c = os.path.join(path, 'gl.c')
+    print 'from bedrock import *'
     func_decls(gl_c, spec)
     macro_values(gl_c, spec)
 
