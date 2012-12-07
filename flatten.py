@@ -523,6 +523,7 @@ def cast_to_ctor(inVar, ctor):
     add_extrinsic(TypeOf, bind, inT)
 
     var = Var()
+    add_extrinsic(Name, var, extrinsic(Name, ctor).lower())
     add_extrinsic(TypeOf, var, ctorT)
     pat = PatVar(var)
     add_extrinsic(TypeOf, pat, ctorT)
@@ -615,7 +616,7 @@ def flatten_pat(inVar, origPat):
         defnVars = []
         defnPats = []
         subPats = m.pats
-        for subPat in subPats:
+        for i, subPat in enumerate(subPats):
             t = extrinsic(TypeOf, subPat)
 
             m = match(subPat)
@@ -625,6 +626,7 @@ def flatten_pat(inVar, origPat):
                 m.ret(PatWild())
             else:
                 v = Var()
+                add_extrinsic(Name, v, 'tup%d' % (i,))
                 add_extrinsic(TypeOf, v, t)
                 defnVars.append(v)
                 m.ret(PatVar(v))
