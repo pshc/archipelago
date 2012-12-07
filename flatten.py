@@ -551,6 +551,11 @@ def runtime_void_call(name, args):
     add_extrinsic(TypeOf, b, extrinsic(TypeOf, f))
     return S.VoidStmt(VoidCall(b, args))
 
+def bind_var(var):
+    bind = L.Bind(var)
+    add_extrinsic(TypeOf, bind, extrinsic(TypeOf, var))
+    return bind
+
 def bind_true():
     bind = L.Bind(BUILTINS['True'])
     add_extrinsic(TypeOf, bind, TBool())
@@ -559,13 +564,9 @@ def bind_true():
 # PATTERN MATCHING
 
 def flatten_pat(inVar, origPat):
-    inBind = L.Bind(inVar)
-    inT = extrinsic(TypeOf, inVar)
-    add_extrinsic(TypeOf, inBind, inT)
-
     m = match(origPat)
     if m('PatVar(var)'):
-        push_newbody(S.Defn(origPat, inBind))
+        push_newbody(S.Defn(origPat, bind_var(inVar)))
         return True
     elif m('PatWild()'):
         return True
@@ -576,11 +577,7 @@ def flatten_pat(inVar, origPat):
             jumpNext = NextCase()
             set_orig(jumpNext, origPat)
 
-            # cast to this ctor and check ix
             inVar = cast_to_ctor(inVar, m.ctor)
-            inT = extrinsic(TypeOf, inVar)
-            inBind = L.Bind(inVar)
-            add_extrinsic(TypeOf, inBind, inT)
 
             # TEMP: will check against ctorindex
             bindFalse = L.Bind(BUILTINS['False'])
@@ -601,7 +598,7 @@ def flatten_pat(inVar, origPat):
 
             # read attr from input object
             argT = extrinsic(TypeOf, argPat)
-            fieldValue = L.Attr(inBind, field)
+            fieldValue = L.Attr(bind_var(inVar), field)
             add_extrinsic(TypeOf, fieldValue, argT)
             fieldVar = define_temp_var(fieldValue)
             add_extrinsic(Name, fieldVar, extrinsic(Name, field))
@@ -633,7 +630,7 @@ def flatten_pat(inVar, origPat):
             defnPats.append(dPat)
         defnTuple = PatTuple(defnPats)
         add_extrinsic(TypeOf, defnTuple, extrinsic(TypeOf, origPat))
-        push_newbody(S.Defn(defnTuple, inBind))
+        push_newbody(S.Defn(defnTuple, bind_var(inVar)))
 
         # now recurse with these bindings
         failProof = True
