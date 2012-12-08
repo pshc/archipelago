@@ -205,6 +205,10 @@ int _hasextrinsic(intptr_t extr, struct nom_atom *atom) {
 
 /* GC */
 
+#define GC_PUTS(s) do {} while (0)
+#define GC_PUTCHAR(c) do {} while (0)
+#define GC_PRINTF(...) do {} while (0)
+
 struct frame_map {
 	uint32_t num_roots, num_meta;
 	/* const void *meta[0]; */
@@ -241,23 +245,21 @@ static void visit_gc_root(void **root) {
 	uint8_t *c;
 	int i;
 
-	printf("   root %016lx ", (intptr_t) root);
-	fflush(stdout);
+	GC_PRINTF("   root %016lx ", (intptr_t) root);
 	atom = *root;
 	if (!atom) {
-		puts("is null");
+		GC_PUTS("is null");
 		return;
 	}
-	printf("is 0x%016lx: ", (intptr_t) atom);
-	fflush(stdout);
+	GC_PRINTF("is 0x%016lx: ", (intptr_t) atom);
 
 	c = (uint8_t *) atom;
 	for (i = 0; i < 16; i++) {
-		printf("%02x ", c[i]);
+		GC_PRINTF("%02x ", c[i]);
 		if (i % 4 == 3)
-			putchar(' ');
+			GC_PUTCHAR(' ');
 	}
-	putchar('\n');
+	GC_PUTCHAR('\n');
 
 	atom->gc_flags = 0xaabbccdd;
 }
@@ -268,11 +270,11 @@ void gc_collect(void) {
 	void **roots;
 	struct nom_atom *atom;
 
-	puts("=== marking...");
+	GC_PUTS("=== marking...");
 	for (r = llvm_gc_root_chain; r; r = r->next) {
 		if (r->map->num_meta)
 			fail("Unexpected meta entries in stack roots");
-		printf(" stack frame %lx\n", (intptr_t) r);
+		GC_PRINTF(" stack frame %lx\n", (intptr_t) r);
 		i = 0;
 		n = r->map->num_roots;
 		roots = (void **) &r->roots;
@@ -280,25 +282,25 @@ void gc_collect(void) {
 			visit_gc_root(&roots[i]);
 	}
 
-	puts("=== sweeping...");
+	GC_PUTS("=== sweeping...");
 	/* heap_count may decrease due to pop_heap_ptr(); watch out! */
 	for (i = 0; i < heap_count; i++) {
 		atom = heap[i];
-		printf(" 0x%016lx is ", (intptr_t) atom);
+		GC_PRINTF(" 0x%016lx is ", (intptr_t) atom);
 		if (atom->gc_flags == 0xaabbccdd) {
 			atom->gc_flags = 0;
-			puts("live");
+			GC_PUTS("live");
 		}
 		else {
-			printf("dead. ");
+			GC_PRINTF("dead. ");
 			/* this heap entry will disappear, so decrement i */
 			pop_heap_ptr(i--);
 			free(atom);
-			puts("freed.");
+			GC_PUTS("freed.");
 		}
 	}
 
-	puts("=== done collection.");
+	GC_PUTS("=== done collection.");
 }
 
 void *gc_alloc(size_t size) {
@@ -309,7 +311,7 @@ void *gc_alloc(size_t size) {
 	if (!p)
 		fail("OOM");
 	push_heap_ptr(p);
-	printf("Allocated 0x%016lx.\n", (intptr_t) p);
+	GC_PRINTF("Allocated 0x%016lx.\n", (intptr_t) p);
 	return p;
 }
 
