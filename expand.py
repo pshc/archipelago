@@ -179,6 +179,8 @@ def convert_decl_types(decls):
     map_(iconvert_func_var, decls.cdecls)
 
     for dt in decls.dts:
+        if extrinsic(Name, dt) == 'Maybe':
+            continue # XXX maybe codegen
         for ctor in dt.ctors:
             fts = []
             for field in ctor.fields:
@@ -505,6 +507,8 @@ class CtorReplacer(vat.Mutator):
 def replace_ctors(decls, flat):
     ctor_funcs = []
     for dt in decls.dts:
+        if extrinsic(Name, dt) == 'Maybe':
+            continue # XXX maybe codegen
         for ctor in dt.ctors:
             ctor_funcs.append(generate_ctor(ctor, dt))
     flat.funcs = ctor_funcs + flat.funcs

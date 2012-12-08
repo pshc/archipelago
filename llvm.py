@@ -813,6 +813,8 @@ def write_dtstmt(form):
         out('%%%s = type opaque' % (global_symbol(form).name,))
         newline()
     for ctor in form.ctors:
+        if Nullable.isMaybe(ctor):
+            continue # XXX maybe codegen
         out('%%%s = type ' % (global_symbol(ctor).name,))
         write_field_specs(ctor.fields, layout)
         newline()
