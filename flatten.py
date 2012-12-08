@@ -413,14 +413,35 @@ class CompoundFlattener(vat.Mutator):
         return s
 
     def BlockMatch(self, bm):
-        expr = self.mutate('expr')
-        et = extrinsic(TypeOf, expr)
-        pat = PatWild()
-        add_extrinsic(TypeOf, pat, et)
-        defn = S.Defn(pat, expr)
-        add_extrinsic(IRComments, defn, ['todo block match'])
-        push_newbody(defn)
-        return defn
+        inVar = define_temp_var(self.mutate('expr'))
+        add_extrinsic(Name, inVar, 'in')
+
+        flatCases = []
+        failProof = False
+        for case in bm.cases:
+            assert not failProof, "Fail-proof case isn't last?!"
+            def go():
+                f = flatten_pat(inVar, case.pat)
+                body = vat.mutate(CompoundFlattener, case.result,'Body(LExpr)')
+                return f, body
+
+            testBody = Body([])
+            failProof, body = in_env(NEWBODY, testBody, go)
+            expandedCase = BlockCondCase(testBody, body)
+            set_orig(expandedCase, case)
+            flatCases.append(expandedCase)
+
+        if not failProof:
+            # could fall-through the last case, so add an "else" failure case
+            matchFailure = Body([runtime_void_call('match_fail', [])])
+            elseCase = BlockCondCase(Body([]), matchFailure)
+            set_orig(elseCase, e)
+            flatCases.append(elseCase)
+
+        cond = BlockCond(flatCases)
+        set_orig(cond, bm)
+        push_newbody(cond)
+        return cond
 
     def Match(self, e):
         inVar = define_temp_var(self.mutate('expr'))

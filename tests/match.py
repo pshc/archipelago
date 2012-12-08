@@ -9,7 +9,5 @@ def main():
         assert False, "Wrong block intlit match"
     elif m('Cell(x)'):
         assert m.x == 20, "Block intlit binding"
-    else:
-        assert False, "Else block case"
 
     return 0
