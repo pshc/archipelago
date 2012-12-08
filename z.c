@@ -40,7 +40,8 @@ static env_entry *resize_env_table(env_entry *table, intptr_t count) {
 	intptr_t *new_table;
 	new_table = realloc(table, (1 + count*2) * sizeof *table);
 	if (!new_table) {
-		free(table);
+		if (table)
+			free(table);
 		fail("No memory to extend env table");
 	}
 	TABLE_COUNT(new_table) = count;
@@ -52,7 +53,8 @@ static stack_entry *resize_env_stack(intptr_t *pstack, stack_entry *stack,
 	stack_entry *new_stack;
 	new_stack = realloc(stack, (1 + count) * sizeof *stack);
 	if (!new_stack) {
-		free(stack);
+		if (stack)
+			free(stack);
 		fail("No memory to extend env stack");
 	}
 	TABLE_COUNT(new_stack) = count;
