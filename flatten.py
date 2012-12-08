@@ -651,8 +651,19 @@ def flatten_pat(inVar, origPat):
                 if not flatten_pat(defnVar, subPat):
                     failProof = False
         return failProof
+
+    elif m('PatInt(val)'):
+        # check ix, fall-through if failed
+        readInt = bind_var(inVar)
+        lit = L.Lit(IntLit(m.val))
+        add_extrinsic(TypeOf, lit, TInt())
+        intTest = builtin_call('!=', [readInt, lit])
+        intCheck = NextCase(intTest)
+        set_orig(intCheck, origPat)
+        push_newbody(intCheck)
+        return False
     else:
-        assert False, "Can't handle pattern %s yet" % (pat,)
+        assert False, "Can't handle pattern %s yet" % (origPat,)
 
 def flatten_pat_maybe(inVar, origPat, args):
     maybeT = extrinsic(TypeOf, inVar)
