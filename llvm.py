@@ -906,7 +906,9 @@ def _write_func(f, ft):
     txs = write_params(f.params, ft.params)
     if ft.meta.noReturn:
         out(' noreturn')
-    out(' gc "shadow-stack" {')
+    if IS64:
+        out(' uwtable')
+    out(' nounwind ssp gc "shadow-stack" {')
     newline()
 
     if len(f.gcVars) > 0 or len(f.params) > 0:
