@@ -36,6 +36,8 @@
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
 		50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_visual.ll.o; sourceTree = "<group>"; };
 		50FDA17915F02A3900AD4982 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
+		96152CFD1673AD8700323F8A /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = include/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96F5C3C01673B3C0005CBC17 /* z.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../../z.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,7 +58,7 @@
 		50A103F915B9F1480075EE0E = {
 			isa = PBXGroup;
 			children = (
-				50A1043315BA0CB00075EE0E /* Objs */,
+				50A1043315BA0CB00075EE0E /* External */,
 				50A1040E15B9F1490075EE0E /* OSX */,
 				50A1040715B9F1490075EE0E /* Frameworks */,
 				50A1040515B9F1490075EE0E /* Products */,
@@ -115,13 +117,15 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
-		50A1043315BA0CB00075EE0E /* Objs */ = {
+		50A1043315BA0CB00075EE0E /* External */ = {
 			isa = PBXGroup;
 			children = (
+				96F5C3C01673B3C0005CBC17 /* z.c */,
 				50FDA17915F02A3900AD4982 /* z.o */,
+				96152CFD1673AD8700323F8A /* Editor_visual.h */,
 				50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */,
 			);
-			name = Objs;
+			name = External;
 			path = obj;
 			sourceTree = SOURCE_ROOT;
 		};
