@@ -1,7 +1,7 @@
 SCRIPTS = ptrsize
 
 __init__.py: $(SCRIPTS)
-	@./ptrsize; echo PTRSIZE = $$? > $@
+	@./ptrsize > $@
 
 clean:
 	rm -f -- __init__.py $(SCRIPTS)
