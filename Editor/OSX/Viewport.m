@@ -6,7 +6,7 @@
 
 static float viewX = 0, viewY = 0;
 
-static void* VISUAL_ENV;
+static void* VISUAL_ENV = NULL;
 
 - (void)prepareOpenGL
 {
@@ -18,6 +18,7 @@ static void* VISUAL_ENV;
     if (!load_shader(VISUAL_ENV))
         NSAssert(NO, @"Exiting due to missing shader.");
     set_view_pos(viewX, viewY, VISUAL_ENV);
+    NSLog(@"Preparations complete.");
 }
 
 - (BOOL)isOpaque
