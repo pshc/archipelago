@@ -572,6 +572,11 @@ def flatten_pat(inVar, origPat):
     elif m('PatWild()'):
         return True
     elif m('PatCtor(ctor, args)'):
+
+        # XXX maybe codegen
+        if Nullable.isMaybe(m.ctor):
+            return flatten_pat_maybe(inVar, origPat, m.args)
+
         failProof = True
         if has_extrinsic(CtorIndex, m.ctor):
             failProof = False
@@ -646,6 +651,45 @@ def flatten_pat(inVar, origPat):
         return failProof
     else:
         assert False, "Can't handle pattern %s yet" % (pat,)
+
+def flatten_pat_maybe(inVar, origPat, args):
+    maybeT = extrinsic(TypeOf, inVar)
+    readPtr = bind_var(inVar)
+    nullPtr = NullPtr()
+    add_extrinsic(TypeOf, nullPtr, maybeT)
+
+    jumpNext = NextCase()
+    set_orig(jumpNext, origPat)
+
+    if len(args) == 1:
+        subPat = args[0]
+        nullCheck = builtin_call('==', [readPtr, nullPtr])
+
+        failCase = CondCase(nullCheck, Body([jumpNext]))
+        set_orig(failCase, origPat)
+        justCheck = S.Cond([failCase])
+        set_orig(justCheck, origPat)
+        push_newbody(justCheck)
+
+        if not matches(subPat, 'PatWild()'): # bah hack
+            t = extrinsic(TypeOf, subPat)
+            castBind = bind_var(inVar)
+            update_extrinsic(TypeOf, castBind, t)
+            add_extrinsic(TypeCast, castBind, (maybeT, t))
+            castedVar = define_temp_var(castBind)
+            add_extrinsic(Name, castedVar, 'just')
+            flatten_pat(castedVar, subPat)
+    else:
+        assert len(args) == 0
+        nullCheck = builtin_call('!=', [readPtr, nullPtr])
+
+        failCase = CondCase(nullCheck, Body([jumpNext]))
+        set_orig(failCase, origPat)
+        nothingCheck = S.Cond([failCase])
+        set_orig(nothingCheck, origPat)
+        push_newbody(nothingCheck)
+
+    return False
 
 def flatten_unit(unit):
     vat.mutate(CompoundFlattener, unit, t_DT(ExpandedUnit))

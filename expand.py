@@ -226,14 +226,11 @@ class TypeConverter(vat.Mutator):
         p = self.mutate()
         iconvert(p)
 
+        # ew
         if original_has(TypeCast, p):
             cast = original(TypeCast, p)
             assert not has_extrinsic(TypeCast, p)
         elif has_extrinsic(TypeCast, p):
-            # bleh, hack for patmatch TCtor casts
-            # on the other hand: do we even ever generate TypeCasts on patterns
-            #                    in any other case? should this be the only
-            #                    `if` case here?
             cast = extrinsic(TypeCast, p)
         else:
             return p
@@ -246,9 +243,16 @@ class TypeConverter(vat.Mutator):
         return v
 
 def convert_expr_casts(e):
-    if not original_has(TypeCast, e):
+    # ew
+    if original_has(TypeCast, e):
+        cst = original(TypeCast, e)
+        assert not has_extrinsic(TypeCast, e)
+    elif has_extrinsic(TypeCast, e):
+        cst = extrinsic(TypeCast, e)
+    else:
         return e
-    src, dest = original(TypeCast, e)
+
+    src, dest = cst
     isrc = convert_type(src)
     idest = convert_type(dest)
     if itypes_equal(isrc, idest):
