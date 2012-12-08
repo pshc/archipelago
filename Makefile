@@ -4,7 +4,7 @@ DIRS = bin ir mods opt views
 OPTS = --color
 CODEGEN = ./construct.py $(OPTS)
 CC = cc
-CFLAGS = -ansi -pedantic -W -Wall -Werror
+CFLAGS = -g -ansi -pedantic -W -Wall -Werror
 
 ifdef DEBUG
   CODEGEN = ipdb construct.py $(OPTS)
