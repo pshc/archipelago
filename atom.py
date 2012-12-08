@@ -111,7 +111,7 @@ Stmt, S, Assert, BlockCond, BlockMatch, NextCase, Nop, WriteExtrinsic = \
         'Assert', ('test', 'e'), ('message', 'e'),
         'BlockCond', ('cases', '[BlockCondCase(e)]'),
         'BlockMatch', ('expr', 'e'), ('cases', '[MatchCase(Body(e))]'),
-        'NextCase',
+        'NextCase', ('test', 'e'),
         'Nop',
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))

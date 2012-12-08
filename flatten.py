@@ -177,11 +177,17 @@ class ControlFlowBuilder(vat.Visitor):
         exit_to_level(env(LOOP).level)
 
     def NextCase(self, stmt):
-        assert isJust(env(CFG).block)
-        null_out_scope_vars()
+        cfg = env(CFG)
+        curBlock = fromJust(cfg.block)
         pm = env(PATMATCH)
         pm.failProof = False
-        finish_jump(pm.failBlock)
+        pm.failBlock.entryBlocks.append(curBlock)
+        successBlock = empty_block('patok', orig_index(stmt))
+        successBlock.entryBlocks.append(curBlock)
+
+        #null_out_scope_vars()
+        finish_block(TermJumpCond(stmt.test, pm.failBlock, successBlock))
+        env(CFG).block = Just(successBlock)
 
     def BlockCond(self, cond):
         cfg = env(CFG)
@@ -580,8 +586,6 @@ def flatten_pat(inVar, origPat):
         failProof = True
         if has_extrinsic(CtorIndex, m.ctor):
             failProof = False
-            jumpNext = NextCase()
-            set_orig(jumpNext, origPat)
 
             inVar = cast_to_ctor(inVar, m.ctor)
 
@@ -590,10 +594,8 @@ def flatten_pat(inVar, origPat):
             add_extrinsic(TypeOf, readIx, TInt())
             index = L.Lit(IntLit(extrinsic(CtorIndex, m.ctor)))
             add_extrinsic(TypeOf, index, TInt())
-            ixCheck = builtin_call('!=', [readIx, index])
-            ixFailCase = CondCase(ixCheck, Body([jumpNext]))
-            set_orig(ixFailCase, origPat)
-            ixCheck = S.Cond([ixFailCase])
+            ixTest = builtin_call('!=', [readIx, index])
+            ixCheck = NextCase(ixTest)
             set_orig(ixCheck, origPat)
             push_newbody(ixCheck)
 
@@ -658,18 +660,12 @@ def flatten_pat_maybe(inVar, origPat, args):
     nullPtr = NullPtr()
     add_extrinsic(TypeOf, nullPtr, maybeT)
 
-    jumpNext = NextCase()
-    set_orig(jumpNext, origPat)
-
     if len(args) == 1:
         subPat = args[0]
         nullCheck = builtin_call('==', [readPtr, nullPtr])
-
-        failCase = CondCase(nullCheck, Body([jumpNext]))
-        set_orig(failCase, origPat)
-        justCheck = S.Cond([failCase])
-        set_orig(justCheck, origPat)
-        push_newbody(justCheck)
+        failCheck = NextCase(nullCheck)
+        set_orig(failCheck, origPat)
+        push_newbody(failCheck)
 
         if not matches(subPat, 'PatWild()'): # bah hack
             t = extrinsic(TypeOf, subPat)
@@ -682,12 +678,9 @@ def flatten_pat_maybe(inVar, origPat, args):
     else:
         assert len(args) == 0
         nullCheck = builtin_call('!=', [readPtr, nullPtr])
-
-        failCase = CondCase(nullCheck, Body([jumpNext]))
-        set_orig(failCase, origPat)
-        nothingCheck = S.Cond([failCase])
-        set_orig(nothingCheck, origPat)
-        push_newbody(nothingCheck)
+        failCheck = NextCase(nullCheck)
+        set_orig(failCheck, origPat)
+        push_newbody(failCheck)
 
     return False
 
