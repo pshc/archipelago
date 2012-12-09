@@ -176,12 +176,12 @@ def store_xpr(txpr, dest):
     newline()
 
 def sizeof(t):
-    nullx = ConstElementPtr(TypedXpr(IPtr(t), null()), [1])
-    return ConstCast('ptrtoint', TypedXpr(IPtr(t), nullx), IInt())
+    nullx = ConstElementPtr(TypedXpr(t, null()), [1])
+    return ConstCast('ptrtoint', TypedXpr(t, nullx), IInt())
 
 def malloc(t):
     mem = write_runtime_call('malloc', [sizeof(t)])
-    return cast(TypedXpr(IVoidPtr(), fromJust(mem)), IPtr(t))
+    return cast(TypedXpr(IVoidPtr(), fromJust(mem)), t)
 
 def call(ftx, argxs):
     tmp = temp_reg()
@@ -620,7 +620,7 @@ def get_strlit_ptr(var):
 
 def expr_tuplelit(lit, es):
     tupt, tts = match(typeof(lit), ("IPtr(tupt==ITuple(tts))", tuple2))
-    tmp = malloc(tupt).xpr
+    tmp = malloc(IPtr(tupt)).xpr
     txs = [TypedXpr(t, express(e)) for t, e in ezip(tts, es)]
     struct = build_struct(tupt, txs)
     store_xpr(struct, tmp)
@@ -631,7 +631,7 @@ def expr_listlit(lit, es):
     t = match(litt, "IPtr(IArray(0, t))")
     n = len(es)
     at = IArray(n + 1, t)
-    xtmem = malloc(at)
+    xtmem = malloc(IPtr(at))
     # Store length in first element
     lenx = TypedXpr(IInt(), ConstInt(n))
     if not itypes_equal(IInt(), t):
