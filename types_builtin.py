@@ -244,7 +244,7 @@ builtins_types = {
     '<=': '(int, int) -> bool', '>=': '(int, int) -> bool',
     'is': '(a, a) -> bool', 'is not': '(a, a) -> bool',
     'len': '[a] -> int', 'subscript': '([a], int) -> a',
-    'buffer': 'int -> str',
+    'buffer': 'int -> str', 'free_buffer': 'str -> void',
     '_make_ctx': '(a, b) -> c',
 }
 

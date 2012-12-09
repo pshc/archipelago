@@ -380,7 +380,9 @@ LLVMBindable = new_typeclass('LLVMBindable',
 @impl(LLVMBindable, Builtin)
 def express_Builtin(b):
     return match(b, ('key("True")', lambda: ConstKeyword(KTrue())),
-                    ('key("False")', lambda: ConstKeyword(KFalse())))
+                    ('key("False")', lambda: ConstKeyword(KFalse())),
+                    ('key("free_buffer")', lambda:
+                                global_symbol(runtime_decl('free'))))
 
 @impl(LLVMBindable, GlobalVar)
 def express_GlobalVar(v):
