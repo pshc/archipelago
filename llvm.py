@@ -1109,7 +1109,7 @@ def compile(mod):
     ll = extrinsic(LLFile, mod)
     s = ll + '.s'
     o = ll + '.o'
-    if os.system('llc -disable-cfi -o %s %s' % (s, ll)) != 0:
+    if os.system('llc -o %s %s' % (s, ll)) != 0:
         return False
     if os.system('cc -c -o %s %s' % (o, s)) != 0:
         return False
