@@ -225,7 +225,7 @@ def get_element_ptr(name, tx, index):
         return ConstElementPtr(tx, [0, index])
     tmp = temp_reg_named(name)
     out_xpr(tmp)
-    out(' = getelementptr ')
+    out(' = getelementptr inbounds ')
     out_txpr(tx)
     comma()
     out('i32 0')
