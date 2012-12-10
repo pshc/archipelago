@@ -479,41 +479,30 @@ class CompoundFlattener(vat.Mutator):
         set_orig(cond, e)
         push_newbody(cond)
 
-        outBind = L.Bind(outVar)
-        add_extrinsic(TypeOf, outBind, outT)
-        return outBind
+        return bind_var_typed(outVar, outT)
 
     def And(self, e):
         left = self.mutate('left')
         tmp = define_temp_var(left)
         thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
-        bindTmp = L.Bind(tmp)
-        add_extrinsic(TypeOf, bindTmp, TBool())
-        then = CondCase(bindTmp, thenBlock)
+        then = CondCase(bind_var_typed(tmp, TBool()), thenBlock)
         set_orig(then, e.right)
         cond = S.Cond([then])
         set_orig(cond, e)
         push_newbody(cond)
-
-        output = L.Bind(tmp)
-        add_extrinsic(TypeOf, output, TBool())
-        return output
+        return bind_var_typed(tmp, TBool())
 
     def Or(self, e):
         left = self.mutate('left')
         tmp = define_temp_var(left)
         thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
-        bindTmp = L.Bind(tmp)
-        add_extrinsic(TypeOf, bindTmp, TBool())
+        bindTmp = bind_var_typed(tmp, TBool())
         then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
         set_orig(then, e.right)
         cond = S.Cond([then])
         set_orig(cond, e)
         push_newbody(cond)
-
-        output = L.Bind(tmp)
-        add_extrinsic(TypeOf, output, TBool())
-        return output
+        return bind_var_typed(tmp, TBool())
 
     def Ternary(self, e):
         retType = extrinsic(TypeOf, e)
@@ -530,9 +519,7 @@ class CompoundFlattener(vat.Mutator):
         cond = S.Cond([trueCase, falseCase])
         set_orig(cond, e)
         push_newbody(cond)
-        output = L.Bind(result)
-        add_extrinsic(TypeOf, output, retType)
-        return output
+        return bind_var_typed(result, retType)
 
 def define_temp_var(init):
     t = extrinsic(TypeOf, init)
@@ -546,8 +533,7 @@ def define_temp_var(init):
 def cast_to_ctor(inVar, ctor):
     inT = extrinsic(TypeOf, inVar)
     ctorT = TCtor(ctor, inT.appTypes)
-    bind = L.Bind(inVar)
-    add_extrinsic(TypeOf, bind, inT)
+    bind = bind_var_typed(inVar, inT)
 
     var = Var()
     add_extrinsic(Name, var, extrinsic(Name, ctor).lower())
@@ -567,21 +553,21 @@ def store_scope_result(var, func):
 def builtin_call(name, args):
     f = BUILTINS[name]
     ft = extrinsic(TypeOf, f)
-    bind = L.Bind(f)
-    add_extrinsic(TypeOf, bind, ft)
-    call = L.Call(bind, args)
+    call = L.Call(bind_var_typed(f, ft), args)
     add_extrinsic(TypeOf, call, ft.result.type)
     return call
 
 def runtime_void_call(name, args):
-    f = RUNTIME[name]
-    b = L.Bind(f)
-    add_extrinsic(TypeOf, b, extrinsic(TypeOf, f))
-    return S.VoidStmt(VoidCall(b, args))
+    return S.VoidStmt(VoidCall(bind_var(RUNTIME[name]), args))
 
 def bind_var(var):
     bind = L.Bind(var)
     add_extrinsic(TypeOf, bind, extrinsic(TypeOf, var))
+    return bind
+
+def bind_var_typed(var, t):
+    bind = L.Bind(var)
+    add_extrinsic(TypeOf, bind, t)
     return bind
 
 def bind_true():
