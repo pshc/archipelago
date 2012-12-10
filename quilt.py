@@ -25,9 +25,10 @@ Block = DT('Block', ('label', str),
 
 Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
     TermUnreachable, TermInvalid = ADT('Terminator',
-    'TermJump', ('dest', '*Block'),
-    'TermJumpCond', ('expr', LExpr), ('trueDest', '*Block'),
-                    ('falseDest', '*Block'),
+    'TermJump', ('dest', 'Maybe(*Block)'),
+    'TermJumpCond', ('expr', LExpr),
+                    ('trueDest', 'Maybe(*Block)'),
+                    ('falseDest', 'Maybe(*Block)'),
     'TermReturnNothing',
     'TermReturn', ('expr', LExpr),
     'TermUnreachable',

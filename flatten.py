@@ -17,9 +17,12 @@ LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
 LOOP = new_env('LOOP', LoopInfo)
 
-PatMatchInfo = DT('PatMatchInfo', ('failProof', bool), ('failBlock', '*Block'))
+# really should be an ADT (either failBlock or failLevel)
+NextCaseInfo = DT('NextCaseInfo', ('failProof', bool),
+                                  ('failLevel', int),
+                                  ('failBlock', 'Maybe(*Block)'))
 
-PATMATCH = new_env('PATMATCH', PatMatchInfo)
+NEXTCASE = new_env('NEXTCASE', NextCaseInfo)
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
@@ -51,7 +54,7 @@ def block_push(stmt):
 def jumps(src, dest):
     assert matches(src.terminator, 'TermInvalid()'), \
             "Block %s's terminator already resolved?!" % (src,)
-    src.terminator = TermJump(dest)
+    src.terminator = TermJump(Just(dest))
     dest.entryBlocks.append(src)
 
 def resolve_pending_exits(destBlock):
@@ -62,22 +65,17 @@ def resolve_pending_exits(destBlock):
     pending = cfg.pendingExits[level]
     del cfg.pendingExits[level]
     for block in pending:
-
-        # dumb hack
         m = match(block.terminator)
-        if m('TermJumpCond(_, t, f)'):
-            if m.t is None:
-                assert m.f is not None
-                block.terminator.trueDest = destBlock
-                destBlock.entryBlocks.append(block)
-            elif m.f is None:
-                block.terminator.falseDest = destBlock
-                destBlock.entryBlocks.append(block)
-            else:
-                assert False
-            continue
-
-        jumps(block, destBlock)
+        if m('TermJumpCond(_, Nothing(), Just(_))'):
+            block.terminator.trueDest = Just(destBlock)
+            destBlock.entryBlocks.append(block)
+        elif m('TermJumpCond(_, Just(_), Nothing())'):
+            block.terminator.falseDest = Just(destBlock)
+            destBlock.entryBlocks.append(block)
+        elif m('TermJumpCond(_, _, _)'):
+            assert False, "Can't resolve %s" % (block.terminator,)
+        else:
+            jumps(block, destBlock)
 
 def is_gc_var(var):
     t = extrinsic(TypeOf, var)
@@ -109,7 +107,7 @@ def finish_jump(block):
     if isNothing(cfg.block):
         return
     block.entryBlocks.append(fromJust(cfg.block))
-    finish_block(TermJump(block))
+    finish_block(TermJump(Just(block)))
 
 def exit_to_level(level):
     "Terminates current block, later resolving to the next block at level."
@@ -180,14 +178,14 @@ class ControlFlowBuilder(vat.Visitor):
     def NextCase(self, stmt):
         cfg = env(CFG)
         curBlock = fromJust(cfg.block)
-        pm = env(PATMATCH)
-        pm.failProof = False
-        pm.failBlock.entryBlocks.append(curBlock)
+        nc = env(NEXTCASE)
+        nc.failProof = False
+        fromJust(nc.failBlock).entryBlocks.append(curBlock)
         successBlock = empty_block('patok', orig_index(stmt))
         successBlock.entryBlocks.append(curBlock)
 
         #null_out_scope_vars()
-        finish_block(TermJumpCond(stmt.test, pm.failBlock, successBlock))
+        finish_block(TermJumpCond(stmt.test, nc.failBlock, Just(successBlock)))
         env(CFG).block = Just(successBlock)
 
     def BlockCond(self, cond):
@@ -201,8 +199,8 @@ class ControlFlowBuilder(vat.Visitor):
 
             nextTest = empty_block('matchcase', orig_index(cond.cases[i+1]))
 
-            info = PatMatchInfo(True, nextTest)
-            in_env(PATMATCH, info, lambda:
+            info = NextCaseInfo(True, 0, Just(nextTest))
+            in_env(NEXTCASE, info, lambda:
                     vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
             assert not info.failProof
             build_body_and_exit_to_level(case.body, exitLevel)
@@ -211,8 +209,8 @@ class ControlFlowBuilder(vat.Visitor):
         # last case
         case = cond.cases[n-1]
         assert isJust(cfg.block), "Unreachable case %s?" % (case,)
-        info = PatMatchInfo(True, None)
-        in_env(PATMATCH, info, lambda:
+        info = NextCaseInfo(True, exitLevel, Nothing())
+        in_env(NEXTCASE, info, lambda:
                 vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
         assert info.failProof
         build_body_and_exit_to_level(case.body, exitLevel)
@@ -238,26 +236,25 @@ class ControlFlowBuilder(vat.Visitor):
             isLast = (i == n-1)
             true = empty_block('then', orig_index(case))
 
-            # XXX type hack
-            nextTest = None if isLast else \
-                    empty_block('elif', orig_index(cond.cases[i+1]))
+            nextTest = Nothing() if isLast else \
+                    Just(empty_block('elif', orig_index(cond.cases[i+1])))
 
             test, converse = elide_NOTs(case.test)
-            jump = TermJumpCond(test, nextTest, true) if converse else \
-                    TermJumpCond(test, true, nextTest)
+            jump = TermJumpCond(test, nextTest, Just(true)) if converse \
+                    else TermJumpCond(test, Just(true), nextTest)
             curBlock = fromJust(cfg.block)
             true.entryBlocks.append(curBlock)
             if isLast:
-                # resolve the conditional fall-through later (hack)
+                # resolve the conditional fall-through later
                 pends = cfg.pendingExits.setdefault(exitLevel, [])
                 pends.append(curBlock)
             else:
-                nextTest.entryBlocks.append(curBlock)
+                fromJust(nextTest).entryBlocks.append(curBlock)
             finish_block(jump)
             cfg.block = Just(true)
             build_body_and_exit_to_level(case.body, exitLevel)
             if not isLast:
-                cfg.block = Just(nextTest)
+                cfg.block = nextTest
 
         if exitLevel in cfg.pendingExits:
             _ = start_new_block('endif', orig_index(cond))
@@ -291,7 +288,7 @@ class ControlFlowBuilder(vat.Visitor):
                 _ = start_new_block('endwhile', orig_index(stmt))
         else:
             end = start_new_block('endwhile', orig_index(stmt))
-            start.terminator = TermJumpCond(stmt.test, body, end)
+            start.terminator = TermJumpCond(stmt.test, Just(body), Just(end))
             # body.entryBlocks is already set up (already contains start)
             end.entryBlocks.append(start)
 
@@ -340,10 +337,10 @@ def check_cfg_func(func):
     entryCounts = {}
     for src in func.blocks:
         m = match(src.terminator)
-        if m('TermJump(dest)'):
+        if m('TermJump(Just(dest))'):
             assert src in m.dest.entryBlocks
             entryCounts[m.dest] = entryCounts.get(m.dest, 0) + 1
-        elif m('TermJumpCond(_, d1, d2)'):
+        elif m('TermJumpCond(_, Just(d1), Just(d2))'):
             assert src in m.d1.entryBlocks
             entryCounts[m.d1] = entryCounts.get(m.d1, 0) + 1
             assert src in m.d2.entryBlocks
@@ -382,8 +379,8 @@ def build_control_flow(unit):
                 for stmt in block.stmts:
                     print '   ', stmt
                 print '   ', match(block.terminator,
-                    ('TermJump(d)', lambda d: 'j %s' % (d.label,)),
-                    ('TermJumpCond(c, t, f)', lambda c, t, f:
+                    ('TermJump(Just(d))', lambda d: 'j %s' % (d.label,)),
+                    ('TermJumpCond(c, Just(t), Just(f))', lambda c, t, f:
                         'j %r, %s, %s' % (c, t.label, f.label)),
                     ('TermReturnNothing()', lambda: 'ret void'),
                     ('TermReturn(e)', lambda e: 'ret %r' % (e,)),

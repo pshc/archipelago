@@ -974,10 +974,10 @@ def write_block(block):
         store_local_var(TypedXpr(typeof(var), null()), var)
 
     m = match(block.terminator)
-    if m('TermJump(dest)'):
+    if m('TermJump(Just(dest))'):
         out('br ')
         out_block_ref(m.dest)
-    elif m('TermJumpCond(c, t, f)'):
+    elif m('TermJumpCond(c, Just(t), Just(f))'):
         out_comment('if %s' % (stringify(m.c, 'LExpr'),))
         cx = express(m.c)
         out('br i1 ')
