@@ -136,7 +136,8 @@ class ControlFlowBuilder(vat.Visitor):
         state = initial_cfg_state()
         in_env(CFG, state, lambda: self.visit('func'))
         assert state.level == 0
-        assert 0 not in state.pendingExits
+        assert not state.pendingExits, "CFG dangling exits: %s" % (
+                state.pendingExits,)
         blocks = state.pastBlocks
         if isJust(state.block):
             last = fromJust(state.block)
