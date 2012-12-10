@@ -921,22 +921,22 @@ class BlockMatcher(object):
     badNames = ['ret', 'result']
 
     def __init__(self, atom):
-        self.atom = atom
-        self.cases = []
+        self._atom = atom
+        self._cases = []
 
     def ret(self, result):
         self.success = result
 
     def result(self):
         if not hasattr(self, 'success'):
-            case_list = ''.join('* %s\n' % p for p in self.cases)
+            case_list = ''.join('* %s\n' % p for p in self._cases)
             assert False, "Match failed.\nVALUE:\n%r\nCASES:\n%s" % (
-                    self.atom, case_list)
+                    self._atom, case_list)
         return self.success
 
     def __call__(self, pat):
-        self.cases.append(pat)
-        args = match_try(self.atom, _get_match_case(pat))
+        self._cases.append(pat)
+        args = match_try(self._atom, _get_match_case(pat))
         if args is None:
             return False
         for name, val in args:
