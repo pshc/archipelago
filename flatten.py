@@ -435,7 +435,7 @@ class CompoundFlattener(vat.Mutator):
             # could fall-through the last case, so add an "else" failure case
             matchFailure = Body([runtime_void_call('match_fail', [])])
             elseCase = BlockCondCase(Body([]), matchFailure)
-            set_orig(elseCase, e)
+            set_orig(elseCase, bm)
             flatCases.append(elseCase)
 
         cond = BlockCond(flatCases)
