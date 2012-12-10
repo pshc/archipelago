@@ -31,7 +31,7 @@ def initial_cfg_state():
 
 def empty_block(label, index):
     label = '%s.%d' % (label, index)
-    return Block(label, [], [], TermInvalid(), [])
+    return Block(label, [], [], TermJump(Nothing()), [])
 
 def start_new_block(label, index):
     "Closes up the current block if any, then returns a fresh one."
@@ -52,7 +52,7 @@ def block_push(stmt):
         m.block.stmts.append(stmt)
 
 def jumps(src, dest):
-    assert matches(src.terminator, 'TermInvalid()'), \
+    assert matches(src.terminator, 'TermJump(Nothing())'), \
             "Block %s's terminator already resolved?!" % (src,)
     src.terminator = TermJump(Just(dest))
     dest.entryBlocks.append(src)
@@ -72,10 +72,10 @@ def resolve_pending_exits(destBlock):
         elif m('TermJumpCond(_, Just(_), Nothing())'):
             block.terminator.falseDest = Just(destBlock)
             destBlock.entryBlocks.append(block)
-        elif m('TermJumpCond(_, _, _)'):
-            assert False, "Can't resolve %s" % (block.terminator,)
-        else:
+        elif m('TermJump(Nothing())'):
             jumps(block, destBlock)
+        else:
+            assert False, "Can't resolve %s" % (block.terminator,)
 
 def is_gc_var(var):
     t = extrinsic(TypeOf, var)
@@ -96,7 +96,7 @@ def finish_block(term):
     if isNothing(cfg.block):
         return
     finished = fromJust(cfg.block)
-    assert matches(finished.terminator, 'TermInvalid()')
+    assert matches(finished.terminator, 'TermJump(Nothing())')
     finished.terminator = term
     cfg.pastBlocks.append(finished)
     cfg.block = Nothing()

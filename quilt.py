@@ -24,15 +24,14 @@ Block = DT('Block', ('label', str),
                     ('entryBlocks', ['*Block']))
 
 Terminator, TermJump, TermJumpCond, TermReturnNothing, TermReturn, \
-    TermUnreachable, TermInvalid = ADT('Terminator',
+    TermUnreachable = ADT('Terminator',
     'TermJump', ('dest', 'Maybe(*Block)'),
     'TermJumpCond', ('expr', LExpr),
                     ('trueDest', 'Maybe(*Block)'),
                     ('falseDest', 'Maybe(*Block)'),
     'TermReturnNothing',
     'TermReturn', ('expr', LExpr),
-    'TermUnreachable',
-    'TermInvalid')
+    'TermUnreachable')
 
 Register = DT('Register')
 
