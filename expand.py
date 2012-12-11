@@ -502,6 +502,7 @@ class CtorReplacer(vat.Mutator):
     def Bind(self, bind):
         if has_extrinsic(CtorReplacement, bind.target):
             bind.target = extrinsic(CtorReplacement, bind.target)
+        assert not matches(bind.target, "Ctor(_)"), "Ctor not gone?"
         return bind
 
 def replace_ctors(decls, flat):
