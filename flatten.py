@@ -178,15 +178,25 @@ class ControlFlowBuilder(vat.Visitor):
     def NextCase(self, stmt):
         cfg = env(CFG)
         curBlock = fromJust(cfg.block)
+        successBlock = empty_block('ok', orig_index(stmt))
+        successBlock.entryBlocks.append(curBlock)
+        success = Just(successBlock)
+
         nc = env(NEXTCASE)
         nc.failProof = False
-        fromJust(nc.failBlock).entryBlocks.append(curBlock)
-        successBlock = empty_block('patok', orig_index(stmt))
-        successBlock.entryBlocks.append(curBlock)
+        m = match(nc.failBlock)
+        if m('Just(block)'):
+            m.block.entryBlocks.append(curBlock)
+            #null_out_scope_vars()
+            finish_block(TermJumpCond(stmt.test, Just(m.block), success))
+        else: # dumb hack again!
+            assert nc.failLevel != 0
+            finish_block(TermJumpCond(stmt.test, Nothing(), success))
+            #null_out_scope_vars()
+            pends = cfg.pendingExits.setdefault(nc.failLevel, [])
+            pends.append(curBlock)
 
-        #null_out_scope_vars()
-        finish_block(TermJumpCond(stmt.test, nc.failBlock, Just(successBlock)))
-        env(CFG).block = Just(successBlock)
+        cfg.block = success
 
     def BlockCond(self, cond):
         cfg = env(CFG)
@@ -197,7 +207,7 @@ class ControlFlowBuilder(vat.Visitor):
             case = cond.cases[i]
             assert isJust(cfg.block), "Unreachable case %s?" % (case,)
 
-            nextTest = empty_block('matchcase', orig_index(cond.cases[i+1]))
+            nextTest = empty_block('elif', orig_index(cond.cases[i+1]))
 
             info = NextCaseInfo(True, 0, Just(nextTest))
             in_env(NEXTCASE, info, lambda:
@@ -212,11 +222,11 @@ class ControlFlowBuilder(vat.Visitor):
         info = NextCaseInfo(True, exitLevel, Nothing())
         in_env(NEXTCASE, info, lambda:
                 vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
-        assert info.failProof
+        #assert info.failProof
         build_body_and_exit_to_level(case.body, exitLevel)
 
         if exitLevel in cfg.pendingExits:
-            _ = start_new_block('endmatch', orig_index(cond))
+            _ = start_new_block('endif', orig_index(cond))
 
     def Cond(self, cond):
         cfg = env(CFG)
