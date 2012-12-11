@@ -405,32 +405,218 @@ NEWBODY = new_env('NEWBODY', Body)
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
 
-class CompoundFlattener(vat.Mutator):
-    def Body(self, body):
-        new_body = Body([])
-        _ = in_env(NEWBODY, new_body, lambda: self.mutate('stmts'))
-        return new_body
+def flatten_expr(expr):
+    m = match(expr)
+    if m('And(left, right)'):
+        tmp = define_temp_var(flatten_expr(m.left))
+        thenBlock = store_scope_result(tmp, lambda: flatten_expr(m.right))
+        then = CondCase(bind_var_typed(tmp, TBool()), thenBlock)
+        set_orig(then, m.right)
+        cond = S.Cond([then])
+        set_orig(cond, expr)
+        push_newbody(cond)
+        return bind_var_typed(tmp, TBool())
 
-    def t_Stmt(self, stmt):
-        stmt = self.mutate()
+    elif m('Or(left, right)'):
+        tmp = define_temp_var(flatten_expr(m.left))
+        thenBlock = store_scope_result(tmp, lambda: flatten_expr(m.right))
+        bindTmp = bind_var_typed(tmp, TBool())
+        then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
+        set_orig(then, m.right)
+        cond = S.Cond([then])
+        set_orig(cond, expr)
+        push_newbody(cond)
+        return bind_var_typed(tmp, TBool())
+
+    elif m('Ternary(test, then, else_)'):
+        retType = extrinsic(TypeOf, expr)
+        undef = Undefined()
+        add_extrinsic(TypeOf, undef, retType)
+        result = define_temp_var(undef)
+        test = flatten_expr(m.test)
+        trueBlock = store_scope_result(result, lambda: flatten_expr(m.then))
+        falseBlock = store_scope_result(result, lambda: flatten_expr(m.else_))
+        trueCase = CondCase(test, trueBlock)
+        falseCase = CondCase(bind_true(), falseBlock)
+        set_orig(trueCase, m.then)
+        set_orig(falseCase, m.else_)
+        cond = S.Cond([trueCase, falseCase])
+        set_orig(cond, expr)
+        push_newbody(cond)
+        return bind_var_typed(result, retType)
+
+    elif m('Match(expr, cases)'):
+        inVar = define_temp_var(flatten_expr(m.expr)) # dumb
+        add_extrinsic(Name, inVar, 'in')
+
+        outT = extrinsic(TypeOf, expr)
+        outInit = Undefined()
+        add_extrinsic(TypeOf, outInit, outT)
+        outVar = define_temp_var(outInit)
+        add_extrinsic(Name, outVar, 'out')
+
+        flatCases = []
+        failProof = False
+        for case in m.cases:
+            assert not failProof, "Fail-proof case isn't last?!"
+            testBody = Body([])
+            failProof = in_env(NEWBODY, testBody, lambda:
+                    flatten_pat(inVar, case.pat))
+
+            resultBody = store_scope_result(outVar, lambda:
+                    flatten_expr(case.result))
+
+            expandedCase = BlockCondCase(testBody, resultBody)
+            set_orig(expandedCase, case)
+            flatCases.append(expandedCase)
+
+        if not failProof:
+            # could fall-through the last case, so add an "else" failure case
+            matchFailure = Body([runtime_void_call('match_fail', [])])
+            elseCase = BlockCondCase(Body([]), matchFailure)
+            set_orig(elseCase, expr)
+            flatCases.append(elseCase)
+
+        cond = BlockCond(flatCases)
+        set_orig(cond, expr)
+        push_newbody(cond)
+
+        return bind_var_typed(outVar, outT)
+
+    elif m('Call(func, args)'):
+        assert matches(expr.func, "Bind(_)")
+        expr.args = map(flatten_expr, m.args)
+        # type hack
+        if matches(expr.func.target, "Builtin()"):
+            return expr
+        return bind_var(define_temp_var(expr))
+    elif m('CallIndirect(func, args, _)'):
+        # only thing to worry about for expr.func
+        # is reassignable function pointers
+        assert matches(expr.func, "Bind(_)")
+        expr.args = map(flatten_expr, m.args)
+        return bind_var(define_temp_var(expr))
+
+    elif m('Bind(_)'):
+        # if closures are allowed to reassign vars, this will have to spill
+        return expr
+    elif m('Lit(_)'):
+        return expr # pure
+
+    elif m('FuncVal(_, _)'):
+        return expr
+
+    # though trivial, these need to guarantee order relative to siblings
+    # eventually. yagni?
+    elif m('Attr(expr, _)'):
+        expr.expr = flatten_expr(m.expr)
+        return bind_var(define_temp_var(expr))
+    elif m('TupleLit(vals)'):
+        expr.vals = map(flatten_expr, m.vals)
+        return bind_var(define_temp_var(expr))
+    elif m('ListLit(vals)'):
+        expr.vals = map(flatten_expr, m.vals)
+        return bind_var(define_temp_var(expr))
+
+    elif m('GetEnv(_) or HaveEnv(_)'):
+        return expr
+    elif m('InEnv(_, init, expr)'):
+        expr.init = flatten_expr(m.init)
+        # push
+        expr.expr = flatten_expr(m.expr)
+        ret = define_temp_var(expr)
+        # pop
+        return bind_var(ret)
+
+    elif m('GetExtrinsic(_, e) or HasExtrinsic(_, e)'):
+        expr.node = flatten_expr(m.e)
+        return bind_var(define_temp_var(expr))
+    elif m('ScopeExtrinsic(_, e)'):
+        expr.expr = flatten_expr(m.e)
+        return bind_var(define_temp_var(expr))
+
+    else:
+        assert False, "Can't deal with %s" % (expr)
+
+def flatten_void_expr(ve):
+    m = match(ve)
+    if m('VoidCall(Bind(_), args)'):
+        ve.args = map(flatten_expr, m.args)
+    elif m('VoidInEnv(_, init, expr)'):
+        ve.init = flatten_expr(m.init)
+        # push
+        ve.expr = flatten_void_expr(m.expr)
+        # pop
+    return ve
+
+def flatten_stmt(stmt):
+    m = match(stmt)
+    if m('Assign(_, e) or AugAssign(_, _, e)'):
+        stmt.expr = flatten_expr(m.e)
         push_newbody(stmt)
-        return stmt
+    elif m('Break() or Continue()'):
+        push_newbody(stmt)
+    elif m('Cond(cases)'):
+        # Turn this into a BlockCond
+        newCases = []
+        for case in m.cases:
+            def go_test():
+                test = flatten_expr(case.test)
+                notTest = builtin_call('not', [test])
+                testStmt = NextCase(notTest)
+                set_orig(testStmt, case)
+                push_newbody(testStmt)
 
-    def Nop(self, s):
-        # don't push
-        return s
+            testBody = Body([])
+            in_env(NEWBODY, testBody, go_test)
+            resultBody = flatten_body(case.body)
+            newCase = BlockCondCase(testBody, resultBody)
+            set_orig(newCase, case)
+            newCases.append(newCase)
+        blockCond = BlockCond(newCases)
+        set_orig(blockCond, stmt)
+        push_newbody(blockCond)
 
-    def BlockMatch(self, bm):
-        inVar = define_temp_var(self.mutate('expr'))
+    elif m('Defn(pat, e)'):
+        stmt.expr = flatten_expr(m.e)
+        push_newbody(stmt)
+    elif m('Return(e)'):
+        stmt.expr = flatten_expr(m.e)
+        push_newbody(stmt)
+    elif m('ReturnNothing()'):
+        push_newbody(stmt)
+
+    elif m('While(test, body)'):
+        def go():
+            # gross
+            test = flatten_expr(m.test)
+            notTest = builtin_call('not', [test])
+            breakCase = CondCase(notTest, Body([S.Break()]))
+            set_orig(breakCase, m.test)
+            loopCond = S.Cond([breakCase])
+            set_orig(loopCond, m.test)
+            push_newbody(loopCond)
+
+            map_(flatten_stmt, m.body.stmts)
+
+        whileBody = Body([])
+        in_env(NEWBODY, whileBody, go)
+        stmt.test = bind_true()
+        stmt.body = whileBody
+        push_newbody(stmt)
+
+    elif m('BlockMatch(expr, cases)'):
+        # this is dumb, should reuse the (likely) input var
+        inVar = define_temp_var(flatten_expr(m.expr))
         add_extrinsic(Name, inVar, 'in')
 
         flatCases = []
         failProof = False
-        for case in bm.cases:
+        for case in m.cases:
             assert not failProof, "Fail-proof case isn't last?!"
             def go():
                 f = flatten_pat(inVar, case.pat)
-                body = vat.mutate(CompoundFlattener, case.result,'Body(LExpr)')
+                body = flatten_body(case.result)
                 return f, body
 
             testBody = Body([])
@@ -443,91 +629,31 @@ class CompoundFlattener(vat.Mutator):
             # could fall-through the last case, so add an "else" failure case
             matchFailure = Body([runtime_void_call('match_fail', [])])
             elseCase = BlockCondCase(Body([]), matchFailure)
-            set_orig(elseCase, bm)
+            set_orig(elseCase, stmt)
             flatCases.append(elseCase)
 
         cond = BlockCond(flatCases)
-        set_orig(cond, bm)
-        push_newbody(cond)
-        return cond
-
-    def Match(self, e):
-        inVar = define_temp_var(self.mutate('expr'))
-        add_extrinsic(Name, inVar, 'in')
-
-        outT = extrinsic(TypeOf, e)
-        outInit = Undefined()
-        add_extrinsic(TypeOf, outInit, outT)
-        outVar = define_temp_var(outInit)
-        add_extrinsic(Name, outVar, 'out')
-
-        flatCases = []
-        failProof = False
-        for case in e.cases:
-            assert not failProof, "Fail-proof case isn't last?!"
-            testBody = Body([])
-            failProof = in_env(NEWBODY, testBody, lambda:
-                    flatten_pat(inVar, case.pat))
-
-            resultBody = store_scope_result(outVar, lambda:
-                    vat.mutate(CompoundFlattener, case.result, 'LExpr'))
-
-            expandedCase = BlockCondCase(testBody, resultBody)
-            set_orig(expandedCase, case)
-            flatCases.append(expandedCase)
-
-        if not failProof:
-            # could fall-through the last case, so add an "else" failure case
-            matchFailure = Body([runtime_void_call('match_fail', [])])
-            elseCase = BlockCondCase(Body([]), matchFailure)
-            set_orig(elseCase, e)
-            flatCases.append(elseCase)
-
-        cond = BlockCond(flatCases)
-        set_orig(cond, e)
+        set_orig(cond, stmt)
         push_newbody(cond)
 
-        return bind_var_typed(outVar, outT)
+    elif m('VoidStmt(voidExpr)'):
+        stmt.voidExpr = flatten_void_expr(m.voidExpr)
+        push_newbody(stmt)
 
-    def And(self, e):
-        left = self.mutate('left')
-        tmp = define_temp_var(left)
-        thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
-        then = CondCase(bind_var_typed(tmp, TBool()), thenBlock)
-        set_orig(then, e.right)
-        cond = S.Cond([then])
-        set_orig(cond, e)
-        push_newbody(cond)
-        return bind_var_typed(tmp, TBool())
+    elif m('WriteExtrinsic(_, node, val, _)'):
+        stmt.node = flatten_expr(m.node)
+        stmt.val = flatten_expr(m.val)
+        push_newbody(stmt)
 
-    def Or(self, e):
-        left = self.mutate('left')
-        tmp = define_temp_var(left)
-        thenBlock = store_scope_result(tmp, lambda: self.mutate('right'))
-        bindTmp = bind_var_typed(tmp, TBool())
-        then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
-        set_orig(then, e.right)
-        cond = S.Cond([then])
-        set_orig(cond, e)
-        push_newbody(cond)
-        return bind_var_typed(tmp, TBool())
+    elif m('Nop()'):
+        pass
+    else:
+        assert False, "Can't deal with %s" % (stmt,)
 
-    def Ternary(self, e):
-        retType = extrinsic(TypeOf, e)
-        undef = Undefined()
-        add_extrinsic(TypeOf, undef, retType)
-        result = define_temp_var(undef)
-        test = self.mutate('test')
-        trueBlock = store_scope_result(result, lambda: self.mutate('then'))
-        falseBlock = store_scope_result(result, lambda: self.mutate('else_'))
-        trueCase = CondCase(test, trueBlock)
-        falseCase = CondCase(bind_true(), falseBlock)
-        set_orig(trueCase, e.then)
-        set_orig(falseCase, e.else_)
-        cond = S.Cond([trueCase, falseCase])
-        set_orig(cond, e)
-        push_newbody(cond)
-        return bind_var_typed(result, retType)
+def flatten_body(body):
+    new_body = Body([])
+    in_env(NEWBODY, new_body, lambda: map_(flatten_stmt, body.stmts))
+    return new_body
 
 def define_temp_var(init):
     t = extrinsic(TypeOf, init)
@@ -711,7 +837,8 @@ def flatten_pat_maybe(inVar, origPat, args):
     return False
 
 def flatten_unit(unit):
-    vat.mutate(CompoundFlattener, unit, t_DT(ExpandedUnit))
+    for topFunc in unit.funcs:
+        topFunc.func.body = flatten_body(topFunc.func.body)
     return build_control_flow(unit)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
