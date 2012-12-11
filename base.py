@@ -764,7 +764,7 @@ def pretty_brief(name, o):
             return col('Yellow', extrinsic(Name, o))
         elif name == 'Ctor':
             return fmtcol('^Brown{0}^N', extrinsic(Name, o))
-        elif name == 'Var':
+        elif name in ('Var', 'GlobalVar'):
             return "'%r" % (o,)
     elif name == 'Lit':
         o = o.literal
