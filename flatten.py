@@ -203,27 +203,24 @@ class ControlFlowBuilder(vat.Visitor):
         exitLevel = cfg.level
         n = len(cond.cases)
 
-        for i in xrange(n-1):
-            case = cond.cases[i]
+        for i, case in enumerate(cond.cases):
             assert isJust(cfg.block), "Unreachable case %s?" % (case,)
 
-            nextTest = empty_block('elif', orig_index(cond.cases[i+1]))
+            isLast = (i == n-1)
+            if not isLast:
+                nextTest = empty_block('elif', orig_index(cond.cases[i+1]))
+                info = NextCaseInfo(True, 0, Just(nextTest))
+            else:
+                block = fromJust(cfg.block)
+                if block.label[:4] == 'elif':
+                    block.label = 'else' + block.label[4:]
+                info = NextCaseInfo(True, exitLevel, Nothing())
 
-            info = NextCaseInfo(True, 0, Just(nextTest))
             in_env(NEXTCASE, info, lambda:
                     vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
-            assert not info.failProof
+            assert not info.failProof or isLast
             build_body_and_exit_to_level(case.body, exitLevel)
-            cfg.block = Just(nextTest)
-
-        # last case
-        case = cond.cases[n-1]
-        assert isJust(cfg.block), "Unreachable case %s?" % (case,)
-        info = NextCaseInfo(True, exitLevel, Nothing())
-        in_env(NEXTCASE, info, lambda:
-                vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
-        #assert info.failProof
-        build_body_and_exit_to_level(case.body, exitLevel)
+            cfg.block = info.failBlock
 
         if exitLevel in cfg.pendingExits:
             _ = start_new_block('endif', orig_index(cond))
@@ -263,8 +260,7 @@ class ControlFlowBuilder(vat.Visitor):
             finish_block(jump)
             cfg.block = Just(true)
             build_body_and_exit_to_level(case.body, exitLevel)
-            if not isLast:
-                cfg.block = nextTest
+            cfg.block = nextTest
 
         if exitLevel in cfg.pendingExits:
             _ = start_new_block('endif', orig_index(cond))
