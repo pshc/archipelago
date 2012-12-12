@@ -178,14 +178,20 @@ class ControlFlowBuilder(vat.Visitor):
     def NextCase(self, stmt):
         cfg = env(CFG)
         curBlock = fromJust(cfg.block)
+        test, converse = elide_NOTs(stmt.test)
+        nc = env(NEXTCASE)
+
+        # yep, backwards
+        cannotGotoNextCase = matches(test, 'Bind(key("True"))') if converse \
+                else matches(test, 'Bind(key("False"))')
+        if cannotGotoNextCase:
+            return # although an upcoming NextCase stmt *could*
+
         successBlock = empty_block('ok', orig_index(stmt))
         successBlock.entryBlocks.append(curBlock)
         success = Just(successBlock)
-
-        test, converse = elide_NOTs(stmt.test)
-
-        nc = env(NEXTCASE)
         nc.failProof = False
+
         m = match(nc.nextBlock)
         if m('Just(block)'):
             m.block.entryBlocks.append(curBlock)
