@@ -422,9 +422,6 @@ ExprPurity, PureExpr, ImpureExpr, UniqueVar = \
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
 
-def is_pure(ep):
-    return matches(ep, 'PureExpr(_)')
-
 def spill(expr):
     m = match(expr)
     if m('PureExpr(_) or UniqueVar(_)'):
@@ -639,6 +636,12 @@ def flatten_stmt(stmt):
         set_orig(blockCond, stmt)
         push_newbody(blockCond)
 
+    elif m('Defn(PatWild(), e)'):
+        # silly special case
+        m = match(flatten_expr(m.e))
+        if m('ImpureExpr(expr)'):
+            stmt.expr = m.expr
+            push_newbody(stmt)
     elif m('Defn(pat, e)'):
         stmt.expr = gather_expr(m.e)
         push_newbody(stmt)
