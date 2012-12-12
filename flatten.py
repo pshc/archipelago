@@ -443,7 +443,7 @@ def spill(expr):
         return UniqueVar(define_temp_var(m.expr))
 
 def gather_expr(expr):
-    m = match(flatten_expr(expr))
+    m = match(flatten_expr(expr, Nothing()))
     if m('PureExpr(expr)'):
         return m.expr
     elif m('ImpureExpr(expr)'):
@@ -451,30 +451,32 @@ def gather_expr(expr):
     elif m('UniqueVar(var)'):
         return bind_var(m.var)
 
-def store_scope_result(var, expr):
+def store_scope_result(destVar, expr):
     body = Body([])
-    m = match(in_env(NEWBODY, body, lambda: flatten_expr(expr)))
+    m = match(in_env(NEWBODY, body, lambda: flatten_expr(expr, Just(destVar))))
     if m('PureExpr(expr) or ImpureExpr(expr)'):
-        m.ret(m.expr)
+        body.stmts.append(S.Assign(LhsVar(destVar), m.expr))
     elif m('UniqueVar(var)'):
-        # ideally we would have somehow passed `var` into flatten_expr here
-        # to avoid this temporary
-        m.ret(bind_var(m.var))
-    body.stmts.append(S.Assign(LhsVar(var), m.result()))
+        # flatten_expr may have already written the value for us
+        # XXX will this check always be accurate?
+        #     ought to have a dedicated ThanksForTheVar() indicator
+        if destVar is not m.var:
+            body.stmts.append(S.Assign(LhsVar(destVar), m.var))
     return body
 
-def flatten_expr_to_var(expr):
-    m = match(flatten_expr(expr))
+def flatten_expr_to_var(expr, optVar):
+    m = match(flatten_expr(expr, optVar))
     if m('UniqueVar(var)'):
         return m.var
     elif m('PureExpr(e) or ImpureExpr(e)'):
         return define_temp_var(m.e)
 
-@annot('LExpr -> ExprPurity')
-def flatten_expr(expr):
+@annot('(LExpr, Maybe(Var)) -> ExprPurity')
+def flatten_expr(expr, optVar):
+    haveOutVar = isJust(optVar)
     m = match(expr)
     if m('And(left, right)'):
-        tmp = flatten_expr_to_var(m.left)
+        tmp = flatten_expr_to_var(m.left, optVar)
         thenBlock = store_scope_result(tmp, m.right)
         then = CondCase(bind_var_typed(tmp, TBool()), thenBlock)
         set_orig(then, m.right)
@@ -484,7 +486,7 @@ def flatten_expr(expr):
         return UniqueVar(tmp)
 
     elif m('Or(left, right)'):
-        tmp = flatten_expr_to_var(m.left)
+        tmp = flatten_expr_to_var(m.left, optVar)
         thenBlock = store_scope_result(tmp, m.right)
         then = CondCase(negate(bind_var_typed(tmp, TBool())), thenBlock)
         set_orig(then, m.right)
@@ -494,9 +496,12 @@ def flatten_expr(expr):
         return UniqueVar(tmp)
 
     elif m('Ternary(test, then, else_)'):
-        undef = Undefined()
-        add_extrinsic(TypeOf, undef, extrinsic(TypeOf, expr))
-        result = define_temp_var(undef)
+        if haveOutVar:
+            result = fromJust(optVar)
+        else:
+            undef = Undefined()
+            add_extrinsic(TypeOf, undef, extrinsic(TypeOf, expr))
+            result = define_temp_var(undef)
         test = gather_expr(m.test)
         trueBlock = store_scope_result(result, m.then)
         falseBlock = store_scope_result(result, m.else_)
@@ -510,13 +515,16 @@ def flatten_expr(expr):
         return UniqueVar(result)
 
     elif m('Match(expr, cases)'):
-        inVar = flatten_expr_to_var(m.expr)
+        inVar = flatten_expr_to_var(m.expr, optVar)
         add_extrinsic(Name, inVar, 'in')
 
-        outInit = Undefined()
-        add_extrinsic(TypeOf, outInit, extrinsic(TypeOf, expr))
-        outVar = define_temp_var(outInit)
-        add_extrinsic(Name, outVar, 'out')
+        if haveOutVar:
+            outVar = fromJust(optVar)
+        else:
+            outInit = Undefined()
+            add_extrinsic(TypeOf, outInit, extrinsic(TypeOf, expr))
+            outVar = define_temp_var(outInit)
+            add_extrinsic(Name, outVar, 'out')
 
         flatCases = []
         failProof = False
@@ -589,7 +597,7 @@ def flatten_expr(expr):
         set_orig(push, expr)
         push_newbody(push)
 
-        ret = spill(flatten_expr(m.expr))
+        ret = spill(flatten_expr(m.expr, Nothing()))
 
         pop = PopEnv(m.env)
         set_orig(pop, expr)
@@ -652,10 +660,12 @@ def flatten_stmt(stmt):
 
     elif m('Defn(PatWild(), e)'):
         # silly special case
-        m = match(flatten_expr(m.e))
+        m = match(flatten_expr(m.e, Nothing()))
         if m('ImpureExpr(expr)'):
             stmt.expr = m.expr
             push_newbody(stmt)
+        elif not m('PureExpr(_) or UniqueVar(_)'):
+            assert False, "need to spill impurities"
     elif m('Defn(pat, e)'):
         stmt.expr = gather_expr(m.e)
         push_newbody(stmt)
@@ -682,7 +692,7 @@ def flatten_stmt(stmt):
         push_newbody(stmt)
 
     elif m('BlockMatch(expr, cases)'):
-        inVar = flatten_expr_to_var(m.expr)
+        inVar = flatten_expr_to_var(m.expr, Nothing())
         add_extrinsic(Name, inVar, 'in')
 
         flatCases = []
