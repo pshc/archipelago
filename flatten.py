@@ -333,6 +333,13 @@ class ControlFlowBuilder(vat.Visitor):
         if is_gc_var(var):
             cfg.gcVars.append(var)
 
+def negate(expr):
+    m = match(expr)
+    if m('Call(Bind(key("not")), [e])'):
+        return m.e
+    else:
+        return builtin_call('not', [expr])
+
 def elide_NOTs(test):
     "Optimizes out trivial NOTs."
     converse = False
@@ -469,8 +476,7 @@ def flatten_expr(expr):
     elif m('Or(left, right)'):
         tmp = flatten_expr_to_var(m.left)
         thenBlock = store_scope_result(tmp, m.right)
-        bindTmp = bind_var_typed(tmp, TBool())
-        then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
+        then = CondCase(negate(bind_var_typed(tmp, TBool())), thenBlock)
         set_orig(then, m.right)
         cond = S.Cond([then])
         set_orig(cond, expr)
@@ -616,8 +622,7 @@ def flatten_stmt(stmt):
         for case in m.cases:
             def go_test():
                 test = gather_expr(case.test)
-                notTest = builtin_call('not', [test])
-                testStmt = NextCase(notTest)
+                testStmt = NextCase(negate(test))
                 set_orig(testStmt, case)
                 push_newbody(testStmt)
 
@@ -644,8 +649,7 @@ def flatten_stmt(stmt):
         def go():
             # gross
             test = gather_expr(m.test)
-            notTest = builtin_call('not', [test])
-            breakCase = CondCase(notTest, Body([S.Break()]))
+            breakCase = CondCase(negate(test), Body([S.Break()]))
             set_orig(breakCase, m.test)
             loopCond = S.Cond([breakCase])
             set_orig(loopCond, m.test)
