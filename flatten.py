@@ -291,22 +291,15 @@ class ControlFlowBuilder(vat.Visitor):
         cfg = env(CFG)
         exitLevel = cfg.level
         start = start_new_block('while', orig_index(stmt))
-        body = start_new_block('whilebody', orig_index(stmt))
         def go():
             self.visit('body')
             finish_jump(start)
         in_env(LOOP, LoopInfo(exitLevel, start), go)
 
-        if matches(stmt.test, 'Bind(key("True"))'):
-            # maybe infinite loop; don't put the TermJumpCond in
-            if exitLevel in cfg.pendingExits:
-                # there was a break somewhere, so resolve it to here
-                _ = start_new_block('endwhile', orig_index(stmt))
-        else:
-            end = start_new_block('endwhile', orig_index(stmt))
-            start.terminator = TermJumpCond(stmt.test, Just(body), Just(end))
-            # body.entryBlocks is already set up (already contains start)
-            end.entryBlocks.append(start)
+        assert matches(stmt.test, 'Undefined()')
+        if exitLevel in cfg.pendingExits:
+            # there was a break somewhere, so resolve it to here
+            _ = start_new_block('endwhile', orig_index(stmt))
 
     def Assign(self, assign):
         block_push(assign)
@@ -671,7 +664,7 @@ def flatten_stmt(stmt):
 
         whileBody = Body([])
         in_env(NEWBODY, whileBody, go)
-        stmt.test = bind_true()
+        stmt.test = Undefined() # irrelevant due to flattening above
         stmt.body = whileBody
         push_newbody(stmt)
 
