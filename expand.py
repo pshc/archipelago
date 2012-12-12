@@ -196,8 +196,8 @@ def convert_decl_types(decls):
         iconvert(lit.var)
     map_(iconvert_func_var, decls.funcDecls)
 
-THREADENV = new_env('THREADENV', 'Maybe(Var)')
-InEnvCtxVar = new_extrinsic('InEnvCtxVar', Var)
+ThreadedEnvVar = DT('ThreadedEnvVar', ('var', 'Maybe(Var)'), ('depth', int))
+THREADENV = new_env('THREADENV', ThreadedEnvVar)
 
 class TypeConverter(vat.Mutator):
     def Call(self, e):
@@ -285,7 +285,7 @@ class MaybeConverter(vat.Mutator):
 
 def add_call_ctx(func, args):
     if extrinsic(TypeOf, func).meta.envParam:
-        m = match(env(THREADENV))
+        m = match(env(THREADENV).var)
         if m('Just(ctx)'):
             bind = L.Bind(m.ctx)
             copy_type(bind, m.ctx)
@@ -296,41 +296,79 @@ def add_call_ctx(func, args):
             m.ret(null)
         args.append(m.result())
 
-def expand_inenv(e, returnsValue, exprMutator):
-    # Defer to the llvm pass until we have expression flattening
-    e.init = cast_to_voidptr(e.init, extrinsic(LLVMTypeOf, e.init))
-    m = match(env(THREADENV))
-    if m('Just(ctx)'):
-        add_extrinsic(InEnvCtxVar, e, m.ctx)
-        e.expr = exprMutator()
-        return e
-    else:
-        # Don't have a ctx var yet, need to introduce one
-        ctx = new_ctx_var()
-        add_extrinsic(InEnvCtxVar, e, ctx)
-        e.expr = in_env(THREADENV, Just(ctx), exprMutator)
-        if returnsValue:
-            w = WithVar(ctx, e)
-            copy_type(w, e)
-        else:
-            w = VoidWithVar(ctx, e)
-        return w
-
 class EnvExtrConverter(vat.Mutator):
     def BlockFunc(self, func):
         threadedVar = Nothing()
+        origDepth = 0
         ft = extrinsic(TypeOf, func.var)
         if ft.meta.envParam:
             # Add context parameter
             var = new_ctx_var()
             threadedVar = Just(var)
+            origDepth = 1
             func.params.append(LVar(var))
 
-        _ = in_env(THREADENV, threadedVar, lambda: self.mutate('blocks'))
+        info = ThreadedEnvVar(threadedVar, origDepth)
+        _ = in_env(THREADENV, info, lambda: self.mutate('blocks'))
+        assert info.depth == origDepth, "Unbalanced env push/pops"
         return func
 
     def FuncExpr(self, fe):
         assert False
+
+    def PushEnv(self, stmt):
+        bindEnv = L.Bind(stmt.env)
+        add_extrinsic(LLVMTypeOf, bindEnv, IVoidPtr())
+
+        init = self.mutate('init')
+        init = cast_to_voidptr(init, extrinsic(LLVMTypeOf, init))
+        threaded = env(THREADENV)
+        threaded.depth += 1
+
+        m = match(threaded.var)
+        if m('Just(ctxVar)'):
+            # Update the old ctx value with the pushed ctx
+            bindCtx = L.Bind(m.ctxVar)
+            add_extrinsic(LLVMTypeOf, bindCtx, IVoidPtr())
+            call = runtime_call('_pushenv', [bindEnv, bindCtx, init])
+            lhs = LhsVar(m.ctxVar)
+            add_extrinsic(LLVMTypeOf, lhs, IVoidPtr())
+            return S.Assign(lhs, call)
+        else:
+            # Don't have a ctx var yet, need to introduce one
+            null = NullPtr()
+            add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+            call = runtime_call('_pushenv', [bindEnv, null, init])
+            ctx = new_ctx_var()
+            threaded.var = Just(ctx)
+            pat = PatVar(ctx)
+            add_extrinsic(LLVMTypeOf, pat, IVoidPtr())
+            return S.Defn(pat, call)
+
+    def PopEnv(self, stmt):
+        bindEnv = L.Bind(stmt.env)
+        add_extrinsic(LLVMTypeOf, bindEnv, IVoidPtr())
+
+        threaded = env(THREADENV)
+        assert threaded.depth > 0, "Env underflow"
+        threaded.depth -= 1
+
+        ctxVar = fromJust(threaded.var)
+        bindCtx = L.Bind(ctxVar)
+        add_extrinsic(LLVMTypeOf, bindCtx, IVoidPtr())
+        call = runtime_call('_popenv', [bindEnv, bindCtx])
+        if threaded.depth > 0:
+            lhs = LhsVar(ctxVar)
+            add_extrinsic(LLVMTypeOf, lhs, IVoidPtr())
+            return S.Assign(lhs, call)
+        else:
+            # clean up this context
+            threaded.var = Nothing()
+            # ideally, check the return value here against null
+            # (need a more complete runtime)
+            discard = PatWild()
+            add_extrinsic(LLVMTypeOf, discard, IVoidPtr())
+            return S.Defn(discard, call)
 
     def Call(self, e):
 
@@ -362,7 +400,7 @@ class EnvExtrConverter(vat.Mutator):
 
     def FuncVal(self, e):
         assert isNothing(e.ctx)
-        e.ctx = env(THREADENV)
+        e.ctx = env(THREADENV).var
         return e
 
     def GetEnv(self, e):
@@ -373,12 +411,9 @@ class EnvExtrConverter(vat.Mutator):
         return runtime_call('_haveenv', [bind_env(e.env), bind_env_ctx()])
 
     def InEnv(self, e):
-        e.init = self.mutate('init')
-        return expand_inenv(e, True, lambda: self.mutate('expr'))
-
+        assert False, "Ought to be flattened"
     def VoidInEnv(self, e):
-        e.init = self.mutate('init')
-        return expand_inenv(e, False, lambda: self.mutate('expr'))
+        assert False, "Ought to be flattened"
 
     def GetExtrinsic(self, e):
         extr = bind_extrinsic(e.extrinsic)
@@ -417,7 +452,7 @@ def bind_env(e):
     return bind
 
 def bind_env_ctx():
-    bind = L.Bind(fromJust(env(THREADENV)))
+    bind = L.Bind(fromJust(env(THREADENV).var))
     add_extrinsic(LLVMTypeOf, bind, IVoidPtr())
     return bind
 
@@ -650,10 +685,10 @@ def in_intramodule_env(func):
     captures = {}
     extrs = [Closure, LLVMPatCast,
             vat.Original, LocalSymbol,
-            InEnvCtxVar, IRComments]
+            IRComments]
 
     # XXX workaround for insufficiently staged compilation
-    defs = "malloc,free,_pushenv,_popenv".split(',')
+    defs = "malloc,free".split(',')
     default_binds = set(RUNTIME[d] for d in defs)
 
     return in_env(IMPORTBINDS, default_binds,

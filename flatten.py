@@ -317,6 +317,10 @@ class ControlFlowBuilder(vat.Visitor):
                 null_out_scope_vars()
                 finish_block(TermUnreachable())
     # ugh what is this doing here
+    def PushEnv(self, stmt):
+        block_push(stmt)
+    def PopEnv(self, stmt):
+        block_push(stmt)
     def WriteExtrinsic(self, stmt):
         block_push(stmt)
 
@@ -519,14 +523,16 @@ def flatten_expr(expr):
         return bind_var(define_temp_var(expr))
 
     elif m('GetEnv(_) or HaveEnv(_)'):
-        return expr
-    elif m('InEnv(_, init, expr)'):
-        expr.init = flatten_expr(m.init)
-        # push
-        expr.expr = flatten_expr(m.expr)
-        ret = define_temp_var(expr)
-        # pop
-        return bind_var(ret)
+        return bind_var(define_temp_var(expr))
+    elif m('InEnv(env, init, expr)'):
+        push = PushEnv(m.env, flatten_expr(m.init))
+        set_orig(push, expr)
+        push_newbody(push)
+        ret = flatten_expr(m.expr)
+        pop = PopEnv(m.env)
+        set_orig(pop, expr)
+        push_newbody(pop)
+        return ret
 
     elif m('GetExtrinsic(_, e) or HasExtrinsic(_, e)'):
         expr.node = flatten_expr(m.e)
@@ -542,12 +548,17 @@ def flatten_void_expr(ve):
     m = match(ve)
     if m('VoidCall(Bind(_), args)'):
         ve.args = map(flatten_expr, m.args)
-    elif m('VoidInEnv(_, init, expr)'):
-        ve.init = flatten_expr(m.init)
-        # push
-        ve.expr = flatten_void_expr(m.expr)
-        # pop
-    return ve
+        push_newbody(S.VoidStmt(ve))
+    elif m('VoidInEnv(env, init, expr)'):
+        push = PushEnv(m.env, flatten_expr(m.init))
+        set_orig(push, ve)
+        push_newbody(push)
+        flatten_void_expr(m.expr)
+        pop = PopEnv(m.env)
+        set_orig(pop, ve)
+        push_newbody(pop)
+    else:
+        assert False
 
 def flatten_stmt(stmt):
     m = match(stmt)
@@ -637,8 +648,7 @@ def flatten_stmt(stmt):
         push_newbody(cond)
 
     elif m('VoidStmt(voidExpr)'):
-        stmt.voidExpr = flatten_void_expr(m.voidExpr)
-        push_newbody(stmt)
+        flatten_void_expr(m.voidExpr)
 
     elif m('WriteExtrinsic(_, node, val, _)'):
         stmt.node = flatten_expr(m.node)

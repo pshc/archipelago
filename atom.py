@@ -87,10 +87,9 @@ Lhs, LhsVar, LhsAttr, LhsSlot = ADT('Lhs',
         # TODO move to quilt
         'LhsSlot', ('sub', 'e'), ('index', int))
 
-VoidExpr, VoidCall, VoidInEnv, VoidWithVar = ADT('VoidExpr',
+VoidExpr, VoidCall, VoidInEnv = ADT('VoidExpr',
         'VoidCall', ('func', 'e'), ('args', ['e']),
-        'VoidInEnv', ('env', '*Env'), ('init', 'e'), ('expr', 'VoidExpr(e)'),
-        'VoidWithVar', ('var', Var), ('expr', 'VoidExpr(e)'))
+        'VoidInEnv', ('env', '*Env'), ('init', 'e'), ('expr', 'VoidExpr(e)'))
 
 CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
     Return, ReturnNothing, While, VoidStmt = \
@@ -106,13 +105,16 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'While', ('test', 'e'), ('body', 'Body(e)'),
         'VoidStmt', ('voidExpr', 'VoidExpr(e)'))
 
-Stmt, S, Assert, BlockCond, BlockMatch, NextCase, Nop, WriteExtrinsic = \
+Stmt, S, Assert, BlockCond, BlockMatch, NextCase, Nop, PushEnv, PopEnv, \
+        WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
         'Assert', ('test', 'e'), ('message', 'e'),
         'BlockCond', ('cases', '[BlockCondCase(e)]'),
         'BlockMatch', ('expr', 'e'), ('cases', '[MatchCase(Body(e))]'),
         'NextCase', ('test', 'e'),
         'Nop',
+        'PushEnv', ('env', '*Env'), ('init', 'e'),
+        'PopEnv', ('env', '*Env'),
         'WriteExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'e'),
                           ('val', 'e'), ('isNew', bool))
 

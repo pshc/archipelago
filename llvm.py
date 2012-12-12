@@ -580,21 +580,6 @@ def pop_env(envx, ctxVar):
     ctx = fromJust(write_runtime_call('_popenv', [envx, ctx]))
     store_var(ctxVar, ctx)
 
-def expr_inenv(e, environ, init, expr):
-    envx = global_symbol(environ)
-    ctxVar = extrinsic(expand.InEnvCtxVar, e)
-    push_env(envx, ctxVar, init)
-    ret = express(expr)
-    pop_env(envx, ctxVar)
-    return ret
-
-def voidexpr_inenv(e, environ, init, vexpr):
-    envx = global_symbol(environ)
-    ctx = extrinsic(expand.InEnvCtxVar, e)
-    push_env(envx, ctx, init)
-    write_voidexpr(vexpr)
-    pop_env(envx, ctx)
-
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
@@ -667,16 +652,11 @@ def expr_with(var, expr):
     store_pat_var(var, TypedXpr(IVoidPtr(), zeroinitializer()))
     return express(expr)
 
-def voidexpr_with(var, expr):
-    store_pat_var(var, TypedXpr(IVoidPtr(), zeroinitializer()))
-    write_voidexpr(expr)
-
 def express(expr):
     return match(expr,
         ('Bind(v)', LLVMBindable.express),
         ('Call(Bind(var), args)', expr_call),
         ('FuncExpr(f==Func(ps, body))', expr_func),
-        ('e==InEnv(environ, init, expr)', expr_inenv),
         ('Attr(e, f)', expr_attr),
         ('AttrIx(e)', expr_attr_ix),
         ('Lit(lit)', expr_lit),
@@ -687,8 +667,7 @@ def express(expr):
         ('e==FuncVal(f, ctx)', expr_funcval),
         ('NullPtr()', null),
         ('SizeOf(t)', sizeof),
-        ('Undefined()', lambda: ConstKeyword(KUndef())),
-        ('WithVar(v, e)', expr_with))
+        ('Undefined()', lambda: ConstKeyword(KUndef())))
 
 def express_typed(expr):
     return TypedXpr(typeof(expr), express(expr))
@@ -828,12 +807,6 @@ def write_void_call(f, a):
     argxs = map(express, a)
     call_void(fx, argxs)
 
-def write_voidexpr(ve):
-    match(ve,
-        ('VoidCall(f, a)', write_void_call),
-        ('e==VoidInEnv(environ, init, expr)', voidexpr_inenv),
-        ('VoidWithVar(v, expr)', voidexpr_with))
-
 def write_new_env(e):
     decl = env(DECLSONLY)
     out_global_symbol(e)
@@ -960,7 +933,7 @@ def write_stmt(stmt):
         ("AugAssign(op, lhs, e)", write_augassign),
         ("Defn(PatVar(_), FuncExpr(f))", write_local_func_defn),
         ("Defn(pat, e)", write_defn),
-        ("VoidStmt(e)", write_voidexpr),
+        ("VoidStmt(VoidCall(f, a))", write_void_call),
         ("Nop()", nop))
 
 def write_block(block):
