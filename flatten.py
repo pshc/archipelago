@@ -17,10 +17,10 @@ LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
 LOOP = new_env('LOOP', LoopInfo)
 
-# really should be an ADT (either failBlock or failLevel)
+# really should be an ADT (either nextBlock or exitLevel)
 NextCaseInfo = DT('NextCaseInfo', ('failProof', bool),
-                                  ('failLevel', int),
-                                  ('failBlock', 'Maybe(*Block)'))
+                                  ('exitLevel', int),
+                                  ('nextBlock', 'Maybe(*Block)'))
 
 NEXTCASE = new_env('NEXTCASE', NextCaseInfo)
 
@@ -186,18 +186,18 @@ class ControlFlowBuilder(vat.Visitor):
 
         nc = env(NEXTCASE)
         nc.failProof = False
-        m = match(nc.failBlock)
+        m = match(nc.nextBlock)
         if m('Just(block)'):
             m.block.entryBlocks.append(curBlock)
             #null_out_scope_vars()
-            finish_block(TermJumpCond(test, success, nc.failBlock) \
-                    if converse else TermJumpCond(test, nc.failBlock, success))
+            finish_block(TermJumpCond(test, success, nc.nextBlock) \
+                    if converse else TermJumpCond(test, nc.nextBlock, success))
         else: # dumb hack again!
-            assert nc.failLevel != 0
+            assert nc.exitLevel != 0
             #null_out_scope_vars()
             finish_block(TermJumpCond(test, success, Nothing()) \
                     if converse else TermJumpCond(test, Nothing(), success))
-            pends = cfg.pendingExits.setdefault(nc.failLevel, [])
+            pends = cfg.pendingExits.setdefault(nc.exitLevel, [])
             pends.append(curBlock)
 
         cfg.block = success
@@ -224,7 +224,7 @@ class ControlFlowBuilder(vat.Visitor):
                     vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
             assert not info.failProof or isLast
             build_body_and_exit_to_level(case.body, exitLevel)
-            cfg.block = info.failBlock
+            cfg.block = info.nextBlock
 
         if exitLevel in cfg.pendingExits:
             _ = start_new_block('endif', orig_index(cond))
