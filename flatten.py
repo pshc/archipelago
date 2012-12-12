@@ -201,7 +201,8 @@ class ControlFlowBuilder(vat.Visitor):
         if cannotGotoNextCase:
             return # although an upcoming NextCase stmt *could*
 
-        successBlock = empty_block('ok', orig_index(stmt))
+        successBlock = empty_block('notok' if converse else 'ok',
+                orig_index(stmt))
         successBlock.entryBlocks.append(curBlock)
         success = Just(successBlock)
         nc.failProof = False
@@ -265,12 +266,13 @@ class ControlFlowBuilder(vat.Visitor):
                 continue
 
             isLast = (i == n-1)
-            true = empty_block('then', orig_index(case))
+            test, converse = elide_NOTs(case.test)
+            true = empty_block('notthen' if converse else 'then',
+                    orig_index(case))
 
             nextTest = Nothing() if isLast else \
                     Just(empty_block('elif', orig_index(cond.cases[i+1])))
 
-            test, converse = elide_NOTs(case.test)
             jump = TermJumpCond(test, nextTest, Just(true)) if converse \
                     else TermJumpCond(test, Just(true), nextTest)
             curBlock = fromJust(cfg.block)
