@@ -634,8 +634,9 @@ def flatten_stmt(stmt):
         newCases = []
         for case in m.cases:
             def go_test():
-                test = gather_expr(case.test)
-                testStmt = NextCase(negate(test))
+                test, converse = elide_NOTs(case.test)
+                notTest = gather_expr(test if converse else negate(test))
+                testStmt = NextCase(notTest)
                 set_orig(testStmt, case)
                 push_newbody(testStmt)
 
