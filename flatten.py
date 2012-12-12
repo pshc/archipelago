@@ -406,40 +406,84 @@ def build_control_flow(unit):
 
 NEWBODY = new_env('NEWBODY', Body)
 
+ExprPurity, PureExpr, ImpureExpr, UniqueVar = \
+    ADT('ExprPurity',
+        'PureExpr', ('expr', LExpr),
+        'ImpureExpr', ('expr', LExpr),
+        'UniqueVar', ('var', Var))
+
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
 
+def is_pure(ep):
+    return matches(ep, 'PureExpr(_)')
+
+def spill(expr):
+    m = match(expr)
+    if m('PureExpr(_) or UniqueVar(_)'):
+        return expr
+    elif m('ImpureExpr(expr)'):
+        return UniqueVar(define_temp_var(m.expr))
+
+def gather_expr(expr):
+    m = match(flatten_expr(expr))
+    if m('PureExpr(expr)'):
+        return m.expr
+    elif m('ImpureExpr(expr)'):
+        return bind_var(define_temp_var(m.expr))
+    elif m('UniqueVar(var)'):
+        return bind_var(m.var)
+
+def store_scope_result(var, expr):
+    body = Body([])
+    m = match(in_env(NEWBODY, body, lambda: flatten_expr(expr)))
+    if m('PureExpr(expr) or ImpureExpr(expr)'):
+        m.ret(m.expr)
+    elif m('UniqueVar(var)'):
+        # ideally we would have somehow passed `var` into flatten_expr here
+        # to avoid this temporary
+        m.ret(bind_var(m.var))
+    body.stmts.append(S.Assign(LhsVar(var), m.result()))
+    return body
+
+def flatten_expr_to_var(expr):
+    m = match(flatten_expr(expr))
+    if m('UniqueVar(var)'):
+        return m.var
+    elif m('PureExpr(e) or ImpureExpr(e)'):
+        return define_temp_var(m.e)
+
+@annot('LExpr -> ExprPurity')
 def flatten_expr(expr):
     m = match(expr)
     if m('And(left, right)'):
-        tmp = define_temp_var(flatten_expr(m.left))
-        thenBlock = store_scope_result(tmp, lambda: flatten_expr(m.right))
+        tmp = flatten_expr_to_var(m.left)
+        thenBlock = store_scope_result(tmp, m.right)
         then = CondCase(bind_var_typed(tmp, TBool()), thenBlock)
         set_orig(then, m.right)
         cond = S.Cond([then])
         set_orig(cond, expr)
         push_newbody(cond)
-        return bind_var_typed(tmp, TBool())
+        return UniqueVar(tmp)
 
     elif m('Or(left, right)'):
-        tmp = define_temp_var(flatten_expr(m.left))
-        thenBlock = store_scope_result(tmp, lambda: flatten_expr(m.right))
+        tmp = flatten_expr_to_var(m.left)
+        thenBlock = store_scope_result(tmp, m.right)
         bindTmp = bind_var_typed(tmp, TBool())
         then = CondCase(builtin_call('not', [bindTmp]), thenBlock)
         set_orig(then, m.right)
         cond = S.Cond([then])
         set_orig(cond, expr)
         push_newbody(cond)
-        return bind_var_typed(tmp, TBool())
+        return UniqueVar(tmp)
 
     elif m('Ternary(test, then, else_)'):
-        retType = extrinsic(TypeOf, expr)
         undef = Undefined()
-        add_extrinsic(TypeOf, undef, retType)
+        add_extrinsic(TypeOf, undef, extrinsic(TypeOf, expr))
         result = define_temp_var(undef)
-        test = flatten_expr(m.test)
-        trueBlock = store_scope_result(result, lambda: flatten_expr(m.then))
-        falseBlock = store_scope_result(result, lambda: flatten_expr(m.else_))
+        test = gather_expr(m.test)
+        trueBlock = store_scope_result(result, m.then)
+        falseBlock = store_scope_result(result, m.else_)
         trueCase = CondCase(test, trueBlock)
         falseCase = CondCase(bind_true(), falseBlock)
         set_orig(trueCase, m.then)
@@ -447,15 +491,14 @@ def flatten_expr(expr):
         cond = S.Cond([trueCase, falseCase])
         set_orig(cond, expr)
         push_newbody(cond)
-        return bind_var_typed(result, retType)
+        return UniqueVar(result)
 
     elif m('Match(expr, cases)'):
-        inVar = define_temp_var(flatten_expr(m.expr)) # dumb
+        inVar = flatten_expr_to_var(m.expr)
         add_extrinsic(Name, inVar, 'in')
 
-        outT = extrinsic(TypeOf, expr)
         outInit = Undefined()
-        add_extrinsic(TypeOf, outInit, outT)
+        add_extrinsic(TypeOf, outInit, extrinsic(TypeOf, expr))
         outVar = define_temp_var(outInit)
         add_extrinsic(Name, outVar, 'out')
 
@@ -467,8 +510,7 @@ def flatten_expr(expr):
             failProof = in_env(NEWBODY, testBody, lambda:
                     flatten_pat(inVar, case.pat))
 
-            resultBody = store_scope_result(outVar, lambda:
-                    flatten_expr(case.result))
+            resultBody = store_scope_result(outVar, case.result)
 
             expandedCase = BlockCondCase(testBody, resultBody)
             set_orig(expandedCase, case)
@@ -485,61 +527,62 @@ def flatten_expr(expr):
         set_orig(cond, expr)
         push_newbody(cond)
 
-        return bind_var_typed(outVar, outT)
+        return UniqueVar(outVar)
 
     elif m('Call(func, args)'):
         assert matches(expr.func, "Bind(_)")
-        expr.args = map(flatten_expr, m.args)
+        expr.args = map(gather_expr, m.args)
         # type hack
         if matches(expr.func.target, "Builtin()"):
-            return expr
-        return bind_var(define_temp_var(expr))
+            return PureExpr(expr)
+        return ImpureExpr(expr)
     elif m('CallIndirect(func, args, _)'):
         # only thing to worry about for expr.func
         # is reassignable function pointers
         assert matches(expr.func, "Bind(_)")
-        expr.args = map(flatten_expr, m.args)
-        return bind_var(define_temp_var(expr))
+        expr.args = map(gather_expr, m.args)
+        return ImpureExpr(expr)
 
     elif m('Bind(_)'):
         # if closures are allowed to reassign vars, this will have to spill
-        return expr
+        return PureExpr(expr)
     elif m('Lit(_)'):
-        return expr # pure
-
+        return PureExpr(expr)
     elif m('FuncVal(_, _)'):
-        return expr
+        # todo: ctx capture semantics (would need to be impure if captured)
+        return PureExpr(expr)
 
     # though trivial, these need to guarantee order relative to siblings
-    # eventually. yagni?
     elif m('Attr(expr, _)'):
-        expr.expr = flatten_expr(m.expr)
-        return bind_var(define_temp_var(expr))
+        expr.expr = gather_expr(m.expr)
+        return ImpureExpr(expr)
     elif m('TupleLit(vals)'):
-        expr.vals = map(flatten_expr, m.vals)
-        return bind_var(define_temp_var(expr))
+        expr.vals = map(gather_expr, m.vals)
+        return ImpureExpr(expr)
     elif m('ListLit(vals)'):
-        expr.vals = map(flatten_expr, m.vals)
-        return bind_var(define_temp_var(expr))
+        expr.vals = map(gather_expr, m.vals)
+        return ImpureExpr(expr)
 
     elif m('GetEnv(_) or HaveEnv(_)'):
-        return bind_var(define_temp_var(expr))
+        return ImpureExpr(expr)
     elif m('InEnv(env, init, expr)'):
-        push = PushEnv(m.env, flatten_expr(m.init))
+        push = PushEnv(m.env, gather_expr(m.init))
         set_orig(push, expr)
         push_newbody(push)
-        ret = flatten_expr(m.expr)
+
+        ret = spill(flatten_expr(m.expr))
+
         pop = PopEnv(m.env)
         set_orig(pop, expr)
         push_newbody(pop)
         return ret
 
     elif m('GetExtrinsic(_, e) or HasExtrinsic(_, e)'):
-        expr.node = flatten_expr(m.e)
-        return bind_var(define_temp_var(expr))
+        expr.node = gather_expr(m.e)
+        return ImpureExpr(expr)
     elif m('ScopeExtrinsic(_, e)'):
-        expr.expr = flatten_expr(m.e)
-        return bind_var(define_temp_var(expr))
+        expr.expr = gather_expr(m.e)
+        return ImpureExpr(expr)
 
     else:
         assert False, "Can't deal with %s" % (expr)
@@ -547,10 +590,10 @@ def flatten_expr(expr):
 def flatten_void_expr(ve):
     m = match(ve)
     if m('VoidCall(Bind(_), args)'):
-        ve.args = map(flatten_expr, m.args)
+        ve.args = map(gather_expr, m.args)
         push_newbody(S.VoidStmt(ve))
     elif m('VoidInEnv(env, init, expr)'):
-        push = PushEnv(m.env, flatten_expr(m.init))
+        push = PushEnv(m.env, gather_expr(m.init))
         set_orig(push, ve)
         push_newbody(push)
         flatten_void_expr(m.expr)
@@ -563,7 +606,7 @@ def flatten_void_expr(ve):
 def flatten_stmt(stmt):
     m = match(stmt)
     if m('Assign(_, e) or AugAssign(_, _, e)'):
-        stmt.expr = flatten_expr(m.e)
+        stmt.expr = gather_expr(m.e)
         push_newbody(stmt)
     elif m('Break() or Continue()'):
         push_newbody(stmt)
@@ -572,7 +615,7 @@ def flatten_stmt(stmt):
         newCases = []
         for case in m.cases:
             def go_test():
-                test = flatten_expr(case.test)
+                test = gather_expr(case.test)
                 notTest = builtin_call('not', [test])
                 testStmt = NextCase(notTest)
                 set_orig(testStmt, case)
@@ -589,10 +632,10 @@ def flatten_stmt(stmt):
         push_newbody(blockCond)
 
     elif m('Defn(pat, e)'):
-        stmt.expr = flatten_expr(m.e)
+        stmt.expr = gather_expr(m.e)
         push_newbody(stmt)
     elif m('Return(e)'):
-        stmt.expr = flatten_expr(m.e)
+        stmt.expr = gather_expr(m.e)
         push_newbody(stmt)
     elif m('ReturnNothing()'):
         push_newbody(stmt)
@@ -600,7 +643,7 @@ def flatten_stmt(stmt):
     elif m('While(test, body)'):
         def go():
             # gross
-            test = flatten_expr(m.test)
+            test = gather_expr(m.test)
             notTest = builtin_call('not', [test])
             breakCase = CondCase(notTest, Body([S.Break()]))
             set_orig(breakCase, m.test)
@@ -617,8 +660,7 @@ def flatten_stmt(stmt):
         push_newbody(stmt)
 
     elif m('BlockMatch(expr, cases)'):
-        # this is dumb, should reuse the (likely) input var
-        inVar = define_temp_var(flatten_expr(m.expr))
+        inVar = flatten_expr_to_var(m.expr)
         add_extrinsic(Name, inVar, 'in')
 
         flatCases = []
@@ -651,8 +693,8 @@ def flatten_stmt(stmt):
         flatten_void_expr(m.voidExpr)
 
     elif m('WriteExtrinsic(_, node, val, _)'):
-        stmt.node = flatten_expr(m.node)
-        stmt.val = flatten_expr(m.val)
+        stmt.node = gather_expr(m.node)
+        stmt.val = gather_expr(m.val)
         push_newbody(stmt)
 
     elif m('Nop()'):
@@ -687,12 +729,6 @@ def cast_to_ctor(inVar, ctor):
     add_extrinsic(TypeCast, pat, (inT, ctorT))
     push_newbody(S.Defn(pat, bind))
     return var
-
-def store_scope_result(var, func):
-    body = Body([])
-    result = in_env(NEWBODY, body, func)
-    body.stmts.append(S.Assign(LhsVar(var), result))
-    return body
 
 def builtin_call(name, args):
     f = BUILTINS[name]
