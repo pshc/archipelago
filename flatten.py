@@ -297,7 +297,7 @@ class ControlFlowBuilder(vat.Visitor):
             finish_jump(start)
         in_env(LOOP, LoopInfo(exitLevel, start), go)
 
-        if matches(stmt.test, 'key("True")'):
+        if matches(stmt.test, 'Bind(key("True"))'):
             # maybe infinite loop; don't put the TermJumpCond in
             if exitLevel in cfg.pendingExits:
                 # there was a break somewhere, so resolve it to here
