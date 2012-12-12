@@ -182,17 +182,21 @@ class ControlFlowBuilder(vat.Visitor):
         successBlock.entryBlocks.append(curBlock)
         success = Just(successBlock)
 
+        test, converse = elide_NOTs(stmt.test)
+
         nc = env(NEXTCASE)
         nc.failProof = False
         m = match(nc.failBlock)
         if m('Just(block)'):
             m.block.entryBlocks.append(curBlock)
             #null_out_scope_vars()
-            finish_block(TermJumpCond(stmt.test, Just(m.block), success))
+            finish_block(TermJumpCond(test, success, nc.failBlock) \
+                    if converse else TermJumpCond(test, nc.failBlock, success))
         else: # dumb hack again!
             assert nc.failLevel != 0
-            finish_block(TermJumpCond(stmt.test, Nothing(), success))
             #null_out_scope_vars()
+            finish_block(TermJumpCond(test, success, Nothing()) \
+                    if converse else TermJumpCond(test, Nothing(), success))
             pends = cfg.pendingExits.setdefault(nc.failLevel, [])
             pends.append(curBlock)
 
