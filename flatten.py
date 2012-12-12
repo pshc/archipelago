@@ -536,10 +536,13 @@ def flatten_expr(expr):
         return UniqueVar(outVar)
 
     elif m('Call(func, args)'):
-        assert matches(expr.func, "Bind(_)")
+        target = match(expr.func, "Bind(target)")
         expr.args = map(gather_expr, m.args)
         # type hack
-        if matches(expr.func.target, "Builtin()"):
+        if matches(target, "Builtin()"):
+            return PureExpr(expr)
+        # XXX maybe codegen
+        if Nullable.isMaybe(target) and len(expr.args) == 0:
             return PureExpr(expr)
         return ImpureExpr(expr)
     elif m('CallIndirect(func, args, _)'):
