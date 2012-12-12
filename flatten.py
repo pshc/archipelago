@@ -175,6 +175,20 @@ class ControlFlowBuilder(vat.Visitor):
         null_out_scope_vars()
         exit_to_level(env(LOOP).level)
 
+    def BreakUnless(self, stmt):
+        cfg = env(CFG)
+        curBlock = fromJust(cfg.block)
+
+        keepGoingBlock = empty_block('whilebody', orig_index(stmt))
+        keepGoingBlock.entryBlocks.append(curBlock)
+        keepGoing = Just(keepGoingBlock)
+
+        #null_out_scope_vars()
+        finish_block(TermJumpCond(stmt.test, keepGoing, Nothing()))
+        pends = cfg.pendingExits.setdefault(env(LOOP).level, [])
+        pends.append(curBlock)
+        cfg.block = keepGoing
+
     def NextCase(self, stmt):
         cfg = env(CFG)
         curBlock = fromJust(cfg.block)
@@ -652,13 +666,11 @@ def flatten_stmt(stmt):
 
     elif m('While(test, body)'):
         def go():
-            # gross
-            test = gather_expr(m.test)
-            breakCase = CondCase(negate(test), Body([S.Break()]))
-            set_orig(breakCase, m.test)
-            loopCond = S.Cond([breakCase])
-            set_orig(loopCond, m.test)
-            push_newbody(loopCond)
+            assert not matches(m.test, 'Bind(key("False"))'), 'while False?'
+            if not matches(m.test, 'Bind(key("True"))'):
+                breaker = BreakUnless(gather_expr(m.test))
+                set_orig(breaker, m.test)
+                push_newbody(breaker)
 
             map_(flatten_stmt, m.body.stmts)
 

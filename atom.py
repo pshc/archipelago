@@ -105,12 +105,13 @@ CoreStmt, Assign, AugAssign, Break, Cond, Continue, Defn, \
         'While', ('test', 'e'), ('body', 'Body(e)'),
         'VoidStmt', ('voidExpr', 'VoidExpr(e)'))
 
-Stmt, S, Assert, BlockCond, BlockMatch, NextCase, Nop, PushEnv, PopEnv, \
-        WriteExtrinsic = \
+Stmt, S, Assert, BlockCond, BlockMatch, BreakUnless, NextCase, Nop, \
+        PushEnv, PopEnv, WriteExtrinsic = \
     ADT(('Stmt', CoreStmt, {CoreExpr: Expr}),
         'Assert', ('test', 'e'), ('message', 'e'),
         'BlockCond', ('cases', '[BlockCondCase(e)]'),
         'BlockMatch', ('expr', 'e'), ('cases', '[MatchCase(Body(e))]'),
+        'BreakUnless', ('test', 'e'),
         'NextCase', ('test', 'e'),
         'Nop',
         'PushEnv', ('env', '*Env'), ('init', 'e'),
