@@ -828,8 +828,15 @@ def flatten_pat(inVar, origPat):
             if matches(argPat, 'PatWild()'):
                 continue
 
+            # if there's a cast, it'll be done later by LLVMPatCast handling
+            # we just need to make sure the input type is correct here
+            if has_extrinsic(TypeCast, argPat):
+                src, dest = extrinsic(TypeCast, argPat)
+                argT = src
+            else:
+                argT = extrinsic(TypeOf, argPat)
+
             # read attr from input object
-            argT = extrinsic(TypeOf, argPat)
             fieldValue = L.Attr(bind_var(inVar), field)
             add_extrinsic(TypeOf, fieldValue, argT)
             fieldVar = define_temp_var(fieldValue)
