@@ -437,14 +437,14 @@ ExprPurity, PureExpr, ImpureExpr, UniqueVar = \
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
 
-def spill(expr):
+def spill_to_pure(expr):
     m = match(expr)
     if m('PureExpr(_) or UniqueVar(_)'):
         return expr
     elif m('ImpureExpr(expr)'):
         return UniqueVar(define_temp_var(m.expr))
 
-def gather_expr(expr):
+def spill_lower(expr):
     m = match(flatten_expr(expr, Nothing()))
     if m('PureExpr(expr)'):
         return m.expr
@@ -504,7 +504,7 @@ def flatten_expr(expr, optVar):
             undef = Undefined()
             add_extrinsic(TypeOf, undef, extrinsic(TypeOf, expr))
             result = define_temp_var(undef)
-        test = gather_expr(m.test)
+        test = spill_lower(m.test)
         trueBlock = store_scope_result(result, m.then)
         falseBlock = store_scope_result(result, m.else_)
         trueCase = CondCase(test, trueBlock)
@@ -557,7 +557,7 @@ def flatten_expr(expr, optVar):
 
     elif m('Call(func, args)'):
         target = match(expr.func, "Bind(target)")
-        expr.args = map(gather_expr, m.args)
+        expr.args = map(spill_lower, m.args)
         # type hack
         if matches(target, "Builtin()"):
             return PureExpr(expr)
@@ -569,7 +569,7 @@ def flatten_expr(expr, optVar):
         # only thing to worry about for expr.func
         # is reassignable function pointers
         assert matches(expr.func, "Bind(_)")
-        expr.args = map(gather_expr, m.args)
+        expr.args = map(spill_lower, m.args)
         return ImpureExpr(expr)
 
     elif m('Bind(_)'):
@@ -583,23 +583,23 @@ def flatten_expr(expr, optVar):
 
     # though trivial, these need to guarantee order relative to siblings
     elif m('Attr(expr, _)'):
-        expr.expr = gather_expr(m.expr)
+        expr.expr = spill_lower(m.expr)
         return ImpureExpr(expr)
     elif m('TupleLit(vals)'):
-        expr.vals = map(gather_expr, m.vals)
+        expr.vals = map(spill_lower, m.vals)
         return ImpureExpr(expr)
     elif m('ListLit(vals)'):
-        expr.vals = map(gather_expr, m.vals)
+        expr.vals = map(spill_lower, m.vals)
         return ImpureExpr(expr)
 
     elif m('GetEnv(_) or HaveEnv(_)'):
         return ImpureExpr(expr)
     elif m('InEnv(env, init, expr)'):
-        push = PushEnv(m.env, gather_expr(m.init))
+        push = PushEnv(m.env, spill_lower(m.init))
         set_orig(push, expr)
         push_newbody(push)
 
-        ret = spill(flatten_expr(m.expr, Nothing()))
+        ret = spill_to_pure(flatten_expr(m.expr, Nothing()))
 
         pop = PopEnv(m.env)
         set_orig(pop, expr)
@@ -607,10 +607,10 @@ def flatten_expr(expr, optVar):
         return ret
 
     elif m('GetExtrinsic(_, e) or HasExtrinsic(_, e)'):
-        expr.node = gather_expr(m.e)
+        expr.node = spill_lower(m.e)
         return ImpureExpr(expr)
     elif m('ScopeExtrinsic(_, e)'):
-        expr.expr = gather_expr(m.e)
+        expr.expr = spill_lower(m.e)
         return ImpureExpr(expr)
 
     else:
@@ -619,10 +619,10 @@ def flatten_expr(expr, optVar):
 def flatten_void_expr(ve):
     m = match(ve)
     if m('VoidCall(Bind(_), args)'):
-        ve.args = map(gather_expr, m.args)
+        ve.args = map(spill_lower, m.args)
         push_newbody(S.VoidStmt(ve))
     elif m('VoidInEnv(env, init, expr)'):
-        push = PushEnv(m.env, gather_expr(m.init))
+        push = PushEnv(m.env, spill_lower(m.init))
         set_orig(push, ve)
         push_newbody(push)
         flatten_void_expr(m.expr)
@@ -635,7 +635,7 @@ def flatten_void_expr(ve):
 def flatten_stmt(stmt):
     m = match(stmt)
     if m('Assign(_, e) or AugAssign(_, _, e)'):
-        stmt.expr = gather_expr(m.e)
+        stmt.expr = spill_lower(m.e)
         push_newbody(stmt)
     elif m('Break() or Continue()'):
         push_newbody(stmt)
@@ -645,7 +645,7 @@ def flatten_stmt(stmt):
         for case in m.cases:
             def go_test():
                 test, converse = elide_NOTs(case.test)
-                notTest = gather_expr(test if converse else negate(test))
+                notTest = spill_lower(test if converse else negate(test))
                 testStmt = NextCase(notTest)
                 set_orig(testStmt, case)
                 push_newbody(testStmt)
@@ -669,10 +669,10 @@ def flatten_stmt(stmt):
         elif not m('PureExpr(_) or UniqueVar(_)'):
             assert False, "need to spill impurities"
     elif m('Defn(pat, e)'):
-        stmt.expr = gather_expr(m.e)
+        stmt.expr = spill_lower(m.e)
         push_newbody(stmt)
     elif m('Return(e)'):
-        stmt.expr = gather_expr(m.e)
+        stmt.expr = spill_lower(m.e)
         push_newbody(stmt)
     elif m('ReturnNothing()'):
         push_newbody(stmt)
@@ -681,7 +681,7 @@ def flatten_stmt(stmt):
         def go():
             assert not matches(m.test, 'Bind(key("False"))'), 'while False?'
             if not matches(m.test, 'Bind(key("True"))'):
-                breaker = BreakUnless(gather_expr(m.test))
+                breaker = BreakUnless(spill_lower(m.test))
                 set_orig(breaker, m.test)
                 push_newbody(breaker)
 
@@ -727,8 +727,8 @@ def flatten_stmt(stmt):
         flatten_void_expr(m.voidExpr)
 
     elif m('WriteExtrinsic(_, node, val, _)'):
-        stmt.node = gather_expr(m.node)
-        stmt.val = gather_expr(m.val)
+        stmt.node = spill_lower(m.node)
+        stmt.val = spill_lower(m.val)
         push_newbody(stmt)
 
     elif m('Nop()'):
