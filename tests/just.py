@@ -7,5 +7,9 @@ def main():
     b = Nothing()
     assert isJust(a), "isJust"
     c = Just([99])
-    assert fromJust(c)[0] == 99
+
+    d = fromJust(c)
+    assert d[0] == 99
+    # breaks:
+    #assert fromJust(c)[0] == 99
     return fromJust(a).sliminess
