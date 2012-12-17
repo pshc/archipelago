@@ -3,15 +3,20 @@ from atom import *
 from quilt import *
 import vat
 
-ControlFlowState = DT('ControlFlowState',
-        ('block', 'Maybe(Block)'),
-        ('level', int),
+CFGFuncState = DT('CFGFuncState',
         ('pendingExits', {int: ['*Block']}),
         ('gcVars', ['*Var']),
-        ('scopeVars', ['*Var']),
         ('pastBlocks', [Block]))
 
-CFG = new_env('CFG', ControlFlowState)
+CFGFUNC = new_env('CFGFUNC', CFGFuncState)
+
+CFGScopeState = DT('CFGScopeState',
+        ('block', 'Maybe(Block)'),
+        ('level', int),
+        ('scopeVars', ['*Var']),
+        ('prevScope', 'Maybe(*CFGScopeState)'))
+
+CFG = new_env('CFG', CFGScopeState)
 
 LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
@@ -26,9 +31,6 @@ NEXTCASE = new_env('NEXTCASE', NextCaseInfo)
 
 NEWFUNCS = new_env('NEWFUNCS', [BlockFunc])
 
-def initial_cfg_state():
-    return ControlFlowState(Just(empty_block('', 0)), 0, {}, [], [], [])
-
 def empty_block(label, index):
     label = '%s.%d' % (label, index)
     return Block(label, [], [], TermJump(Nothing()), [])
@@ -41,7 +43,7 @@ def start_new_block(label, index):
     if m('Just(block)'):
         old = m.block
         jumps(old, new)
-        cfg.pastBlocks.append(old)
+        env(CFGFUNC).pastBlocks.append(old)
     cfg.block = Just(new)
     resolve_pending_exits(new)
     return new
@@ -58,12 +60,12 @@ def jumps(src, dest):
     dest.entryBlocks.append(src)
 
 def resolve_pending_exits(destBlock):
-    cfg = env(CFG)
-    level = cfg.level
-    if level not in cfg.pendingExits:
+    level = env(CFG).level
+    pendingExits = env(CFGFUNC).pendingExits
+    if level not in pendingExits:
         return
-    pending = cfg.pendingExits[level]
-    del cfg.pendingExits[level]
+    pending = pendingExits[level]
+    del pendingExits[level]
     for block in pending:
         m = match(block.terminator)
         if m('TermJumpCond(_, Nothing(), Just(_))'):
@@ -98,7 +100,7 @@ def finish_block(term):
     finished = fromJust(cfg.block)
     assert matches(finished.terminator, 'TermJump(Nothing())')
     finished.terminator = term
-    cfg.pastBlocks.append(finished)
+    env(CFGFUNC).pastBlocks.append(finished)
     cfg.block = Nothing()
 
 def finish_jump(block):
@@ -117,9 +119,10 @@ def exit_to_level(level):
     curLevel = cfg.level
     assert level <= curLevel, "Bad exit to inner level"
     block = fromJust(cfg.block)
-    cfg.pendingExits.setdefault(level, []).append(block)
+    func = env(CFGFUNC)
+    func.pendingExits.setdefault(level, []).append(block)
     cfg.block = Nothing()
-    cfg.pastBlocks.append(block)
+    func.pastBlocks.append(block)
 
 def build_body_and_exit_to_level(body, exitLevel):
     # exit_to_level really ought to occur while inside body
@@ -131,14 +134,15 @@ def orig_index(stmt):
 
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
-        state = initial_cfg_state()
-        in_env(CFG, state, lambda: self.visit('func'))
-        assert state.level == 0
-        assert not state.pendingExits, "CFG dangling exits: %s" % (
-                state.pendingExits,)
-        blocks = state.pastBlocks
-        if isJust(state.block):
-            last = fromJust(state.block)
+        topScope = CFGScopeState(Just(empty_block('', 0)), 0, [], Nothing())
+        funcInfo = CFGFuncState({}, [], [])
+        in_env(CFGFUNC, funcInfo, lambda: in_env(CFG, topScope,
+                lambda: self.visit('func')))
+        assert not funcInfo.pendingExits, "CFG dangling exits: %s" % (
+                funcInfo.pendingExits,)
+        blocks = funcInfo.pastBlocks
+        if isJust(topScope.block):
+            last = fromJust(topScope.block)
             last.terminator = TermReturnNothing()
             blocks.append(last)
         elif len(blocks) == 0:
@@ -147,29 +151,26 @@ class ControlFlowBuilder(vat.Visitor):
             blocks.append(b)
         params = map(LVar, top.func.params)
         # params might need to also be in gcVars?
-        bf = BlockFunc(top.var, state.gcVars, params, blocks)
+        bf = BlockFunc(top.var, funcInfo.gcVars, params, blocks)
         env(NEWFUNCS).append(bf)
 
     def FuncExpr(self, fe):
         assert False, "FuncExprs ought to be gone"
 
     def Body(self, body):
-        cfg = env(CFG)
-        outerLevel = cfg.level
-        innerLevel = outerLevel + 1
-        outerDefns = cfg.scopeVars
+        outer = env(CFG)
+        # preserve cur block across scopes
+        inner = CFGScopeState(outer.block, outer.level+1, [], outer)
 
-        cfg.level = innerLevel
-        cfg.scopeVars = []
-
-        self.visit()
-        assert innerLevel not in cfg.pendingExits, "Dangling exit?"
-        # this assumes that finish() is going to get called soon,
-        # which is safe enough for now, but really fragile
-        null_out_scope_vars()
-
-        cfg.scopeVars = outerDefns
-        cfg.level = outerLevel
+        def go():
+            self.visit()
+            # this assumes that finish() is going to get called soon,
+            # which is safe enough for now, but really fragile
+            null_out_scope_vars()
+        in_env(CFG, inner, go)
+        assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
+        # preserve cur block across scopes
+        outer.block = inner.block
 
     def Break(self, stmt):
         null_out_scope_vars()
@@ -185,7 +186,7 @@ class ControlFlowBuilder(vat.Visitor):
 
         #null_out_scope_vars()
         finish_block(TermJumpCond(stmt.test, keepGoing, Nothing()))
-        pends = cfg.pendingExits.setdefault(env(LOOP).level, [])
+        pends = env(CFGFUNC).pendingExits.setdefault(env(LOOP).level, [])
         pends.append(curBlock)
         cfg.block = keepGoing
 
@@ -218,7 +219,7 @@ class ControlFlowBuilder(vat.Visitor):
             #null_out_scope_vars()
             finish_block(TermJumpCond(test, success, Nothing()) \
                     if converse else TermJumpCond(test, Nothing(), success))
-            pends = cfg.pendingExits.setdefault(nc.exitLevel, [])
+            pends = env(CFGFUNC).pendingExits.setdefault(nc.exitLevel, [])
             pends.append(curBlock)
 
         cfg.block = success
@@ -247,11 +248,12 @@ class ControlFlowBuilder(vat.Visitor):
             build_body_and_exit_to_level(case.body, exitLevel)
             cfg.block = info.nextBlock
 
-        if exitLevel in cfg.pendingExits:
+        if exitLevel in env(CFGFUNC).pendingExits:
             _ = start_new_block('endif', orig_index(cond))
 
     def Cond(self, cond):
         cfg = env(CFG)
+        pendingExits = env(CFGFUNC).pendingExits
         exitLevel = cfg.level
         n = len(cond.cases)
         for i, case in enumerate(cond.cases):
@@ -279,7 +281,7 @@ class ControlFlowBuilder(vat.Visitor):
             true.entryBlocks.append(curBlock)
             if isLast:
                 # resolve the conditional fall-through later
-                pends = cfg.pendingExits.setdefault(exitLevel, [])
+                pends = pendingExits.setdefault(exitLevel, [])
                 pends.append(curBlock)
             else:
                 fromJust(nextTest).entryBlocks.append(curBlock)
@@ -288,7 +290,7 @@ class ControlFlowBuilder(vat.Visitor):
             build_body_and_exit_to_level(case.body, exitLevel)
             cfg.block = nextTest
 
-        if exitLevel in cfg.pendingExits:
+        if exitLevel in pendingExits:
             _ = start_new_block('endif', orig_index(cond))
 
     def Continue(self, stmt):
@@ -313,7 +315,7 @@ class ControlFlowBuilder(vat.Visitor):
         in_env(LOOP, LoopInfo(exitLevel, start), go)
 
         assert matches(stmt.test, 'Undefined()')
-        if exitLevel in cfg.pendingExits:
+        if exitLevel in env(CFGFUNC).pendingExits:
             # there was a break somewhere, so resolve it to here
             _ = start_new_block('endwhile', orig_index(stmt))
 
@@ -343,10 +345,9 @@ class ControlFlowBuilder(vat.Visitor):
         assert False, "Can't deal with %s" % stmt
 
     def Var(self, var):
-        cfg = env(CFG)
-        cfg.scopeVars.append(var)
+        env(CFG).scopeVars.append(var)
         if is_gc_var(var):
-            cfg.gcVars.append(var)
+            env(CFGFUNC).gcVars.append(var)
 
 def negate(expr):
     m = match(expr)
