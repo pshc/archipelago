@@ -257,11 +257,9 @@ class MaybeConverter(vat.Mutator):
                 args = call.args
                 if len(args) == 1:
                     arg = self.mutate('args', 0)
-                    t = i_ADT(Maybe)
-                    # Arg was probably cast to void* (for the just field)
                     # cast it to Maybe, as the Just() is now omitted
-                    arg = cast_from_voidptr(arg, t)
-                    update_extrinsic(LLVMTypeOf, arg, t)
+                    argT = extrinsic(LLVMTypeOf, arg)
+                    arg = cast(argT, i_ADT(Maybe), arg)
                     return arg
                 else:
                     assert len(args) == 0

@@ -162,8 +162,14 @@ def check_inst_call(e, inst, f, args):
 
     argTs, result, meta = match(t, ("TFunc(args, result, meta)", tuple3))
 
+    # XXX maybe codegen
+    # don't bother casting x to `a in Just(x)
+    # this is ugly... consider rewriting this cast instead in MaybeConverter?
+    skipCasts = Nullable.isMaybe(f.target)
+
     for arg, (origT, newT) in ezip(args, ezip(origArgTs, argTs)):
-        _ = maybe_typecast_reversed(inst, arg, newT, origT)
+        if not skipCasts:
+            _ = maybe_typecast_reversed(inst, arg, newT, origT)
         check_expr_as(newT, arg)
 
     if matches(result, "Ret(_)"):
