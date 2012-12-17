@@ -125,9 +125,19 @@ def exit_to_level(level):
     func.pastBlocks.append(block)
 
 def build_body_and_exit_to_level(body, exitLevel):
-    # exit_to_level really ought to occur while inside body
-    vat.visit(ControlFlowBuilder, body, 'Body(LExpr)')
-    exit_to_level(exitLevel)
+    outer = env(CFG)
+    # preserve cur block across scopes
+    inner = CFGScopeState(outer.block, outer.level+1, [], outer)
+
+    def go():
+        for stmt in body.stmts:
+            vat.visit(ControlFlowBuilder, stmt, 'Stmt(LExpr)')
+        null_out_scope_vars()
+        exit_to_level(exitLevel)
+    in_env(CFG, inner, go)
+    assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
+    # preserve cur block across scopes
+    outer.block = inner.block
 
 def orig_index(stmt):
     return vat.orig_loc(stmt).index
