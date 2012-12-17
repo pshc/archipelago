@@ -562,7 +562,7 @@ def flatten_expr(expr, optVar):
         if matches(target, "Builtin()"):
             return PureExpr(expr)
         # XXX maybe codegen
-        if Nullable.isMaybe(target) and len(expr.args) == 0:
+        if Nullable.isMaybe(target):
             return PureExpr(expr)
         return ImpureExpr(expr)
     elif m('CallIndirect(func, args, _)'):
