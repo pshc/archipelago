@@ -444,6 +444,11 @@ def prop_inenv(t, init, f):
     consume_value_as(ctype(t), init)
     return prop_expr(f)
 
+# TEMP
+def prop_makectx(t, init):
+    consume_value_as(ctype(t), init)
+    return t_DT(Env)
+
 def prop_getextrinsic(e, extr, node):
     t = prop_expr(node)
     assert matches(t, "TData(_, _)"), "Can't get extr from %s" % (nodet,)
@@ -471,6 +476,7 @@ def _prop_expr(e):
         ("e==GetEnv(Env(t))", instantiate_type),
         ("HaveEnv(_)", lambda: C.TPrim(PBool())),
         ("InEnv(Env(t), init, f)", prop_inenv),
+        ("MakeCtx(Env(t), init)", prop_makectx),
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),

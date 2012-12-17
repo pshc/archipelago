@@ -143,7 +143,7 @@ def setup_editor():
     glEnableClientState(GL_VERTEX_ARRAY)
 
     state = initial_visual_state()
-    return _make_ctx(VISUAL, state)
+    return make_ctx(VISUAL, state)
 
 @annot('(float, float, float, float) -> void')
 def render_quad(x, y, w, h):

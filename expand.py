@@ -355,17 +355,16 @@ class EnvExtrConverter(vat.Mutator):
             add_extrinsic(LLVMTypeOf, discard, IVoidPtr())
             return S.Defn(discard, call)
 
+    def MakeCtx(self, e):
+        environ = bind_env(e.env)
+        null = NullPtr()
+        add_extrinsic(LLVMTypeOf, null, IVoidPtr())
+        init = self.mutate('init')
+        init = cast_to_voidptr(init, extrinsic(LLVMTypeOf, init))
+        call = runtime_call('_pushenv', [environ, null, init])
+        return call
+
     def Call(self, e):
-
-        # TEMP
-        if matches(e.func, "Bind(key('_make_ctx'))"):
-            environ = bind_env(e.args.pop(0).expr.env)
-            null = NullPtr()
-            add_extrinsic(LLVMTypeOf, null, IVoidPtr())
-            arg = self.mutate('args')[0]
-            call = runtime_call('_pushenv', [environ, null, arg])
-            return call
-
         e.func = self.mutate('func')
         e.args = self.mutate('args')
         add_call_ctx(e.func, e.args)

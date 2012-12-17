@@ -273,6 +273,11 @@ def check_void_inenv(environ, init, f):
     if introduced:
         present.remove(environ)
 
+# TEMP
+def check_makectx(environ, init):
+    check(t_DT(Env))
+    check_expr_as(environ.type, init)
+
 def check_getextrinsic(t, node):
     check(t)
     check_expr_as_boxed(node)
@@ -314,6 +319,7 @@ def _check_expr(e):
         ("GetEnv(Env(t))", check),
         ("HaveEnv(_)", lambda: check(TBool())),
         ("InEnv(environ, init, f)", check_inenv),
+        ("MakeCtx(environ, init)", check_makectx),
         ("GetExtrinsic(Extrinsic(t), node)", check_getextrinsic),
         ("HasExtrinsic(_, node)", check_hasextrinsic),
         ("ScopeExtrinsic(_, f)", check_same),

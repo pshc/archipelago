@@ -49,7 +49,7 @@ CoreExpr, Attr, Bind, Call, Lit, TupleLit = \
         'TupleLit', ('vals', '[CoreExpr]'))
 
 Expr, E, And, DictLit, FuncExpr, GenExpr, \
-        GetEnv, HaveEnv, InEnv, \
+        GetEnv, HaveEnv, InEnv, MakeCtx, \
         GetExtrinsic, HasExtrinsic, ScopeExtrinsic, \
         ListLit, Match, Or, Ternary = \
     ADT(('Expr', CoreExpr),
@@ -61,6 +61,7 @@ Expr, E, And, DictLit, FuncExpr, GenExpr, \
         'GetEnv', ('env', '*Env'),
         'HaveEnv', ('env', '*Env'),
         'InEnv', ('env', '*Env'), ('init', 'Expr'), ('expr', 'Expr'),
+        'MakeCtx', ('env', '*Env'), ('init', 'Expr'),
         'GetExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'HasExtrinsic', ('extrinsic', '*Extrinsic'), ('node', 'Expr'),
         'ScopeExtrinsic', ('extrinsic', '*Extrinsic'), ('expr', 'Expr'),
