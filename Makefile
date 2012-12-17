@@ -21,6 +21,9 @@ all: test
 debug: CODEGEN = ipdb construct.py $(OPTS)
 debug: remake_tests
 
+editor:
+	@$(MAKE) -C Editor
+
 profile: CODEGEN = python -m cProfile -s time construct.py $(OPTS)
 profile: remake_tests
 
@@ -56,7 +59,7 @@ test: remake_tests
 	@echo
 	@echo Done.
 
-.PHONY: all clean debug dirs remake_tests setup test
+.PHONY: all clean debug dirs editor remake_tests setup test
 
 clean:
 	rm -rf -- $(DIRS) *.pyc
