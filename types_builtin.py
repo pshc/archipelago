@@ -75,6 +75,7 @@ def _type_repr(t):
     seen.add(t)
     rstr = match(t, ("TVar(v)", lambda v: col('Green', _get_name(v))),
                     ("TPrim(PInt())", lambda: 'int'),
+                    ("TPrim(PFloat())", lambda: 'float'),
                     ("TPrim(PStr())", lambda: 'str'),
                     ("TPrim(PChar())", lambda: 'char'),
                     ("TPrim(PBool())", lambda: 'bool'),
