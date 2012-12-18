@@ -59,6 +59,12 @@ def jumps(src, dest):
     src.terminator = TermJump(Just(dest))
     dest.entryBlocks.append(src)
 
+def flip_jump(test, true, false, converse):
+    if converse:
+        return TermJumpCond(test, false, true)
+    else:
+        return TermJumpCond(test, true, false)
+
 def resolve_pending_exits(destBlock):
     level = env(CFG).level
     pendingExits = env(CFGFUNC).pendingExits
@@ -230,13 +236,11 @@ class ControlFlowBuilder(vat.Visitor):
         if m('Just(block)'):
             m.block.entryBlocks.append(curBlock)
             #null_out_scope_vars()
-            finish_block(TermJumpCond(test, success, nc.nextBlock) \
-                    if converse else TermJumpCond(test, nc.nextBlock, success))
+            finish_block(flip_jump(test, nc.nextBlock, success, converse))
         else: # dumb hack again!
             assert nc.exitLevel != 0
             #null_out_scope_vars()
-            finish_block(TermJumpCond(test, success, Nothing()) \
-                    if converse else TermJumpCond(test, Nothing(), success))
+            finish_block(flip_jump(test, Nothing(), success, converse))
             pends = env(CFGFUNC).pendingExits.setdefault(nc.exitLevel, [])
             pends.append(curBlock)
 
@@ -293,8 +297,7 @@ class ControlFlowBuilder(vat.Visitor):
             nextTest = Nothing() if isLast else \
                     Just(empty_block('elif', orig_index(cond.cases[i+1])))
 
-            jump = TermJumpCond(test, nextTest, Just(true)) if converse \
-                    else TermJumpCond(test, Just(true), nextTest)
+            jump = flip_jump(test, Just(true), nextTest, converse)
             curBlock = fromJust(cfg.block)
             true.entryBlocks.append(curBlock)
             if isLast:
