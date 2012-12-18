@@ -124,7 +124,7 @@ def exit_to_level(level):
     cfg.block = Nothing()
     func.pastBlocks.append(block)
 
-def build_body_and_exit_to_level(body, exitLevel):
+def build_body(body, callInside):
     outer = env(CFG)
     # preserve cur block across scopes
     inner = CFGScopeState(outer.block, outer.level+1, [], outer)
@@ -132,12 +132,17 @@ def build_body_and_exit_to_level(body, exitLevel):
     def go():
         for stmt in body.stmts:
             vat.visit(ControlFlowBuilder, stmt, 'Stmt(LExpr)')
-        null_out_scope_vars()
-        exit_to_level(exitLevel)
+        callInside()
     in_env(CFG, inner, go)
     assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
     # preserve cur block across scopes
     outer.block = inner.block
+
+def build_body_and_exit_to_level(body, exitLevel):
+    def leave():
+        null_out_scope_vars()
+        exit_to_level(exitLevel)
+    build_body(body, leave)
 
 def orig_index(stmt):
     return vat.orig_loc(stmt).index
@@ -146,10 +151,12 @@ class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
         topScope = CFGScopeState(Just(empty_block('', 0)), 0, [], Nothing())
         funcInfo = CFGFuncState({}, [], [])
+
         in_env(CFGFUNC, funcInfo, lambda: in_env(CFG, topScope,
-                lambda: self.visit('func')))
+                lambda: build_body(top.func.body, nop)))
         assert not funcInfo.pendingExits, "CFG dangling exits: %s" % (
                 funcInfo.pendingExits,)
+
         blocks = funcInfo.pastBlocks
         if isJust(topScope.block):
             last = fromJust(topScope.block)
@@ -168,19 +175,7 @@ class ControlFlowBuilder(vat.Visitor):
         assert False, "FuncExprs ought to be gone"
 
     def Body(self, body):
-        outer = env(CFG)
-        # preserve cur block across scopes
-        inner = CFGScopeState(outer.block, outer.level+1, [], outer)
-
-        def go():
-            self.visit()
-            # this assumes that finish() is going to get called soon,
-            # which is safe enough for now, but really fragile
-            null_out_scope_vars()
-        in_env(CFG, inner, go)
-        assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
-        # preserve cur block across scopes
-        outer.block = inner.block
+        assert False, "Use custom body handlers"
 
     def Break(self, stmt):
         null_out_scope_vars()
@@ -252,8 +247,7 @@ class ControlFlowBuilder(vat.Visitor):
                     block.label = 'else' + block.label[4:]
                 info = NextCaseInfo(True, exitLevel, Nothing())
 
-            in_env(NEXTCASE, info, lambda:
-                    vat.visit(ControlFlowBuilder, case.test, 'Body(LExpr)'))
+            in_env(NEXTCASE, info, lambda: build_body(case.test, nop))
             assert not info.failProof or isLast
             build_body_and_exit_to_level(case.body, exitLevel)
             cfg.block = info.nextBlock
@@ -319,10 +313,8 @@ class ControlFlowBuilder(vat.Visitor):
         cfg = env(CFG)
         exitLevel = cfg.level
         start = start_new_block('while', orig_index(stmt))
-        def go():
-            self.visit('body')
-            finish_jump(start)
-        in_env(LOOP, LoopInfo(exitLevel, start), go)
+        in_env(LOOP, LoopInfo(exitLevel, start),
+                lambda: build_body(stmt.body, lambda: finish_jump(start)))
 
         assert matches(stmt.test, 'Undefined()')
         if exitLevel in env(CFGFUNC).pendingExits:
