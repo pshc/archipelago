@@ -13,7 +13,7 @@ CFGFUNC = new_env('CFGFUNC', CFGFuncState)
 CFGScopeState = DT('CFGScopeState',
         ('block', 'Maybe(Block)'),
         ('level', int),
-        ('scopeVars', ['*Var']),
+        ('livenessByLevel', {int: ['*Var']}),
         ('prevScope', 'Maybe(*CFGScopeState)'))
 
 CFG = new_env('CFG', CFGScopeState)
@@ -83,14 +83,21 @@ def is_gc_var(var):
     t = extrinsic(TypeOf, var)
     return is_strong_type(t) and not matches(t, "TFunc(_, _, _)") # todo
 
-def null_out_scope_vars():
+def destroy_vars_until_level(exitLevel):
     cfg = env(CFG)
-    if isJust(cfg.block):
-        nullOuts = fromJust(cfg.block).nullOuts
-        for var in cfg.scopeVars:
-            if is_gc_var(var):
-                nullOuts.append(var)
-    cfg.scopeVars = []
+    if isNothing(cfg.block):
+        return
+
+    nullOuts = fromJust(cfg.block).nullOuts
+    level = cfg.level
+    liveness = cfg.livenessByLevel
+    while level > exitLevel:
+        if level in liveness:
+            for var in liveness[level]:
+                if is_gc_var(var):
+                    nullOuts.append(var)
+            del liveness[level]
+        level -= 1
 
 def finish_block(term):
     "Closes up the current block with a terminator."
@@ -126,8 +133,9 @@ def exit_to_level(level):
 
 def build_body(body, callInside):
     outer = env(CFG)
-    # preserve cur block across scopes
-    inner = CFGScopeState(outer.block, outer.level+1, [], outer)
+    liveness = outer.livenessByLevel.copy()
+    # allow cur block to bleed into inner scope
+    inner = CFGScopeState(outer.block, outer.level+1, liveness, outer)
 
     def go():
         for stmt in body.stmts:
@@ -140,7 +148,7 @@ def build_body(body, callInside):
 
 def build_body_and_exit_to_level(body, exitLevel):
     def leave():
-        null_out_scope_vars()
+        destroy_vars_until_level(exitLevel)
         exit_to_level(exitLevel)
     build_body(body, leave)
 
@@ -149,7 +157,11 @@ def orig_index(stmt):
 
 class ControlFlowBuilder(vat.Visitor):
     def TopFunc(self, top):
-        topScope = CFGScopeState(Just(empty_block('', 0)), 0, [], Nothing())
+        # params are considered alive during the entire function for now
+        # so don't bother tracking their liveness
+        lives = {}
+
+        topScope = CFGScopeState(Just(empty_block('', 0)), 0, lives, Nothing())
         funcInfo = CFGFuncState({}, [], [])
 
         def finish_func():
@@ -178,8 +190,9 @@ class ControlFlowBuilder(vat.Visitor):
         assert False, "Use custom body handlers"
 
     def Break(self, stmt):
-        null_out_scope_vars()
-        exit_to_level(env(LOOP).level)
+        level = env(LOOP).level
+        destroy_vars_until_level(level)
+        exit_to_level(level)
 
     def BreakUnless(self, stmt):
         cfg = env(CFG)
@@ -299,15 +312,16 @@ class ControlFlowBuilder(vat.Visitor):
             _ = start_new_block('endif', orig_index(cond))
 
     def Continue(self, stmt):
-        null_out_scope_vars()
-        finish_jump(env(LOOP).entryBlock)
+        loop = env(LOOP)
+        destroy_vars_until_level(loop.level)
+        finish_jump(loop.entryBlock)
 
     def Return(self, stmt):
-        env(CFG).scopeVars = []
+        env(CFG).livenessByLevel = {}
         finish_block(TermReturn(stmt.expr))
 
     def ReturnNothing(self, stmt):
-        env(CFG).scopeVars = []
+        env(CFG).livenessByLevel = {}
         finish_block(TermReturnNothing())
 
     def While(self, stmt):
@@ -334,7 +348,13 @@ class ControlFlowBuilder(vat.Visitor):
         m = match(stmt.voidExpr)
         if m('VoidCall(Bind(f), _)'):
             if matches(extrinsic(TypeOf, m.f), 'TFunc(_, Bottom(), _)'):
-                null_out_scope_vars()
+                # this is dumb...
+                # we can't clobber vars since they might be call args.
+                # ideally this would be some kind of tail call that overwrites
+                # this stack frame.
+                # anyway, currently Bottom calls are only for failed asserts,
+                # so whatever.
+                #destroy_vars_until_level(0)
                 finish_block(TermUnreachable())
     # ugh what is this doing here
     def PushEnv(self, stmt):
@@ -348,9 +368,12 @@ class ControlFlowBuilder(vat.Visitor):
         assert False, "Can't deal with %s" % stmt
 
     def Var(self, var):
-        env(CFG).scopeVars.append(var)
-        if is_gc_var(var):
-            env(CFGFUNC).gcVars.append(var)
+        if not is_gc_var(var):
+            return
+        cfg = env(CFG)
+        cfg.livenessByLevel.setdefault(cfg.level, []).append(var)
+
+        env(CFGFUNC).gcVars.append(var)
 
 def negate(expr):
     m = match(expr)
