@@ -152,20 +152,20 @@ class ControlFlowBuilder(vat.Visitor):
         topScope = CFGScopeState(Just(empty_block('', 0)), 0, [], Nothing())
         funcInfo = CFGFuncState({}, [], [])
 
+        def finish_func():
+            finish_block(TermReturnNothing())
+            assert not funcInfo.pendingExits, "CFG dangling exits: %s" % (
+                    funcInfo.pendingExits,)
+
         in_env(CFGFUNC, funcInfo, lambda: in_env(CFG, topScope,
-                lambda: build_body(top.func.body, nop)))
-        assert not funcInfo.pendingExits, "CFG dangling exits: %s" % (
-                funcInfo.pendingExits,)
+                lambda: build_body(top.func.body, finish_func)))
 
         blocks = funcInfo.pastBlocks
-        if isJust(topScope.block):
-            last = fromJust(topScope.block)
-            last.terminator = TermReturnNothing()
-            blocks.append(last)
-        elif len(blocks) == 0:
+        if len(blocks) == 0:
             b = empty_block('', 0)
             b.terminator = TermReturnNothing()
             blocks.append(b)
+
         params = map(LVar, top.func.params)
         # params might need to also be in gcVars?
         bf = BlockFunc(top.var, funcInfo.gcVars, params, blocks)
@@ -247,9 +247,10 @@ class ControlFlowBuilder(vat.Visitor):
                     block.label = 'else' + block.label[4:]
                 info = NextCaseInfo(True, exitLevel, Nothing())
 
-            in_env(NEXTCASE, info, lambda: build_body(case.test, nop))
-            assert not info.failProof or isLast
-            build_body_and_exit_to_level(case.body, exitLevel)
+            def after_tests():
+                assert not info.failProof or isLast
+                build_body_and_exit_to_level(case.body, exitLevel)
+            in_env(NEXTCASE, info, lambda: build_body(case.test, after_tests))
             cfg.block = info.nextBlock
 
         if exitLevel in env(CFGFUNC).pendingExits:
