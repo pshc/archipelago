@@ -135,8 +135,8 @@ def build_body(body, callInside):
         callInside()
     in_env(CFG, inner, go)
     assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
-    # preserve cur block across scopes
-    outer.block = inner.block
+    assert isNothing(inner.block), "Body leaks block after exit"
+    outer.block = Nothing()
 
 def build_body_and_exit_to_level(body, exitLevel):
     def leave():
