@@ -22,7 +22,6 @@ LoopInfo = DT('LoopInfo', ('level', int), ('entryBlock', '*Block'))
 
 LOOP = new_env('LOOP', LoopInfo)
 
-# really should be an ADT (either nextBlock or exitLevel)
 NextCaseInfo = DT('NextCaseInfo', ('failProof', bool),
                                   ('exitLevel', int),
                                   ('nextBlock', 'Maybe(*Block)'))
@@ -89,6 +88,21 @@ def is_gc_var(var):
     t = extrinsic(TypeOf, var)
     return is_strong_type(t) and not matches(t, "TFunc(_, _, _)") # todo
 
+def live_vars_exist_since_level(notIncludedLevel):
+    cfg = env(CFG)
+    if isNothing(cfg.block):
+        return False
+
+    nullOuts = fromJust(cfg.block).nullOuts
+    level = cfg.level
+    liveness = cfg.livenessByLevel
+    while level > notIncludedLevel:
+        if level in liveness:
+            assert len(liveness[level]) > 0
+            return True
+        level -= 1
+    return False
+
 def destroy_vars_until_level(exitLevel):
     cfg = env(CFG)
     if isNothing(cfg.block):
@@ -124,18 +138,19 @@ def finish_jump(block):
     block.entryBlocks.append(fromJust(cfg.block))
     finish_block(TermJump(Just(block)))
 
+def pend_exit(block, level):
+    env(CFGFUNC).pendingExits.setdefault(level, []).append(block)
+
 def exit_to_level(level):
     "Terminates current block, later resolving to the next block at level."
     cfg = env(CFG)
     if isNothing(cfg.block):
         return
-    curLevel = cfg.level
-    assert level <= curLevel, "Bad exit to inner level"
     block = fromJust(cfg.block)
-    func = env(CFGFUNC)
-    func.pendingExits.setdefault(level, []).append(block)
+    assert level <= cfg.level, "Bad exit to inner level"
+    pend_exit(block, level)
+    env(CFGFUNC).pastBlocks.append(block)
     cfg.block = Nothing()
-    func.pastBlocks.append(block)
 
 def build_body(body, callInside):
     outer = env(CFG)
@@ -208,10 +223,20 @@ class ControlFlowBuilder(vat.Visitor):
         keepGoingBlock.entryBlocks.append(curBlock)
         keepGoing = Just(keepGoingBlock)
 
-        #null_out_scope_vars()
-        finish_block(TermJumpCond(stmt.test, keepGoing, Nothing()))
-        pends = env(CFGFUNC).pendingExits.setdefault(env(LOOP).level, [])
-        pends.append(curBlock)
+        exitLevel = env(LOOP).level
+        needDestruction = live_vars_exist_since_level(exitLevel)
+        if needDestruction:
+            # THIS NEEDS TESTING
+            # (gc'd object obtained in while's test expr needs destruction)
+            destruct = Just(empty_block('breakcleanup', orig_index(stmt)))
+            finish_block(TermJumpCond(stmt.test, keepGoing, destruct))
+            cfg.block = destruct
+            destroy_vars_until_level(exitLevel)
+            exit_to_level(exitLevel)
+        else:
+            finish_block(TermJumpCond(stmt.test, keepGoing, Nothing()))
+            pend_exit(curBlock, exitLevel)
+
         cfg.block = keepGoing
 
     def NextCase(self, stmt):
@@ -232,17 +257,27 @@ class ControlFlowBuilder(vat.Visitor):
         success = Just(successBlock)
         nc.failProof = False
 
-        m = match(nc.nextBlock)
-        if m('Just(block)'):
-            m.block.entryBlocks.append(curBlock)
-            #null_out_scope_vars()
-            finish_block(flip_jump(test, nc.nextBlock, success, converse))
-        else: # dumb hack again!
-            assert nc.exitLevel != 0
-            #null_out_scope_vars()
-            finish_block(flip_jump(test, Nothing(), success, converse))
-            pends = env(CFGFUNC).pendingExits.setdefault(nc.exitLevel, [])
-            pends.append(curBlock)
+        needDestruction = live_vars_exist_since_level(nc.exitLevel)
+        failBlock = Just(empty_block('casecleanup', orig_index(stmt))) \
+                if needDestruction else Nothing()
+
+        haveNextBlock = isJust(nc.nextBlock)
+        if haveNextBlock and not needDestruction:
+            failBlock = nc.nextBlock
+
+        finish_block(flip_jump(test, failBlock, success, converse))
+        if isJust(failBlock):
+            fromJust(failBlock).entryBlocks.append(curBlock)
+
+        if needDestruction:
+            cfg.block = failBlock
+            destroy_vars_until_level(nc.exitLevel)
+            if haveNextBlock:
+                finish_jump(fromJust(nc.nextBlock))
+            else:
+                exit_to_level(nc.exitLevel)
+        elif not haveNextBlock:
+            pend_exit(curBlock, nc.exitLevel)
 
         cfg.block = success
 
@@ -257,7 +292,7 @@ class ControlFlowBuilder(vat.Visitor):
             isLast = (i == n-1)
             if not isLast:
                 nextTest = empty_block('elif', orig_index(cond.cases[i+1]))
-                info = NextCaseInfo(True, 0, Just(nextTest))
+                info = NextCaseInfo(True, exitLevel, Just(nextTest))
             else:
                 block = fromJust(cfg.block)
                 if block.label[:4] == 'elif':
