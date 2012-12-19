@@ -153,19 +153,21 @@ def exit_to_level(level):
     cfg.block = Nothing()
 
 def build_body(body, callInside):
-    outer = env(CFG)
-    liveness = outer.livenessByLevel.copy()
-    # allow cur block to bleed into inner scope
-    inner = CFGScopeState(outer.block, outer.level+1, liveness, outer)
-
     def go():
         for stmt in body.stmts:
             vat.visit(ControlFlowBuilder, stmt, 'Stmt(LExpr)')
         callInside()
-    in_env(CFG, inner, go)
+        assert isNothing(env(CFG).block), "Block still active after scope end"
+    inside_cfg_scope(go)
+    env(CFG).block = Nothing()
+
+def inside_cfg_scope(callInside):
+    outer = env(CFG)
+    liveness = outer.livenessByLevel.copy()
+    # allow cur block to bleed into inner scope
+    inner = CFGScopeState(outer.block, outer.level+1, liveness, outer)
+    in_env(CFG, inner, callInside)
     assert inner.level not in env(CFGFUNC).pendingExits, "Dangling exit?"
-    assert isNothing(inner.block), "Body leaks block after exit"
-    outer.block = Nothing()
 
 def build_body_and_exit_to_level(body, exitLevel):
     def leave():
