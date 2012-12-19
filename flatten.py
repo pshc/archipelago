@@ -234,7 +234,8 @@ class ControlFlowBuilder(vat.Visitor):
             destruct = Just(destructBlock)
             finish_block(TermJumpCond(stmt.test, keepGoing, destruct))
             cfg.block = destruct
-            destroy_vars_until_level(exitLevel)
+            # need to emulate a scope here since BreakUnless is Body-less
+            inside_cfg_scope(lambda: destroy_vars_until_level(exitLevel))
             exit_to_level(exitLevel)
         else:
             finish_block(TermJumpCond(stmt.test, keepGoing, Nothing()))
@@ -274,7 +275,9 @@ class ControlFlowBuilder(vat.Visitor):
 
         if needDestruction:
             cfg.block = failBlock
-            destroy_vars_until_level(nc.exitLevel)
+            # need to emulate a scope here since NextCase is Body-less
+            inside_cfg_scope(lambda: destroy_vars_until_level(nc.exitLevel))
+
             if haveNextBlock:
                 finish_jump(fromJust(nc.nextBlock))
             else:
