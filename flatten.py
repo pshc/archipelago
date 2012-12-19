@@ -226,9 +226,10 @@ class ControlFlowBuilder(vat.Visitor):
         exitLevel = env(LOOP).level
         needDestruction = live_vars_exist_since_level(exitLevel)
         if needDestruction:
-            # THIS NEEDS TESTING
             # (gc'd object obtained in while's test expr needs destruction)
-            destruct = Just(empty_block('breakcleanup', orig_index(stmt)))
+            destructBlock = empty_block('breakcleanup', orig_index(stmt))
+            destructBlock.entryBlocks.append(curBlock)
+            destruct = Just(destructBlock)
             finish_block(TermJumpCond(stmt.test, keepGoing, destruct))
             cfg.block = destruct
             destroy_vars_until_level(exitLevel)
