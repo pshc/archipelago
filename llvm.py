@@ -985,7 +985,7 @@ def write_top_strlit(var, s):
     escaped, n = escape_strlit(s)
     add_extrinsic(LiteralSize, var, n)
     out_global_symbol(var)
-    out(' = internal constant ')
+    out(' = private unnamed_addr constant ')
     out(escaped)
     newline()
 
