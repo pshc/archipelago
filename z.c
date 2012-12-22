@@ -3,8 +3,8 @@
 #include <stdlib.h>
 
 struct nom_atom {
+	intptr_t gc_flags;
 	intptr_t *extrs;
-	uint32_t gc_flags;
 	uint32_t discrim;
 };
 

@@ -473,11 +473,11 @@ def generate_ctor(ctor, dt):
         stmts.append(S.Assign(lhs, val))
 
     layout = extrinsic(DataLayout, dt)
+    if layout.gcSlot >= 0:
+        assign_slot(layout.gcSlot, IIntPtr(), L.Lit(IntLit(0)))
+
     if layout.extrSlot >= 0:
         assign_slot(layout.extrSlot, IVoidPtr(), NullPtr())
-
-    if layout.gcSlot >= 0:
-        assign_slot(layout.gcSlot, IInt(), L.Lit(IntLit(0)))
 
     discrim = layout.discrimSlot >= 0
     if discrim:
@@ -546,19 +546,19 @@ class ImportMarker(vat.Visitor):
         if external:
             env(IMPORTBINDS).add(tar)
 
-LayoutInfo = DT('LayoutInfo', ('extrSlot', int),
-                              ('gcSlot', int),
+LayoutInfo = DT('LayoutInfo', ('gcSlot', int),
+                              ('extrSlot', int),
                               ('discrimSlot', int))
 DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
 def dt_layout(dt):
     base = 0
     info = LayoutInfo(-1, -1, -1)
-    if not dt.opts.valueType:
-        info.extrSlot = base
-        base += 1
     if dt.opts.garbageCollected:
         info.gcSlot = base
+        base += 1
+    if not dt.opts.valueType:
+        info.extrSlot = base
         base += 1
     discrim = len(dt.ctors) > 1
     if discrim:

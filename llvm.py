@@ -751,13 +751,13 @@ def write_field_specs(fields, layout):
         out('{ ')
 
     specs = []
-    if layout.extrSlot >= 0:
-        assert layout.extrSlot == len(specs)
-        specs.append((IVoidPtr(), "extrinsics"))
     if layout.gcSlot >= 0:
         assert layout.gcSlot == len(specs)
-        assert layout.gcSlot == 1 # TEMP
-        specs.append((IInt(), "gc"))
+        specs.append((IIntPtr(), "gc"))
+    if layout.extrSlot >= 0:
+        assert layout.extrSlot == len(specs)
+        assert layout.extrSlot == 1 # TEMP
+        specs.append((IVoidPtr(), "extrinsics"))
     if layout.discrimSlot >= 0:
         assert layout.discrimSlot == len(specs)
         specs.append((IInt(), "discrim"))
