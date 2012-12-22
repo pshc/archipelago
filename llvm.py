@@ -981,14 +981,6 @@ def write_top_var_func(v, f):
         return
     write_top_func(v, f)
 
-def write_top_strlit(var, s):
-    escaped, n = escape_strlit(s)
-    add_extrinsic(LiteralSize, var, n)
-    out_global_symbol(var)
-    out(' = private unnamed_addr constant ')
-    out(escaped)
-    newline()
-
 def escape_strlit(s):
     b = s.encode('utf-8')
     n = len(b) + 1
@@ -1001,13 +993,18 @@ def escape_strlit(s):
 def write_top_lit(v, lit):
     if env(DECLSONLY) and not imported_bindable_used(v):
         return
-    if matches(lit, "StrLit(_)"):
-        write_top_strlit(v, lit.val)
-        return
-    out_global_symbol(v)
-    out(' = internal constant ')
-    out_t(typeof(v))
-    out_xpr(expr_lit(lit))
+    m = match(lit)
+    if m("StrLit(s)"):
+        escaped, n = escape_strlit(m.s)
+        add_extrinsic(LiteralSize, v, n)
+        out_global_symbol(v)
+        out(' = private unnamed_addr constant ')
+        out(escaped)
+    else:
+        out_global_symbol(v)
+        out(' = internal constant ')
+        out_t(typeof(v))
+        out_xpr(expr_lit(lit))
     newline()
 
 def write_top_decls(decls):
