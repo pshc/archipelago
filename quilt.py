@@ -1,5 +1,6 @@
 from base import *
 from atom import *
+import mach
 
 LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, AttrIx, SizeOf, Undefined = \
     ADT(('LExpr', Expr),
@@ -74,6 +75,11 @@ IParam = DT('IParam', ('type', IType),
 
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
 LLVMPatCast = new_extrinsic('LLVMPatCast', (IType, IType))
+
+IS64 = (mach.PTRSIZE == 8)
+
+def IIntPtr():
+    return IInt64() if IS64 else IInt()
 
 def is_strong_ptr(t):
     return matches(t, "IPtr(_) or IVoidPtr() or IArray(_, _)")

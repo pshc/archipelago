@@ -1,7 +1,6 @@
 from atom import *
 from quilt import *
 import expand
-import mach
 import os
 import sys
 
@@ -446,14 +445,9 @@ def aug_op(b):
         ('AugDivide()', lambda: 'sdiv'), # or udiv...
         ('AugModulo()', lambda: 'srem')) # or urem...
 
-IS64 = (mach.PTRSIZE == 8)
-
-def intptr_type():
-    return IInt64() if IS64 else IInt()
-
 def expr_unary(op, arg):
     if op == 'len':
-        intT = intptr_type()
+        intT = IIntPtr()
         arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
         l = subscript('len', arg, TypedXpr(intT, ConstInt(-1)))
         if IS64:
