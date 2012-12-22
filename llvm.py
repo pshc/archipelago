@@ -61,8 +61,11 @@ def out(s):
     else:
         imm_out(s)
 
+def global_symbol_str(var):
+    return extrinsic(expand.GlobalSymbol, var).symbol
+
 def global_symbol(var):
-    return Global(extrinsic(expand.GlobalSymbol, var).symbol)
+    return Global(global_symbol_str(var))
 
 def out_global_symbol(var):
     out_xpr(global_symbol(var))
@@ -786,12 +789,12 @@ def write_field_specs(fields, layout):
 def write_dtstmt(form):
     layout = extrinsic(expand.DataLayout, form)
     if layout.discrimSlot >= 0:
-        out('%%%s = type opaque' % (global_symbol(form).name,))
+        out('%%%s = type opaque' % (global_symbol_str(form),))
         newline()
     for ctor in form.ctors:
         if Nullable.isMaybe(ctor):
             continue # XXX maybe codegen
-        out('%%%s = type ' % (global_symbol(ctor).name,))
+        out('%%%s = type ' % (global_symbol_str(ctor),))
         write_field_specs(ctor.fields, layout)
         newline()
     if not env(DECLSONLY):
