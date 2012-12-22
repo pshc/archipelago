@@ -222,7 +222,7 @@ struct shadow_stack {
 
 extern struct shadow_stack *llvm_gc_root_chain;
 
-static void *heap[64];
+static void *heap[64] = {0};
 static uint32_t heap_count = 0;
 
 static void push_heap_ptr(void *ptr) {
@@ -236,8 +236,10 @@ static void pop_heap_ptr(uint32_t i) {
 		fail("Popping empty heap");
 	if (i >= heap_count)
 		fail("Bad GC heap pop");
-	for (heap_count--; i < heap_count; i++)
-		heap[i] = heap[i + 1];
+	heap_count--;
+	/* move last heap entry into this now-vacant slot */
+	heap[i] = heap[heap_count];
+	heap[heap_count] = NULL;
 }
 
 static void visit_gc_root(void **root) {
