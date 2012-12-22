@@ -972,6 +972,94 @@ def write_block(block):
         assert False
     newline()
 
+
+# TYPE REPRESENTATIONS
+
+def dt_form_symbol(dt):
+    return Global('%s__tbl' % (global_symbol_str(dt),))
+
+def ctor_form_symbol(ctor):
+    return Global('%s__form' % (global_symbol_str(ctor),))
+
+def write_ctor_form_fields(ctor, gcFields):
+    assert len(gcFields) < 256
+    first = True
+    for field in gcFields:
+        if first:
+            first = False
+        else:
+            comma()
+        newline()
+        # field offset
+        nullPtr = TypedXpr(IPtr(IDataCtor(ctor)), null())
+        fieldIndex = extrinsic(expand.FieldIndex, field)
+        fieldPtr = ConstElementPtr(nullPtr, [0, fieldIndex])
+        fieldTx = TypedXpr(IPtr(extrinsic(LLVMTypeOf, field)), fieldPtr)
+        out('<{i8, i8*}> <{i8 ')
+        out_xpr(ConstCast('ptrtoint', fieldTx, IByte()))
+        comma()
+        # pointer to form
+        out_t(IVoidPtr())
+        dt = match(field.type, "TData(dt, _)")
+        out_xpr(dt_form_symbol(dt))
+        out('}>')
+    newline()
+
+def write_dtform(form):
+    assert not env(DECLSONLY)
+    layout = extrinsic(expand.DataLayout, form)
+    if layout.gcSlot < 0:
+        return
+
+    written = False
+    form_syms = []
+    for ctor in form.ctors:
+        # field type list for precise GC
+        fields = extrinsic(expand.CtorLayout, ctor)
+        n = len(fields)
+        if n == 0:
+            form_syms.append('null')
+            continue
+        sym = xpr_str(ctor_form_symbol(ctor))
+        vecT = '[%d x <{i8, i8*}>]' % (n,)
+        out('%s_ = internal constant <{i8, %s}> <{' % (sym, vecT))
+        newline()
+        out('i8 %d, %s [' % (n, vecT))
+        write_ctor_form_fields(ctor, fields)
+        out(']}>, align %d' % (mach.PTRSIZE,))
+        newline()
+
+        out('%s = alias internal i8* bitcast (<{i8, %s}>* %s_ to i8*)' % (
+                sym, vecT, sym))
+        newline()
+
+        form_syms.append(sym)
+        written = True
+
+    if layout.discrimSlot >= 0:
+        # discrim->ctor form lookup table
+        dtsym = xpr_str(dt_form_symbol(form))
+        n = len(form_syms)
+        out('%s_ = internal constant [%d x i8*] [' % (dtsym, n))
+        first = True
+        for sym in form_syms:
+            if first:
+                first = False
+            else:
+                comma()
+            out('i8* ')
+            out(sym)
+        out('], align %d' % (mach.PTRSIZE,))
+        newline()
+        out('%s = alias internal i8* bitcast ([%d x i8*]* %s_ to i8*)' % (
+                dtsym, n, dtsym))
+        written = True
+
+    if written:
+        newline()
+
+# TOP-LEVEL
+
 def imported_bindable_used(v):
     return v in env(expand.IMPORTBINDS)
 
@@ -1020,6 +1108,10 @@ def write_top_decls(decls):
         write_top_lit(lit.var, lit.literal)
     map_(write_top_cdecl, decls.funcDecls)
 
+def write_top_decls_post_impl(decls):
+    # extra impl-only data, end of file
+    map_(write_dtform, decls.dts)
+
 def as_local(f):
     in_env(LOCALS, IRLocals(False, 0), f)
 
@@ -1067,6 +1159,8 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
             for decl in decls:
                 write_top_decls(decl.root)
             in_env(EXPORTSYMS, True, lambda: write_unit(defn_mod.root))
+            for decl in decls:
+                write_top_decls_post_impl(decl.root)
         in_env(DECLSONLY, False, go2)
 
     in_env(IR, file(filename, 'wb'), # really ought to close explicitly

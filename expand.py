@@ -551,10 +551,13 @@ LayoutInfo = DT('LayoutInfo', ('gcSlot', int),
                               ('discrimSlot', int))
 DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
+CtorLayout = new_extrinsic('CtorLayout', ['*Field'])
+
 def dt_layout(dt):
     base = 0
     info = LayoutInfo(-1, -1, -1)
-    if dt.opts.garbageCollected:
+    gced = dt.opts.garbageCollected
+    if gced:
         info.gcSlot = base
         base += 1
     if not dt.opts.valueType:
@@ -572,6 +575,26 @@ def dt_layout(dt):
         for ix, field in enumerate(ctor.fields):
             add_extrinsic(FieldIndex, field, ix + base)
 
+        if gced:
+            gcFields = []
+            for field in ctor.fields:
+                if is_field_garbage_collected(field):
+                    gcFields.append(field)
+            add_extrinsic(CtorLayout, ctor, gcFields)
+
+def is_field_garbage_collected(field):
+    m = match(field.type)
+    if m('TData(dt, _)'):
+        if extrinsic(Name, m.dt) == 'Type':
+            return False # XXX
+        if m.dt.opts.valueType:
+            assert False, 'value type oh no'
+        else:
+            return True
+    elif m('TPrim(_) or TWeak(_)'):
+        return False
+    else:
+        return False # for now
 
 CFunction = new_extrinsic('CFunction', bool)
 
@@ -680,7 +703,7 @@ def in_intramodule_env(func):
 
 def in_intermodule_env(func):
     captures = {}
-    extrs = [LLVMTypeOf, DataLayout, CtorIndex, FieldIndex,
+    extrs = [LLVMTypeOf, DataLayout, CtorLayout, CtorIndex, FieldIndex,
             GlobalSymbol, CFunction, FieldSymbol, CtorReplacement]
     return capture_scoped(extrs, captures, func)
 
