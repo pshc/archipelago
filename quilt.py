@@ -54,12 +54,13 @@ FieldIndex = new_extrinsic('FieldIndex', int)
 
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 
-IType, IInt, IInt64, IFloat, IBool, IVoid, IArray, ITuple, \
+IType, IInt, IInt64, IByte, IBool, IFloat, IVoid, IArray, ITuple, \
     IData, IDataCtor, IFunc, IPtr, IWeak, IVoidPtr = ADT('IType',
         'IInt',
         'IInt64',
-        'IFloat',
+        'IByte',
         'IBool',
+        'IFloat',
         'IVoid',
         'IArray', ('count', int), ('type', 'IType'),
         'ITuple', ('types', ['IType']),
