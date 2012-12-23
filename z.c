@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 struct nom_atom {
-	intptr_t gc_flags;
+	intptr_t gc;
 	intptr_t *extrs;
 	uint32_t discrim;
 };
@@ -11,6 +11,8 @@ struct nom_atom {
 #define TABLE_COUNT(table) ((table)[0])
 #define SLOT_KEY(table, index) ((table)[1 + (index)*2])
 #define SLOT_VALUE(table, index) ((table)[2 + (index)*2])
+
+#define GC_MARK ((intptr_t) 1)
 
 __dead2 void fail(const char *err) {
 	fputs(err, stderr);
@@ -205,9 +207,15 @@ int _hasextrinsic(intptr_t extr, struct nom_atom *atom) {
 
 /* GC */
 
-#define GC_PUTS(s) do {} while (0)
-#define GC_PUTCHAR(c) do {} while (0)
-#define GC_PRINTF(...) do {} while (0)
+#if defined(GCLOG)
+# define GC_PUTS(s) puts(s)
+# define GC_PUTCHAR(c) putchar(c)
+# define GC_PRINTF(...) printf(__VA_ARGS__)
+#else
+# define GC_PUTS(s) do {} while (0)
+# define GC_PUTCHAR(c) do {} while (0)
+# define GC_PRINTF(...) do {} while (0)
+#endif
 
 struct frame_map {
 	uint32_t num_roots, num_meta;
@@ -255,6 +263,11 @@ static void visit_gc_root(void **root) {
 	}
 	GC_PRINTF("is 0x%016lx: ", (intptr_t) atom);
 
+	if (atom->gc & GC_MARK) {
+		GC_PUTS("(already marked)");
+		return;
+	}
+
 	c = (uint8_t *) atom;
 	for (i = 0; i < 16; i++) {
 		GC_PRINTF("%02x ", c[i]);
@@ -263,7 +276,7 @@ static void visit_gc_root(void **root) {
 	}
 	GC_PUTCHAR('\n');
 
-	atom->gc_flags = 0xaabbccdd;
+	atom->gc |= GC_MARK;
 }
 
 void gc_collect(void) {
@@ -289,8 +302,8 @@ void gc_collect(void) {
 	for (i = 0; i < heap_count; i++) {
 		atom = heap[i];
 		GC_PRINTF(" 0x%016lx is ", (intptr_t) atom);
-		if (atom->gc_flags == 0xaabbccdd) {
-			atom->gc_flags = 0;
+		if (atom->gc & GC_MARK) {
+			atom->gc &= ~GC_MARK;
 			GC_PUTS("live");
 		}
 		else {
