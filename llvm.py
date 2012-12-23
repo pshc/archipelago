@@ -758,7 +758,7 @@ def write_field_specs(fields, layout):
     specs = []
     if layout.gcSlot >= 0:
         assert layout.gcSlot == len(specs)
-        specs.append((IIntPtr(), "gc"))
+        specs.append((IVoidPtr(), "gc"))
     if layout.extrSlot >= 0:
         assert layout.extrSlot == len(specs)
         assert layout.extrSlot == 1 # TEMP
@@ -976,12 +976,6 @@ def write_block(block):
 
 # TYPE REPRESENTATIONS
 
-def dt_form_symbol(dt):
-    return Global('%s__tbl' % (global_symbol_str(dt),))
-
-def ctor_form_symbol(ctor):
-    return Global('%s__form' % (global_symbol_str(ctor),))
-
 def write_ctor_form_fields(ctor, gcFields):
     assert len(gcFields) < 256
     first = True
@@ -1000,9 +994,11 @@ def write_ctor_form_fields(ctor, gcFields):
         out_xpr(ConstCast('ptrtoint', fieldTx, IByte()))
         comma()
         # pointer to form
-        out_t(IVoidPtr())
         dt = match(field.type, "TData(dt, _)")
-        out_xpr(dt_form_symbol(dt))
+        # XXX table entry ought to take appTypes into account
+        tblVar = fromJust(extrinsic(expand.DataLayout, dt).tblVar)
+        out('i8* ')
+        out_global_symbol(tblVar)
         out('}>')
     newline()
 
@@ -1013,51 +1009,66 @@ def write_dtform(form):
         return
 
     written = False
-    form_syms = []
+    form_tbl = []
     for ctor in form.ctors:
         # field type list for precise GC
-        fields = extrinsic(expand.CtorLayout, ctor)
-        n = len(fields)
+        clayout = extrinsic(expand.CtorLayout, ctor)
+        n = len(clayout.fields)
         if n == 0:
-            form_syms.append('null')
+            form_tbl.append(null())
             continue
-        sym = xpr_str(ctor_form_symbol(ctor))
+
+        sym = global_symbol(clayout.formVar)
+        sym_ = sym_with_underscore(sym)
         vecT = '[%d x <{i8, i8*}>]' % (n,)
-        out('%s_ = internal constant <{i8, %s}> <{' % (sym, vecT))
+        out_xpr(sym_)
+        out(' = internal constant <{i8, %s}> <{' % (vecT,))
         newline()
         out('i8 %d, %s [' % (n, vecT))
-        write_ctor_form_fields(ctor, fields)
+        write_ctor_form_fields(ctor, clayout.fields)
         out(']}>, align %d' % (mach.PTRSIZE,))
         newline()
 
-        out('%s = alias internal i8* bitcast (<{i8, %s}>* %s_ to i8*)' % (
-                sym, vecT, sym))
+        out_xpr(sym)
+        out(' = alias internal i8* bitcast (<{i8, %s}>* ' % (vecT,))
+        out_xpr(sym_)
+        out(' to i8*)')
         newline()
 
-        form_syms.append(sym)
+        form_tbl.append(sym)
         written = True
 
     if layout.discrimSlot >= 0:
         # discrim->ctor form lookup table
-        dtsym = xpr_str(dt_form_symbol(form))
-        n = len(form_syms)
-        out('%s_ = internal constant [%d x i8*] [' % (dtsym, n))
+        dtsym = global_symbol(fromJust(layout.tblVar))
+        dtsym_ = sym_with_underscore(dtsym)
+        n = len(form_tbl)
+
+        out_xpr(dtsym_)
+        out(' = internal constant [%d x i8*] [' % (n,))
         first = True
-        for sym in form_syms:
+        for sym in form_tbl:
             if first:
                 first = False
             else:
                 comma()
             out('i8* ')
-            out(sym)
+            out_xpr(sym)
         out('], align %d' % (mach.PTRSIZE,))
         newline()
-        out('%s = alias internal i8* bitcast ([%d x i8*]* %s_ to i8*)' % (
-                dtsym, n, dtsym))
+
+        out_xpr(dtsym)
+        out(' = alias internal i8* bitcast ([%d x i8*]* ' % (n,))
+        out_xpr(dtsym_)
+        out(' to i8*)')
         written = True
 
     if written:
         newline()
+
+def sym_with_underscore(sym):
+    # hack: this ought to be uniqued properly in expand
+    return Global(sym.name + '_')
 
 # TOP-LEVEL
 

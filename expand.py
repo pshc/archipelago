@@ -474,7 +474,9 @@ def generate_ctor(ctor, dt):
 
     layout = extrinsic(DataLayout, dt)
     if layout.gcSlot >= 0:
-        assign_slot(layout.gcSlot, IIntPtr(), L.Lit(IntLit(0)))
+        gcSpec = match(layout.tblVar, ("Just(v)", ReadGlobal),
+                                      ("Nothing()", NullPtr))
+        assign_slot(layout.gcSlot, IVoidPtr(), gcSpec)
 
     if layout.extrSlot >= 0:
         assign_slot(layout.extrSlot, IVoidPtr(), NullPtr())
@@ -525,6 +527,9 @@ class CtorReplacer(vat.Mutator):
         return bind
 
 def replace_ctors(decls, flat):
+    for dt in decls.dts:
+        dt_gc_layout(dt)
+
     ctor_funcs = []
     for dt in decls.dts:
         if extrinsic(Name, dt) == 'Maybe':
@@ -548,16 +553,18 @@ class ImportMarker(vat.Visitor):
 
 LayoutInfo = DT('LayoutInfo', ('gcSlot', int),
                               ('extrSlot', int),
-                              ('discrimSlot', int))
+                              ('discrimSlot', int),
+                              ('tblVar', 'Maybe(*GlobalVar)'))
 DataLayout = new_extrinsic('DataLayout', LayoutInfo)
 
-CtorLayout = new_extrinsic('CtorLayout', ['*Field'])
+CtorInfo = DT('CtorInfo', ('formVar', '*GlobalVar'),
+                          ('fields', ['*Field']))
+CtorLayout = new_extrinsic('CtorLayout', CtorInfo)
 
 def dt_layout(dt):
     base = 0
-    info = LayoutInfo(-1, -1, -1)
-    gced = dt.opts.garbageCollected
-    if gced:
+    info = LayoutInfo(-1, -1, -1, Nothing())
+    if dt.opts.garbageCollected:
         info.gcSlot = base
         base += 1
     if not dt.opts.valueType:
@@ -575,12 +582,34 @@ def dt_layout(dt):
         for ix, field in enumerate(ctor.fields):
             add_extrinsic(FieldIndex, field, ix + base)
 
-        if gced:
-            gcFields = []
-            for field in ctor.fields:
-                if is_field_garbage_collected(field):
-                    gcFields.append(field)
-            add_extrinsic(CtorLayout, ctor, gcFields)
+def dt_gc_layout(dt):
+    layout = extrinsic(DataLayout, dt)
+    if layout.gcSlot < 0:
+        return
+
+    layoutVars = env(EXGLOBAL).newDecls.grabBag
+
+    if layout.discrimSlot >= 0:
+        var = GlobalVar()
+        layout.tblVar = Just(var)
+        add_extrinsic(Name, var, '%s__tbl' % (extrinsic(Name, dt),))
+        add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+        set_orig(var, dt)
+        layoutVars.append(var)
+
+    for ctor in dt.ctors:
+        gcFields = []
+        for field in ctor.fields:
+            if is_field_garbage_collected(field):
+                gcFields.append(field)
+
+        var = GlobalVar()
+        add_extrinsic(Name, var, extrinsic(Name, ctor) + '__form')
+        add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+        add_extrinsic(CtorLayout, ctor, CtorInfo(var, gcFields))
+        set_orig(var, ctor)
+        layoutVars.append(var)
+
 
 def is_field_garbage_collected(field):
     m = match(field.type)
