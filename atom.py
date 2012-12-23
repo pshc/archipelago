@@ -128,10 +128,12 @@ ModuleDecls = DT('ModuleDecls',
         ('envs', [Env]),
         ('extrinsics', [Extrinsic]),
         ('lits', [LitDecl]),
-        ('funcDecls', [GlobalVar]))
+        ('funcDecls', [GlobalVar]),
+        # XXX hack; should store in serialized extrs
+        ('grabBag', [GlobalVar]))
 
 def blank_module_decls():
-    return ModuleDecls([], [], [], [], [], [])
+    return ModuleDecls([], [], [], [], [], [], [])
 
 TopFunc = DT('TopFunc', ('var', '*GlobalVar'), ('func', 'Func(e)'))
 

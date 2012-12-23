@@ -646,6 +646,9 @@ def unique_decls(decls):
     for lit in decls.lits:
         unique_global(lit.var, False)
 
+    for var in decls.grabBag:
+        unique_global(var, False)
+
 # GLUE
 
 def _prepare_decls(decls):
