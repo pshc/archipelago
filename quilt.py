@@ -2,12 +2,14 @@ from base import *
 from atom import *
 import mach
 
-LExpr, L, CallIndirect, Cast, FuncVal, NullPtr, AttrIx, SizeOf, Undefined = \
+LExpr, L, CallIndirect, Cast, FuncVal, ReadGlobal, NullPtr, AttrIx, SizeOf, \
+        Undefined = \
     ADT(('LExpr', Expr),
         'CallIndirect', ('func', 'LExpr'), ('args', ['LExpr']),
                         ('envParam', bool),
         'Cast', ('src', 'IType'), ('dest', 'IType'), ('expr', 'LExpr'),
         'FuncVal', ('funcVar', '*GlobalVar'), ('ctx', 'Maybe(*Var)'),
+        'ReadGlobal', ('var', '*GlobalVar'), # load-less
         'NullPtr',
         'AttrIx', ('expr', 'LExpr'),
         'SizeOf', ('type', 'IType'),

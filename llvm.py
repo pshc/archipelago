@@ -663,6 +663,7 @@ def express(expr):
         ('CallIndirect(f, args, envParam)', expr_call_indirect),
         ('Cast(src, dest, expr)', expr_cast),
         ('e==FuncVal(f, ctx)', expr_funcval),
+        ('ReadGlobal(var)', global_symbol),
         ('NullPtr()', null),
         ('SizeOf(t)', sizeof),
         ('Undefined()', lambda: ConstKeyword(KUndef())))
