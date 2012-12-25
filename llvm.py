@@ -1018,19 +1018,23 @@ def write_dtform(form):
             form_tbl.append(null())
             continue
 
-        sym = global_symbol(clayout.formVar)
+        ctorName, nameLen = escape_strlit(extrinsic(Name, ctor))
+
+        sym = global_symbol(fromJust(clayout.formVar))
         sym_ = sym_with_underscore(sym)
         vecT = '[%d x <{i8, i8*}>]' % (n,)
+        nameT = '[%d x i8]' % (nameLen,)
+        fullT = '<{i8, %s, %s}>' % (vecT, nameT)
         out_xpr(sym_)
-        out(' = internal constant <{i8, %s}> <{' % (vecT,))
+        out(' = internal constant %s <{' % (fullT,))
         newline()
         out('i8 %d, %s [' % (n, vecT))
         write_ctor_form_fields(ctor, clayout.fields)
-        out(']}>, align %d' % (mach.PTRSIZE,))
+        out('], %s %s}>, align %d' % (nameT, ctorName, mach.PTRSIZE))
         newline()
 
         out_xpr(sym)
-        out(' = alias internal i8* bitcast (<{i8, %s}>* ' % (vecT,))
+        out(' = alias internal i8* bitcast (%s* ' % (fullT,))
         out_xpr(sym_)
         out(' to i8*)')
         newline()
@@ -1088,7 +1092,7 @@ def write_top_var_func(v, f):
 def escape_strlit(s):
     b = s.encode('utf-8')
     n = len(b) + 1
-    lit = '[%d x i8] c"' % (n,)
+    lit = 'c"'
     for c in iter(b):
         i = ord(c)
         lit += c if 31 < i < 127 else '\\%02x' % (i,)
@@ -1102,7 +1106,7 @@ def write_top_lit(v, lit):
         escaped, n = escape_strlit(m.s)
         add_extrinsic(LiteralSize, v, n)
         out_global_symbol(v)
-        out(' = private unnamed_addr constant ')
+        out(' = private unnamed_addr constant [%d x i8] ' % (n,))
         out(escaped)
     else:
         out_global_symbol(v)
