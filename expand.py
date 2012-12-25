@@ -474,8 +474,9 @@ def generate_ctor(ctor, dt):
 
     layout = extrinsic(DataLayout, dt)
     if layout.gcSlot >= 0:
-        gcSpec = match(layout.tblVar, ("Just(v)", ReadGlobal),
-                                      ("Nothing()", NullPtr))
+        ctorLayout = extrinsic(CtorLayout, ctor)
+        gcSpec = match(ctorLayout.formVar, ('Just(v)', ReadGlobal),
+                                           ('Nothing()', NullPtr))
         assign_slot(layout.gcSlot, IVoidPtr(), gcSpec)
 
     if layout.extrSlot >= 0:
@@ -603,12 +604,15 @@ def dt_gc_layout(dt):
             if is_field_garbage_collected(field):
                 gcFields.append(field)
 
-        var = GlobalVar()
-        add_extrinsic(Name, var, extrinsic(Name, ctor) + '__form')
-        add_extrinsic(LLVMTypeOf, var, IVoidPtr())
-        add_extrinsic(CtorLayout, ctor, CtorInfo(var, gcFields))
-        set_orig(var, ctor)
-        layoutVars.append(var)
+        info = CtorInfo(Nothing(), gcFields)
+        if len(gcFields) > 0:
+            var = GlobalVar()
+            add_extrinsic(Name, var, extrinsic(Name, ctor) + '__form')
+            add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+            set_orig(var, ctor)
+            layoutVars.append(var)
+            info.formVar = Just(var)
+        add_extrinsic(CtorLayout, ctor, info)
 
 
 def is_field_garbage_collected(field):

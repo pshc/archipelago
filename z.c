@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct nom_atom {
 	intptr_t gc;
@@ -207,7 +208,7 @@ int _hasextrinsic(intptr_t extr, struct nom_atom *atom) {
 
 /* GC */
 
-#if defined(GCLOG)
+#ifdef LOGGC
 # define GC_PUTS(s) puts(s)
 # define GC_PUTCHAR(c) putchar(c)
 # define GC_PRINTF(...) printf(__VA_ARGS__)
@@ -250,10 +251,70 @@ static void pop_heap_ptr(uint32_t i) {
 	heap[heap_count] = NULL;
 }
 
+union packed_ptr {
+	char *bytes[sizeof(intptr_t)];
+	void *ptr;
+};
+
+static void mark_gc_atom(struct nom_atom *);
+
+#ifdef LOGGC
+static const char *read_gc_spec_name(uint8_t *spec, unsigned int n) {
+	char c;
+	unsigned int i;
+	const char *name;
+
+	name = (const char *) (spec + n * (1 + sizeof(intptr_t)));
+
+	for (i = 0; (c = name[i]); i++) {
+		if (c < '0' || c > 'z')
+			fail("Suspicious unusual ctor name char");
+		if (i > 30)
+			fail("Ctor name is suspiciously long");
+	}
+	return name;
+}
+#endif /* LOGGC */
+
+static void read_atom_spec(struct nom_atom *atom, uint8_t *spec) {
+	unsigned int i, n, offset;
+	intptr_t *tbl;
+	union packed_ptr tbl_ptr;
+	struct nom_atom *ref_atom;
+
+	GC_PRINTF("    spec at %016lx ", (intptr_t) spec);
+	n = *spec++;
+	if (!n)
+		return;
+	if (n > 20)
+		fail("Suspicious field count");
+
+	/* ctor name at end */
+	GC_PRINTF("is a %s.\n", read_gc_spec_name(spec, n));
+
+	for (i = 0; i < n; i++) {
+		offset = *spec++;
+
+		/* unaligned load */
+		memcpy(tbl_ptr.bytes, spec, sizeof tbl_ptr.bytes);
+		tbl = *(intptr_t **) tbl_ptr.ptr;
+		spec += sizeof tbl;
+
+		/* TODO: use tbl to typecheck */
+
+		/* recurse into atom pointed by field */
+		ref_atom = *(struct nom_atom **) ((char *)atom + offset);
+
+		GC_PRINTF("     field at %d points to atom %016lx\n", offset,
+				(intptr_t) ref_atom);
+
+		if (ref_atom)
+			mark_gc_atom(ref_atom);
+	}
+}
+
 static void visit_gc_root(void **root) {
 	struct nom_atom *atom;
-	uint8_t *c;
-	int i;
 
 	GC_PRINTF("   root %016lx ", (intptr_t) root);
 	atom = *root;
@@ -263,11 +324,20 @@ static void visit_gc_root(void **root) {
 	}
 	GC_PRINTF("is 0x%016lx: ", (intptr_t) atom);
 
+	mark_gc_atom(atom);
+}
+
+static void mark_gc_atom(struct nom_atom *atom) {
+	uint8_t *c;
+	int i;
+	intptr_t spec;
+
 	if (atom->gc & GC_MARK) {
 		GC_PUTS("(already marked)");
 		return;
 	}
 
+	GC_PRINTF("   ");
 	c = (uint8_t *) atom;
 	for (i = 0; i < 16; i++) {
 		GC_PRINTF("%02x ", c[i]);
@@ -276,7 +346,12 @@ static void visit_gc_root(void **root) {
 	}
 	GC_PUTCHAR('\n');
 
+	spec = atom->gc;
+	/* mark before recursing into fields */
 	atom->gc |= GC_MARK;
+
+	if (spec)
+		read_atom_spec(atom, (uint8_t *) spec);
 }
 
 void gc_collect(void) {
