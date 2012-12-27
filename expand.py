@@ -590,14 +590,7 @@ def dt_gc_layout(dt):
 
     layoutVars = env(EXGLOBAL).newDecls.grabBag
 
-    if layout.discrimSlot >= 0:
-        var = GlobalVar()
-        layout.tblVar = Just(var)
-        add_extrinsic(Name, var, '%s__tbl' % (extrinsic(Name, dt),))
-        add_extrinsic(LLVMTypeOf, var, IVoidPtr())
-        set_orig(var, dt)
-        layoutVars.append(var)
-
+    needGCForm = False
     for ctor in dt.ctors:
         gcFields = []
         for field in ctor.fields:
@@ -612,7 +605,18 @@ def dt_gc_layout(dt):
             set_orig(var, ctor)
             layoutVars.append(var)
             info.formVar = Just(var)
+            needGCForm = True
         add_extrinsic(CtorLayout, ctor, info)
+
+    # only need a discrim tbl if there are multiple ctors and at least one has
+    # an explicit form
+    if needGCForm and layout.discrimSlot >= 0:
+        var = GlobalVar()
+        layout.tblVar = Just(var)
+        add_extrinsic(Name, var, '%s__tbl' % (extrinsic(Name, dt),))
+        add_extrinsic(LLVMTypeOf, var, IVoidPtr())
+        set_orig(var, dt)
+        layoutVars.append(var)
 
 
 def is_field_garbage_collected(field):
