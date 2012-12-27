@@ -902,7 +902,13 @@ def _write_func(f, ft):
             out('call void @llvm.gcroot(')
             out_txpr(pt)
             comma()
-            out('i8* null)')
+            m = match(entry.formVar)
+            if m('Just(formVar)'):
+                out('i8* ')
+                out_global_symbol(m.formVar)
+                out(')')
+            else:
+                out('i8* null)')
             newline()
 
         # write params to mem
