@@ -994,11 +994,23 @@ def write_ctor_form_fields(ctor, gcFields):
         out_xpr(ConstCast('ptrtoint', fieldTx, IByte()))
         comma()
         # pointer to form
-        dt = match(field.type, "TData(dt, _)")
-        # XXX table entry ought to take appTypes into account
-        tblVar = fromJust(extrinsic(expand.DataLayout, dt).tblVar)
         out('i8* ')
-        out_global_symbol(tblVar)
+        dt = match(field.type, "TData(dt, _)")
+        dtLayout = extrinsic(expand.DataLayout, dt)
+
+        # TODO: distingush between these two cases with a tag bit or something
+        if dtLayout.discrimSlot >= 0:
+            # XXX table entry ought to take appTypes into account
+            out_global_symbol(fromJust(dtLayout.tblVar))
+        else:
+            # no discriminator, point directly at ctor form
+            assert len(dt.ctors) == 1
+            ctorLayout = extrinsic(expand.CtorLayout, dt.ctors[0])
+            m = match(ctorLayout.formVar)
+            if m('Just(formVar)'):
+                out_global_symbol(m.formVar)
+            else:
+                out('null')
         out('}>')
     newline()
 
