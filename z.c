@@ -259,7 +259,7 @@ union packed_ptr {
 static void mark_gc_atom(struct nom_atom *);
 
 #ifdef LOGGC
-static const char *read_gc_spec_name(uint8_t *spec, unsigned int n) {
+static const char *read_gc_spec_name(const uint8_t *spec, unsigned int n) {
 	char c;
 	unsigned int i;
 	const char *name;
@@ -276,7 +276,7 @@ static const char *read_gc_spec_name(uint8_t *spec, unsigned int n) {
 }
 #endif /* LOGGC */
 
-static void read_atom_spec(struct nom_atom *atom, uint8_t *spec) {
+static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
 	unsigned int i, n, offset;
 	intptr_t *tbl;
 	union packed_ptr tbl_ptr;
@@ -353,7 +353,7 @@ static void mark_gc_atom(struct nom_atom *atom) {
 	atom->gc |= GC_MARK;
 
 	if (spec)
-		read_atom_spec(atom, (uint8_t *) spec);
+		read_atom_spec(atom, (const uint8_t *) spec);
 }
 
 void gc_collect(void) {
