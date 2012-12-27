@@ -1003,25 +1003,25 @@ def write_ctor_form_fields(ctor, gcFields):
 
         # pointer to form
         out('i8* ')
-        dt = match(field.type, "TData(dt, _)")
-        dtLayout = extrinsic(expand.DataLayout, dt)
-        discrim = dtLayout.discrimSlot >= 0
-        # TODO: distingush between these two cases with a tag bit or something
-        if discrim:
-            # XXX table entry ought to take appTypes into account
-            fieldVar = dtLayout.tblVar
-        else:
-            # no discriminator, point directly at ctor form
-            assert len(dt.ctors) == 1
-            fieldVar = extrinsic(expand.CtorLayout, dt.ctors[0]).formVar
-
-        m = match(fieldVar)
+        m = match(type_layout_form_var(field.type))
         if m('Just(v)'):
             out_global_symbol(m.v)
         else:
             out('null')
         out('}>')
     newline()
+
+def type_layout_form_var(t):
+    dt = match(t, "TData(dt, _)")
+    dtLayout = extrinsic(expand.DataLayout, dt)
+    discrim = dtLayout.discrimSlot >= 0
+    if discrim:
+        # XXX table entry ought to take appTypes into account
+        return dtLayout.tblVar
+    else:
+        # no discriminator, point directly at ctor form
+        assert len(dt.ctors) == 1
+        return extrinsic(expand.CtorLayout, dt.ctors[0]).formVar
 
 def write_dtform(form):
     assert not env(DECLSONLY)
