@@ -237,7 +237,7 @@ def get_element_ptr(name, tx, index):
     return tmp
 
 def get_field_ptr(tx, f):
-    index = extrinsic(expand.FieldIndex, f)
+    index = extrinsic(FieldIndex, f)
     return get_element_ptr(extrinsic(expand.FieldSymbol, f), tx, index)
 
 def subscript(regname, arraytx, itx):
@@ -586,7 +586,7 @@ def expr_attr(e, f):
 def expr_attr_ix(e):
     tx = express_typed(e)
     ctor = match(typeof(e), "IPtr(IDataCtor(ctor))")
-    index = extrinsic(expand.DataLayout, ctor).discrimSlot
+    index = extrinsic(DataLayout, ctor).discrimSlot
     ixptr = get_element_ptr('ix', tx, index)
     return load('_ix', IInt(), ixptr).xpr
 
@@ -767,7 +767,7 @@ def write_field_specs(fields, layout):
         assert layout.discrimSlot == len(specs)
         specs.append((IInt(), "discrim"))
     for f in fields:
-        assert extrinsic(expand.FieldIndex, f) == len(specs)
+        assert extrinsic(FieldIndex, f) == len(specs)
         specs.append((typeof(f), extrinsic(expand.FieldSymbol, f)))
 
     n = len(specs)
@@ -788,7 +788,7 @@ def write_field_specs(fields, layout):
         out(' }')
 
 def write_dtstmt(form):
-    layout = extrinsic(expand.DataLayout, form)
+    layout = extrinsic(DataLayout, form)
     if layout.discrimSlot >= 0:
         out('%%%s = type opaque' % (global_symbol_str(form),))
         newline()
@@ -994,7 +994,7 @@ def write_ctor_form_fields(ctor, gcFields):
         newline()
         # field offset
         nullPtr = TypedXpr(IPtr(IDataCtor(ctor)), null())
-        fieldIndex = extrinsic(expand.FieldIndex, field)
+        fieldIndex = extrinsic(FieldIndex, field)
         fieldPtr = ConstElementPtr(nullPtr, [0, fieldIndex])
         fieldTx = TypedXpr(IPtr(extrinsic(LLVMTypeOf, field)), fieldPtr)
         out('<{i8, i8*}> <{i8 ')
@@ -1011,21 +1011,9 @@ def write_ctor_form_fields(ctor, gcFields):
         out('}>')
     newline()
 
-def type_layout_form_var(t):
-    dt = match(t, "TData(dt, _)")
-    dtLayout = extrinsic(expand.DataLayout, dt)
-    discrim = dtLayout.discrimSlot >= 0
-    if discrim:
-        # XXX table entry ought to take appTypes into account
-        return dtLayout.tblVar
-    else:
-        # no discriminator, point directly at ctor form
-        assert len(dt.ctors) == 1
-        return extrinsic(expand.CtorLayout, dt.ctors[0]).formVar
-
 def write_dtform(form):
     assert not env(DECLSONLY)
-    layout = extrinsic(expand.DataLayout, form)
+    layout = extrinsic(DataLayout, form)
     if layout.gcSlot < 0:
         return
 
@@ -1033,7 +1021,7 @@ def write_dtform(form):
     form_tbl = []
     for ctor in form.ctors:
         # field type list for precise GC
-        clayout = extrinsic(expand.CtorLayout, ctor)
+        clayout = extrinsic(CtorLayout, ctor)
         n = len(clayout.fields)
         if n == 0:
             form_tbl.append(null())

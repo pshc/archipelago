@@ -552,16 +552,6 @@ class ImportMarker(vat.Visitor):
         if external:
             env(IMPORTBINDS).add(tar)
 
-LayoutInfo = DT('LayoutInfo', ('gcSlot', int),
-                              ('extrSlot', int),
-                              ('discrimSlot', int),
-                              ('tblVar', 'Maybe(*GlobalVar)'))
-DataLayout = new_extrinsic('DataLayout', LayoutInfo)
-
-CtorInfo = DT('CtorInfo', ('formVar', '*GlobalVar'),
-                          ('fields', ['*Field']))
-CtorLayout = new_extrinsic('CtorLayout', CtorInfo)
-
 def dt_layout(dt):
     base = 0
     info = LayoutInfo(-1, -1, -1, Nothing())

@@ -2,6 +2,8 @@ from base import *
 from atom import *
 import mach
 
+# INTERMEDIATE REPRESENTATION
+
 LExpr, L, CallIndirect, Cast, FuncVal, ReadGlobal, NullPtr, AttrIx, SizeOf, \
         Undefined = \
     ADT(('LExpr', Expr),
@@ -44,18 +46,14 @@ LLocal, LVar, LRegister = ADT('BlockParam',
     'LVar', ('var', Var),
     'LRegister', ('register', Register))
 
-GCVarEntry = DT('GCVarEntry', ('var', '*Var'),
-                              ('formVar', 'Maybe(*GlobalVar)'))
-
 BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
-                            ('gcVars', [GCVarEntry]),
+                            ('gcVars', ['GCVarEntry']),
                             ('params', [LLocal]),
                             ('blocks', [Block]))
 
 BlockUnit = DT('BlockUnit', ('funcs', [BlockFunc]))
 
-CtorIndex = new_extrinsic('CtorIndex', int)
-FieldIndex = new_extrinsic('FieldIndex', int)
+# IR TYPES
 
 IFuncMeta = DT('IFuncMeta', ('noReturn', bool))
 
@@ -222,5 +220,36 @@ def runtime_void_call(name, args):
     bind = L.Bind(f)
     copy_type(bind, f)
     return S.VoidStmt(VoidCall(bind, args))
+
+# TYPE LAYOUT
+
+GCVarEntry = DT('GCVarEntry', ('var', '*Var'),
+                              ('formVar', 'Maybe(*GlobalVar)'))
+
+CtorIndex = new_extrinsic('CtorIndex', int)
+FieldIndex = new_extrinsic('FieldIndex', int)
+
+LayoutInfo = DT('LayoutInfo', ('gcSlot', int),
+                              ('extrSlot', int),
+                              ('discrimSlot', int),
+                              ('tblVar', 'Maybe(*GlobalVar)'))
+DataLayout = new_extrinsic('DataLayout', LayoutInfo)
+
+CtorInfo = DT('CtorInfo', ('formVar', '*GlobalVar'),
+                          ('fields', ['*Field']))
+CtorLayout = new_extrinsic('CtorLayout', CtorInfo)
+
+def type_layout_form_var(t):
+    dt = match(t, "TData(dt, _)")
+    dtLayout = extrinsic(DataLayout, dt)
+    discrim = dtLayout.discrimSlot >= 0
+    if discrim:
+        # XXX table entry ought to take appTypes into account
+        return dtLayout.tblVar
+    else:
+        # no discriminator, point directly at ctor form
+        assert len(dt.ctors) == 1
+        return extrinsic(CtorLayout, dt.ctors[0]).formVar
+
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
