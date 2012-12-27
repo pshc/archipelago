@@ -531,9 +531,6 @@ class CtorReplacer(vat.Mutator):
         return bind
 
 def replace_ctors(decls, flat):
-    for dt in decls.dts:
-        dt_gc_layout(dt)
-
     ctor_funcs = []
     for dt in decls.dts:
         if extrinsic(Name, dt) == 'Maybe':
@@ -621,6 +618,9 @@ def dt_gc_layout(dt):
         set_orig(var, dt)
         layoutVars.append(var)
 
+def gen_gc_layouts(decls):
+    for dt in decls.dts:
+        dt_gc_layout(dt)
 
 def is_field_garbage_collected(field):
     m = match(field.type)
@@ -710,6 +710,8 @@ def expand_unit(old_decl_mod, unit):
     vat.mutate(FuncValGenerator, unit, t)
     vat.mutate(LitExpander, unit, t)
     vat.mutate(AssertionExpander, unit, t)
+
+    gen_gc_layouts(old_decl_mod.root)
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
