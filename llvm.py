@@ -1022,8 +1022,7 @@ def write_dtform(form):
     for ctor in form.ctors:
         # field type list for precise GC
         clayout = extrinsic(CtorLayout, ctor)
-        n = len(clayout.fields)
-        if n == 0:
+        if isNothing(clayout.formVar):
             form_tbl.append(null())
             continue
 
@@ -1031,13 +1030,13 @@ def write_dtform(form):
 
         sym = global_symbol(fromJust(clayout.formVar))
         sym_ = sym_with_underscore(sym)
-        vecT = '[%d x <{i8, i8*}>]' % (n,)
+        vecT = '[%d x <{i8, i8*}>]' % (len(clayout.fields),)
         nameT = '[%d x i8]' % (nameLen,)
         fullT = '<{i8, %s, %s}>' % (vecT, nameT)
         out_xpr(sym_)
         out(' = internal constant %s <{' % (fullT,))
         newline()
-        out('i8 %d, %s [' % (n, vecT))
+        out('i8 %d, %s [' % (len(clayout.fields), vecT))
         write_ctor_form_fields(ctor, clayout.fields)
         out('], %s %s}>, align %d' % (nameT, ctorName, mach.PTRSIZE))
         newline()
@@ -1055,10 +1054,10 @@ def write_dtform(form):
         # discrim->ctor form lookup table
         dtsym = global_symbol(fromJust(layout.tblVar))
         dtsym_ = sym_with_underscore(dtsym)
-        n = len(form_tbl)
+        fullT = '[%d x i8*]' % (len(form_tbl),)
 
         out_xpr(dtsym_)
-        out(' = internal constant [%d x i8*] [' % (n,))
+        out(' = internal constant %s [' % (fullT,))
         first = True
         for sym in form_tbl:
             if first:
@@ -1071,7 +1070,7 @@ def write_dtform(form):
         newline()
 
         out_xpr(dtsym)
-        out(' = alias internal i8* bitcast ([%d x i8*]* ' % (n,))
+        out(' = alias internal i8* bitcast (%s* ' % (fullT,))
         out_xpr(dtsym_)
         out(' to i8*)')
         written = True
