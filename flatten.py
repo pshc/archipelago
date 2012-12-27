@@ -5,7 +5,7 @@ import vat
 
 CFGFuncState = DT('CFGFuncState',
         ('pendingExits', {int: ['*Block']}),
-        ('gcVars', ['*Var']),
+        ('gcVars', [GCVarEntry]),
         ('pastBlocks', [Block]))
 
 CFGFUNC = new_env('CFGFUNC', CFGFuncState)
@@ -417,7 +417,8 @@ class ControlFlowBuilder(vat.Visitor):
         cfg = env(CFG)
         cfg.livenessByLevel.setdefault(cfg.level, []).append(var)
 
-        env(CFGFUNC).gcVars.append(var)
+        entry = GCVarEntry(var, Nothing())
+        env(CFGFUNC).gcVars.append(entry)
 
 def negate(expr):
     m = match(expr)

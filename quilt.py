@@ -44,8 +44,11 @@ LLocal, LVar, LRegister = ADT('BlockParam',
     'LVar', ('var', Var),
     'LRegister', ('register', Register))
 
+GCVarEntry = DT('GCVarEntry', ('var', '*Var'),
+                              ('formVar', 'Maybe(*GlobalVar)'))
+
 BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
-                            ('gcVars', ['*Var']),
+                            ('gcVars', [GCVarEntry]),
                             ('params', [LLocal]),
                             ('blocks', [Block]))
 

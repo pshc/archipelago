@@ -517,7 +517,8 @@ def generate_ctor(ctor, dt):
     add_extrinsic(CtorReplacement, ctor, funcVar)
     set_orig(funcVar, ctor)
 
-    gcVars = [inst] # also ps?
+    # XXX need pointer to form here too
+    gcVars = [GCVarEntry(inst, Nothing())]
     return BlockFunc(funcVar, gcVars, ps, [block])
 
 class CtorReplacer(vat.Mutator):
