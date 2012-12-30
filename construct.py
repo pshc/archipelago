@@ -263,7 +263,7 @@ def load_forms():
             ('TFunc(a, Ret(r), _)', lambda a, r: map_(scan_type_deps, a+[r])),
             ('TFunc(a, _, _)', lambda a: map_(scan_type_deps, a)),
             ('TData(dt, apps)', found_dt),
-            ('TArray(e)', scan_type_deps),
+            ('TArray(e, _)', scan_type_deps),
             ('TWeak(t)', scan_type_deps),
             ('TVar(tvar)', found_tvar),
             ('TPrim(_)', nop))

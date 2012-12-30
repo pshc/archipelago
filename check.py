@@ -27,8 +27,10 @@ def try_unite(src, dest):
             unification_failure(src, dest, "typevars")
     elif m("(TTuple(t1), TTuple(t2))"):
         try_unite_tuples(src, m.t1, dest, m.t2)
-    elif m("(TArray(t1), TArray(t2))"):
+    elif m("(TArray(t1, k1), TArray(t2, k2))"):
         try_unite(m.t1, m.t2)
+        if not array_kinds_equal(m.k1, m.k2):
+            unification_failure(src, dest, "array kinds")
     elif m("(TFunc(sa, sr, sm), TFunc(da, dr, dm))"):
         try_unite_tuples(src, m.sa, dest, m.da)
         try_unite_results(src, m.sr, dest, m.dr)
@@ -210,10 +212,17 @@ def check_tuplelit(es):
     for t, e in ezip(ts, es):
         check_expr_as(t, e)
 
+# TODO should be called on every array type in the AST (not just literals)
+def check_array_type(arrayT):
+    t, kind = match(arrayT, "TArray(t, kind)")
+    # XXX check that type & kind are compatible
+    return t
+
 def check_listlit(es):
-    t = match(env(CHECK), "TArray(t)")
+    t = env(CHECK)
+    elemT = check_array_type(t)
     for e in es:
-        check_expr_as(t, e)
+        check_expr_as(elemT, e)
 
 def check_logic(l, r):
     check_expr_as(TBool(), l)

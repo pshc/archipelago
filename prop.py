@@ -84,7 +84,7 @@ def _inst_type(s):
         ('TFunc(ps, r, meta)', lambda ps, r, meta:
                 C.TFunc(map(_inst_type, ps), _inst_result(r), copy_meta(meta))),
         ('TData(dt, ts)', inst_tdata),
-        ('TArray(t)', lambda t: C.TArray(_inst_type(t))),
+        ('TArray(t, kind)', lambda t, kind: C.TArray(_inst_type(t), kind)),
         ('TWeak(t)', lambda t: C.TWeak(_inst_type(t))))
 
 def _inst_result(r):
@@ -131,7 +131,7 @@ def _gen_type(s):
         ('TFunc(ps, r, meta)', lambda ps, r, meta:
                 TFunc(map(_gen_type, ps), _gen_result(r), copy_meta(meta))),
         ('TData(dt, ts)', gen_tdata),
-        ('TArray(t)', lambda t: TArray(_gen_type(t))),
+        ('TArray(t, kind)', lambda t, kind: TArray(_gen_type(t), kind)),
         ('TWeak(t)', lambda t: TWeak(_gen_type(t))),
         ('CMeta(Free(Just(tvar)))', TVar),
         ('CMeta(f==Free(Nothing()))', capture_free),
@@ -240,8 +240,10 @@ def try_unite(src, dest):
             unification_failure(src, dest, "typevars")
     elif m("(TTuple(t1), TTuple(t2))"):
         try_unite_tuples(src, m.t1, dest, m.t2)
-    elif m("(TArray(t1), TArray(t2))"):
+    elif m("(TArray(t1, k1), TArray(t2, k2))"):
         try_unite(m.t1, m.t2)
+        if not array_kinds_equal(m.k1, m.k2):
+            unification_failure(src, dest, "conflicting array kinds")
     elif m("(TFunc(sa, sr, sm), TFunc(da, dr, dm))"):
         try_unite_tuples(src, m.sa, dest, m.da)
         try_unite_results(src, m.sr, dest, m.dr)
@@ -326,13 +328,14 @@ def prop_lit(lit):
     return ctype(lit_type(lit))
 
 def prop_listlit(es):
+    # TODO figure out appropriate array kind
     if len(es) == 0:
-        return C.TArray(fresh())
+        return C.TArray(fresh(), AGC())
     else:
         t = prop_expr(es[0])
         for e in es[1:]:
             consume_value_as(t, e)
-        return C.TArray(t)
+        return C.TArray(t, AGC())
 
 def prop_call_result(call, f, s):
     ft = prop_expr(f)

@@ -9,6 +9,13 @@ def prim_equal(p1, p2):
         ("(PBool(), PBool())", lambda: True),
         ("_", lambda: False))
 
+def array_kinds_equal(k1, k2):
+    return match((k1, k2),
+        ("(AGC(), AGC())", lambda: True),
+        ("(ABoxed(), ABoxed())", lambda: True),
+        ("(ARaw(), ARaw())", lambda: True),
+        ("_", lambda: False))
+
 def _type_tuple_equal(ts1, ts2):
     if len(ts1) != len(ts2):
         return False
@@ -37,6 +44,13 @@ def _type_data_equal(d1, ts1, d2, ts2):
             return False
     return True
 
+def _type_array_equal(t1, k1, t2, k2):
+    if not type_equal(t1, t2):
+        return False
+    if not array_kinds_equal(k1, k2):
+        return False
+    return True
+
 def type_equal(a, b):
     if a is b:
         return True
@@ -47,7 +61,7 @@ def type_equal(a, b):
         ("(TFunc(args1, r1, m1), TFunc(args2, r2, m2))", _type_func_equal),
         ("(TData(d1, ts1), TData(d2, ts2))", _type_data_equal),
         ("(TCtor(c1, ts1), TCtor(c2, ts2))", _type_data_equal),
-        ("(TArray(a), TArray(b))", type_equal),
+        ("(TArray(t1, k1), TArray(t2, k2))", _type_array_equal),
         ("(TWeak(a), TWeak(b))", type_equal),
         ("_", lambda: False))
 
@@ -81,7 +95,7 @@ def _type_repr(t):
                     ("TPrim(PBool())", lambda: 'bool'),
                     ("TTuple(ts)", lambda ts: fmtcol('^Cyan^t(^N{0}^Cyan)^N',
                         (col('Cyan', ', ').join(map(_type_repr, ts))))),
-                    ("TArray(t)", lambda t: '[%s]' % (_type_repr(t),)),
+                    ("TArray(t, kind)", _tarray_repr),
                     ("TFunc(ps, res, m)", _func_repr),
                     ("TData(d, ps)", _tdata_repr),
                     ("TCtor(c, ps)", _tdata_repr),
@@ -124,6 +138,12 @@ def _tdata_repr(dt, apps):
     return fmtcol('{0}^LG(^N{1}^LG)^N', dt,
             col('Cyan', ', ').join(map(_type_repr, apps)))
 
+def _tarray_repr(t, kind):
+    pfx = match(kind, ("AGC()", lambda: ''),
+                      ("ABoxed()", lambda: 'x'),
+                      ("ARaw()", lambda: 'r'))
+    return fmtcol('^Red{0}^N[{1}]', pfx, _type_repr(t))
+
 def cyclic_check_type_repr(t):
     return in_env(REPRENV, set(), lambda: _type_repr(t))
 
@@ -155,8 +175,8 @@ def map_type_vars(f, t):
         return TFunc(ps, m2.result(), copy_meta(m.meta))
     elif m('TTuple(ts)'):
         return TTuple([map_type_vars(f, t) for t in m.ts])
-    elif m('TArray(t)'):
-        return TArray(map_type_vars(f, m.t))
+    elif m('TArray(t, kind)'):
+        return TArray(map_type_vars(f, m.t), m.kind)
     elif m('TWeak(t)'):
         return TWeak(map_type_vars(f, m.t))
     else:
@@ -176,7 +196,7 @@ def visit_type_vars(f, t):
         return visit_many(m.ps)
     elif m('TTuple(ts)'):
         return visit_many(m.ts)
-    elif m('TArray(t)'):
+    elif m('TArray(t, _)'):
         return visit(m.t)
     elif m('TWeak(t)'):
         return visit(m.t)
@@ -218,8 +238,8 @@ def checked_subst(mapping, t):
     return s
 
 def is_strong_type(t):
-    return matches(t, "TData(_, _) or TCtor(_, _) or TArray(_) or TTuple(_)" +
-            " or TFunc(_, _, _)")
+    return matches(t, "TData(_, _) or TCtor(_, _) or TArray(_, _)" +
+            " or TTuple(_) or TFunc(_, _, _)")
 
 def ctor_type(ctor, dtT):
     paramTypes = []

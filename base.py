@@ -330,6 +330,9 @@ TypeVar = DT('TypeVar')
 PrimType, PInt, PFloat, PStr, PChar, PBool = ADT('PrimType',
         'PInt', 'PFloat', 'PStr', 'PChar', 'PBool')
 
+ArrayKind, AGC, ABoxed, ARaw = ADT('ArrayKind',
+        'AGC', 'ABoxed', 'ARaw', value=True)
+
 ParamMeta = DT('ParamMeta', ('held', bool))
 
 FuncMeta = DT('FuncMeta', ('params', [ParamMeta]),
@@ -364,7 +367,7 @@ Type, TVar, TPrim, TTuple, TFunc, TData, TCtor, TArray, TWeak \
                  ('meta', FuncMeta),
         'TData', ('data', '*DataType'), ('appTypes', ['Type']),
         'TCtor', ('ctor', '*Ctor'), ('appTypes', ['Type']),
-        'TArray', ('elemType', 'Type'),
+        'TArray', ('elemType', 'Type'), ('arrayKind', ArrayKind),
         'TWeak', ('refType', 'Type'))
 
 Result, Ret, Void, Bottom = ADT('Result',
@@ -419,7 +422,8 @@ def parse_type(t):
         return TTuple(map(parse_type, t))
     elif isinstance(t, list):
         assert len(t) == 1
-        return TArray(parse_type(t[0]))
+        elemT = parse_type(t[0])
+        return TArray(elemT, AGC())
     elif isinstance(t, set):
         assert len(t) == 1
         return _apply_set_type(parse_type(list(t)[0]))
@@ -484,7 +488,7 @@ def consume_type(toks):
         toks.pop(0)
         t = TTuple(ts)
     elif tok == '[':
-        t = TArray(consume_type(toks))
+        t = TArray(consume_type(toks), AGC())
         assert toks.pop(0) == ']', 'Unbalanced []'
     elif tok[0] in slashW:
         t = _type_by_name(tok)
@@ -632,13 +636,17 @@ def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
             ('TFunc(args, ret, meta)', lambda args, ret:
                 TFunc(map(copy, args), copy_result(ret), copy_meta(meta))),
             ('TData(data, apps)', _derive_data),
-            ('TArray(t)', lambda t: TArray(copy(t))),
+            ('TArray(t, k)', lambda t, k: TArray(copy(t), copy_array_kind(k))),
             ('TWeak(t)', lambda t: TWeak(copy(t))))
 
     def copy_result(r):
         return match(r, ('Ret(t)', lambda t: Ret(copy(t))),
                         ('Void()', Void),
                         ('Bottom()', Bottom))
+    def copy_array_kind(k):
+        return match(k, ('AGC()', AGC),
+                        ('ABoxed()', ABoxed),
+                        ('ARaw()', ARaw))
     return copy(t)
 
 # Typeclasses

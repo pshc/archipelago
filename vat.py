@@ -88,7 +88,7 @@ def clone_by_type(src, t):
                 "Expected %s, got: %r" % (m.data, obj)
         apps = m.appTs and app_map(m.data, m.appTs)
         return clone_structured(src, apps)
-    elif m('TArray(et)'):
+    elif m('TArray(et, _)'):
         et = m.et
         assert isinstance(src, list)
         return [clone_by_type(s, et) for s in src]
@@ -143,7 +143,7 @@ def rewrite_by_type(obj, t):
                     setattr(obj, fnm, repls[val])
             else:
                 rewrite_by_type(val, ft)
-    elif m('TArray(et)'):
+    elif m('TArray(et, _)'):
         et = m.et
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
@@ -241,7 +241,7 @@ def visit_by_type(obj, t, customVisitors=True):
             ft = fts[fnm]
             if not isinstance(ft, TWeak):
                 visit_by_type(getattr(obj, fnm), ft)
-    elif m('TArray(et)'):
+    elif m('TArray(et, _)'):
         assert isinstance(obj, list)
         if not isinstance(m.et, TWeak):
             for o in obj:
@@ -320,7 +320,7 @@ def mutate_by_type(obj, t, customMutators=True):
                 val = getattr(obj, fnm)
                 setattr(obj, fnm, mutate_by_type(val, ft))
         return obj
-    elif m('TArray(et)'):
+    elif m('TArray(et, _)'):
         et = m.et
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
@@ -349,7 +349,7 @@ def type_key(t):
     elif m('TData(dt, ts)'):
         nm = extrinsic(Name, dt)
         return '%s(%s)' % (nm, ', '.join(type_key(a) for a in m.ts))
-    elif m('TArray(t)'):
+    elif m('TArray(t, _)'): # kind?
         return '[%s]' % (type_key(m.t),)
     elif m('TWeak(t)'):
         return '*%s' % (type_key(m.t),)

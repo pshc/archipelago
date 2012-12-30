@@ -38,7 +38,7 @@ def scan_inst(s):
         ('TTuple(ts)', lambda ts: map_(scan_inst, ts)),
         ('TFunc(ps, r, _)', scan_inst_func),
         ('TData(DataType(_, tvs, _), apps)', scan_inst_data),
-        ('TArray(t)', scan_inst),
+        ('TArray(t, _)', scan_inst),
         ('TWeak(t)', scan_inst))
 
 def instantiate_type(site, t):
