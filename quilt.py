@@ -251,5 +251,8 @@ def type_layout_form_var(t):
         assert len(dt.ctors) == 1
         return extrinsic(CtorLayout, dt.ctors[0]).formVar
 
+def is_gc_var(var):
+    t = extrinsic(TypeOf, var)
+    return matches(t, "TData(_, _)") # for now
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
