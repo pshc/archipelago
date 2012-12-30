@@ -636,7 +636,7 @@ def derive_copied_ctor_type(t, old_dt, new_dt, dtSubsts, tvars):
             ('TWeak(t)', lambda t: TWeak(copy(t))))
 
     def copy_result(r):
-        return match(r, ('Ret(t)', copy),
+        return match(r, ('Ret(t)', lambda t: Ret(copy(t))),
                         ('Void()', Void),
                         ('Bottom()', Bottom))
     return copy(t)
