@@ -147,6 +147,16 @@ def _gen_result(r):
 def finalize_type(t):
     return _gen_type(t)
 
+def zonk(t):
+    # XXX need to actually collapse Subst chains
+    m = match(t)
+    if m('CMeta(Subst(t))'):
+        return zonk(m.t)
+    elif m('CMeta(_)'):
+        return Nothing()
+    else:
+        return Just(t)
+
 def unification_failure(src, dest, msg):
     desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
             type(src), src, type(dest), dest)
@@ -328,27 +338,39 @@ def prop_lit(lit):
     return ctype(lit_type(lit))
 
 def prop_listlit(es):
-    # TODO figure out appropriate array kind
     if len(es) == 0:
         return C.TArray(fresh(), AGC())
     else:
         t = prop_expr(es[0])
+        isRaw = matches(t, "TPrim(_)")
         for e in es[1:]:
             consume_value_as(t, e)
-        return C.TArray(t, AGC())
+        return C.TArray(t, ARaw() if isRaw else AGC())
 
 def prop_call_result(call, f, s):
     ft = prop_expr(f)
     argts = map(prop_expr, s)
+    argn = len(argts)
 
     # TEMP: resolve numeric operator overload
-    if 1 <= len(argts) <= 2 and matches(argts[0], "TPrim(PFloat())") and \
+    if 1 <= argn <= 2 and matches(argts[0], "TPrim(PFloat())") and \
                 matches(f, "Bind(_)"):
         newf = overload_num_call(f.target)
         if newf:
             f = newf
-            call.func = f
-            ft = prop_expr(f)
+
+    # TEMP: resolve array overloads
+    if argn == 1 and matches(f, "Bind(key('len'))"):
+        if matches(zonk(argts[0]), "Just(TArray(_, ARaw()))"):
+            f = E.Bind(BUILTINS['rawlen'])
+    elif argn == 2 and matches(f, "Bind(key('subscript'))"):
+        if matches(zonk(argts[0]), "Just(TArray(_, ARaw()))"):
+            f = E.Bind(BUILTINS['rawsubscript'])
+
+    # use new type from resolutions above
+    if f is not call.func:
+        call.func = f
+        ft = prop_expr(f)
 
     paramTypes, result = match(ft, ("TFunc(ps, res, _)", tuple2))
     for arg, param in ezip(argts, ft.paramTypes):

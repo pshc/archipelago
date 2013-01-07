@@ -215,7 +215,14 @@ def check_tuplelit(es):
 # TODO should be called on every array type in the AST (not just literals)
 def check_array_type(arrayT):
     t, kind = match(arrayT, "TArray(t, kind)")
-    # XXX check that type & kind are compatible
+    # simple check for now
+    isRaw = matches(kind, "ARaw()")
+    m = match(t)
+    if m("TPrim(prim)"):
+        # includes PStr pffffft
+        assert isRaw, "Unboxed type %s in non-raw array" % (m.prim,)
+    else:
+        assert not isRaw, "Boxed type %s  in raw array" % (t,)
     return t
 
 def check_listlit(es):

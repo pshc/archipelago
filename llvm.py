@@ -426,6 +426,7 @@ def una_op(b):
         ('key("float")', lambda: 'int_to_float'),
         ('key("int")', lambda: 'float_to_int'),
         ('key("len")', lambda: 'len'), ('key("buffer")', lambda: 'buffer'),
+        ('key("rawlen")', lambda: 'rawlen'),
         ('_', lambda: '<unknown builtin %s>' % (b,)))
 
 def bin_op(b):
@@ -450,7 +451,7 @@ def aug_op(b):
         ('AugModulo()', lambda: 'srem')) # or urem...
 
 def expr_unary(op, arg):
-    if op == 'len':
+    if op in ('len', 'rawlen'):
         intT = IIntPtr()
         arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
         l = subscript('len', arg, TypedXpr(intT, ConstInt(-1)))
@@ -553,7 +554,7 @@ def express_called_Builtin(target, args):
     left = express(args[0])
     right = express(args[1])
 
-    if matches(target, 'key("subscript")'):
+    if matches(target, 'key("subscript") or key("rawsubscript")'):
         it = typeof(args[1])
         assert itypes_equal(it, IInt()), "Non-integral index"
         return Just(subscript('subscript',

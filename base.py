@@ -437,6 +437,7 @@ def parse_type(t):
     assert False, "Unknown type repr of type %r: %r" % (type(t), t)
 
 types_by_name = dict(str=TStr, int=TInt, float=TFloat, bool=TBool)
+array_kind_literals = {'[': AGC, 'r[': ARaw, 'x[': ABoxed}
 
 def _type_by_name(t):
     if len(t) == 1:
@@ -487,9 +488,9 @@ def consume_type(toks):
                 paramMetas.append(pMeta or plain_param_meta())
         toks.pop(0)
         t = TTuple(ts)
-    elif tok == '[':
-        t = TArray(consume_type(toks), AGC())
-        assert toks.pop(0) == ']', 'Unbalanced []'
+    elif tok in ('[', 'r[', 'x['):
+        t = TArray(consume_type(toks), array_kind_literals[tok]())
+        assert toks.pop(0) == ']', 'Unbalanced %s]' % (tok,)
     elif tok[0] in slashW:
         t = _type_by_name(tok)
         if toks and toks[0] == '(':
@@ -549,6 +550,9 @@ def tokenize_type(s):
             word += c
         elif c == '(' and word == 't':
             yield 't('
+            word = ''
+        elif c == '[' and word in 'rx':
+            yield word+c
             word = ''
         else:
             if word:
