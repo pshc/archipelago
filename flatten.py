@@ -84,6 +84,10 @@ def resolve_pending_exits(destBlock):
         else:
             assert False, "Can't resolve %s" % (block.terminator,)
 
+def is_gc_var(var):
+    t = extrinsic(TypeOf, var)
+    return is_strong_type(t) and not matches(t, "TFunc(_, _, _)") # todo
+
 def live_vars_exist_since_level(notIncludedLevel):
     cfg = env(CFG)
     if isNothing(cfg.block):
@@ -413,8 +417,7 @@ class ControlFlowBuilder(vat.Visitor):
         cfg = env(CFG)
         cfg.livenessByLevel.setdefault(cfg.level, []).append(var)
 
-        t = extrinsic(TypeOf, var)
-        entry = GCVarEntry(var, type_layout_form_var(t))
+        entry = GCVarEntry(var, Nothing())
         env(CFGFUNC).gcVars.append(entry)
 
 def negate(expr):
