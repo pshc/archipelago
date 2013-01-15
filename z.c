@@ -17,14 +17,7 @@ struct nom_atom {
 
 __dead2 void fail(const char *);
 static __dead2 void oom(void);
-
-static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
-	int i;
-	for (i = 0; i < count; i++)
-		if (SLOT_KEY(table, i) == key)
-			return i;
-	return -1;
-}
+static int table_index(intptr_t *table, intptr_t count, intptr_t key);
 
 /* ENVS */
 
@@ -416,6 +409,16 @@ __dead2 void match_fail(void) {
 static __dead2 void oom(void) {
 	fputs("OOM.\n", stderr);
 	exit(1);
+}
+
+/* HELPERS */
+
+static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
+	int i;
+	for (i = 0; i < count; i++)
+		if (SLOT_KEY(table, i) == key)
+			return i;
+	return -1;
 }
 
 /* TEMP */
