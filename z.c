@@ -26,6 +26,11 @@ __dead2 void match_fail(void) {
 	exit(1);
 }
 
+static __dead2 void oom(void) {
+	fputs("OOM.\n", stderr);
+	exit(1);
+}
+
 static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
 	int i;
 	for (i = 0; i < count; i++)
@@ -45,7 +50,7 @@ static env_entry *resize_env_table(env_entry *table, intptr_t count) {
 	if (!new_table) {
 		if (table)
 			free(table);
-		fail("No memory to extend env table");
+		oom();
 	}
 	TABLE_COUNT(new_table) = count;
 	return new_table;
@@ -58,7 +63,7 @@ static stack_entry *resize_env_stack(intptr_t *pstack, stack_entry *stack,
 	if (!new_stack) {
 		if (stack)
 			free(stack);
-		fail("No memory to extend env stack");
+		oom();
 	}
 	TABLE_COUNT(new_stack) = count;
 	if (new_stack != stack)
@@ -146,7 +151,7 @@ static intptr_t *resize_atom_table(struct nom_atom *atom, intptr_t* table,
 	new_table = realloc(table, (1 + count*2) * sizeof *table);
 	if (!new_table) {
 		free(table);
-		fail("No memory to extend extrinsic table");
+		oom();
 	}
 	if (new_table != table)
 		atom->extrs = new_table;
@@ -402,7 +407,7 @@ void *gc_alloc(size_t size) {
 	gc_collect();
 	p = malloc(size);
 	if (!p)
-		fail("OOM");
+		oom();
 	push_heap_ptr(p);
 	GC_PRINTF("Allocated 0x%016lx.\n", (intptr_t) p);
 	return p;
