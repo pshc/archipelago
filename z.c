@@ -187,7 +187,7 @@ int _hasextrinsic(uintptr_t extr, struct nom_atom *atom) {
 
 struct frame_map {
 	uint32_t num_roots, num_meta;
-	const void *meta[1]; /* variable-length really */
+	/* const void *meta[1]; */
 };
 
 struct shadow_stack {
@@ -272,9 +272,7 @@ static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
 	}
 }
 
-static void visit_gc_root(void **root, const void *metadata) {
-	(void) metadata;
-
+static void visit_gc_root(void **root) {
 	GC_PRINTF("   root %016lx ", (uintptr_t) root);
 	struct nom_atom *atom = *root;
 	if (!atom) {
@@ -311,15 +309,13 @@ static void mark_gc_atom(struct nom_atom *atom) {
 void gc_collect(void) {
 	GC_PUTS("=== marking...");
 	for (struct shadow_stack *r = llvm_gc_root_chain; r; r = r->next) {
+		if (r->map->num_meta)
+			fail("Unexpected meta entries in stack roots");
 		GC_PRINTF(" stack frame %lx\n", (uintptr_t) r);
 		uint32_t i = 0;
-		/* first, roots with metadata */
 		void **roots = (void **) &r->roots;
-		for (uint32_t n = r->map->num_meta; i < n; i++)
-			visit_gc_root(&roots[i], r->map->meta[i]);
-		/* then roots without */
 		for (uint32_t n = r->map->num_roots; i < n; i++)
-			visit_gc_root(&roots[i], NULL);
+			visit_gc_root(&roots[i]);
 	}
 
 	GC_PUTS("=== sweeping...");
