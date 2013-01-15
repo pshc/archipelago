@@ -15,21 +15,8 @@ struct nom_atom {
 
 #define GC_MARK ((intptr_t) 1)
 
-__dead2 void fail(const char *err) {
-	fputs(err, stderr);
-	fputc('\n', stderr);
-	exit(1);
-}
-
-__dead2 void match_fail(void) {
-	fputs("Match failure.\n", stderr);
-	exit(1);
-}
-
-static __dead2 void oom(void) {
-	fputs("OOM.\n", stderr);
-	exit(1);
-}
+__dead2 void fail(const char *);
+static __dead2 void oom(void);
 
 static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
 	int i;
@@ -411,6 +398,24 @@ void *gc_alloc(size_t size) {
 	push_heap_ptr(p);
 	GC_PRINTF("Allocated 0x%016lx.\n", (intptr_t) p);
 	return p;
+}
+
+/* ERROR HANDLING */
+
+__dead2 void fail(const char *err) {
+	fputs(err, stderr);
+	fputc('\n', stderr);
+	exit(1);
+}
+
+__dead2 void match_fail(void) {
+	fputs("Match failure.\n", stderr);
+	exit(1);
+}
+
+static __dead2 void oom(void) {
+	fputs("OOM.\n", stderr);
+	exit(1);
 }
 
 /* TEMP */
