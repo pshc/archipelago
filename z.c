@@ -25,8 +25,7 @@ typedef intptr_t env_id;
 typedef intptr_t stack_entry, env_entry;
 
 static env_entry *resize_env_table(env_entry *table, intptr_t count) {
-	intptr_t *new_table;
-	new_table = realloc(table, (1 + count*2) * sizeof *table);
+	intptr_t *new_table = realloc(table, (1 + count*2) * sizeof *table);
 	if (!new_table) {
 		if (table)
 			free(table);
@@ -38,8 +37,7 @@ static env_entry *resize_env_table(env_entry *table, intptr_t count) {
 
 static stack_entry *resize_env_stack(intptr_t *pstack, stack_entry *stack,
 			intptr_t count) {
-	stack_entry *new_stack;
-	new_stack = realloc(stack, (1 + count) * sizeof *stack);
+	stack_entry *new_stack = realloc(stack, (1 + count) * sizeof *stack);
 	if (!new_stack) {
 		if (stack)
 			free(stack);
@@ -52,15 +50,12 @@ static stack_entry *resize_env_stack(intptr_t *pstack, stack_entry *stack,
 }
 
 intptr_t _getenv(env_id env, env_entry *table) {
-	int i;
-	stack_entry *stack;
-
 	if (!table)
 		fail("Env not present (null context)");
-	i = table_index(table, TABLE_COUNT(table), env);
+	int i = table_index(table, TABLE_COUNT(table), env);
 	if (i == -1)
 		fail("Env not present");
-	stack = (stack_entry *) SLOT_VALUE(table, i);
+	stack_entry *stack = (stack_entry *) SLOT_VALUE(table, i);
 	return stack[TABLE_COUNT(stack)];
 }
 
@@ -69,18 +64,15 @@ int _haveenv(env_id env, env_entry *table) {
 }
 
 env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
-	int i;
-	intptr_t table_len, stack_len;
-	stack_entry *stack;
+	stack_entry *stack = NULL;
+	intptr_t stack_len = 1;
 
-	table_len = table ? TABLE_COUNT(table) : 0;
-	i = table_index(table, table_len, env);
+	intptr_t table_len = table ? TABLE_COUNT(table) : 0;
+	int i = table_index(table, table_len, env);
 	if (i == -1) {
 		i = table_len;
 		table = resize_env_table(table, table_len+1);
 		SLOT_KEY(table, i) = env;
-		stack = NULL;
-		stack_len = 1;
 	}
 	else {
 		stack = (stack_entry *) SLOT_VALUE(table, i);
@@ -96,19 +88,15 @@ env_entry *_pushenv(env_id env, env_entry *table, intptr_t val) {
 }
 
 env_entry *_popenv(env_id env, env_entry *table) {
-	int i;
-	intptr_t table_len, stack_len;
-	stack_entry *stack;
-
 	if (!table)
 		fail("Empty env table?!");
-	table_len = TABLE_COUNT(table);
-	i = table_index(table, table_len, env);
+	intptr_t table_len = TABLE_COUNT(table);
+	int i = table_index(table, table_len, env);
 	if (i == -1)
 		fail("Env missing?!");
 
-	stack = (stack_entry *) SLOT_VALUE(table, i);
-	stack_len = TABLE_COUNT(stack) - 1;
+	stack_entry *stack = (stack_entry *) SLOT_VALUE(table, i);
+	intptr_t stack_len = TABLE_COUNT(stack) - 1;
 
 	if (stack_len) {
 		stack = resize_env_stack(&SLOT_VALUE(table, i), stack,
@@ -126,9 +114,8 @@ env_entry *_popenv(env_id env, env_entry *table) {
 /* EXTRINSICS */
 
 static intptr_t *resize_atom_table(struct nom_atom *atom, intptr_t* table,
-                                   intptr_t count) {
-	intptr_t *new_table;
-	new_table = realloc(table, (1 + count*2) * sizeof *table);
+			intptr_t count) {
+	intptr_t *new_table = realloc(table, (1 + count*2) * sizeof *table);
 	if (!new_table) {
 		free(table);
 		oom();
@@ -140,10 +127,8 @@ static intptr_t *resize_atom_table(struct nom_atom *atom, intptr_t* table,
 }
 
 void _addextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
-	intptr_t count, *table;
-
-	table = atom->extrs;
-	count = table ? TABLE_COUNT(table) : 0;
+	intptr_t *table = atom->extrs;
+	intptr_t count = table ? TABLE_COUNT(table) : 0;
 
 	if (table_index(table, count, extr) != -1)
 		fail("Extrinsic already present");
@@ -154,14 +139,11 @@ void _addextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
 }
 
 void _updateextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
-	int index;
-	intptr_t *table;
-
-	table = atom->extrs;
+	intptr_t *table = atom->extrs;
 	if (!table)
 		fail("Extrinsic not already present (empty table)");
 
-	index = table_index(table, TABLE_COUNT(table), extr);
+	int index = table_index(table, TABLE_COUNT(table), extr);
 	if (index == -1)
 		fail("Extrinsic not already present");
 
@@ -169,14 +151,11 @@ void _updateextrinsic(intptr_t extr, struct nom_atom *atom, intptr_t val) {
 }
 
 intptr_t _getextrinsic(intptr_t extr, struct nom_atom *atom) {
-	int index;
-	intptr_t *table;
-
-	table = atom->extrs;
+	intptr_t *table = atom->extrs;
 	if (!table)
 		fail("Extrinsic not found (empty table)");
 
-	index = table_index(table, TABLE_COUNT(table), extr);
+	int index = table_index(table, TABLE_COUNT(table), extr);
 	if (index == -1)
 		fail("Extrinsic not found");
 
@@ -184,8 +163,7 @@ intptr_t _getextrinsic(intptr_t extr, struct nom_atom *atom) {
 }
 
 int _hasextrinsic(intptr_t extr, struct nom_atom *atom) {
-	intptr_t *table;
-	table = atom->extrs;
+	intptr_t *table = atom->extrs;
 	if (!table)
 		return 0;
 	return table_index(table, TABLE_COUNT(table), extr) != -1;
@@ -245,30 +223,20 @@ static void mark_gc_atom(struct nom_atom *);
 
 #ifdef LOGGC
 static const char *read_gc_spec_name(const uint8_t *spec, unsigned int n) {
-	char c;
-	unsigned int i;
-	const char *name;
-
-	name = (const char *) (spec + n * (1 + sizeof(intptr_t)));
-
-	for (i = 0; (c = name[i]); i++) {
-		if (c < '0' || c > 'z')
+	const uint8_t *name = spec + n * (1 + sizeof(intptr_t));
+	for (unsigned int i = 0; name[i]; i++) {
+		if (name[i] < '0' || name[i] > 'z')
 			fail("Suspicious unusual ctor name char");
 		if (i > 30)
 			fail("Ctor name is suspiciously long");
 	}
-	return name;
+	return (const char *) name;
 }
 #endif /* LOGGC */
 
 static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
-	unsigned int i, n, offset;
-	intptr_t *tbl;
-	union packed_ptr tbl_ptr;
-	struct nom_atom *ref_atom;
-
 	GC_PRINTF("    spec at %016lx ", (intptr_t) spec);
-	n = *spec++;
+	unsigned int n = *spec++;
 	if (!n)
 		return;
 	if (n > 20)
@@ -277,18 +245,20 @@ static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
 	/* ctor name at end */
 	GC_PRINTF("is a %s.\n", read_gc_spec_name(spec, n));
 
-	for (i = 0; i < n; i++) {
-		offset = *spec++;
+	for (unsigned int i = 0; i < n; i++) {
+		unsigned int offset = *spec++;
 
 		/* unaligned load */
+		union packed_ptr tbl_ptr;
 		memcpy(tbl_ptr.bytes, spec, sizeof tbl_ptr.bytes);
-		tbl = *(intptr_t **) tbl_ptr.ptr;
+		intptr_t *tbl = *(intptr_t **) tbl_ptr.ptr;
 		spec += sizeof tbl;
 
 		/* TODO: use tbl to typecheck */
 
 		/* recurse into atom pointed by field */
-		ref_atom = *(struct nom_atom **) ((char *)atom + offset);
+		struct nom_atom *ref_atom = *(struct nom_atom **)
+				((char *)atom + offset);
 
 		GC_PRINTF("     field at %d points to atom %016lx\n", offset,
 				(intptr_t) ref_atom);
@@ -299,12 +269,10 @@ static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
 }
 
 static void visit_gc_root(void **root, const void *metadata) {
-	struct nom_atom *atom;
-
 	(void) metadata;
 
 	GC_PRINTF("   root %016lx ", (intptr_t) root);
-	atom = *root;
+	struct nom_atom *atom = *root;
 	if (!atom) {
 		GC_PUTS("is null");
 		return;
@@ -315,25 +283,20 @@ static void visit_gc_root(void **root, const void *metadata) {
 }
 
 static void mark_gc_atom(struct nom_atom *atom) {
-	uint8_t *c;
-	int i;
-	intptr_t spec;
-
 	if (atom->gc & GC_MARK) {
 		GC_PUTS("(already marked)");
 		return;
 	}
 
 	GC_PRINTF("   ");
-	c = (uint8_t *) atom;
-	for (i = 0; i < 16; i++) {
-		GC_PRINTF("%02x ", c[i]);
+	for (int i = 0; i < 16; i++) {
+		GC_PRINTF("%02x ", ((uint8_t *) atom)[i]);
 		if (i % 4 == 3)
 			GC_PUTCHAR(' ');
 	}
 	GC_PUTCHAR('\n');
 
-	spec = atom->gc;
+	intptr_t spec = atom->gc;
 	/* mark before recursing into fields */
 	atom->gc |= GC_MARK;
 
@@ -342,28 +305,23 @@ static void mark_gc_atom(struct nom_atom *atom) {
 }
 
 void gc_collect(void) {
-	struct shadow_stack *r;
-	uint32_t i, n;
-	void **roots;
-	struct nom_atom *atom;
-
 	GC_PUTS("=== marking...");
-	for (r = llvm_gc_root_chain; r; r = r->next) {
+	for (struct shadow_stack *r = llvm_gc_root_chain; r; r = r->next) {
 		GC_PRINTF(" stack frame %lx\n", (intptr_t) r);
-		i = 0;
+		uint32_t i = 0;
 		/* first, roots with metadata */
-		roots = (void **) &r->roots;
-		for (n = r->map->num_meta; i < n; i++)
+		void **roots = (void **) &r->roots;
+		for (uint32_t n = r->map->num_meta; i < n; i++)
 			visit_gc_root(&roots[i], r->map->meta[i]);
 		/* then roots without */
-		for (n = r->map->num_roots; i < n; i++)
+		for (uint32_t n = r->map->num_roots; i < n; i++)
 			visit_gc_root(&roots[i], NULL);
 	}
 
 	GC_PUTS("=== sweeping...");
 	/* heap_count may decrease due to pop_heap_ptr(); watch out! */
-	for (i = 0; i < heap_count; i++) {
-		atom = heap[i];
+	for (unsigned int i = 0; i < heap_count; i++) {
+		struct nom_atom *atom = heap[i];
 		GC_PRINTF(" 0x%016lx is ", (intptr_t) atom);
 		if (atom->gc & GC_MARK) {
 			atom->gc &= ~GC_MARK;
@@ -382,10 +340,8 @@ void gc_collect(void) {
 }
 
 void *gc_alloc(size_t size) {
-	void *p;
-
 	gc_collect();
-	p = malloc(size);
+	void *p = malloc(size);
 	if (!p)
 		oom();
 	push_heap_ptr(p);
@@ -414,8 +370,7 @@ static __dead2 void oom(void) {
 /* HELPERS */
 
 static int table_index(intptr_t *table, intptr_t count, intptr_t key) {
-	int i;
-	for (i = 0; i < count; i++)
+	for (int i = 0; i < count; i++)
 		if (SLOT_KEY(table, i) == key)
 			return i;
 	return -1;
