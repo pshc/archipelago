@@ -3,8 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+union gc_ptr {
+	uintptr_t flags;
+	uint8_t *ptr;
+};
+
 struct nom_atom {
-	uintptr_t gc;
+	union gc_ptr gc;
 	uintptr_t *extrs;
 	uint32_t discrim;
 };
@@ -282,7 +287,7 @@ static void visit_gc_root(void **root, const void *metadata) {
 }
 
 static void mark_gc_atom(struct nom_atom *atom) {
-	if (atom->gc & GC_MARK) {
+	if (atom->gc.flags & GC_MARK) {
 		GC_PUTS("(already marked)");
 		return;
 	}
@@ -295,12 +300,12 @@ static void mark_gc_atom(struct nom_atom *atom) {
 	}
 	GC_PUTCHAR('\n');
 
-	uintptr_t spec = atom->gc;
+	const uint8_t *spec = atom->gc.ptr;
 	/* mark before recursing into fields */
-	atom->gc |= GC_MARK;
+	atom->gc.flags |= GC_MARK;
 
 	if (spec)
-		read_atom_spec(atom, (const uint8_t *) spec);
+		read_atom_spec(atom, spec);
 }
 
 void gc_collect(void) {
@@ -322,8 +327,8 @@ void gc_collect(void) {
 	for (size_t i = 0; i < heap_count; i++) {
 		struct nom_atom *atom = heap[i];
 		GC_PRINTF(" 0x%016lx is ", (uintptr_t) atom);
-		if (atom->gc & GC_MARK) {
-			atom->gc &= ~GC_MARK;
+		if (atom->gc.flags & GC_MARK) {
+			atom->gc.flags &= ~GC_MARK;
 			GC_PUTS("live");
 		}
 		else {
