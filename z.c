@@ -219,8 +219,8 @@ static void pop_heap_ptr(size_t i) {
 }
 
 union packed_ptr {
-	char *bytes[sizeof(uintptr_t)];
-	void *ptr;
+	char bytes[sizeof(uintptr_t)];
+	uintptr_t **ptr;
 };
 
 static void mark_gc_atom(struct nom_atom *);
@@ -255,10 +255,10 @@ static void read_atom_spec(struct nom_atom *atom, const uint8_t *spec) {
 		/* unaligned load */
 		union packed_ptr tbl_ptr;
 		memcpy(tbl_ptr.bytes, spec, sizeof tbl_ptr.bytes);
-		uintptr_t *tbl = *(uintptr_t **) tbl_ptr.ptr;
-		spec += sizeof tbl;
-
-		/* TODO: use tbl to typecheck */
+		if (tbl_ptr.ptr) {
+			/* TODO: use *tbl_ptr.ptr to typecheck */
+		}
+		spec += sizeof tbl_ptr.bytes;
 
 		/* recurse into atom pointed by field */
 		struct nom_atom *ref_atom = *(struct nom_atom **)
