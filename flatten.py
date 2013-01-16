@@ -500,11 +500,12 @@ def build_control_flow(unit):
 
 NEWBODY = new_env('NEWBODY', Body)
 
-ExprPurity, PureExpr, ImpureExpr, UniqueVar = \
+ExprPurity, PureExpr, ImpureExpr, UniqueVar, ThanksForTheVar = \
     ADT('ExprPurity',
         'PureExpr', ('expr', LExpr),
         'ImpureExpr', ('expr', LExpr),
-        'UniqueVar', ('var', Var))
+        'UniqueVar', ('var', Var),
+        'ThanksForTheVar')
 
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
@@ -515,6 +516,8 @@ def spill_to_pure(expr):
         return expr
     elif m('ImpureExpr(expr)'):
         return UniqueVar(define_temp_var(m.expr))
+    else:
+        assert False
 
 def spill_lower(expr):
     m = match(flatten_expr(expr, Nothing()))
@@ -524,23 +527,27 @@ def spill_lower(expr):
         return bind_var(define_temp_var(m.expr))
     elif m('UniqueVar(var)'):
         return bind_var(m.var)
+    else:
+        assert False
 
 def store_scope_result(destVar, expr):
     body = Body([])
     m = match(in_env(NEWBODY, body, lambda: flatten_expr(expr, Just(destVar))))
     if m('PureExpr(expr) or ImpureExpr(expr)'):
         body.stmts.append(S.Assign(LhsVar(destVar), m.expr))
+    elif m('ThanksForTheVar()'):
+        pass # already taken care of!
     elif m('UniqueVar(var)'):
-        # flatten_expr may have already written the value for us
-        # XXX will this check always be accurate?
-        #     ought to have a dedicated ThanksForTheVar() indicator
-        if destVar is not m.var:
-            body.stmts.append(S.Assign(LhsVar(destVar), m.var))
+        # result showed up in a different var for some reason?
+        assert destVar is not m.var
+        body.stmts.append(S.Assign(LhsVar(destVar), m.var))
     return body
 
 def flatten_expr_to_var(expr, optVar):
     m = match(flatten_expr(expr, optVar))
-    if m('UniqueVar(var)'):
+    if m('ThanksForTheVar()'):
+        return fromJust(optVar)
+    elif m('UniqueVar(var)'):
         return m.var
     elif m('PureExpr(e) or ImpureExpr(e)'):
         return define_temp_var(m.e)
@@ -572,10 +579,12 @@ def flatten_expr(expr, optVar):
     elif m('Ternary(test, then, else_)'):
         if haveOutVar:
             result = fromJust(optVar)
+            retVal = ThanksForTheVar()
         else:
             undef = Undefined()
             add_extrinsic(TypeOf, undef, extrinsic(TypeOf, expr))
             result = define_temp_var(undef)
+            retVal = UniqueVar(result)
         test = spill_lower(m.test)
         trueBlock = store_scope_result(result, m.then)
         falseBlock = store_scope_result(result, m.else_)
@@ -586,7 +595,7 @@ def flatten_expr(expr, optVar):
         cond = S.Cond([trueCase, falseCase])
         set_orig(cond, expr)
         push_newbody(cond)
-        return UniqueVar(result)
+        return retVal
 
     elif m('Match(expr, cases)'):
         inVar = flatten_expr_to_var(m.expr, optVar)
@@ -594,11 +603,13 @@ def flatten_expr(expr, optVar):
 
         if haveOutVar:
             outVar = fromJust(optVar)
+            retVal = ThanksForTheVar()
         else:
             outInit = Undefined()
             add_extrinsic(TypeOf, outInit, extrinsic(TypeOf, expr))
             outVar = define_temp_var(outInit)
             add_extrinsic(Name, outVar, 'out')
+            retVal = UniqueVar(outVar)
 
         flatCases = []
         failProof = False
@@ -625,7 +636,7 @@ def flatten_expr(expr, optVar):
         set_orig(cond, expr)
         push_newbody(cond)
 
-        return UniqueVar(outVar)
+        return retVal
 
     elif m('Call(func, args)'):
         target = match(expr.func, "Bind(target)")
