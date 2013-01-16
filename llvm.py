@@ -451,7 +451,10 @@ def aug_op(b):
         ('AugModulo()', lambda: 'srem')) # or urem...
 
 def expr_unary(op, arg):
-    if op in ('len', 'rawlen'):
+    if op == 'len':
+        return fromJust(write_runtime_call('gc_array_len', [arg.xpr]))
+    elif op == 'rawlen':
+        # old wrong code
         intT = IIntPtr()
         arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
         l = subscript('len', arg, TypedXpr(intT, ConstInt(-1)))
@@ -613,23 +616,30 @@ def expr_tuplelit(lit, es):
     return tmp
 
 def expr_listlit(lit, es):
-    litt = typeof(lit)
-    t = match(litt, "IPtr(IArray(0, t))")
     n = len(es)
-    at = IArray(n + 1, t)
-    xtmem = malloc(IPtr(at))
-    # Store length in first element
-    lenx = TypedXpr(IInt(), ConstInt(n))
-    if not itypes_equal(IInt(), t):
-        lenx = cast(lenx, t)
-    txs = [lenx]
-    for e in es:
-        txs.append(TypedXpr(t, express(e)))
-    array = build_struct(at, txs)
-    store_xpr(array, xtmem.xpr)
-    # Return pointer to second element
-    arr = get_element_ptr('listlit', xtmem, 1)
-    return cast(TypedXpr(IPtr(t), arr), litt).xpr
+    litt = typeof(lit)
+    m = match(litt)
+    if m('IPtr(IArray(0, t))'):
+        assert n > 0, "empty raw array"
+        at = IArray(n, m.t)
+        mem = malloc(IPtr(at))
+        txs = [TypedXpr(m.t, express(e)) for e in es]
+        vals = build_struct(at, txs)
+        store_xpr(vals, mem.xpr)
+        m.ret(cast(mem, litt).xpr)
+    elif m('IPtr(IDataCtor(ctor))'):
+        # this should be done during expansion, where the elem type will
+        # still be known
+        assert m.ctor is extrinsic(FormSpec, Vector)
+        vec = fromJust(write_runtime_call('gc_array', [ConstInt(n)]))
+        if n > 0:
+            txs = map(express_typed, es)
+            at = IArray(n, txs[0].type) # hack
+            vals = build_struct(at, txs)
+            ptr = fromJust(write_runtime_call('gc_array_ptr', [vec]))
+            store_xpr(vals, cast(TypedXpr(IVoidPtr(), ptr), IPtr(at)).xpr)
+        m.ret(vec)
+    return m.result()
 
 def expr_cast(src, dest, e):
     x = express(e)
@@ -1142,6 +1152,7 @@ prelude = """; prelude
 %Type = type opaque
 %Env = type i8
 %Extrinsic = type i8
+%Vector = type opaque
 declare void @llvm.gcroot(i8** %ptrloc, i8* %metadata)
 
 """

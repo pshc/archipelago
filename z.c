@@ -14,11 +14,17 @@ struct nom_atom {
 	uint32_t discrim;
 };
 
+struct vector {
+	union gc_ptr gc;
+	uintptr_t *ptr;
+};
+
 #define TABLE_COUNT(table) ((table)[0])
 #define SLOT_KEY(table, index) ((table)[1 + (index)*2])
 #define SLOT_VALUE(table, index) ((table)[2 + (index)*2])
 
 #define GC_MARK ((uintptr_t) 1)
+#define GC_ARRAY ((uintptr_t) 2)
 
 __dead2 void fail(const char *);
 static __dead2 void oom(void);
@@ -224,6 +230,7 @@ union packed_ptr {
 };
 
 static void mark_gc_atom(struct nom_atom *);
+static void walk_gc_vector(struct vector *, uintptr_t);
 
 #ifdef LOGGC
 static const char *read_gc_spec_name(const uint8_t *spec, size_t n) {
@@ -298,12 +305,14 @@ static void mark_gc_atom(struct nom_atom *atom) {
 	}
 	GC_PUTCHAR('\n');
 
-	const uint8_t *spec = atom->gc.ptr;
+	union gc_ptr orig = atom->gc;
 	/* mark before recursing into fields */
 	atom->gc.flags |= GC_MARK;
 
-	if (spec)
-		read_atom_spec(atom, spec);
+	if (orig.flags & GC_ARRAY)
+		walk_gc_vector((struct vector *) atom, orig.flags);
+	else if (orig.ptr)
+		read_atom_spec(atom, orig.ptr);
 }
 
 void gc_collect(void) {
@@ -347,6 +356,73 @@ void *gc_alloc(size_t size) {
 	push_heap_ptr(p);
 	GC_PRINTF("Allocated 0x%016lx.\n", (uintptr_t) p);
 	return p;
+}
+
+/* GC VECTORS */
+
+static void walk_gc_vector(struct vector *vector, uintptr_t flags) {
+	/* there are no array specs, just a len, so check that
+	   gc_ptr field == GC_ARRAY | (len<<8) */
+	if ((flags & 0xff) != GC_ARRAY)
+		fail("GC walk: Suspicious array signature");
+	size_t len = flags >> 8;
+	if (len > 0xffff)
+		fail("GC walk: Array is unrealistically big");
+	GC_PRINTF("    array of length %d\n", (int) len);
+
+	uintptr_t *p = vector->ptr;
+	for (size_t i = 0; i < len; i++) {
+		uintptr_t elem = *p++;
+		if (elem)
+			mark_gc_atom((struct nom_atom *) elem);
+	}
+}
+
+struct vector *gc_array(int32_t n) {
+	if (n < 0)
+		fail("Negative length array?!");
+	if (n > 0xffff)
+		fail("Array is unrealistically big");
+
+	gc_collect();
+
+	struct vector *vector = malloc(sizeof *vector);
+	if (!vector)
+		oom();
+	if (n > 0) {
+		if (!(vector->ptr = calloc(n, sizeof(void *)))) {
+			free(vector);
+			oom();
+		}
+	}
+	else
+		vector->ptr = NULL;
+
+	vector->gc.flags = GC_ARRAY | (n << 8);
+	push_heap_ptr(vector);
+	GC_PRINTF("Allocated array 0x%016lx of length %u.\n",
+			(uintptr_t) vector, n);
+
+	return vector;
+}
+
+uintptr_t *gc_array_ptr(struct vector *vec) {
+	if (!vec)
+		fail("null vector");
+	return vec->ptr;
+}
+
+int32_t gc_array_len(struct vector *vec) {
+	if (!vec)
+		fail("null vector");
+	uintptr_t flags = vec->gc.flags;
+	if ((flags & 0xff) != GC_ARRAY)
+		fail(flags & GC_MARK ? "marked array?!" : "bad array sig");
+
+	uintptr_t len = flags >> 8;
+	if (len > 0xffff)
+		fail("gc_array_len: unrealistic array length");
+	return (int32_t) len;
 }
 
 /* ERROR HANDLING */

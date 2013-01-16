@@ -6,6 +6,10 @@ free = cdecl('free', 'a -> void')
 fail = cdecl('fail', 'str -> noreturn')
 match_fail = cdecl('match_fail', 'void -> noreturn')
 
+gc_array = cdecl('gc_array', 'int -> [a]')
+gc_array_ptr = cdecl('gc_array_ptr', '[a] -> b')
+gc_array_len = cdecl('gc_array_len', '[a] -> int')
+
 _getenv = cdecl('_getenv', '(Env, c) -> a')
 _haveenv = cdecl('_haveenv', '(Env, c) -> bool')
 _pushenv = cdecl('_pushenv', '(Env, c, v) -> c')

@@ -20,6 +20,8 @@ Env = DT('Env', ('type', Type))
 
 Extrinsic = DT('Extrinsic', ('type', Type))
 
+Vector = DT('Vector') # hack for array IDatas
+
 Var = DT('Var')
 GlobalVar = DT('GlobalVar')
 

@@ -125,8 +125,7 @@ def convert_type(t):
         ("TFunc(pts, result, meta)", _convert_func),
         ("TData(dt, _)", lambda dt: IPtr(IData(dt))),
         ("TCtor(ctor, _)", lambda ctor: IPtr(IDataCtor(ctor))),
-        # TODO: kind
-        ("TArray(t, _)", lambda t: IPtr(IArray(0, convert_type(t)))),
+        ("TArray(t, kind)", _convert_array),
         ("TTuple(ts)", lambda ts: IPtr(ITuple(map(convert_type, ts)))),
         ("TWeak(t)", lambda t: IWeak(convert_type(t))))
 
@@ -150,6 +149,12 @@ def _convert_func(pts, result, meta):
 def convert_func_type(t):
     fval = match(t, ("TFunc(ps, res, m)", _convert_func))
     return fval.types[0]
+
+def _convert_array(elemT, kind):
+    if matches(kind, "AGC()"):
+        return IPtr(IDataCtor(extrinsic(FormSpec, Vector)))
+    else:
+        return IPtr(IArray(0, convert_type(elemT)))
 
 def itypes_equal(src, dest):
     m = match((src, dest))

@@ -242,7 +242,8 @@ def load_builtins():
 def load_forms():
     resolve_forward_type_refs()
 
-    pending = set([t_DT(atom.CompilationUnit).data])
+    init = [atom.CompilationUnit, atom.Vector]
+    pending = set(t_DT(dt).data for dt in init)
     done = set()
     forms = []
     names = {}
