@@ -510,6 +510,8 @@ ExprPurity, PureExpr, ImpureExpr, UniqueVar, ThanksForTheVar = \
 def push_newbody(s):
     env(NEWBODY).stmts.append(s)
 
+# way too many of these helpers!
+
 def spill_to_pure(expr):
     m = match(expr)
     if m('PureExpr(_) or UniqueVar(_)'):
@@ -532,16 +534,19 @@ def spill_lower(expr):
 
 def store_scope_result(destVar, expr):
     body = Body([])
-    m = match(in_env(NEWBODY, body, lambda: flatten_expr(expr, Just(destVar))))
+    in_env(NEWBODY, body, lambda: store_result(destVar, expr))
+    return body
+
+def store_result(destVar, expr):
+    m = match(flatten_expr(expr, Just(destVar)))
     if m('PureExpr(expr) or ImpureExpr(expr)'):
-        body.stmts.append(S.Assign(LhsVar(destVar), m.expr))
+        push_newbody(S.Assign(LhsVar(destVar), m.expr))
     elif m('ThanksForTheVar()'):
         pass # already taken care of!
     elif m('UniqueVar(var)'):
         # result showed up in a different var for some reason?
         assert destVar is not m.var
-        body.stmts.append(S.Assign(LhsVar(destVar), m.var))
-    return body
+        push_newbody(S.Assign(LhsVar(destVar), m.var))
 
 def flatten_expr_to_var(expr, optVar):
     m = match(flatten_expr(expr, optVar))
