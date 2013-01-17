@@ -2,7 +2,7 @@
 from atom import *
 from base import *
 from types_builtin import *
-from globs import TypeOf
+from globs import TypeOf, ResultOf
 import vat
 
 INPAT = new_env('INPAT', '*Type')
@@ -611,18 +611,19 @@ def prop_writeextrinsic(s, extr, node, val):
     prop_expr(node)
     consume_value_as(instantiate_type(s, extr.type), val)
 
-def prop_void_call(call, f, ps):
-    result = prop_call_result(call, f, ps)
-    assert not matches(result, "Ret(_)"), "%s doesn't return void" % (call,)
-
 def prop_void_inenv(t, init, f):
     consume_value_as(ctype(t), init)
     return prop_voidexpr(f)
 
 def prop_voidexpr(e):
-    match(e,
-        ("call==VoidCall(f, ps)", prop_void_call),
+    return match(e,
+        ("call==VoidCall(f, ps)", prop_call_result),
         ("VoidInEnv(Env(t), init, e)", prop_void_inenv))
+
+def prop_voidstmt(stmt, e):
+    result = prop_voidexpr(e)
+    assert not matches(result, "Ret(_)"), "%s doesn't return void" % (e,)
+    add_extrinsic(ResultOf, stmt, result)
 
 def prop_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
@@ -637,7 +638,7 @@ def prop_stmt(a):
         ("Return(e)", prop_return),
         ("ReturnNothing()", prop_voidreturn),
         ("s==WriteExtrinsic(extr, node, val, _)", prop_writeextrinsic),
-        ("VoidStmt(e)", prop_voidexpr)))
+        ("s==VoidStmt(e)", prop_voidstmt)))
 
 def prop_body(body):
     map_(prop_stmt, body.stmts)

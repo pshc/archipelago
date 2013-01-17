@@ -752,7 +752,7 @@ def expand_module(decl_mod, defn_mod):
             t_DT(CompilationUnit): t_DT(ExpandedUnit),
             t_ADT(Expr): t_ADT(LExpr),
         }
-        extrs = [Name, TypeOf, TypeCast]
+        extrs = [Name, TypeOf, TypeCast, ResultOf]
         unit = vat.transmute(defn_mod.root, mapping, extrs)
         vat.rewrite(unit)
         return unit

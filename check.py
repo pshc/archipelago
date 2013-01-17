@@ -2,13 +2,14 @@
 from atom import *
 from base import *
 from types_builtin import *
-from globs import TypeOf
+from globs import TypeOf, ResultOf
 
 CheckScope = DT('CheckScope', ('result', Result),
                               ('envsPresent', set(['*Env'])))
 CHECKSCOPE = new_env('CHECKSCOPE', CheckScope)
 
 CHECK = new_env('CHECK', Type)
+CHECKRESULT = new_env('CHECKRESULT', Result)
 
 def unification_failure(src, dest, msg):
     desc = fmtcol("^DG^Couldn't unify^N {0} {1!r}\n^DG^with^N {2} {3!r}",
@@ -205,7 +206,7 @@ def check_void_call(e, f, args):
         res = check_inst_call(e, extrinsic(Instantiation, f), f, args)
     else:
         res = check_straight_call(e, f, args)
-    assert not matches(res, "Ret(_)")
+    assert results_equal(res, env(CHECKRESULT))
 
 def check_tuplelit(es):
     ts = match(env(CHECK), "TTuple(ts)")
@@ -433,6 +434,11 @@ def check_voidexpr(e):
         ("call==VoidCall(f, args)", check_void_call),
         ("VoidInEnv(environ, init, e)", check_void_inenv))
 
+def check_voidstmt(s, e):
+    result = extrinsic(ResultOf, s)
+    assert not matches(result, "Ret(_)")
+    in_env(CHECKRESULT, result, lambda: check_voidexpr(e))
+
 def check_stmt(a):
     in_env(STMTCTXT, a, lambda: match(a,
         ("Defn(pat, e)", check_defn),
@@ -446,7 +452,7 @@ def check_stmt(a):
         ("Return(e)", check_return),
         ("ReturnNothing()", check_returnnothing),
         ("WriteExtrinsic(Extrinsic(t), node, val, _)", check_writeextrinsic),
-        ("VoidStmt(e)", check_voidexpr)))
+        ("s==VoidStmt(e)", check_voidstmt)))
 
 def check_body(body):
     map_(check_stmt, body.stmts)

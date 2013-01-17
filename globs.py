@@ -10,6 +10,8 @@ Location = base.new_extrinsic('Location', Pos, omni=True)
 TypeOf = base.new_extrinsic('TypeOf', base.Type, omni=True)
 TypeVars = base.new_extrinsic('TypeVars', [base.TypeVar])
 
+ResultOf = base.new_extrinsic('ResultOf', base.Result, omni=True)
+
 Instantiation = base.new_extrinsic('Instantiation', {'*TypeVar': base.Type})
 TypeCast = base.new_extrinsic('TypeCast', (base.Type, base.Type))
 InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})

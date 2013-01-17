@@ -390,16 +390,16 @@ class ControlFlowBuilder(vat.Visitor):
     def VoidStmt(self, stmt):
         block_push(stmt)
         m = match(stmt.voidExpr)
-        if m('VoidCall(Bind(f), _)'):
-            if matches(extrinsic(TypeOf, m.f), 'TFunc(_, Bottom(), _)'):
-                # this is dumb...
-                # we can't clobber vars since they might be call args.
-                # ideally this would be some kind of tail call that overwrites
-                # this stack frame.
-                # anyway, currently Bottom calls are only for failed asserts,
-                # so whatever.
-                #destroy_vars_until_level(0)
-                finish_block(TermUnreachable())
+        if matches(extrinsic(ResultOf, stmt), "Bottom()"):
+            # this is dumb...
+            # we can't clobber vars since they might be call args.
+            # ideally this would be some kind of tail call that overwrites
+            # this stack frame.
+            # anyway, currently Bottom calls are only for failed asserts,
+            # so whatever.
+            #destroy_vars_until_level(0)
+            finish_block(TermUnreachable())
+
     # ugh what is this doing here
     def PushEnv(self, stmt):
         block_push(stmt)
@@ -706,16 +706,19 @@ def flatten_expr(expr, optVar):
     else:
         assert False, "Can't deal with %s" % (expr)
 
-def flatten_void_expr(ve):
+def flatten_void_expr(ve, result):
     m = match(ve)
     if m('VoidCall(Bind(_), args)'):
         ve.args = map(spill_lower, m.args)
-        push_newbody(S.VoidStmt(ve))
+        stmt = S.VoidStmt(ve)
+        add_extrinsic(ResultOf, stmt, result)
+        push_newbody(stmt)
     elif m('VoidInEnv(env, init, expr)'):
         push = PushEnv(m.env, spill_lower(m.init))
         set_orig(push, ve)
         push_newbody(push)
-        flatten_void_expr(m.expr)
+        flatten_void_expr(m.expr, result)
+        # NOTE: if result is Bottom, we'll never get here
         pop = PopEnv(m.env)
         set_orig(pop, ve)
         push_newbody(pop)
@@ -814,7 +817,7 @@ def flatten_stmt(stmt):
         push_newbody(cond)
 
     elif m('VoidStmt(voidExpr)'):
-        flatten_void_expr(m.voidExpr)
+        flatten_void_expr(m.voidExpr, extrinsic(ResultOf, stmt))
 
     elif m('WriteExtrinsic(_, node, val, _)'):
         stmt.node = spill_lower(m.node)
@@ -862,7 +865,10 @@ def builtin_call(name, args):
     return call
 
 def runtime_void_call(name, args):
-    return S.VoidStmt(VoidCall(bind_var(RUNTIME[name]), args))
+    f = RUNTIME[name]
+    stmt = S.VoidStmt(VoidCall(bind_var(f), args))
+    add_extrinsic(ResultOf, stmt, extrinsic(TypeOf, f).result)
+    return stmt
 
 def bind_var(var):
     bind = L.Bind(var)
