@@ -899,8 +899,7 @@ def _write_func(f, ft):
     newline()
 
     if len(f.gcVars) > 0 or len(f.params) > 0:
-        for entry in f.gcVars:
-            var = entry.var
+        for var in f.gcVars:
             reg = Reg(extrinsic(expand.LocalSymbol, var))
             add_extrinsic(LocalReg, var, reg)
             out_xpr(reg)

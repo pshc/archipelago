@@ -47,7 +47,7 @@ LLocal, LVar, LRegister = ADT('BlockParam',
     'LRegister', ('register', Register))
 
 BlockFunc = DT('BlockFunc', ('var', '*GlobalVar'),
-                            ('gcVars', ['GCVarEntry']),
+                            ('gcVars', ['*Var']),
                             ('params', [LLocal]),
                             ('blocks', [Block]))
 
@@ -229,9 +229,6 @@ def runtime_void_call(name, args):
     return S.VoidStmt(VoidCall(bind, args))
 
 # TYPE LAYOUT
-
-GCVarEntry = DT('GCVarEntry', ('var', '*Var'),
-                              ('formVar', 'Maybe(*GlobalVar)'))
 
 CtorIndex = new_extrinsic('CtorIndex', int)
 FieldIndex = new_extrinsic('FieldIndex', int)
