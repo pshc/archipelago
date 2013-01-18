@@ -425,6 +425,15 @@ int32_t gc_array_len(struct vector *vec) {
 	return (int32_t) len;
 }
 
+uintptr_t gc_array_subscript(struct vector *vec, int32_t index) {
+	if (index < 0)
+		fail("negative array index");
+	int32_t len = gc_array_len(vec);
+	if (index >= len)
+		fail("out of bounds");
+	return vec->ptr[index];
+}
+
 /* ERROR HANDLING */
 
 __dead2 void fail(const char *err) {

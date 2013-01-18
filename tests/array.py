@@ -16,6 +16,7 @@ def main():
     shallows = gather()
     assert len(shallows) == 2, "Heap array length"
     nothing = [Nothing(), Nothing(), Nothing()]
+    null = nothing[2]
     assert len(nothing) == 3, "Array of nulls length"
     strs = ["hello", "world"]
     assert len(strs) == 2, "String array length" # this is raw currently...

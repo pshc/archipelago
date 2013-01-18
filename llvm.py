@@ -565,7 +565,9 @@ def express_called_Builtin(target, args):
     left = express(args[0])
     right = express(args[1])
 
-    if matches(target, 'key("subscript") or key("rawsubscript")'):
+    if matches(target, 'key("subscript")'):
+        return write_runtime_call('gc_array_subscript', [left, right])
+    elif matches(target, 'key("rawsubscript")'):
         it = typeof(args[1])
         assert itypes_equal(it, IInt()), "Non-integral index"
         return Just(subscript('subscript',

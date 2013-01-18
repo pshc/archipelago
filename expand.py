@@ -733,7 +733,10 @@ def in_intramodule_env(func):
             IRComments]
 
     # XXX workaround for insufficiently staged compilation
-    defs = "malloc,free,gc_array,gc_array_ptr,gc_array_len".split(',')
+    defs = """
+    malloc,free,
+    gc_array,gc_array_ptr,gc_array_len,gc_array_subscript
+    """.replace(' ', '').replace('\n', '').split(',')
     default_binds = set(RUNTIME[d] for d in defs)
 
     return in_env(IMPORTBINDS, default_binds,
