@@ -454,13 +454,7 @@ def expr_unary(op, arg):
     if op == 'len':
         return fromJust(write_runtime_call('gc_array_len', [arg.xpr]))
     elif op == 'rawlen':
-        # old wrong code
-        intT = IIntPtr()
-        arg = cast_if_needed(arg, IPtr(IArray(0, intT)))
-        l = subscript('len', arg, TypedXpr(intT, ConstInt(-1)))
-        if IS64:
-            l = cast(TypedXpr(IInt64(), l), IInt()).xpr
-        return l
+        assert False, "rawlen should be filled in by drum"
     elif op == 'buffer':
         buf = write_runtime_call('malloc', [arg.xpr])
         return fromJust(buf)

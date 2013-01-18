@@ -2,6 +2,7 @@
 from base import *
 from atom import *
 from quilt import *
+import drum
 import flatten
 import globs
 import vat
@@ -708,6 +709,8 @@ def expand_unit(old_decl_mod, unit):
 
     flat = flatten.flatten_unit(unit)
     t = t_DT(BlockUnit)
+
+    drum.walk(flat)
 
     _prepare_decls(env(EXGLOBAL).newDecls)
 
