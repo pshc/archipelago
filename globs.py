@@ -12,6 +12,10 @@ TypeVars = base.new_extrinsic('TypeVars', [base.TypeVar])
 
 ResultOf = base.new_extrinsic('ResultOf', base.Result, omni=True)
 
+# if not present, assumed to be GC if boxed
+LifeInfo, Heap, Stack = base.ADT('LifeInfo', 'Heap', 'Stack')
+Life = base.new_extrinsic('Life', LifeInfo, omni=True)
+
 Instantiation = base.new_extrinsic('Instantiation', {'*TypeVar': base.Type})
 TypeCast = base.new_extrinsic('TypeCast', (base.Type, base.Type))
 InstMap = base.new_extrinsic('InstMap', {base.TypeVar: base.Type})
