@@ -567,11 +567,9 @@ def express_called_Builtin(target, args):
 
     if matches(target, 'key("subscript")'):
         return write_runtime_call('gc_array_subscript', [left, right])
-    elif matches(target, 'key("rawsubscript")'):
-        it = typeof(args[1])
-        assert itypes_equal(it, IInt()), "Non-integral index"
+    elif matches(target, 'key("intsubscript")'):
         return Just(subscript('subscript',
-                TypedXpr(t, left), TypedXpr(it, right)))
+                TypedXpr(t, left), TypedXpr(IInt(), right)))
 
     op = bin_op(target)
     return Just(expr_binop(op, left, right, t))

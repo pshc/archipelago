@@ -356,7 +356,7 @@ class ExprStringifier(Visitor):
         if matches(call.func, 'Bind(Builtin())'):
             if len(call.args) == 2:
                 op = extrinsic(Name, call.func.target)
-                if op in ('subscript', 'rawsubscript'):
+                if op in ('subscript', 'intsubscript'):
                     self.visit('args', 0)
                     frag('[')
                     self.visit('args', 1)

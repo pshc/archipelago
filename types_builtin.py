@@ -265,7 +265,7 @@ builtins_types = {
     '<=': '(int, int) -> bool', '>=': '(int, int) -> bool',
     'is': '(a, a) -> bool', 'is not': '(a, a) -> bool',
     'len': '[a] -> int', 'subscript': '([a], int) -> a',
-    'rawlen': 'r[a] -> int', 'rawsubscript': '(r[a], int) -> a',
+    'rawlen': 'r[a] -> int', 'intsubscript': '(r[int], int) -> int',
     'buffer': 'int -> str', 'free_buffer': 'str -> void',
 }
 

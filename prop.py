@@ -364,8 +364,10 @@ def prop_call_result(call, f, s):
         if matches(zonk(argts[0]), "Just(TArray(_, ARaw()))"):
             f = E.Bind(BUILTINS['rawlen'])
     elif argn == 2 and matches(f, "Bind(key('subscript'))"):
-        if matches(zonk(argts[0]), "Just(TArray(_, ARaw()))"):
-            f = E.Bind(BUILTINS['rawsubscript'])
+        m = match(zonk(argts[0]))
+        if m("Just(TArray(t, ARaw()))"):
+            assert matches(m.t, 'TPrim(PInt())')
+            f = E.Bind(BUILTINS['intsubscript'])
 
     # use new type from resolutions above
     if f is not call.func:
