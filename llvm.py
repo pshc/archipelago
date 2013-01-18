@@ -181,6 +181,15 @@ def sizeof(t):
     nullx = ConstElementPtr(TypedXpr(t, null()), [1])
     return ConstCast('ptrtoint', TypedXpr(t, nullx), IInt())
 
+def alloca_stored(xtmp, t, n):
+    out_xpr(xtmp)
+    out(' = alloca ')
+    out_t_nospace(t)
+    if n > 1:
+        comma()
+        out('i32 %d' % (n,))
+    newline()
+
 def malloc(t):
     mem = write_runtime_call('malloc', [sizeof(t)])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), t)
@@ -703,10 +712,7 @@ def store_pat_var(v, txpr):
         t = txpr.type
         reg = Reg(extrinsic(expand.LocalSymbol, v))
         add_extrinsic(LocalReg, v, reg)
-        out_xpr(reg)
-        out(' = alloca ')
-        out_t_nospace(t)
-        newline()
+        alloca_stored(reg, t, 1)
 
     store_local_var(txpr, v)
 
@@ -896,11 +902,8 @@ def _write_func(f, ft):
         for var in f.gcVars:
             reg = Reg(extrinsic(expand.LocalSymbol, var))
             add_extrinsic(LocalReg, var, reg)
-            out_xpr(reg)
-            out(' = alloca ')
             t = extrinsic(LLVMTypeOf, var)
-            out_t(t)
-            newline()
+            alloca_stored(reg, t, 1)
 
             pt = cast_if_needed(TypedXpr(IPtr(t), reg), IPtr(IVoidPtr()))
             out('call void @llvm.gcroot(')
@@ -917,10 +920,7 @@ def _write_func(f, ft):
                 if not has_extrinsic(LocalReg, m.v):
                     reg = Reg(extrinsic(expand.LocalSymbol, m.v))
                     add_extrinsic(LocalReg, m.v, reg)
-                    out_xpr(reg)
-                    out(' = alloca ')
-                    out_t(tx.type)
-                    newline()
+                    alloca_stored(reg, tx.type, 1)
                 store_local_var(tx, m.v)
 
         newline()
