@@ -86,7 +86,15 @@ def resolve_pending_exits(destBlock):
 
 def is_gc_var(var):
     t = extrinsic(TypeOf, var)
-    return is_strong_type(t) and not matches(t, "TFunc(_, _, _)") # todo
+    if not is_strong_type(t):
+        return False
+    m = match(t)
+    if m('TArray(_, kind)'):
+        return matches(m.kind, 'AGC()')
+    elif m('TFunc(_, _, _)'):
+        return False
+    else:
+        return True
 
 def live_vars_exist_since_level(notIncludedLevel):
     cfg = env(CFG)
