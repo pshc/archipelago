@@ -49,9 +49,9 @@ GL_VERTEX_SHADER
 """
 
 overrides = """
-glDrawElements indices :: [int]
-glGenTextures textures :: [int]
-glShaderSource length :: Maybe([int])
+glDrawElements indices :: r[int]
+glGenTextures textures :: r[int]
+glShaderSource length :: Maybe(r[int])
 glTexImage2D pixels :: Maybe(str)
-glVertexAttribPointer pointer :: [float]
+glVertexAttribPointer pointer :: r[float]
 """

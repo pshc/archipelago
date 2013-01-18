@@ -157,7 +157,7 @@ def render_quad(x, y, w, h):
     ]
     indices = [0, 1, 2, 0, 2, 3]
     glVertexAttribPointer(ATTRIB_POS, 2, GL_FLOAT, False, 0, points)
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, indices)
+    glDrawElements(GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, indices)
 
 @annot('void -> void')
 def render_editor():

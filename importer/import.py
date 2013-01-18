@@ -85,7 +85,7 @@ def consume_type(toks, typedefs, tvars):
             tvars.append(t)
             while toks[0] == '*':
                 toks.pop(0)
-                t = '[%s]' % (t,)
+                t = 'b[%s]' % (t,)
         else:
             t = 'void'
     else: # Normal type
@@ -105,7 +105,7 @@ def consume_type(toks, typedefs, tvars):
         t = tok
         while toks[0] == '*':
             toks.pop(0)
-            t = 'str' if t == 'char' else '[%s]' % (t,)
+            t = 'str' if t == 'char' else 'r[%s]' % (t,)
     return t
 
 
