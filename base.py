@@ -849,9 +849,9 @@ def match_try(atom, ast):
             else:
                 return None
             slots = dt.__slots__
-            assert len(args) == len(slots)-1, \
-                    "Ctor %s takes %d args: %s (%d were given)" % (
-                        ctor, len(slots)-1, ', '.join(slots), len(args))
+            n = len(slots) - 1
+            assert len(args) == n, "Ctor %s takes %d args: %s (%d given)" % (
+                        ctor, n, ', '.join(slots[:n]), len(args))
             # Found a matching constructor; now match its args recursively
             # Unlike the main match loop, if any fail here everything fails
             ctor_args = []
