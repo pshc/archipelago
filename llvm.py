@@ -190,6 +190,11 @@ def alloca_stored(xtmp, t, n):
         out('i32 %d' % (n,))
     newline()
 
+def alloca(name, t, n):
+    tmp = temp_reg_named(name)
+    alloca_stored(tmp, t, n)
+    return cast(TypedXpr(IPtr(t), tmp), IPtr(IArray(n, t)))
+
 def malloc(t):
     mem = write_runtime_call('malloc', [sizeof(t)])
     return cast(TypedXpr(IVoidPtr(), fromJust(mem)), t)
@@ -625,7 +630,9 @@ def expr_listlit(lit, es):
     if m('IPtr(IArray(0, t))'):
         assert n > 0, "empty raw array"
         at = IArray(n, m.t)
-        mem = malloc(IPtr(at))
+        mem = match(extrinsic(Life, lit),
+                ("Stack()", lambda: alloca('array', m.t, n)),
+                ("Heap()", lambda: malloc(IPtr(at))))
         txs = [TypedXpr(m.t, express(e)) for e in es]
         vals = build_struct(at, txs)
         store_xpr(vals, mem.xpr)
