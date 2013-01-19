@@ -335,19 +335,6 @@ def cast(txpr, dest):
 def cast_if_needed(txpr, dest):
     return _do_cast(txpr, dest, True)
 
-_cached_runtime_refs = {}
-def runtime_decl(name):
-    # "Proper" impl of this module will just point at the decls directly
-    ref = _cached_runtime_refs.get(name)
-    if ref is not None:
-        return ref
-    runtime = loaded_modules['runtime']
-    from astconv import loaded_module_export_names, valueNamespace
-    symbolTable = loaded_module_export_names[runtime]
-    ref = symbolTable[(name, valueNamespace)]
-    _cached_runtime_refs[name] = ref
-    return ref
-
 # TYPES
 
 def typeof(e):
@@ -399,7 +386,7 @@ def express_Builtin(b):
     return match(b, ('key("True")', lambda: ConstKeyword(KTrue())),
                     ('key("False")', lambda: ConstKeyword(KFalse())),
                     ('key("free_buffer")', lambda:
-                                global_symbol(runtime_decl('free'))))
+                                global_symbol(RUNTIME['free'])))
 
 @impl(LLVMBindable, GlobalVar)
 def express_GlobalVar(v):
@@ -511,7 +498,7 @@ def expr_binop(op, left, right, t):
         return tmp
 
 def write_runtime_call(name, argxs):
-    decl = runtime_decl(name)
+    decl = RUNTIME[name]
     fx = global_symbol(decl)
     declt = extrinsic(LLVMTypeOf, decl)
     ftx = TypedXpr(declt, fx)
