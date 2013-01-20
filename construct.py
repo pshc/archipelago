@@ -293,17 +293,18 @@ def load_forms():
 
 DtList = DT('DtList', ('dts', [DataType]))
 
-def load_dep(filename):
-    return load_module_dep(filename, set(), dep_obj_plan(filename))
+def load_runtime_dep(filename, subdeps):
+    dep = load_module_dep(filename, set(), dep_obj_plan(filename))
+    add_extrinsic(llvm.OFile, dep, RUNTIME_MODULE_OBJS[filename])
+    add_extrinsic(llvm.LinkDeps, dep, frozenset(subdeps))
+    return dep
 
 def load_files(files):
     options = env(BUILDOPTS)
     load_builtins()
     load_forms()
 
-    runtime_decl = load_dep('runtime.py')
-    add_extrinsic(llvm.OFile, runtime_decl, 'ir/z.o')
-    add_extrinsic(llvm.LinkDeps, runtime_decl, frozenset())
+    runtime_decl = load_runtime_dep('runtime.py', [])
 
     for filename in files:
         print col('DG', 'Loading'), filename

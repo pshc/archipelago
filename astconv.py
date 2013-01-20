@@ -1,5 +1,6 @@
 from atom import *
 from base import *
+from globs import *
 import compiler
 from compiler import ast
 import re
@@ -934,7 +935,7 @@ def convert_file(filename, name, deps):
 
     global loaded_module_export_names
     loaded_module_export_names[decl_mod] = omni.exports
-    if name == 'runtime':
+    if filename in RUNTIME_MODULE_OBJS:
         for sym, var in omni.exports.iteritems():
             name, space = sym
             assert space == valueNamespace

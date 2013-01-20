@@ -1165,9 +1165,9 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
         out(prelude)
 
         # XXX force runtime import until we have better staged compilation
-        runtime = loaded_modules['runtime']
-        write_imports(runtime)
-        walk_deps(write_imports, defn_mod, set(decls + [runtime]))
+        forced = [loaded_modules[name[:-3]] for name in RUNTIME_MODULE_OBJS]
+        map_(write_imports, forced)
+        walk_deps(write_imports, defn_mod, set(decls + forced))
 
         newline()
         out('; main')

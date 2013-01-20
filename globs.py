@@ -27,4 +27,8 @@ FieldSymbol = base.new_extrinsic('FieldSymbol', str)
 
 loaded_modules = {}
 
+RUNTIME_MODULE_OBJS = {
+    'runtime.py': 'ir/z.o',
+}
+
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
