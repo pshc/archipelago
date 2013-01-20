@@ -29,6 +29,7 @@ loaded_modules = {}
 
 RUNTIME_MODULE_OBJS = {
     'runtime.py': 'ir/z.o',
+    'bluefin.py': 'ir/gc.o',
 }
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

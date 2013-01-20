@@ -5,6 +5,8 @@ OPTS = --color
 CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -g -std=c99 -pedantic -W -Wall -Werror
+RUNTIME = gc.c z.c
+RUNTIME_OBJS := $(RUNTIME:%.c=ir/%.o)
 
 ifdef DEBUG
   CODEGEN = ipdb construct.py $(OPTS)
@@ -36,10 +38,7 @@ mach/__init__.py:
 ir/Makefile: .irMakefile
 	@cp $< $@
 
-ir/z.o: z.c
-	$(CC) $(CFLAGS) -c -o $@ $^
-
-bin/%: tests/%.py setup ir/z.o
+bin/%: tests/%.py setup runtime
 	$(CODEGEN) --test -- $< && $@ || echo $@ returned $$?.
 
 $(TEST_TARGETS):
@@ -48,7 +47,12 @@ $(TEST_TARGETS):
 Editor/obj/Editor_%.ll.o: Editor/%.py $(DIRS) prop.py expand.py llvm.py
 	$(CODEGEN) --c-header -o Editor/obj/ $<
 
-remake_tests: setup ir/z.o
+runtime: $(RUNTIME_OBJS)
+
+$(RUNTIME_OBJS):ir/%.o:%.c ir
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+remake_tests: setup runtime
 	$(CODEGEN) --test -- $(TESTS)
 
 test: remake_tests
@@ -59,7 +63,7 @@ test: remake_tests
 	@echo
 	@echo Done.
 
-.PHONY: all clean debug dirs editor remake_tests setup test
+.PHONY: all clean debug dirs editor remake_tests runtime setup test
 
 clean:
 	rm -rf -- $(DIRS) *.pyc

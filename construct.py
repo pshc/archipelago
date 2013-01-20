@@ -305,6 +305,7 @@ def load_files(files):
     load_forms()
 
     runtime_decl = load_runtime_dep('runtime.py', [])
+    load_runtime_dep('bluefin.py', [runtime_decl])
 
     for filename in files:
         print col('DG', 'Loading'), filename

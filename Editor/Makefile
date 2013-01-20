@@ -1,5 +1,5 @@
 OBJS = obj/Editor_visual.ll.o
-ABS_OBJS := ir/z.o $(OBJS:%=Editor/%)
+ABS_OBJS := ir/gc.o ir/z.o $(OBJS:%=Editor/%)
 DIRS = include obj
 
 all: gl.py $(DIRS)
