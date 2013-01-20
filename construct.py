@@ -144,6 +144,8 @@ def build_mod(decl_mod, defn_mod, plan):
     native.serialize(defn_mod)
     checkpoint('serialized expanded module')
 
+    llvm.compute_link_deps(decl_mod, xdecl_mod, defn_mod)
+
     compiled = False
     if isJust(plan.writeIR):
         ir = fromJust(plan.writeIR)
@@ -161,7 +163,7 @@ def build_mod(decl_mod, defn_mod, plan):
         except OSError:
             pass
         if compiled:
-            if llvm.link(decl_mod, defn_mod, binFilename):
+            if llvm.link(decl_mod, binFilename):
                 print col('Green', 'Linked'), name
 
 def write_mod_headers(mod, ir):
@@ -301,6 +303,7 @@ def load_files(files):
 
     runtime_decl = load_dep('runtime.py')
     add_extrinsic(llvm.OFile, runtime_decl, 'ir/z.o')
+    add_extrinsic(llvm.LinkDeps, runtime_decl, frozenset())
 
     for filename in files:
         print col('DG', 'Loading'), filename

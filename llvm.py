@@ -1197,18 +1197,38 @@ def compile(mod):
     add_extrinsic(OFile, mod, o)
     return True
 
-def link(decl_mod, defn_mod, binary):
+# should we be computing a properly ordered dep list?
+LinkDeps = new_extrinsic('LinkDeps', set(['*Module']), omni=True)
+
+def compute_link_deps(decl_mod, xdecl_mod, defn_mod):
+    deps = set()
+    modDeclsForm = extrinsic(FormSpec, DATATYPES['ModuleDecls'])
+
+    for dep in extrinsic(ModDeps, defn_mod):
+        if dep.rootType.data is not modDeclsForm:
+            continue
+        if dep is decl_mod or dep is xdecl_mod:
+            continue
+
+        # check that this is the principal decls mod
+        # TODO: would like a cleaner check as this seems error-prone
+        if not has_extrinsic(LinkDeps, dep):
+            continue
+
+        deps.add(dep)
+        deps.update(extrinsic(LinkDeps, dep))
+
+    assert decl_mod not in deps, "Recursive deps somehow"
+    assert xdecl_mod not in deps, "Expanded decls shouldn't appear in deps"
+    add_extrinsic(LinkDeps, decl_mod, frozenset(deps))
+
+def link(decl_mod, binary):
     objs = []
-
-    def add_obj(dep):
-        dt = dep.rootType.data
-        if dt is extrinsic(FormSpec, DATATYPES['ModuleDecls']):
-            if not has_extrinsic(OFile, dep):
-                print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
-                return
+    for dep in extrinsic(LinkDeps, decl_mod):
+        if has_extrinsic(OFile, dep):
             objs.append(extrinsic(OFile, dep))
-    walk_deps(add_obj, defn_mod, set(extrinsic(OwnDecls, defn_mod)))
-
+        else:
+            print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
     objs.append(extrinsic(OFile, decl_mod))
     return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
 
