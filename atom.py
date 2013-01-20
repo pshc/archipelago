@@ -255,6 +255,11 @@ def write_mod_repr(filename, m, exts=[]):
         init = ModRepr(write, 0, exts, set(), {}, 0)
         in_env(MODREPR, init, lambda: _do_repr(m.root))
 
+        if has_extrinsic(ModDeps, m):
+            f.write('\nMODULE DEPS:\n')
+            for dep in extrinsic(ModDeps, m):
+                f.write(' %s\n' % (extrinsic(Name, dep),))
+
 def tree(atom, exts=[]):
     def write(x):
         print '%s%s' % ('  ' * env(MODREPR).indent, x)
