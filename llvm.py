@@ -1202,10 +1202,17 @@ def compile(mod):
     ll = extrinsic(LLFile, mod)
     s = ll + '.s'
     o = ll + '.o'
-    if subprocess.call(['llc', '-o', s, ll]) != 0:
-        return False
-    if subprocess.call(['cc', '-c'] + env(ARCH).cFlags + ['-o', o, s]) != 0:
-        return False
+    try:
+        if subprocess.call(['llc', '-o', s, ll]) != 0:
+            return False
+        if subprocess.call(['cc', '-c']+env(ARCH).cFlags+['-o', o, s]) != 0:
+            return False
+    except OSError, e:
+        if e.errno == 2:
+            print col('Yellow', 'no LLVM?')
+            return False
+        else:
+            raise
     add_extrinsic(OFile, mod, o)
     return True
 
