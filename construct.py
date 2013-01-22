@@ -44,15 +44,8 @@ def extrinsic_mod(extr, mapping, src_mod):
     return mod
 
 def dep_obj_plan(filename):
-    name = module_name_from_py(filename)
+    name = llvm.module_name_from_py(filename)
     return Plan(name, Just('ir/' + name + '.ll'), Nothing())
-
-def module_name_from_py(src):
-    assert src.endswith('.py')
-    name = src.replace('/', '_')[:-3]
-    if src.startswith('tests/'):
-        name = name[6:]
-    return name
 
 def load_module_dep(src, deps, plan):
     name = plan.moduleName
@@ -307,13 +300,13 @@ def load_files(files):
 
     print col('DG', 'Building for ' + env(quilt.ARCH).name)
     runtime_decl = load_runtime_dep('runtime.py', [])
-    load_runtime_dep('bluefin.py', [runtime_decl])
+    load_runtime_dep('gc/interface.py', [runtime_decl])
 
     for filename in files:
         print col('DG', 'Loading'), filename
 
         if isJust(options.outDir):
-            name = module_name_from_py(filename)
+            name = llvm.module_name_from_py(filename)
             ll = fromJust(options.outDir) + name + '.ll'
             plan = Plan(name, Just(ll), Nothing())
         else:

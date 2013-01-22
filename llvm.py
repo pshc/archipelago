@@ -1177,7 +1177,8 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
         out(prelude)
 
         # XXX force runtime import until we have better staged compilation
-        forced = [loaded_modules[name[:-3]] for name in RUNTIME_MODULE_OBJS]
+        forced = [loaded_modules[module_name_from_py(name)]
+                  for name in RUNTIME_MODULE_OBJS]
         map_(write_imports, forced)
         walk_deps(write_imports, defn_mod, set(decls + forced))
 
@@ -1197,6 +1198,13 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
         go))
 
     add_extrinsic(LLFile, decl_mod, filename)
+
+def module_name_from_py(src):
+    assert src.endswith('.py')
+    name = src.replace('/', '_')[:-3]
+    if src.startswith('tests/'):
+        name = name[6:]
+    return name
 
 def compile(mod):
     ll = extrinsic(LLFile, mod)

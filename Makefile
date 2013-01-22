@@ -5,8 +5,8 @@ OPTS = --color
 CODEGEN = ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -g -std=c99 -pedantic -W -Wall -Werror
-RUNTIME = gc.c z.c
-RUNTIME_OBJS := $(RUNTIME:%.c=ir/%.o)
+RUNTIME = gc/runtime.c z.c
+RUNTIME_OBJS := ir/gc_runtime.o ir/z.o
 
 ifdef DEBUG
   CODEGEN = ipdb construct.py $(OPTS)
@@ -50,7 +50,9 @@ Editor/arm/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
 
 runtime: $(RUNTIME_OBJS)
 
-$(RUNTIME_OBJS):ir/%.o:%.c ir
+ir/gc_runtime.o: gc/runtime.c ir
+	$(CC) $(CFLAGS) -c -o $@ $<
+ir/z.o: z.c ir
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 remake_tests: setup runtime
