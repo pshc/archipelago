@@ -888,7 +888,10 @@ def _write_func(f, ft):
     if ft.meta.noReturn:
         out(' noreturn')
     out(env(ARCH).abiAttrs)
-    out(' nounwind ssp gc "shadow-stack" {')
+    out(' nounwind ssp')
+    if len(f.gcVars) > 0:
+        out(' gc "shadow-stack"')
+    out(' {')
     newline()
 
     if len(f.gcVars) > 0 or len(f.params) > 0:
