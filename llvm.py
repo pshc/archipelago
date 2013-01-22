@@ -1,7 +1,7 @@
 from atom import *
 from quilt import *
 import expand
-import os
+import subprocess
 import sys
 
 IR = new_env('IR', file)
@@ -1164,6 +1164,16 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
     add_extrinsic(OwnDecls, defn_mod, decls)
 
     def go():
+        arch = env(ARCH)
+        if len(arch.dataLayout) > 0:
+            out('target datalayout = "')
+            out(arch.dataLayout)
+            out('"\n')
+        if len(arch.targetTriple) > 0:
+            out('target triple = "')
+            out(arch.targetTriple)
+            out('"\n')
+
         out(prelude)
 
         # XXX force runtime import until we have better staged compilation
@@ -1192,9 +1202,9 @@ def compile(mod):
     ll = extrinsic(LLFile, mod)
     s = ll + '.s'
     o = ll + '.o'
-    if os.system('llc -o %s %s' % (s, ll)) != 0:
+    if subprocess.call(['llc', '-o', s, ll]) != 0:
         return False
-    if os.system('cc -c -o %s %s' % (o, s)) != 0:
+    if subprocess.call(['cc', '-c'] + env(ARCH).cFlags + ['-o', o, s]) != 0:
         return False
     add_extrinsic(OFile, mod, o)
     return True
@@ -1232,6 +1242,8 @@ def link(decl_mod, binary):
         else:
             print col('Yellow', 'omitting missing'), extrinsic(Name, dep)
     objs.append(extrinsic(OFile, decl_mod))
-    return os.system('cc -o %s %s' % (binary, ' '.join(objs))) == 0
+
+    linkCmd = ['cc'] + env(ARCH).cFlags + ['-o', binary] + objs
+    return subprocess.call(linkCmd) == 0
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

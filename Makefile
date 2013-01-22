@@ -42,8 +42,11 @@ bin/%: tests/%.py setup runtime
 $(TEST_TARGETS):
 	@$(MAKE) bin/$@
 
-Editor/obj/Editor_%.ll.o: Editor/%.py $(DIRS) prop.py expand.py llvm.py
-	$(CODEGEN) --c-header -o Editor/obj/ $<
+Editor/x86/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
+	@$(CODEGEN) --c-header -o Editor/x86/ $<
+
+Editor/arm/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
+	@$(CODEGEN) --arm --c-header -o Editor/arm/ $<
 
 runtime: $(RUNTIME_OBJS)
 

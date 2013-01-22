@@ -9,6 +9,7 @@ import vat
 import astconv
 import check
 import quilt
+import platform
 import expand
 import headers
 import scan
@@ -304,7 +305,7 @@ def load_files(files):
     load_builtins()
     load_forms()
 
-    print col('DG', 'Loading runtime')
+    print col('DG', 'Building for ' + env(quilt.ARCH).name)
     runtime_decl = load_runtime_dep('runtime.py', [])
     load_runtime_dep('bluefin.py', [runtime_decl])
 
@@ -333,7 +334,7 @@ def main():
     files = []
     argv = sys.argv[1:]
     genOpts = default_gen_opts()
-    arch = quilt.detect_arch()
+    arch = None
     options = BuildOpts(Nothing(), False, False)
     while argv:
         arg = argv.pop(0)
@@ -364,10 +365,16 @@ def main():
                 options.outDir = Just(argv.pop(0))
             elif arg == '--test':
                 options.buildTests = True
+            elif arg == '--arm':
+                arch = platform.arm_cross_compiler()
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:
             files.append(arg)
+
+    if arch is None:
+        arch = platform.host_arch()
+
     in_env(GENOPTS, genOpts,
             lambda: in_env(BUILDOPTS, options,
             lambda: in_env(quilt.ARCH, arch,

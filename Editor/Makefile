@@ -1,6 +1,6 @@
-OBJS = obj/Editor_visual.ll.o
+OBJS = x86/Editor_visual.ll.o arm/Editor_visual.ll.o
 ABS_OBJS := $(OBJS:%=Editor/%)
-DIRS = include obj
+DIRS = arm include x86
 MAKE_PARENT := $(MAKE) -C .. --no-print-directory
 
 all: gl.py $(DIRS)
@@ -12,10 +12,13 @@ debug: rebuild $(DIRS)
 profile: rebuild $(DIRS)
 	@PROFILE=true $(MAKE_PARENT)  runtime $(ABS_OBJS)
 
+arm:
+	@mkdir arm
 include:
 	@mkdir include
-obj:
-	@mkdir obj
+x86:
+	@mkdir x86
+
 
 gl.py: ../importer/import.py spec.py
 	python $^  > $@
