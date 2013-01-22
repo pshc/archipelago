@@ -332,6 +332,7 @@ def main():
     files = []
     argv = sys.argv[1:]
     genOpts = default_gen_opts()
+    arch = quilt.detect_arch()
     options = BuildOpts(Nothing(), False, False)
     while argv:
         arg = argv.pop(0)
@@ -368,9 +369,10 @@ def main():
             files.append(arg)
     in_env(GENOPTS, genOpts,
             lambda: in_env(BUILDOPTS, options,
+            lambda: in_env(quilt.ARCH, arch,
             lambda: in_construct_env(
             lambda: expand.in_intermodule_env(
-            lambda: load_files(files)))))
+            lambda: load_files(files))))))
 
 if __name__ == '__main__':
     main()

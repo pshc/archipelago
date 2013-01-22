@@ -29,12 +29,10 @@ editor:
 profile: CODEGEN = python -m cProfile -s time construct.py $(OPTS)
 profile: remake_tests
 
-setup: dirs mach/__init__.py ir/Makefile
+setup: dirs ir/Makefile
 dirs: $(DIRS)
 $(DIRS):
 	mkdir $@
-mach/__init__.py:
-	@$(MAKE) -C mach __init__.py
 ir/Makefile: .irMakefile
 	@cp $< $@
 
@@ -68,4 +66,3 @@ test: remake_tests
 clean:
 	rm -rf -- $(DIRS) *.pyc
 	@$(MAKE) -C Editor clean
-	@$(MAKE) -C mach clean

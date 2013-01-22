@@ -887,8 +887,7 @@ def _write_func(f, ft):
     txs = write_params(f.params, ft.params)
     if ft.meta.noReturn:
         out(' noreturn')
-    if IS64:
-        out(' uwtable')
+    out(env(ARCH).abiAttrs)
     out(' nounwind ssp gc "shadow-stack" {')
     newline()
 
@@ -1030,7 +1029,7 @@ def write_dtform(form):
         newline()
         out('i8 %d, %s [' % (len(clayout.fields), vecT))
         write_ctor_form_fields(ctor, clayout.fields)
-        out('], %s %s}>, align %d' % (nameT, ctorName, mach.PTRSIZE))
+        out('], %s %s}>, align %d' % (nameT, ctorName, env(ARCH).ptrSize))
         newline()
 
         out_xpr(sym)
@@ -1058,7 +1057,7 @@ def write_dtform(form):
                 comma()
             out('i8* ')
             out_xpr(sym)
-        out('], align %d' % (mach.PTRSIZE,))
+        out('], align %d' % (env(ARCH).ptrSize,))
         newline()
 
         out_xpr(dtsym)

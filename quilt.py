@@ -1,6 +1,5 @@
 from base import *
 from atom import *
-import mach
 
 # INTERMEDIATE REPRESENTATION
 
@@ -79,11 +78,6 @@ IParam = DT('IParam', ('type', IType),
 
 LLVMTypeOf = new_extrinsic('LLVMTypeOf', IType)
 LLVMPatCast = new_extrinsic('LLVMPatCast', (IType, IType))
-
-IS64 = (mach.PTRSIZE == 8)
-
-def IIntPtr():
-    return IInt64() if IS64 else IInt()
 
 def is_strong_ptr(t):
     return matches(t, "IPtr(_) or IVoidPtr() or IArray(_, _)")
@@ -255,5 +249,18 @@ def type_layout_form_var(t):
         assert len(dt.ctors) == 1
         return extrinsic(CtorLayout, dt.ctors[0]).formVar
 
+# PLATFORM SPECIFICS
+
+TargetArch = DT('TargetArch', ('name', str),
+                              ('ptrSize', int),
+                              ('abiAttrs', 'str'))
+ARCH = new_env('ARCH', TargetArch)
+
+def detect_arch():
+    import os
+    name = os.uname()[4]
+    ptrSize = {'x86': 4, 'x86_64': 8}[name]
+    abiAttrs = ' uwtable' if name == 'x86_64' else ''
+    return TargetArch(name, ptrSize, abiAttrs)
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:
