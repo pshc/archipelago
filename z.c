@@ -87,7 +87,8 @@ env_entry *_pushenv(env_id env, env_entry *table, uintptr_t val) {
 env_entry *_popenv(env_id env, env_entry *table) {
 	if (!table)
 		fail("Empty env table?!");
-	ssize_t i = table_index(table, TABLE_COUNT(table), env);
+	uintptr_t table_len = TABLE_COUNT(table);
+	ssize_t i = table_index(table, table_len, env);
 	if (i == -1)
 		fail("Env missing?!");
 
@@ -98,10 +99,20 @@ env_entry *_popenv(env_id env, env_entry *table) {
 		stack = resize_env_stack(&SLOT_VALUE(table, i), stack,
 				stack_len);
 	}
-	else {
-		SLOT_VALUE(table, i) = 0;
+	else if (table_len > 1) {
+		/* Stack emptied; remove this entry from the env table */
 		free(stack);
-		/* ought to remove this id from the env table altogether */
+		table_len--;
+		if ((size_t) i < table_len)
+			SLOT_VALUE(table, i) = SLOT_VALUE(table, table_len);
+		table = resize_env_table(table, table_len);
+
+	}
+	else {
+		/* Table is now empty */
+		free(stack);
+		free(table);
+		table = NULL;
 	}
 
 	return table;

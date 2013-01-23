@@ -350,8 +350,9 @@ class EnvExtrConverter(vat.Mutator):
         else:
             # clean up this context
             threaded.var = Nothing()
-            # ideally, check the return value here against null
-            # (need a more complete runtime)
+            # TODO: check the return value here against null
+            # (ugh, need to insert block... couldn't this be done earlier?)
+            # just discard for now
             discard = PatWild()
             add_extrinsic(LLVMTypeOf, discard, IVoidPtr())
             return S.Defn(discard, call)
