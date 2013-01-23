@@ -16,7 +16,9 @@ import scan
 import prop
 import llvm
 
-BuildOpts = DT('BuildOpts', ('outDir', 'Maybe(str)'),
+import os.path
+
+BuildOpts = DT('BuildOpts', ('outDir', str),
                             ('writeHeaders', bool),
                             ('buildTests', bool))
 
@@ -45,7 +47,8 @@ def extrinsic_mod(extr, mapping, src_mod):
 
 def dep_obj_plan(filename):
     name = llvm.module_name_from_py(filename)
-    return Plan(name, Just('ir/' + name + '.ll'), Nothing())
+    ll = os.path.join(env(BUILDOPTS).outDir, name + '.ll')
+    return Plan(name, Just(ll), Nothing())
 
 def load_module_dep(src, deps, plan):
     name = plan.moduleName
@@ -294,9 +297,10 @@ def load_runtime_dep(filename, subdeps):
     return dep
 
 def load_files(files):
-    options = env(BUILDOPTS)
     load_builtins()
     load_forms()
+
+    buildTests = env(BUILDOPTS).buildTests
 
     print col('DG', 'Building for ' + env(quilt.ARCH).name)
     runtime_decl = load_runtime_dep('runtime.py', [])
@@ -304,16 +308,9 @@ def load_files(files):
 
     for filename in files:
         print col('DG', 'Loading'), filename
-
-        if isJust(options.outDir):
-            name = llvm.module_name_from_py(filename)
-            ll = fromJust(options.outDir) + name + '.ll'
-            plan = Plan(name, Just(ll), Nothing())
-        else:
-            plan = dep_obj_plan(filename)
-            if options.buildTests:
-                plan.linkBinary = Just('bin/' + plan.moduleName)
-
+        plan = dep_obj_plan(filename)
+        if buildTests:
+            plan.linkBinary = Just(os.path.join('bin/', plan.moduleName))
         load_module_dep(filename, set(), plan)
 
 def in_construct_env(func):
@@ -328,7 +325,7 @@ def main():
     argv = sys.argv[1:]
     genOpts = default_gen_opts()
     arch = None
-    options = BuildOpts(Nothing(), False, False)
+    options = BuildOpts('ir/', False, False)
     while argv:
         arg = argv.pop(0)
         if arg == '--':
@@ -355,7 +352,7 @@ def main():
             elif arg == '--c-header':
                 options.writeHeaders = True
             elif arg == '-o':
-                options.outDir = Just(argv.pop(0))
+                options.outDir = argv.pop(0)
             elif arg == '--test':
                 options.buildTests = True
             elif arg == '--arm':
