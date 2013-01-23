@@ -16,6 +16,22 @@
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
 		50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */; };
 		50FDA17A15F02A3900AD4982 /* z.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50FDA17915F02A3900AD4982 /* z.o */; };
+		966D3D0616A9503B00183D97 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0516A9503B00183D97 /* UIKit.framework */; };
+		966D3D0816A9503B00183D97 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0716A9503B00183D97 /* Foundation.framework */; };
+		966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0916A9503B00183D97 /* CoreGraphics.framework */; };
+		966D3D0C16A9503B00183D97 /* GLKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0B16A9503B00183D97 /* GLKit.framework */; };
+		966D3D0E16A9503B00183D97 /* OpenGLES.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0D16A9503B00183D97 /* OpenGLES.framework */; };
+		966D3D1416A9503B00183D97 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D1216A9503B00183D97 /* InfoPlist.strings */; };
+		966D3D1616A9503B00183D97 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D1516A9503B00183D97 /* main.m */; };
+		966D3D1A16A9503B00183D97 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D1916A9503B00183D97 /* AppDelegate.m */; };
+		966D3D1C16A9503B00183D97 /* Default.png in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D1B16A9503B00183D97 /* Default.png */; };
+		966D3D1E16A9503B00183D97 /* Default@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D1D16A9503B00183D97 /* Default@2x.png */; };
+		966D3D2016A9503B00183D97 /* Default-568h@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D1F16A9503B00183D97 /* Default-568h@2x.png */; };
+		966D3D2216A9503B00183D97 /* Shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D2116A9503B00183D97 /* Shader.fsh */; };
+		966D3D2416A9503B00183D97 /* Shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 966D3D2316A9503B00183D97 /* Shader.vsh */; };
+		966D3D2716A9503B00183D97 /* EditorViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D2616A9503B00183D97 /* EditorViewController.m */; };
+		966D3D3016A9505A00183D97 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D2F16A9505A00183D97 /* QuartzCore.framework */; };
+		966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D3C16A95B4A00183D97 /* FlickDynamics.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +53,28 @@
 		50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_visual.ll.o; sourceTree = "<group>"; };
 		50FDA17915F02A3900AD4982 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
 		96152CFD1673AD8700323F8A /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = include/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		966D3D0316A9503B00183D97 /* Skylark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Skylark.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		966D3D0516A9503B00183D97 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		966D3D0716A9503B00183D97 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		966D3D0916A9503B00183D97 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		966D3D0B16A9503B00183D97 /* GLKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLKit.framework; path = Library/Frameworks/GLKit.framework; sourceTree = DEVELOPER_DIR; };
+		966D3D0D16A9503B00183D97 /* OpenGLES.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGLES.framework; path = Library/Frameworks/OpenGLES.framework; sourceTree = DEVELOPER_DIR; };
+		966D3D1116A9503B00183D97 /* Skylark-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Skylark-Info.plist"; sourceTree = "<group>"; };
+		966D3D1316A9503B00183D97 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		966D3D1516A9503B00183D97 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		966D3D1716A9503B00183D97 /* Skylark-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Skylark-Prefix.pch"; sourceTree = "<group>"; };
+		966D3D1816A9503B00183D97 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		966D3D1916A9503B00183D97 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		966D3D1B16A9503B00183D97 /* Default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Default.png; sourceTree = "<group>"; };
+		966D3D1D16A9503B00183D97 /* Default@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Default@2x.png"; sourceTree = "<group>"; };
+		966D3D1F16A9503B00183D97 /* Default-568h@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Default-568h@2x.png"; sourceTree = "<group>"; };
+		966D3D2116A9503B00183D97 /* Shader.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.fsh; path = Shaders/Shader.fsh; sourceTree = "<group>"; };
+		966D3D2316A9503B00183D97 /* Shader.vsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.vsh; path = Shaders/Shader.vsh; sourceTree = "<group>"; };
+		966D3D2516A9503B00183D97 /* EditorViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EditorViewController.h; sourceTree = "<group>"; };
+		966D3D2616A9503B00183D97 /* EditorViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EditorViewController.m; sourceTree = "<group>"; };
+		966D3D2F16A9505A00183D97 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.0.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
+		966D3D3B16A95B4900183D97 /* FlickDynamics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlickDynamics.h; sourceTree = "<group>"; };
+		966D3D3C16A95B4A00183D97 /* FlickDynamics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FlickDynamics.m; sourceTree = "<group>"; };
 		96F5C3C01673B3C0005CBC17 /* z.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../../z.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -52,6 +90,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		966D3D0016A9503A00183D97 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				966D3D3016A9505A00183D97 /* QuartzCore.framework in Frameworks */,
+				966D3D0616A9503B00183D97 /* UIKit.framework in Frameworks */,
+				966D3D0816A9503B00183D97 /* Foundation.framework in Frameworks */,
+				966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */,
+				966D3D0C16A9503B00183D97 /* GLKit.framework in Frameworks */,
+				966D3D0E16A9503B00183D97 /* OpenGLES.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -60,6 +111,7 @@
 			children = (
 				50A1043315BA0CB00075EE0E /* External */,
 				50A1040E15B9F1490075EE0E /* OSX */,
+				966D3D0F16A9503B00183D97 /* Skylark */,
 				50A1040715B9F1490075EE0E /* Frameworks */,
 				50A1040515B9F1490075EE0E /* Products */,
 			);
@@ -69,6 +121,7 @@
 			isa = PBXGroup;
 			children = (
 				50A1040415B9F1490075EE0E /* Editor.app */,
+				966D3D0316A9503B00183D97 /* Skylark.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,6 +131,12 @@
 			children = (
 				50A1040815B9F1490075EE0E /* Cocoa.framework */,
 				50A1042515B9F15F0075EE0E /* OpenGL.framework */,
+				966D3D2F16A9505A00183D97 /* QuartzCore.framework */,
+				966D3D0516A9503B00183D97 /* UIKit.framework */,
+				966D3D0716A9503B00183D97 /* Foundation.framework */,
+				966D3D0916A9503B00183D97 /* CoreGraphics.framework */,
+				966D3D0B16A9503B00183D97 /* GLKit.framework */,
+				966D3D0D16A9503B00183D97 /* OpenGLES.framework */,
 				50A1040A15B9F1490075EE0E /* Other Frameworks */,
 			);
 			name = Frameworks;
@@ -129,6 +188,36 @@
 			path = obj;
 			sourceTree = SOURCE_ROOT;
 		};
+		966D3D0F16A9503B00183D97 /* Skylark */ = {
+			isa = PBXGroup;
+			children = (
+				966D3D1816A9503B00183D97 /* AppDelegate.h */,
+				966D3D1916A9503B00183D97 /* AppDelegate.m */,
+				966D3D2116A9503B00183D97 /* Shader.fsh */,
+				966D3D2316A9503B00183D97 /* Shader.vsh */,
+				966D3D2516A9503B00183D97 /* EditorViewController.h */,
+				966D3D2616A9503B00183D97 /* EditorViewController.m */,
+				966D3D3B16A95B4900183D97 /* FlickDynamics.h */,
+				966D3D3C16A95B4A00183D97 /* FlickDynamics.m */,
+				966D3D1016A9503B00183D97 /* Supporting Files */,
+			);
+			path = Skylark;
+			sourceTree = "<group>";
+		};
+		966D3D1016A9503B00183D97 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				966D3D1116A9503B00183D97 /* Skylark-Info.plist */,
+				966D3D1216A9503B00183D97 /* InfoPlist.strings */,
+				966D3D1516A9503B00183D97 /* main.m */,
+				966D3D1716A9503B00183D97 /* Skylark-Prefix.pch */,
+				966D3D1B16A9503B00183D97 /* Default.png */,
+				966D3D1D16A9503B00183D97 /* Default@2x.png */,
+				966D3D1F16A9503B00183D97 /* Default-568h@2x.png */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -147,6 +236,23 @@
 			name = Editor;
 			productName = Editor;
 			productReference = 50A1040415B9F1490075EE0E /* Editor.app */;
+			productType = "com.apple.product-type.application";
+		};
+		966D3D0216A9503A00183D97 /* Skylark */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 966D3D2D16A9503B00183D97 /* Build configuration list for PBXNativeTarget "Skylark" */;
+			buildPhases = (
+				966D3CFF16A9503A00183D97 /* Sources */,
+				966D3D0016A9503A00183D97 /* Frameworks */,
+				966D3D0116A9503A00183D97 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Skylark;
+			productName = Skylark;
+			productReference = 966D3D0316A9503B00183D97 /* Skylark.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -171,6 +277,7 @@
 			projectRoot = "";
 			targets = (
 				50A1040315B9F1490075EE0E /* Editor */,
+				966D3D0216A9503A00183D97 /* Skylark */,
 			);
 		};
 /* End PBXProject section */
@@ -185,6 +292,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		966D3D0116A9503A00183D97 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				966D3D1416A9503B00183D97 /* InfoPlist.strings in Resources */,
+				966D3D1C16A9503B00183D97 /* Default.png in Resources */,
+				966D3D1E16A9503B00183D97 /* Default@2x.png in Resources */,
+				966D3D2016A9503B00183D97 /* Default-568h@2x.png in Resources */,
+				966D3D2216A9503B00183D97 /* Shader.fsh in Resources */,
+				966D3D2416A9503B00183D97 /* Shader.vsh in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -195,6 +315,17 @@
 				50A1041515B9F1490075EE0E /* main.m in Sources */,
 				50A1041C15B9F1490075EE0E /* AppDelegate.m in Sources */,
 				50A1042E15B9F2050075EE0E /* Viewport.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		966D3CFF16A9503A00183D97 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				966D3D1616A9503B00183D97 /* main.m in Sources */,
+				966D3D1A16A9503B00183D97 /* AppDelegate.m in Sources */,
+				966D3D2716A9503B00183D97 /* EditorViewController.m in Sources */,
+				966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -215,6 +346,14 @@
 				50A1041E15B9F1490075EE0E /* en */,
 			);
 			name = MainMenu.xib;
+			sourceTree = "<group>";
+		};
+		966D3D1216A9503B00183D97 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				966D3D1316A9503B00183D97 /* en */,
+			);
+			name = InfoPlist.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
@@ -293,6 +432,54 @@
 			};
 			name = Release;
 		};
+		966D3D2B16A9503B00183D97 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_APPS_DIR)/Xcode.app/Contents/Developer/Library/Frameworks\"",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Skylark/Skylark-Prefix.pch";
+				INFOPLIST_FILE = "Skylark/Skylark-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 6.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		966D3D2C16A9503B00183D97 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_APPS_DIR)/Xcode.app/Contents/Developer/Library/Frameworks\"",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Skylark/Skylark-Prefix.pch";
+				INFOPLIST_FILE = "Skylark/Skylark-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 6.0;
+				OTHER_CFLAGS = "-DNS_BLOCK_ASSERTIONS=1";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -310,6 +497,15 @@
 			buildConfigurations = (
 				50A1042315B9F1490075EE0E /* Debug */,
 				50A1042415B9F1490075EE0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		966D3D2D16A9503B00183D97 /* Build configuration list for PBXNativeTarget "Skylark" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				966D3D2B16A9503B00183D97 /* Debug */,
+				966D3D2C16A9503B00183D97 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
