@@ -4,13 +4,13 @@ DIRS = arm include x86
 MAKE_PARENT := $(MAKE) -C .. --no-print-directory
 
 all: gl.py $(DIRS)
-	@$(MAKE_PARENT) runtime $(ABS_OBJS)
+	@$(MAKE_PARENT) $(ABS_OBJS)
 
 debug: rebuild $(DIRS)
-	@DEBUG=true $(MAKE_PARENT) runtime $(ABS_OBJS)
+	@DEBUG=true $(MAKE_PARENT) $(ABS_OBJS)
 
 profile: rebuild $(DIRS)
-	@PROFILE=true $(MAKE_PARENT)  runtime $(ABS_OBJS)
+	@PROFILE=true $(MAKE_PARENT) $(ABS_OBJS)
 
 arm:
 	@mkdir arm

@@ -27,36 +27,37 @@ editor:
 profile: CODEGEN = python -m cProfile -s time construct.py $(OPTS)
 profile: remake_tests
 
-setup: dirs ir/Makefile
-dirs: $(DIRS)
+setup: $(DIRS) ir/Makefile gc/bluefin.so
 $(DIRS):
-	mkdir $@
+	@mkdir $@
 ir/Makefile: .irMakefile
 	@cp $< $@
+gc/bluefin.so: gc/bluefin.cc
+	@$(MAKE) -C gc bluefin.so
 
 bin/%: tests/%.py setup runtime
-	$(CODEGEN) --test -- $< && $@ || echo $@ returned $$?.
+	@$(CODEGEN) --test -- $< && $@ || echo $@ returned $$?.
 
 $(TEST_TARGETS):
 	@$(MAKE) bin/$@
 
-Editor/x86/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
+Editor/x86/Editor_%.ll.o: Editor/%.py setup runtime
 	@$(CODEGEN) --c-header -o Editor/x86/ $<
 
-Editor/arm/Editor_%.ll.o: Editor/%.py $(DIRS) expand.py flatten.py llvm.py
+Editor/arm/Editor_%.ll.o: Editor/%.py setup
 	@$(CODEGEN) --arm --c-header -o Editor/arm/ $<
 
-runtime: ir/gc_runtime.o ir/z.o gc/bluefin.so
-
+# host runtime only
+runtime: ir/gc_runtime.o ir/z.o
 ir/gc_runtime.o: gc/runtime.c ir
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@echo Building GC runtime.
+	@$(CC) $(CFLAGS) -c -o $@ $<
 ir/z.o: z.c ir
-	$(CC) $(CFLAGS) -c -o $@ $<
-gc/bluefin.so: gc/bluefin.cc
-	$(MAKE) -C gc bluefin.so
+	@echo Building runtime.
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 remake_tests: setup runtime
-	$(CODEGEN) --test -- $(TESTS)
+	@$(CODEGEN) --test -- $(TESTS)
 
 test: remake_tests
 	@echo Running tests...
@@ -66,9 +67,9 @@ test: remake_tests
 	@echo
 	@echo Done.
 
-.PHONY: all clean debug dirs editor remake_tests runtime setup test
+.PHONY: all clean debug editor remake_tests runtime setup test
 
 clean:
-	rm -rf -- $(DIRS) *.pyc
+	@rm -rf -- $(DIRS) *.pyc
 	@$(MAKE) -C Editor clean
 	@$(MAKE) -C gc clean
