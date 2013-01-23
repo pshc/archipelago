@@ -566,17 +566,6 @@ def expr_func(f, ps, body):
     assert not clos.isClosure, "TODO"
     return global_symbol(clos.func)
 
-def push_env(envx, ctxVar, init):
-    ctx = load_var(ctxVar)
-    i = express(init)
-    ctx = fromJust(write_runtime_call('_pushenv', [envx, ctx, i]))
-    store_var(ctxVar, ctx)
-
-def pop_env(envx, ctxVar):
-    ctx = load_var(ctxVar)
-    ctx = fromJust(write_runtime_call('_popenv', [envx, ctx]))
-    store_var(ctxVar, ctx)
-
 def expr_attr(e, f):
     tx = express_typed(e)
     fieldptr = get_field_ptr(tx, f)
