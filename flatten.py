@@ -917,8 +917,7 @@ def flatten_pat(inVar, origPat):
             # check ix, fall-through if failed
             readIx = AttrIx(bind_var(inVar))
             add_extrinsic(TypeOf, readIx, TInt())
-            index = L.Lit(IntLit(extrinsic(CtorIndex, m.ctor)))
-            add_extrinsic(TypeOf, index, TInt())
+            index = int_lit(extrinsic(CtorIndex, m.ctor))
             ixTest = builtin_call('!=', [readIx, index])
             ixCheck = NextCase(ixTest)
             set_orig(ixCheck, origPat)
@@ -987,8 +986,7 @@ def flatten_pat(inVar, origPat):
     elif m('PatInt(val)'):
         # check ix, fall-through if failed
         readInt = bind_var(inVar)
-        lit = L.Lit(IntLit(m.val))
-        add_extrinsic(TypeOf, lit, TInt())
+        lit = int_lit(m.val)
         intTest = builtin_call('!=', [readInt, lit])
         intCheck = NextCase(intTest)
         set_orig(intCheck, origPat)
@@ -1026,6 +1024,11 @@ def flatten_pat_maybe(inVar, origPat, args):
         push_newbody(failCheck)
 
     return False
+
+def int_lit(n):
+    lit = L.Lit(IntLit(n))
+    add_extrinsic(TypeOf, lit, TInt())
+    return lit
 
 def flatten_unit(unit):
     for topFunc in unit.funcs:
