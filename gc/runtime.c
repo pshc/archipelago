@@ -36,6 +36,7 @@ struct vector {
 
 struct frame_map {
 	struct frame_map *prev;
+	const char *name;
 	uint32_t num_roots;
 	struct gc_atom *roots[1];
 };
@@ -148,8 +149,8 @@ void gc_collect(void) {
 	GC_PRINTF("top frame %016lx\n", (uintptr_t) frame);
 	for (; frame; frame = frame->prev) {
 		uint32_t n = frame->num_roots;
-		GC_PRINTF(" stack frame %016lx with %u roots\n",
-				(uintptr_t) frame, (unsigned int) n);
+		GC_PRINTF(" frame \"%s\" with %u roots\n",
+				frame->name, (unsigned int) n);
 		for (uint32_t i = 0; i < n; i++) {
 			struct gc_atom *root = frame->roots[i];
 			if (root)

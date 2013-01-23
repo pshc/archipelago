@@ -182,6 +182,7 @@ bool Bluefin::initializeCustomLowering(Module &M) {
   stackMapHeaderTy = StructType::create(Context, "gc_stackentry");
   std::vector<Type*> EltTys;
   EltTys.push_back(PointerType::getUnqual(stackMapHeaderTy)); // *prev frame
+  EltTys.push_back(Type::getInt8PtrTy(Context)); // func name
   EltTys.push_back(Type::getInt32Ty(Context)); // num roots
   stackMapHeaderTy->setBody(EltTys);
 
@@ -297,16 +298,22 @@ bool Bluefin::performCustomLowering(Function &F) {
     while (isa<StoreInst>(IP)) ++IP;
     AtEntry.SetInsertPoint(IP->getParent(), IP);
 
+    // XXX: Breaks function pass contract, but should be safe
+    Value *funcNameStr = AtEntry.CreateGlobalStringPtr(F.getName().str());
+
     // Push the new frame map onto the global linked list.
     Constant *numRootsConst = ConstantInt::get(Type::getInt32Ty(Context),
                                                numRoots, false);
     Instruction *prevFramePtr  = CreateGEP(Context, AtEntry,
                                            StackEntry,0,0,"gc_frame.prev");
+    Instruction *funcNamePtr   = CreateGEP(Context, AtEntry,
+                                           StackEntry,0,1,"gc_frame.name");
     Instruction *numRootsPtr   = CreateGEP(Context, AtEntry,
-                                           StackEntry,0,1,"gc_frame.numroots");
+                                           StackEntry,0,2,"gc_frame.numroots");
     Instruction *newGlobalRoot = CreateGEP(Context, AtEntry,
                                            StackEntry, 0, "gc_thisframe");
     AtEntry.CreateStore(prevFrame, prevFramePtr);
+    AtEntry.CreateStore(funcNameStr, funcNamePtr);
     AtEntry.CreateStore(numRootsConst, numRootsPtr);
     AtEntry.CreateStore(newGlobalRoot, globalRoot);
   }
