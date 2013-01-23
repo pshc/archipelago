@@ -14,8 +14,9 @@
 		50A1041F15B9F1490075EE0E /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 50A1041D15B9F1490075EE0E /* MainMenu.xib */; };
 		50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1042515B9F15F0075EE0E /* OpenGL.framework */; };
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
-		50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */; };
-		50FDA17A15F02A3900AD4982 /* z.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 50FDA17915F02A3900AD4982 /* z.o */; };
+		96103DBF16B0937F002A0430 /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103DBD16B0937F002A0430 /* Editor_visual.ll.o */; };
+		96103E0C16B09400002A0430 /* gc_runtime.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103E0A16B09400002A0430 /* gc_runtime.o */; };
+		96103E0D16B09400002A0430 /* z.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103E0B16B09400002A0430 /* z.o */; };
 		966D3D0616A9503B00183D97 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0516A9503B00183D97 /* UIKit.framework */; };
 		966D3D0816A9503B00183D97 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0716A9503B00183D97 /* Foundation.framework */; };
 		966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0916A9503B00183D97 /* CoreGraphics.framework */; };
@@ -50,9 +51,12 @@
 		50A1042515B9F15F0075EE0E /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		50A1042C15B9F2050075EE0E /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
-		50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; path = Editor_visual.ll.o; sourceTree = "<group>"; };
-		50FDA17915F02A3900AD4982 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
-		96152CFD1673AD8700323F8A /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = include/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96103DBC16B0937F002A0430 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = x86/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96103DBD16B0937F002A0430 /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = x86/Editor_visual.ll.o; sourceTree = SOURCE_ROOT; };
+		96103E0916B093D6002A0430 /* z.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../../z.c; sourceTree = "<group>"; };
+		96103E0A16B09400002A0430 /* gc_runtime.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = gc_runtime.o; path = ../../ir/gc_runtime.o; sourceTree = "<group>"; };
+		96103E0B16B09400002A0430 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
+		96103E0E16B09428002A0430 /* runtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = runtime.c; path = ../../gc/runtime.c; sourceTree = "<group>"; };
 		966D3D0316A9503B00183D97 /* Skylark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Skylark.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		966D3D0516A9503B00183D97 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
 		966D3D0716A9503B00183D97 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -75,7 +79,6 @@
 		966D3D2F16A9505A00183D97 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.0.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
 		966D3D3B16A95B4900183D97 /* FlickDynamics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlickDynamics.h; sourceTree = "<group>"; };
 		966D3D3C16A95B4A00183D97 /* FlickDynamics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FlickDynamics.m; sourceTree = "<group>"; };
-		96F5C3C01673B3C0005CBC17 /* z.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../../z.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,8 +88,9 @@
 			files = (
 				50A1040915B9F1490075EE0E /* Cocoa.framework in Frameworks */,
 				50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */,
-				50A1043615BA0CEF0075EE0E /* Editor_visual.ll.o in Frameworks */,
-				50FDA17A15F02A3900AD4982 /* z.o in Frameworks */,
+				96103DBF16B0937F002A0430 /* Editor_visual.ll.o in Frameworks */,
+				96103E0C16B09400002A0430 /* gc_runtime.o in Frameworks */,
+				96103E0D16B09400002A0430 /* z.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,7 +113,6 @@
 		50A103F915B9F1480075EE0E = {
 			isa = PBXGroup;
 			children = (
-				50A1043315BA0CB00075EE0E /* External */,
 				50A1040E15B9F1490075EE0E /* OSX */,
 				966D3D0F16A9503B00183D97 /* Skylark */,
 				50A1040715B9F1490075EE0E /* Frameworks */,
@@ -159,6 +162,12 @@
 				50A1041B15B9F1490075EE0E /* AppDelegate.m */,
 				50A1042C15B9F2050075EE0E /* Viewport.h */,
 				50A1042D15B9F2050075EE0E /* Viewport.m */,
+				96103DBC16B0937F002A0430 /* Editor_visual.h */,
+				96103DBD16B0937F002A0430 /* Editor_visual.ll.o */,
+				96103E0E16B09428002A0430 /* runtime.c */,
+				96103E0A16B09400002A0430 /* gc_runtime.o */,
+				96103E0916B093D6002A0430 /* z.c */,
+				96103E0B16B09400002A0430 /* z.o */,
 				50A1040F15B9F1490075EE0E /* Supporting Files */,
 			);
 			path = OSX;
@@ -175,18 +184,6 @@
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
-		};
-		50A1043315BA0CB00075EE0E /* External */ = {
-			isa = PBXGroup;
-			children = (
-				96F5C3C01673B3C0005CBC17 /* z.c */,
-				50FDA17915F02A3900AD4982 /* z.o */,
-				96152CFD1673AD8700323F8A /* Editor_visual.h */,
-				50A1043515BA0CEF0075EE0E /* Editor_visual.ll.o */,
-			);
-			name = External;
-			path = obj;
-			sourceTree = SOURCE_ROOT;
 		};
 		966D3D0F16A9503B00183D97 /* Skylark */ = {
 			isa = PBXGroup;
