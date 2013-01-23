@@ -173,8 +173,19 @@ __dead2 void fail(const char *err) {
 	exit(1);
 }
 
-__dead2 void match_fail(void) {
-	fputs("Match failure.\n", stderr);
+static const int32_t fail_desc_base = 100;
+static const char *fail_descs[] = {
+	"Match failure", /* 100 */
+};
+static const int32_t fail_desc_count = sizeof fail_descs/sizeof *fail_descs;
+
+__dead2 void fail_with_code(int32_t code) {
+	const char *desc;
+	if (code < fail_desc_base || code >= fail_desc_base + fail_desc_count)
+		desc = "Bad failure code";
+	else
+		desc = fail_descs[code - fail_desc_base];
+	fprintf(stderr, "%s (#%d).\n", desc, code);
 	exit(1);
 }
 

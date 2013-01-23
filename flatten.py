@@ -1,6 +1,7 @@
 from base import *
 from atom import *
 from quilt import *
+import runtime
 import vat
 
 CFGFuncState = DT('CFGFuncState',
@@ -639,8 +640,9 @@ def flatten_expr(expr, optVar):
 
         if not failProof:
             # could fall-through the last case, so add an "else" failure case
-            matchFailure = Body([runtime_void_call('match_fail', [])])
-            elseCase = BlockCondCase(Body([]), matchFailure)
+            matchFail = runtime_void_call('fail_with_code',
+                    [int_lit(runtime.FAIL_BAD_MATCH)])
+            elseCase = BlockCondCase(Body([]), Body([matchFail]))
             set_orig(elseCase, expr)
             flatCases.append(elseCase)
 
@@ -815,8 +817,9 @@ def flatten_stmt(stmt):
 
         if not failProof:
             # could fall-through the last case, so add an "else" failure case
-            matchFailure = Body([runtime_void_call('match_fail', [])])
-            elseCase = BlockCondCase(Body([]), matchFailure)
+            matchFail = runtime_void_call('fail_with_code',
+                    [int_lit(runtime.FAIL_BAD_MATCH)])
+            elseCase = BlockCondCase(Body([]), Body([matchFail]))
             set_orig(elseCase, stmt)
             flatCases.append(elseCase)
 
