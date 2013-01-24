@@ -13,10 +13,18 @@ __dead2 void oom(void);
 # define GC_PUTS(s) puts(s)
 # define GC_PUTCHAR(c) putchar(c)
 # define GC_PRINTF(...) printf(__VA_ARGS__)
+static int gc_indent = 1;
+# define GC_SHIFT() do { for (int i=0; i < gc_indent*2; i++) \
+                             putchar(' '); } while (0)
+# define GC_INDENT() gc_indent++
+# define GC_DEDENT() gc_indent--
 #else
 # define GC_PUTS(s) do {} while (0)
 # define GC_PUTCHAR(c) do {} while (0)
 # define GC_PRINTF(...) do {} while (0)
+# define GC_SHIFT() do {} while (0)
+# define GC_INDENT() do {} while (0)
+# define GC_DEDENT() do {} while (0)
 #endif
 
 union gc_ptr {
@@ -85,10 +93,13 @@ static const char *read_gc_spec_name(const uint8_t *spec, size_t n) {
 #endif /* LOGGC */
 
 static void read_atom_spec(struct gc_atom *atom, const uint8_t *spec) {
-	GC_PRINTF("    spec at %016lx ", (uintptr_t) spec);
+	GC_SHIFT();
+	GC_PRINTF("spec at %08x ", (uint32_t) spec);
 	size_t n = *spec++;
-	if (!n)
+	if (!n) {
+		GC_PUTCHAR('\n');
 		return;
+	}
 	if (n > 20)
 		fail("Suspicious field count");
 
@@ -109,22 +120,22 @@ static void read_atom_spec(struct gc_atom *atom, const uint8_t *spec) {
 		/* recurse into atom pointed by field */
 		struct gc_atom *ref_atom = *(struct gc_atom **)
 				((char *)atom + offset);
-
-		GC_PRINTF("     field at %d points to atom %016lx\n",
-				(int) offset, (uintptr_t) ref_atom);
-
 		if (ref_atom)
 			mark_gc_atom(ref_atom);
 	}
 }
 
 static void mark_gc_atom(struct gc_atom *atom) {
+	GC_INDENT();
 	if (atom->gc.flags & GC_MARK) {
-		GC_PUTS("(already marked)");
+		GC_SHIFT();
+		GC_PRINTF("%08x is already marked\n", (uint32_t) atom);
+		GC_DEDENT();
 		return;
 	}
 
-	GC_PRINTF("   marking %016lx: ", (uintptr_t) atom);
+	GC_SHIFT();
+	GC_PRINTF("marking %08x: ", (uint32_t) atom);
 	for (int i = 0; i < 16; i++) {
 		GC_PRINTF("%02x ", ((uint8_t *) atom)[i]);
 		if (i % 4 == 3)
@@ -140,16 +151,17 @@ static void mark_gc_atom(struct gc_atom *atom) {
 		walk_gc_vector((struct vector *) atom, orig.flags);
 	else if (orig.ptr)
 		read_atom_spec(atom, orig.ptr);
+
+	GC_DEDENT();
 }
 
 void gc_collect(void) {
 	GC_PUTS("=== marking...");
 
-	struct frame_map *frame = bluefin_root;
-	GC_PRINTF("top frame %016lx\n", (uintptr_t) frame);
-	for (; frame; frame = frame->prev) {
+	for (struct frame_map *frame=bluefin_root; frame; frame=frame->prev) {
 		uint32_t n = frame->num_roots;
-		GC_PRINTF(" frame \"%s\" with %u roots\n",
+		GC_SHIFT();
+		GC_PRINTF("frame \"%s\" with %u roots\n",
 				frame->name, (unsigned int) n);
 		for (uint32_t i = 0; i < n; i++) {
 			struct gc_atom *root = frame->roots[i];
@@ -162,7 +174,7 @@ void gc_collect(void) {
 	/* heap_count may decrease due to pop_heap_ptr(); watch out! */
 	for (size_t i = 0; i < heap_count; i++) {
 		struct gc_atom *atom = heap[i];
-		GC_PRINTF(" 0x%016lx is ", (uintptr_t) atom);
+		GC_PRINTF("  %08x is ", (uint32_t) atom);
 		if (atom->gc.flags & GC_MARK) {
 			atom->gc.flags &= ~GC_MARK;
 			GC_PUTS("live");
@@ -176,7 +188,7 @@ void gc_collect(void) {
 		}
 	}
 
-	GC_PUTS("=== done collection.");
+	GC_PRINTF("=== done collection. heap count: %d\n", (int) heap_count);
 }
 
 void *gc_alloc(size_t size) {
@@ -185,7 +197,7 @@ void *gc_alloc(size_t size) {
 	if (!p)
 		oom();
 	push_heap_ptr(p);
-	GC_PRINTF("Allocated 0x%016lx.\n", (uintptr_t) p);
+	GC_PRINTF("Allocated %08x.\n", (uint32_t) p);
 	return p;
 }
 
@@ -199,7 +211,8 @@ static void walk_gc_vector(struct vector *vector, uintptr_t flags) {
 	size_t len = flags >> 8;
 	if (len > 0xffff)
 		fail("GC walk: Array is unrealistically big");
-	GC_PRINTF("    array of length %d\n", (int) len);
+	GC_SHIFT();
+	GC_PRINTF("array of length %d\n", (int) len);
 
 	uintptr_t *p = vector->ptr;
 	for (size_t i = 0; i < len; i++) {
@@ -231,8 +244,8 @@ struct vector *gc_array(int32_t n) {
 
 	vector->gc.flags = GC_ARRAY | (n << 8);
 	push_heap_ptr(vector);
-	GC_PRINTF("Allocated array 0x%016lx of length %u.\n",
-			(uintptr_t) vector, n);
+	GC_PRINTF("Allocated array %08x of length %u.\n",
+			(uint32_t) vector, n);
 
 	return vector;
 }
