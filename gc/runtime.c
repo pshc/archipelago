@@ -27,6 +27,14 @@ static int gc_indent = 1;
 # define GC_DEDENT() do {} while (0)
 #endif
 
+#ifdef COLOR
+# define RESET "\033[0m"
+# define GRAY "\033[37m"
+#else
+# define RESET ""
+# define GRAY ""
+#endif
+
 union gc_ptr {
 	uintptr_t flags;
 	uint8_t *ptr;
@@ -129,19 +137,20 @@ static void mark_gc_atom(struct gc_atom *atom) {
 	GC_INDENT();
 	if (atom->gc.flags & GC_MARK) {
 		GC_SHIFT();
-		GC_PRINTF("%08x is already marked\n", (uint32_t) atom);
+		GC_PRINTF(GRAY "%08x is already marked" RESET "\n",
+				(uint32_t) atom);
 		GC_DEDENT();
 		return;
 	}
 
 	GC_SHIFT();
-	GC_PRINTF("marking %08x: ", (uint32_t) atom);
+	GC_PRINTF("marking %08x: " GRAY, (uint32_t) atom);
 	for (int i = 0; i < 16; i++) {
 		GC_PRINTF("%02x ", ((uint8_t *) atom)[i]);
 		if (i % 4 == 3)
 			GC_PUTCHAR(' ');
 	}
-	GC_PUTCHAR('\n');
+	GC_PRINTF(RESET "\n");
 
 	union gc_ptr orig = atom->gc;
 	/* mark before recursing into fields */
@@ -156,7 +165,7 @@ static void mark_gc_atom(struct gc_atom *atom) {
 }
 
 void gc_collect(void) {
-	GC_PUTS("=== marking...");
+	GC_PRINTF(GRAY "=== marking..." RESET "\n");
 
 	for (struct frame_map *frame=bluefin_root; frame; frame=frame->prev) {
 		uint32_t n = frame->num_roots;
@@ -170,17 +179,17 @@ void gc_collect(void) {
 		}
 	}
 
-	GC_PUTS("=== sweeping...");
+	GC_PRINTF(GRAY "=== sweeping..." RESET "\n");
 	/* heap_count may decrease due to pop_heap_ptr(); watch out! */
 	for (size_t i = 0; i < heap_count; i++) {
 		struct gc_atom *atom = heap[i];
-		GC_PRINTF("  %08x is ", (uint32_t) atom);
 		if (atom->gc.flags & GC_MARK) {
+			GC_PRINTF(GRAY "  %08x is live" RESET "\n",
+					(uint32_t) atom);
 			atom->gc.flags &= ~GC_MARK;
-			GC_PUTS("live");
 		}
 		else {
-			GC_PRINTF("dead. ");
+			GC_PRINTF("  %08x is dead. ", (uint32_t) atom);
 			/* this heap entry will disappear, so decrement i */
 			pop_heap_ptr(i--);
 			free(atom);
@@ -188,7 +197,8 @@ void gc_collect(void) {
 		}
 	}
 
-	GC_PRINTF("=== done collection. heap count: %d\n", (int) heap_count);
+	GC_PRINTF(GRAY "=== done collection. heap count: " RESET "%d\n",
+			(int) heap_count);
 }
 
 void *gc_alloc(size_t size) {
@@ -212,7 +222,7 @@ static void walk_gc_vector(struct vector *vector, uintptr_t flags) {
 	if (len > 0xffff)
 		fail("GC walk: Array is unrealistically big");
 	GC_SHIFT();
-	GC_PRINTF("array of length %d\n", (int) len);
+	GC_PRINTF(GRAY "array of length %d" RESET "\n", (int) len);
 
 	uintptr_t *p = vector->ptr;
 	for (size_t i = 0; i < len; i++) {
