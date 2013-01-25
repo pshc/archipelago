@@ -10,10 +10,13 @@ bluefin.so: bluefin.cc
 	@echo Building bluefin GC plugin...
 	@$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
 
+editor: bluefin.so
+	@$(MAKE) -C ../Editor
+
 test.s: bluefin.so ../ir/cond.ll
 	llc -load=bluefin.so ../ir/cond.ll -o test.s
 
 clean:
 	@rm -f -- bluefin.so test.s
 
-.PHONY: all clean
+.PHONY: all clean editor
