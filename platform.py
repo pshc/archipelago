@@ -1,5 +1,6 @@
 from base import *
 import os
+import subprocess
 
 ARM_IOS_VERSION = '6.0'
 
@@ -23,7 +24,16 @@ def arm_cross_compiler():
     if os.sys.platform != 'darwin':
         print "Need arm eabi target..."
 
-    cFlags = ['-arch', 'armv7', '-miphoneos-version-min=' + ARM_IOS_VERSION]
+    try:
+        devRoot = subprocess.check_output(['xcode-select', '-print-path'])
+    except OSError, e:
+        assert e.errno != 2, "Couldn't find xcode-select"
+        raise
+    sysRoot = os.path.join(devRoot.strip(), 'Platforms', 'iPhoneOS.platform',
+            'Developer', 'SDKs', 'iPhoneOS' + ARM_IOS_VERSION + '.sdk')
+
+    cFlags = ['-arch', 'armv7', '-miphoneos-version-min=' + ARM_IOS_VERSION,
+            '-isysroot', sysRoot]
     dataLayout = "e-p:32:32:32-i1:8:32-i8:8:32-i16:16:32-i32:32:32-i64:32" + \
             ":64-f32:32:32-f64:32:64-v64:32:64-v128:32:128-a0:0:32-n32-S32"
     triple = "thumbv7-apple-ios%s.0" % (ARM_IOS_VERSION,)
