@@ -215,7 +215,8 @@ bool Bluefin::performCustomLowering(Function &F) {
     AtEntry.SetInsertPoint(IP->getParent(), IP);
 
     // XXX: Breaks function pass contract, but should be safe
-    Value *funcNameStr = AtEntry.CreateGlobalStringPtr(F.getName().str());
+    Value *funcNameStr = AtEntry.CreateGlobalStringPtr(F.getName().str(),
+                         "func_name");
 
     // Push the new frame map onto the global linked list.
     Constant *numRootsConst = ConstantInt::get(Type::getInt32Ty(Context),
