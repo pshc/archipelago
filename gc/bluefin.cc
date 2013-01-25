@@ -28,7 +28,6 @@
 #include <llvm/IRBuilder.h>
 #include <llvm/IntrinsicInst.h>
 #include <llvm/Module.h>
-#include <llvm/Support/CallSite.h>
 
 using namespace llvm;
 
@@ -52,114 +51,31 @@ private:
 
 namespace {
   /// EscapeEnumerator - This is a little algorithm to find all escape points
-  /// from a function so that "finally"-style code can be inserted. In addition
-  /// to finding the existing return and unwind instructions, it also (if
-  /// necessary) transforms any call instructions into invokes and sends them to
-  /// a landing pad.
-  ///
-  /// It's wrapped up in a state machine using the same transform C# uses for
-  /// 'yield return' enumerators, This transform allows it to be non-allocating.
+  /// from a function so that "finally"-style code can be inserted.
   class EscapeEnumerator {
-    Function &F;
-    const char *CleanupBBName;
-
-    // State.
-    int State;
     Function::iterator StateBB, StateE;
     IRBuilder<> Builder;
 
   public:
-    EscapeEnumerator(Function &F, const char *N = "cleanup")
-      : F(F), CleanupBBName(N), State(0), Builder(F.getContext()) {}
+    EscapeEnumerator(Function &F)
+      : StateBB(F.begin()), StateE(F.end()), Builder(F.getContext()) {}
 
     IRBuilder<> *Next() {
-      switch (State) {
-      default:
-        return 0;
+      // Find all 'return', 'resume', and 'unwind' instructions.
+      while (StateBB != StateE) {
+        BasicBlock *CurBB = StateBB++;
 
-      case 0:
-        StateBB = F.begin();
-        StateE = F.end();
-        State = 1;
+        // Branches and invokes do not escape,
+        // only unwind, resume, and return do.
+        TerminatorInst *TI = CurBB->getTerminator();
+        assert(!isa<ResumeInst>(TI) && "exceptions not supported");
+        if (!isa<ReturnInst>(TI))
+          continue;
 
-      case 1:
-        // Find all 'return', 'resume', and 'unwind' instructions.
-        while (StateBB != StateE) {
-          BasicBlock *CurBB = StateBB++;
-
-          // Branches and invokes do not escape, only unwind, resume, and return
-          // do.
-          TerminatorInst *TI = CurBB->getTerminator();
-          if (!isa<ReturnInst>(TI) && !isa<ResumeInst>(TI))
-            continue;
-
-          Builder.SetInsertPoint(TI->getParent(), TI);
-          return &Builder;
-        }
-
-        State = 2;
-
-        // Find all 'call' instructions.
-        SmallVector<Instruction*,16> Calls;
-        for (Function::iterator BB = F.begin(),
-                                E = F.end(); BB != E; ++BB)
-          for (BasicBlock::iterator II = BB->begin(),
-                                    EE = BB->end(); II != EE; ++II)
-            if (CallInst *CI = dyn_cast<CallInst>(II))
-              if (!CI->getCalledFunction() ||
-                  !CI->getCalledFunction()->getIntrinsicID())
-                Calls.push_back(CI);
-
-        if (Calls.empty())
-          return 0;
-
-        // Create a cleanup block.
-        LLVMContext &C = F.getContext();
-        BasicBlock *CleanupBB = BasicBlock::Create(C, CleanupBBName, &F);
-        Type *ExnTy = StructType::get(Type::getInt8PtrTy(C),
-                                      Type::getInt32Ty(C), NULL);
-        Constant *PersFn =
-          F.getParent()->
-          getOrInsertFunction("__gcc_personality_v0",
-                              FunctionType::get(Type::getInt32Ty(C), true));
-        LandingPadInst *LPad = LandingPadInst::Create(ExnTy, PersFn, 1,
-                                                      "cleanup.lpad",
-                                                      CleanupBB);
-        LPad->setCleanup(true);
-        ResumeInst *RI = ResumeInst::Create(LPad, CleanupBB);
-
-        // Transform the 'call' instructions into 'invoke's branching to the
-        // cleanup block. Go in reverse order to make prettier BB names.
-        SmallVector<Value*,16> Args;
-        for (unsigned I = Calls.size(); I != 0; ) {
-          CallInst *CI = cast<CallInst>(Calls[--I]);
-
-          // Split the basic block containing the function call.
-          BasicBlock *CallBB = CI->getParent();
-          BasicBlock *NewBB =
-            CallBB->splitBasicBlock(CI, CallBB->getName() + ".cont");
-
-          // Remove the unconditional branch inserted at the end of CallBB.
-          CallBB->getInstList().pop_back();
-          NewBB->getInstList().remove(CI);
-
-          // Create a new invoke instruction.
-          Args.clear();
-          CallSite CS(CI);
-          Args.append(CS.arg_begin(), CS.arg_end());
-
-          InvokeInst *II = InvokeInst::Create(CI->getCalledValue(),
-                                              NewBB, CleanupBB,
-                                              Args, CI->getName(), CallBB);
-          II->setCallingConv(CI->getCallingConv());
-          II->setAttributes(CI->getAttributes());
-          CI->replaceAllUsesWith(II);
-          delete CI;
-        }
-
-        Builder.SetInsertPoint(RI->getParent(), RI);
+        Builder.SetInsertPoint(TI->getParent(), TI);
         return &Builder;
       }
+      return 0;
     }
   };
 }
@@ -319,7 +235,7 @@ bool Bluefin::performCustomLowering(Function &F) {
   }
 
   // For each instruction that escapes...
-  EscapeEnumerator EE(F, "gc_cleanup");
+  EscapeEnumerator EE(F);
   while (IRBuilder<> *AtExit = EE.Next()) {
     // Pop the entry from the shadow stack. Don't reuse prevFrame from
     // AtEntry, since that would make the value live for the entire function.
