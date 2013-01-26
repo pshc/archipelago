@@ -33,6 +33,10 @@
 		966D3D2716A9503B00183D97 /* EditorViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D2616A9503B00183D97 /* EditorViewController.m */; };
 		966D3D3016A9505A00183D97 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D2F16A9505A00183D97 /* QuartzCore.framework */; };
 		966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D3C16A95B4A00183D97 /* FlickDynamics.m */; };
+		96A30DCF16B4203900362A19 /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96A30DCC16B4203900362A19 /* bedrock.ll.o */; };
+		96A30DD016B4203900362A19 /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96A30DCE16B4203900362A19 /* Editor_visual.ll.o */; };
+		96A30DD216B4206900362A19 /* runtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0E16B09428002A0430 /* runtime.c */; };
+		96A30DD316B4206C00362A19 /* z.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0916B093D6002A0430 /* z.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -79,6 +83,9 @@
 		966D3D2F16A9505A00183D97 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.0.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
 		966D3D3B16A95B4900183D97 /* FlickDynamics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlickDynamics.h; sourceTree = "<group>"; };
 		966D3D3C16A95B4A00183D97 /* FlickDynamics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FlickDynamics.m; sourceTree = "<group>"; };
+		96A30DCC16B4203900362A19 /* bedrock.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = bedrock.ll.o; path = arm/bedrock.ll.o; sourceTree = SOURCE_ROOT; };
+		96A30DCD16B4203900362A19 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = arm/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96A30DCE16B4203900362A19 /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = arm/Editor_visual.ll.o; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +111,8 @@
 				966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */,
 				966D3D0C16A9503B00183D97 /* GLKit.framework in Frameworks */,
 				966D3D0E16A9503B00183D97 /* OpenGLES.framework in Frameworks */,
+				96A30DCF16B4203900362A19 /* bedrock.ll.o in Frameworks */,
+				96A30DD016B4203900362A19 /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,9 +173,7 @@
 				50A1042D15B9F2050075EE0E /* Viewport.m */,
 				96103DBC16B0937F002A0430 /* Editor_visual.h */,
 				96103DBD16B0937F002A0430 /* Editor_visual.ll.o */,
-				96103E0E16B09428002A0430 /* runtime.c */,
 				96103E0A16B09400002A0430 /* gc_runtime.o */,
-				96103E0916B093D6002A0430 /* z.c */,
 				96103E0B16B09400002A0430 /* z.o */,
 				50A1040F15B9F1490075EE0E /* Supporting Files */,
 			);
@@ -196,6 +203,11 @@
 				966D3D2616A9503B00183D97 /* EditorViewController.m */,
 				966D3D3B16A95B4900183D97 /* FlickDynamics.h */,
 				966D3D3C16A95B4A00183D97 /* FlickDynamics.m */,
+				96A30DCC16B4203900362A19 /* bedrock.ll.o */,
+				96A30DCD16B4203900362A19 /* Editor_visual.h */,
+				96A30DCE16B4203900362A19 /* Editor_visual.ll.o */,
+				96103E0E16B09428002A0430 /* runtime.c */,
+				96103E0916B093D6002A0430 /* z.c */,
 				966D3D1016A9503B00183D97 /* Supporting Files */,
 			);
 			path = Skylark;
@@ -323,6 +335,8 @@
 				966D3D1A16A9503B00183D97 /* AppDelegate.m in Sources */,
 				966D3D2716A9503B00183D97 /* EditorViewController.m in Sources */,
 				966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */,
+				96A30DD216B4206900362A19 /* runtime.c in Sources */,
+				96A30DD316B4206C00362A19 /* z.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
