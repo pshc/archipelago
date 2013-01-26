@@ -1000,6 +1000,8 @@ def write_dtform(form):
     if layout.gcSlot < 0:
         return
 
+    align = env(ARCH).ptrSize
+
     written = False
     form_tbl = []
     for ctor in form.ctors:
@@ -1010,18 +1012,19 @@ def write_dtform(form):
             continue
 
         ctorName, nameLen = escape_strlit(extrinsic(Name, ctor))
+        nfields = len(clayout.fields)
 
         sym = global_symbol(fromJust(clayout.formVar))
-        sym_ = sym_with_underscore(sym)
-        vecT = '[%d x <{i8, i8*}>]' % (len(clayout.fields),)
+        sym_ = sym_with_dot(sym)
+        vecT = '[%d x i8]' % (nfields,)
         nameT = '[%d x i8]' % (nameLen,)
         fullT = '<{i8, %s, %s}>' % (vecT, nameT)
         out_xpr(sym_)
         out(' = internal constant %s <{' % (fullT,))
         newline()
-        out('i8 %d, %s [' % (len(clayout.fields), vecT))
+        out('i8 %d, %s [' % (nfields, vecT))
         write_ctor_form_fields(ctor, clayout.fields)
-        out('], %s %s}>, align %d' % (nameT, ctorName, env(ARCH).ptrSize))
+        out('], %s %s}>, align %d' % (nameT, ctorName, align))
         newline()
 
         out_xpr(sym)
@@ -1049,7 +1052,7 @@ def write_dtform(form):
                 comma()
             out('i8* ')
             out_xpr(sym)
-        out('], align %d' % (env(ARCH).ptrSize,))
+        out('], align %d' % (align,))
         newline()
 
         out_xpr(dtsym)
@@ -1061,9 +1064,9 @@ def write_dtform(form):
     if written:
         newline()
 
-def sym_with_underscore(sym):
+def sym_with_dot(sym):
     # hack: this ought to be uniqued properly in expand
-    return Global(sym.name + '_')
+    return Global('.' + sym.name)
 
 # TOP-LEVEL
 
