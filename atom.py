@@ -354,8 +354,6 @@ class ExprStringifier(Visitor):
             frag(global_name(t))
         else:
             frag(extrinsic(Name, t))
-    def ReadGlobal(self, read):
-        frag('@%s' % (global_name(read.var),))
 
     def Call(self, call):
         if matches(call.func, 'Bind(Builtin())'):
