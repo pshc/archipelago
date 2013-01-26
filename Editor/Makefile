@@ -1,4 +1,4 @@
-OBJS = x86/Editor_visual.ll.o #arm/Editor_visual.ll.o
+OBJS = x86/Editor_visual.ll.o arm/Editor_visual.ll.o
 ABS_OBJS := $(OBJS:%=Editor/%)
 DIRS = arm include x86
 MAKE_PARENT := $(MAKE) -C .. --no-print-directory
