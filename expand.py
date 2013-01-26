@@ -477,7 +477,7 @@ def generate_ctor(ctor, dt):
     layout = extrinsic(DataLayout, dt)
     if layout.gcSlot >= 0:
         ctorLayout = extrinsic(CtorLayout, ctor)
-        gcSpec = match(ctorLayout.formVar, ('Just(v)', ReadGlobal),
+        gcSpec = match(ctorLayout.formVar, ('Just(v)', L.Bind),
                                            ('Nothing()', NullPtr))
         assign_slot(layout.gcSlot, IVoidPtr(), gcSpec)
 

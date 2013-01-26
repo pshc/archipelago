@@ -980,18 +980,8 @@ def write_ctor_form_fields(ctor, gcFields):
         fieldIndex = extrinsic(FieldIndex, field)
         fieldPtr = ConstElementPtr(nullPtr, [0, fieldIndex])
         fieldTx = TypedXpr(IPtr(extrinsic(LLVMTypeOf, field)), fieldPtr)
-        out('<{i8, i8*}> <{i8 ')
+        out('i8 ')
         out_xpr(ConstCast('ptrtoint', fieldTx, IByte()))
-        comma()
-
-        # pointer to form
-        out('i8* ')
-        m = match(type_layout_form_var(field.type))
-        if m('Just(v)'):
-            out_global_symbol(m.v)
-        else:
-            out('null')
-        out('}>')
     newline()
 
 def write_dtform(form):
@@ -1020,7 +1010,7 @@ def write_dtform(form):
         nameT = '[%d x i8]' % (nameLen,)
         fullT = '<{i8, %s, %s}>' % (vecT, nameT)
         out_xpr(sym_)
-        out(' = internal constant %s <{' % (fullT,))
+        out(' = private unnamed_addr constant %s <{' % (fullT,))
         newline()
         out('i8 %d, %s [' % (nfields, vecT))
         write_ctor_form_fields(ctor, clayout.fields)
@@ -1028,37 +1018,13 @@ def write_dtform(form):
         newline()
 
         out_xpr(sym)
-        out(' = alias internal i8* bitcast (%s* ' % (fullT,))
+        out(' = internal global i8* bitcast (%s* ' % (fullT,))
         out_xpr(sym_)
-        out(' to i8*)')
+        out(' to i8*), align %d' % (align,))
         newline()
 
-        form_tbl.append(sym)
-        written = True
-
-    if layout.discrimSlot >= 0:
-        # discrim->ctor form lookup table
-        dtsym = global_symbol(fromJust(layout.tblVar))
-        dtsym_ = sym_with_underscore(dtsym)
-        fullT = '[%d x i8*]' % (len(form_tbl),)
-
-        out_xpr(dtsym_)
-        out(' = internal constant %s [' % (fullT,))
-        first = True
-        for sym in form_tbl:
-            if first:
-                first = False
-            else:
-                comma()
-            out('i8* ')
-            out_xpr(sym)
-        out('], align %d' % (align,))
-        newline()
-
-        out_xpr(dtsym)
-        out(' = alias internal i8* bitcast (%s* ' % (fullT,))
-        out_xpr(dtsym_)
-        out(' to i8*)')
+        formtx = TypedXpr(IPtr(IVoidPtr()), sym)
+        form_tbl.append(ConstElementPtr(formtx, [0]))
         written = True
 
     if written:

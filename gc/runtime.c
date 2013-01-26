@@ -88,8 +88,7 @@ static void mark_gc_atom(struct gc_atom *);
 static void walk_gc_vector(struct vector *, uintptr_t);
 
 #ifdef LOGGC
-static const char *read_gc_spec_name(const uint8_t *spec, size_t n) {
-	const uint8_t *name = spec + n * (1 + sizeof(uintptr_t));
+static const char *read_gc_spec_name(const uint8_t *name) {
 	for (size_t i = 0; name[i]; i++) {
 		if (name[i] < '0' || name[i] > 'z')
 			fail("Suspicious unusual ctor name char");
@@ -101,33 +100,21 @@ static const char *read_gc_spec_name(const uint8_t *spec, size_t n) {
 #endif /* LOGGC */
 
 static void read_atom_spec(struct gc_atom *atom, const uint8_t *spec) {
-	GC_SHIFT();
-	GC_PRINTF("spec at %08x ", (uint32_t) spec);
 	size_t n = *spec++;
-	if (!n) {
-		GC_PUTCHAR('\n');
+	if (!n)
 		return;
-	}
 	if (n > 20)
 		fail("Suspicious field count");
 
 	/* ctor name at end */
-	GC_PRINTF("is a %s.\n", read_gc_spec_name(spec, n));
+	GC_SHIFT();
+	GC_PRINTF("%s\n", read_gc_spec_name(spec + n));
 
+	char *atom_bytes = (char *) atom;
 	for (size_t i = 0; i < n; i++) {
 		size_t offset = *spec++;
-
-		/* unaligned load */
-		union packed_ptr tbl_ptr;
-		memcpy(tbl_ptr.bytes, spec, sizeof tbl_ptr.bytes);
-		if (tbl_ptr.ptr) {
-			/* TODO: use *tbl_ptr.ptr to typecheck */
-		}
-		spec += sizeof tbl_ptr.bytes;
-
-		/* recurse into atom pointed by field */
-		struct gc_atom *ref_atom = *(struct gc_atom **)
-				((char *)atom + offset);
+		struct gc_atom **ref = (struct gc_atom **) &atom_bytes[offset];
+		struct gc_atom *ref_atom = *ref;
 		if (ref_atom)
 			mark_gc_atom(ref_atom);
 	}
