@@ -336,17 +336,17 @@ def main():
             if arg == '--color':
                 from IPython.utils.coloransi import TermColors
                 genOpts.color = TermColors
-            elif arg == '-p':
+            elif arg == '--profile':
                 genOpts.profile = True
-            elif arg == '-v':
+            elif arg == '--views':
                 genOpts.dumpViews = True
-            elif arg == '-s':
+            elif arg == '--source':
                 genOpts.dumpSource = True
-            elif arg == '-t':
+            elif arg == '--types':
                 genOpts.dumpTypes = True
-            elif arg == '-i':
+            elif arg == '--insts':
                 genOpts.dumpInsts = True
-            elif arg == '-b':
+            elif arg == '--blocks':
                 genOpts.dumpBlocks = True
             # Build options
             elif arg == '--c-header':
