@@ -1167,10 +1167,11 @@ def compile(mod):
     ll = extrinsic(LLFile, mod)
     s = ll + '.s'
     o = ll + '.o'
+    arch = env(ARCH)
     try:
         if subprocess.call(['llc', '-load=gc/bluefin.so', '-o', s, ll]) != 0:
             return False
-        if subprocess.call(['cc', '-c']+env(ARCH).cFlags+['-o', o, s]) != 0:
+        if subprocess.call([arch.cc, '-c'] + arch.cFlags + ['-o', o, s]) != 0:
             return False
     except OSError, e:
         if e.errno == 2:
