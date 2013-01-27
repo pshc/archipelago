@@ -291,11 +291,17 @@ def conv_in_env(environ, val, f):
     return InEnv(environ, val, f)
 
 # TEMP
-@special_call('make_ctx')
-def conv_make_ctx(environ, val):
+@special_call('create_ctx')
+def conv_create_ctx(environ, val):
     environ = refs_symbol(environ)
     val = conv_expr(val)
-    return MakeCtx(environ, val)
+    return CreateCtx(environ, val)
+
+@special_call('destroy_ctx')
+def conv_free_ctx(environ, ctx):
+    environ = refs_symbol(environ)
+    ctx = conv_expr(ctx)
+    return DestroyCtx(environ, ctx)
 
 @special_call('extrinsic')
 def conv_get_extrinsic(ext, e):

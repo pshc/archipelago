@@ -472,7 +472,7 @@ def prop_inenv(t, init, f):
     return prop_expr(f)
 
 # TEMP
-def prop_makectx(t, init):
+def prop_createctx(t, init):
     consume_value_as(ctype(t), init)
     return t_DT(Env)
 
@@ -503,7 +503,8 @@ def _prop_expr(e):
         ("e==GetEnv(Env(t))", instantiate_type),
         ("HaveEnv(_)", lambda: C.TPrim(PBool())),
         ("InEnv(Env(t), init, f)", prop_inenv),
-        ("MakeCtx(Env(t), init)", prop_makectx),
+        ("CreateCtx(Env(t), init)", prop_createctx),
+        ("DestroyCtx(Env(_), ctx)", prop_expr),
         ("e==GetExtrinsic(extr, node)", prop_getextrinsic),
         ("e==HasExtrinsic(_, node)", prop_hasextrinsic),
         ("ScopeExtrinsic(_, f)", prop_expr),

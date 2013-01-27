@@ -7,8 +7,6 @@
 }
 @property (strong, nonatomic) EAGLContext *context;
 @property (strong, nonatomic) FlickDynamics *flickDynamics;
-
-- (void)tearDownGL;
 @end
 
 @implementation EditorViewController
@@ -50,7 +48,10 @@
 
 - (void)dealloc
 {    
-    [self tearDownGL];
+    if (VISUAL_ENV) {
+        [EAGLContext setCurrentContext:self.context];
+        cleanup_editor(VISUAL_ENV);
+    }
     
     if ([EAGLContext currentContext] == self.context) {
         [EAGLContext setCurrentContext:nil];
@@ -63,9 +64,13 @@
 
     if ([self isViewLoaded] && ([[self view] window] == nil)) {
         self.view = nil;
-        
-        [self tearDownGL];
-        
+
+        if (VISUAL_ENV) {
+            [EAGLContext setCurrentContext:self.context];
+            cleanup_editor(VISUAL_ENV);
+            VISUAL_ENV = NULL;
+        }
+
         if ([EAGLContext currentContext] == self.context) {
             [EAGLContext setCurrentContext:nil];
         }
@@ -92,13 +97,6 @@
     UITouch *touch = [touches anyObject];
     CGPoint where = [touch locationInView:self.view];
     [self.flickDynamics endTouchAtX:where.x / 320 y:where.y / 460];
-}
-
-- (void)tearDownGL
-{
-    [EAGLContext setCurrentContext:self.context];
-
-    // need a cleanup call here
 }
 
 - (void)update

@@ -98,7 +98,7 @@ def obtain(expr):
     elif m('GetEnv(_) or HaveEnv(_)'):
         # will need to restrict env types
         return NoDrum()
-    elif m('MakeCtx(_, e)'):
+    elif m('CreateCtx(_, e) or DestroyCtx(_, e)'):
         _ = obtain(m.e)
         return NoDrum()
     elif m('GetExtrinsic(_, _) or HasExtrinsic(_, _)'):

@@ -131,9 +131,6 @@ def load_shader():
         vis.program = 0
     return program
 
-@annot('int -> void')
-def unload_shader(program):
-    glDeleteProgram(program)
 
 @annot('void -> Env noenv')
 def setup_editor():
@@ -143,7 +140,13 @@ def setup_editor():
     glEnableClientState(GL_VERTEX_ARRAY)
 
     state = initial_visual_state()
-    return make_ctx(VISUAL, state)
+    return create_ctx(VISUAL, state)
+
+@annot('VisualState -> void noenv')
+def cleanup_editor(vis):
+    if vis.program != 0:
+        glDeleteProgram(vis.program)
+    _ = destroy_ctx(VISUAL, vis)
 
 @annot('(float, float, float, float) -> void')
 def render_quad(x, y, w, h):

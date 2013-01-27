@@ -2,11 +2,14 @@
 
 #include "Editor_visual.h"
 
+@interface Viewport ()
+{
+    void *VISUAL_ENV;
+    float viewX, viewY;
+}
+@end
+
 @implementation Viewport
-
-static float viewX = 0, viewY = 0;
-
-static void* VISUAL_ENV = NULL;
 
 - (void)prepareOpenGL
 {
@@ -65,6 +68,10 @@ static void* VISUAL_ENV = NULL;
     viewY -= dy;
     set_view_pos(viewX, viewY, VISUAL_ENV);
     self.needsDisplay = YES;
+}
+
+- (void)dealloc {
+    cleanup_editor(VISUAL_ENV);
 }
 
 @end

@@ -702,8 +702,11 @@ def flatten_expr(expr, optVar):
         set_orig(pop, expr)
         push_newbody(pop)
         return ret
-    elif m('MakeCtx(_, init)'): # TEMP
+    elif m('CreateCtx(_, init)'): # TEMP
         expr.init = spill_lower(m.init)
+        return ImpureExpr(expr)
+    elif m('DestroyCtx(_, ctx)'):
+        expr.ctx = spill_lower(m.ctx)
         return ImpureExpr(expr)
 
     elif m('GetExtrinsic(_, e) or HasExtrinsic(_, e)'):
