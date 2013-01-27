@@ -36,6 +36,8 @@
 		966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D3C16A95B4A00183D97 /* FlickDynamics.m */; };
 		96A30DD216B4206900362A19 /* runtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0E16B09428002A0430 /* runtime.c */; };
 		96A30DD316B4206C00362A19 /* z.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0916B093D6002A0430 /* z.c */; };
+		96CDE06C16B4B9F5001524BC /* icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 96CDE06B16B4B9F5001524BC /* icon.png */; };
+		96CDE06F16B4BA40001524BC /* icon@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 96CDE06E16B4BA40001524BC /* icon@2x.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +82,8 @@
 		966D3D3B16A95B4900183D97 /* FlickDynamics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlickDynamics.h; sourceTree = "<group>"; };
 		966D3D3C16A95B4A00183D97 /* FlickDynamics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FlickDynamics.m; sourceTree = "<group>"; };
 		96A30DCD16B4203900362A19 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = arm/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96CDE06B16B4B9F5001524BC /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = icon.png; path = ../icon.png; sourceTree = "<group>"; };
+		96CDE06E16B4BA40001524BC /* icon@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "icon@2x.png"; path = "../icon@2x.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -219,6 +223,8 @@
 				966D3D1B16A9503B00183D97 /* Default.png */,
 				966D3D1D16A9503B00183D97 /* Default@2x.png */,
 				966D3D1F16A9503B00183D97 /* Default-568h@2x.png */,
+				96CDE06B16B4B9F5001524BC /* icon.png */,
+				96CDE06E16B4BA40001524BC /* icon@2x.png */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -305,6 +311,8 @@
 				966D3D1C16A9503B00183D97 /* Default.png in Resources */,
 				966D3D1E16A9503B00183D97 /* Default@2x.png in Resources */,
 				966D3D2016A9503B00183D97 /* Default-568h@2x.png in Resources */,
+				96CDE06C16B4B9F5001524BC /* icon.png in Resources */,
+				96CDE06F16B4BA40001524BC /* icon@2x.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
