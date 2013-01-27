@@ -14,9 +14,12 @@
 		50A1041F15B9F1490075EE0E /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 50A1041D15B9F1490075EE0E /* MainMenu.xib */; };
 		50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1042515B9F15F0075EE0E /* OpenGL.framework */; };
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
-		96103DBF16B0937F002A0430 /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103DBD16B0937F002A0430 /* Editor_visual.ll.o */; };
-		96103E0C16B09400002A0430 /* gc_runtime.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103E0A16B09400002A0430 /* gc_runtime.o */; };
-		96103E0D16B09400002A0430 /* z.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96103E0B16B09400002A0430 /* z.o */; };
+		9641AA8D16B4B4E800414ECB /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8B16B4B4E800414ECB /* bedrock.ll.o */; };
+		9641AA8E16B4B4E800414ECB /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */; };
+		9641AA8F16B4B4F200414ECB /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8B16B4B4E800414ECB /* bedrock.ll.o */; };
+		9641AA9016B4B4F300414ECB /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */; };
+		9641AA9116B4B50C00414ECB /* runtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0E16B09428002A0430 /* runtime.c */; };
+		9641AA9216B4B50E00414ECB /* z.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0916B093D6002A0430 /* z.c */; };
 		966D3D0616A9503B00183D97 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0516A9503B00183D97 /* UIKit.framework */; };
 		966D3D0816A9503B00183D97 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0716A9503B00183D97 /* Foundation.framework */; };
 		966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D0916A9503B00183D97 /* CoreGraphics.framework */; };
@@ -31,8 +34,6 @@
 		966D3D2716A9503B00183D97 /* EditorViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D2616A9503B00183D97 /* EditorViewController.m */; };
 		966D3D3016A9505A00183D97 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 966D3D2F16A9505A00183D97 /* QuartzCore.framework */; };
 		966D3D3D16A95B4A00183D97 /* FlickDynamics.m in Sources */ = {isa = PBXBuildFile; fileRef = 966D3D3C16A95B4A00183D97 /* FlickDynamics.m */; };
-		96A30DCF16B4203900362A19 /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96A30DCC16B4203900362A19 /* bedrock.ll.o */; };
-		96A30DD016B4203900362A19 /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 96A30DCE16B4203900362A19 /* Editor_visual.ll.o */; };
 		96A30DD216B4206900362A19 /* runtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0E16B09428002A0430 /* runtime.c */; };
 		96A30DD316B4206C00362A19 /* z.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0916B093D6002A0430 /* z.c */; };
 /* End PBXBuildFile section */
@@ -54,11 +55,10 @@
 		50A1042C15B9F2050075EE0E /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
 		96103DBC16B0937F002A0430 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = x86/Editor_visual.h; sourceTree = SOURCE_ROOT; };
-		96103DBD16B0937F002A0430 /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = x86/Editor_visual.ll.o; sourceTree = SOURCE_ROOT; };
-		96103E0916B093D6002A0430 /* z.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../../z.c; sourceTree = "<group>"; };
-		96103E0A16B09400002A0430 /* gc_runtime.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = gc_runtime.o; path = ../../ir/gc_runtime.o; sourceTree = "<group>"; };
-		96103E0B16B09400002A0430 /* z.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = z.o; path = ../../ir/z.o; sourceTree = "<group>"; };
-		96103E0E16B09428002A0430 /* runtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = runtime.c; path = ../../gc/runtime.c; sourceTree = "<group>"; };
+		96103E0916B093D6002A0430 /* z.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../z.c; sourceTree = "<group>"; };
+		96103E0E16B09428002A0430 /* runtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = runtime.c; path = ../gc/runtime.c; sourceTree = "<group>"; };
+		9641AA8B16B4B4E800414ECB /* bedrock.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = bedrock.ll.o; path = obj/bedrock.ll.o; sourceTree = "<group>"; };
+		9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = obj/Editor_visual.ll.o; sourceTree = "<group>"; };
 		966D3D0316A9503B00183D97 /* Skylark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Skylark.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		966D3D0516A9503B00183D97 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
 		966D3D0716A9503B00183D97 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -79,9 +79,7 @@
 		966D3D2F16A9505A00183D97 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.0.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
 		966D3D3B16A95B4900183D97 /* FlickDynamics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlickDynamics.h; sourceTree = "<group>"; };
 		966D3D3C16A95B4A00183D97 /* FlickDynamics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FlickDynamics.m; sourceTree = "<group>"; };
-		96A30DCC16B4203900362A19 /* bedrock.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = bedrock.ll.o; path = arm/bedrock.ll.o; sourceTree = SOURCE_ROOT; };
 		96A30DCD16B4203900362A19 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = arm/Editor_visual.h; sourceTree = SOURCE_ROOT; };
-		96A30DCE16B4203900362A19 /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = arm/Editor_visual.ll.o; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,9 +89,8 @@
 			files = (
 				50A1040915B9F1490075EE0E /* Cocoa.framework in Frameworks */,
 				50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */,
-				96103DBF16B0937F002A0430 /* Editor_visual.ll.o in Frameworks */,
-				96103E0C16B09400002A0430 /* gc_runtime.o in Frameworks */,
-				96103E0D16B09400002A0430 /* z.o in Frameworks */,
+				9641AA8D16B4B4E800414ECB /* bedrock.ll.o in Frameworks */,
+				9641AA8E16B4B4E800414ECB /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,8 +104,8 @@
 				966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */,
 				966D3D0C16A9503B00183D97 /* GLKit.framework in Frameworks */,
 				966D3D0E16A9503B00183D97 /* OpenGLES.framework in Frameworks */,
-				96A30DCF16B4203900362A19 /* bedrock.ll.o in Frameworks */,
-				96A30DD016B4203900362A19 /* Editor_visual.ll.o in Frameworks */,
+				9641AA8F16B4B4F200414ECB /* bedrock.ll.o in Frameworks */,
+				9641AA9016B4B4F300414ECB /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +115,7 @@
 		50A103F915B9F1480075EE0E = {
 			isa = PBXGroup;
 			children = (
+				9641AA8916B4B4CB00414ECB /* External */,
 				50A1040E15B9F1490075EE0E /* OSX */,
 				966D3D0F16A9503B00183D97 /* Skylark */,
 				50A1040715B9F1490075EE0E /* Frameworks */,
@@ -168,9 +166,6 @@
 				50A1042C15B9F2050075EE0E /* Viewport.h */,
 				50A1042D15B9F2050075EE0E /* Viewport.m */,
 				96103DBC16B0937F002A0430 /* Editor_visual.h */,
-				96103DBD16B0937F002A0430 /* Editor_visual.ll.o */,
-				96103E0A16B09400002A0430 /* gc_runtime.o */,
-				96103E0B16B09400002A0430 /* z.o */,
 				50A1040F15B9F1490075EE0E /* Supporting Files */,
 			);
 			path = OSX;
@@ -188,6 +183,17 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
+		9641AA8916B4B4CB00414ECB /* External */ = {
+			isa = PBXGroup;
+			children = (
+				9641AA8B16B4B4E800414ECB /* bedrock.ll.o */,
+				9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */,
+				96103E0E16B09428002A0430 /* runtime.c */,
+				96103E0916B093D6002A0430 /* z.c */,
+			);
+			name = External;
+			sourceTree = "<group>";
+		};
 		966D3D0F16A9503B00183D97 /* Skylark */ = {
 			isa = PBXGroup;
 			children = (
@@ -197,11 +203,7 @@
 				966D3D2616A9503B00183D97 /* EditorViewController.m */,
 				966D3D3B16A95B4900183D97 /* FlickDynamics.h */,
 				966D3D3C16A95B4A00183D97 /* FlickDynamics.m */,
-				96A30DCC16B4203900362A19 /* bedrock.ll.o */,
 				96A30DCD16B4203900362A19 /* Editor_visual.h */,
-				96A30DCE16B4203900362A19 /* Editor_visual.ll.o */,
-				96103E0E16B09428002A0430 /* runtime.c */,
-				96103E0916B093D6002A0430 /* z.c */,
 				966D3D1016A9503B00183D97 /* Supporting Files */,
 			);
 			path = Skylark;
@@ -316,6 +318,8 @@
 				50A1041515B9F1490075EE0E /* main.m in Sources */,
 				50A1041C15B9F1490075EE0E /* AppDelegate.m in Sources */,
 				50A1042E15B9F2050075EE0E /* Viewport.m in Sources */,
+				9641AA9116B4B50C00414ECB /* runtime.c in Sources */,
+				9641AA9216B4B50E00414ECB /* z.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
