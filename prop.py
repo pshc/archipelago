@@ -72,20 +72,25 @@ def inst_tvar(tv):
             inst.metas[tv] = meta = fresh_from(tv)
         return meta
 
-def inst_tdata(dt, ts):
-    assert len(ts) == len(dt.tvars)
-    return C.TData(dt, map(_inst_type, ts))
-
 def _inst_type(s):
-    return match(s,
-        ('TVar(tv)', inst_tvar),
-        ('TPrim(p)', C.TPrim),
-        ('TTuple(ts)', lambda ts: C.TTuple(map(_inst_type, ts))),
-        ('TFunc(ps, r, meta)', lambda ps, r, meta:
-                C.TFunc(map(_inst_type, ps), _inst_result(r), copy_meta(meta))),
-        ('TData(dt, ts)', inst_tdata),
-        ('TArray(t, kind)', lambda t, kind: C.TArray(_inst_type(t), kind)),
-        ('TWeak(t)', lambda t: C.TWeak(_inst_type(t))))
+    m = match(s)
+    if m("TPrim(p)"):
+        return C.TPrim(m.p)
+    elif m("TVar(tv)"):
+        return inst_tvar(m.tv)
+    elif m("TTuple(ts)"):
+        return C.TTuple(map(_inst_type, m.ts))
+    elif m("TFunc(ps, r, meta)"):
+        return C.TFunc(map(_inst_type, m.ps), _inst_result(m.r),
+                copy_meta(m.meta))
+    elif m("TData(dt, ts)"):
+        assert len(m.ts) == len(m.dt.tvars)
+        return C.TData(m.dt, map(_inst_type, m.ts))
+    elif m("TArray(t, kind)"):
+        return C.TArray(_inst_type(m.t), m.kind)
+    elif m("TWeak(t)"):
+        return C.TWeak(_inst_type(m.t))
+    assert False
 
 def _inst_result(r):
     return match(r, ('Ret(t)', lambda t: Ret(_inst_type(t))),
