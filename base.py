@@ -837,34 +837,37 @@ def annot(t):
 
 named_match_dispatch = {}
 
+def _match_try_ctor(atom, ast):
+    ctor, args = ast['ctor'], ast['args']
+    if ctor in CTORS:
+        candidates = CTORS[ctor]
+        for dt in candidates:
+            if atom.__class__ is dt:
+                break
+        else:
+            return None
+        slots = dt.__slots__
+        n = len(slots) - 1
+        assert len(args) == n, "Ctor %s takes %d args: %s (%d given)" % (
+                    ctor, n, ', '.join(slots[:n]), len(args))
+        # Found a matching constructor; now match its args recursively
+        # Unlike the main match loop, if any fail here everything fails
+        ctor_args = []
+        for attrNm, arg in orig_zip(slots, args):
+            sub_args = match_try(getattr(atom, attrNm), arg)
+            if sub_args is None:
+                return None
+            ctor_args += sub_args
+        return ctor_args
+    named_matcher = named_match_dispatch.get(ctor)
+    if named_matcher is not None:
+        return named_matcher(atom, args)
+    assert False, "Unknown match: %s(%s)" % (ctor, args)
+
 def match_try(atom, ast):
     t = ast['t']
     if t == 'ctor':
-        ctor, args = ast['ctor'], ast['args']
-        if ctor in CTORS:
-            candidates = CTORS[ctor]
-            for dt in candidates:
-                if atom.__class__ is dt:
-                    break
-            else:
-                return None
-            slots = dt.__slots__
-            n = len(slots) - 1
-            assert len(args) == n, "Ctor %s takes %d args: %s (%d given)" % (
-                        ctor, n, ', '.join(slots[:n]), len(args))
-            # Found a matching constructor; now match its args recursively
-            # Unlike the main match loop, if any fail here everything fails
-            ctor_args = []
-            for attrNm, arg in orig_zip(slots, args):
-                sub_args = match_try(getattr(atom, attrNm), arg)
-                if sub_args is None:
-                    return None
-                ctor_args += sub_args
-            return ctor_args
-        named_matcher = named_match_dispatch.get(ctor)
-        if named_matcher is not None:
-            return named_matcher(atom, args)
-        assert False, "Unknown match: %s(%s)" % (ctor, args)
+        return _match_try_ctor(atom, ast)
     elif t == 'name':
         name = ast['name']
         if name == 'True':
