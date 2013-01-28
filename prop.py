@@ -111,10 +111,6 @@ def ctype(t):
 def ctype_replaced(t, substs):
     return in_env(SUBST, substs, lambda: _inst_type(t))
 
-def gen_tdata(dt, ats):
-    assert len(ats) == len(dt.tvars)
-    return TData(dt, [_gen_type(at) for at in ats])
-
 def capture_free(f):
     tvar = TypeVar()
     add_extrinsic(Name, tvar, 'free')
@@ -125,24 +121,37 @@ def capture_free(f):
     extrinsic(TypeVars, top).append(tvar)
     return TVar(tvar)
 
-def free_monotype():
-    assert False, with_context("Can't infer param type", "monotypes only")
-
 def _gen_type(s):
-    return match(s,
-        ('TVar(tv)', TVar),
-        ('TPrim(p)', TPrim),
-        ('TTuple(ts)', lambda ts: TTuple(map(_gen_type, ts))),
-        ('TFunc(ps, r, meta)', lambda ps, r, meta:
-                TFunc(map(_gen_type, ps), _gen_result(r), copy_meta(meta))),
-        ('TData(dt, ts)', gen_tdata),
-        ('TArray(t, kind)', lambda t, kind: TArray(_gen_type(t), kind)),
-        ('TWeak(t)', lambda t: TWeak(_gen_type(t))),
-        ('CMeta(Free(Just(tvar)))', TVar),
-        ('CMeta(f==Free(Nothing()))', capture_free),
-        ('CMeta(InstVar(tv))', TVar),
-        ('CMeta(Mono())', free_monotype),
-        ('CMeta(Subst(s))', _gen_type))
+    m = match(s)
+    if m('TPrim(p)'):
+        return TPrim(m.p)
+    elif m('TVar(tv)'):
+        return TVar(m.tv)
+    elif m('TTuple(ts)'):
+        return TTuple(map(_gen_type, m.ts))
+    elif m('TFunc(ps, r, meta)'):
+        return TFunc(map(_gen_type, m.ps), _gen_result(m.r), copy_meta(m.meta))
+    elif m('TData(dt, ats)'):
+        assert len(m.ats) == len(m.dt.tvars)
+        return TData(m.dt, map(_gen_type, m.ats))
+    elif m('TArray(t, kind)'):
+        return TArray(_gen_type(m.t), m.kind)
+    elif m('TWeak(t)'):
+        return TWeak(_gen_type(m.t))
+    elif m('CMeta(cell)'):
+        m = match(m.cell)
+        if m('Free(Just(tvar))'):
+            return TVar(m.tvar)
+        elif m('f==Free(Nothing())'):
+            return capture_free(m.f)
+        elif m('InstVar(tv)'):
+            return TVar(m.tv)
+        elif m('Mono()'):
+            assert False, with_context("Can't infer param type",
+                    "monotypes only")
+        elif m('Subst(s)'):
+            return _gen_type(m.s)
+    assert False
 
 def _gen_result(r):
     return match(r, ('Ret(t)', lambda t: Ret(_gen_type(t))),
