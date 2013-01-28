@@ -61,6 +61,7 @@ def load_module_dep(src, deps, plan):
     names = {}
 
     def conv_mod():
+        checkpoint()
         decl_mod, defn_mod_m = capture_extrinsic(Name, names,
             lambda: astconv.convert_file(src, name, deps))
         add_extrinsic(Filename, decl_mod, name)
@@ -70,6 +71,7 @@ def load_module_dep(src, deps, plan):
             prop.prop_module_decls(decl_mod.root)
             atom.write_mod_repr(view, decl_mod, [TypeOf])
             return decl_mod, defn_mod_m
+        profile_separator()
 
         defn_mod = fromJust(defn_mod_m)
 
@@ -82,7 +84,7 @@ def load_module_dep(src, deps, plan):
 
         prop.prop_module_decls(decl_mod.root)
         atom.write_mod_repr(view, decl_mod, [TypeOf])
-        checkpoint()
+        checkpoint('module conversion and setup')
         prop.prop_compilation_unit(defn_mod.root)
         checkpoint('propped defns')
         atom.write_mod_repr(impv, defn_mod, [TypeOf, Instantiation])
@@ -128,8 +130,8 @@ def build_mod(decl_mod, defn_mod, plan):
     atom.write_mod_repr(impv, defn_mod, [TypeOf, TypeCast])
 
     checkpoint()
-    new_decls, flat_unit = expand.expand_module(decl_mod, defn_mod)
-    checkpoint('expanded module')
+    new_decls, flat_unit = sub_profile('expanding module',
+            lambda: expand.expand_module(decl_mod, defn_mod))
     xdecl_mod = Module(t_DT(atom.ModuleDecls), new_decls)
     defn_mod = Module(t_DT(quilt.BlockUnit), flat_unit)
     add_extrinsic(Name, xdecl_mod, '%sX' % (name,))

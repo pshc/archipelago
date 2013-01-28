@@ -1157,14 +1157,39 @@ def nop():
 def cdecl(name, type):
     return None
 
-startTime = 0
+import time
+checkpointTime = 0
+profLevel = 0
 def checkpoint(desc=None):
-    import time
-    global startTime
+    if not env(GENOPTS).profile:
+        return
+    global checkpointTime
     now = time.clock()
-    if desc and env(GENOPTS).profile:
-        ms = int(round((now - startTime) * 1000))
-        print '%s%sin %dms' % (desc, ' '*(30-len(desc)), ms)
-    startTime = now
+    if desc:
+        ms = int(round((now - checkpointTime) * 1000))
+        print '%s%s%sin %4dms' % (' '*profLevel, desc, ' '*(30-len(desc)), ms)
+    checkpointTime = now
+
+def sub_profile(desc, func):
+    if not env(GENOPTS).profile:
+        return func()
+    global checkpointTime, profLevel
+    print fmtcol('^Brown{0}{1}:^N', ' '*(profLevel+1), desc)
+    subStart = checkpointTime = time.clock()
+
+    profLevel += 2
+    ret = func()
+    profLevel -= 2
+
+    checkpointTime = time.clock()
+    desc = 'done ' + desc
+    ms = int(round((checkpointTime - subStart) * 1000))
+    print fmtcol('^Brown{0}{1}{2} in {3:4d}ms^N', ' '*(profLevel+1), desc,
+            ' '*(30-len(desc)), ms)
+    return ret
+
+def profile_separator():
+    if env(GENOPTS).profile:
+        print
 
 # vi: set sw=4 ts=4 sts=4 tw=79 ai et nocindent:

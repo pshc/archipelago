@@ -690,36 +690,48 @@ def expand_decls(decls):
     _finish_decls(decls)
 
 def expand_unit(old_decl_mod, unit):
+    checkpoint()
     t = t_DT(ExpandedUnit)
 
     expand_closures(unit)
+    checkpoint('expanded closures')
 
     vat.mutate(FuncValGenerator, unit, t)
     vat.mutate(LitExpander, unit, t)
     vat.mutate(AssertionExpander, unit, t)
+    checkpoint('expanded compound exprs')
 
     gen_gc_layouts(old_decl_mod.root)
+    checkpoint('generated gc layouts')
 
     # Prepend generated TopFuncs now
     unit.funcs = env(EXGLOBAL).newDefns + unit.funcs
 
     flat = flatten.flatten_unit(unit)
     t = t_DT(BlockUnit)
+    checkpoint('flattened')
 
     drum.walk(flat)
+    checkpoint('did drum analysis')
 
     _prepare_decls(env(EXGLOBAL).newDecls)
 
     vat.mutate(TypeConverter, flat, t)
+    checkpoint('convert to itypes')
     vat.mutate(MaybeConverter, flat, t)
+    checkpoint('expanded maybes')
     vat.mutate(EnvExtrConverter, flat, t)
+    checkpoint('expanded envs and extrs')
 
     replace_ctors(old_decl_mod.root, flat)
 
     _finish_decls(env(EXGLOBAL).newDecls)
+    checkpoint('expanded ctors and types')
 
     vat.visit(ImportMarker, flat, t)
+    checkpoint('marked imports')
     vat.visit(LocalVarUniquer, flat, t)
+    checkpoint('uniqued vars')
     return flat
 
 def in_intramodule_env(func):
@@ -748,6 +760,7 @@ def expand_module(decl_mod, defn_mod):
     expand_decls(decl_mod.root)
     new_decls = blank_module_decls()
 
+    checkpoint()
     # Clone defns as mutable defns-using-LExprs
     def transmute():
         mapping = {
@@ -756,7 +769,9 @@ def expand_module(decl_mod, defn_mod):
         }
         extrs = [Name, TypeOf, TypeCast, ResultOf]
         unit = vat.transmute(defn_mod.root, mapping, extrs)
+        checkpoint('transmuted unit')
         vat.rewrite(unit)
+        checkpoint('rewrote unit refs')
         return unit
     new_unit = vat.in_vat(transmute)
 
