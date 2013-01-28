@@ -2,15 +2,15 @@ TESTS := $(wildcard tests/*.py)
 TEST_TARGETS := $(TESTS:tests/%.py=%)
 DIRS = bin ir mods opt views
 OPTS = --color
-CODEGEN = ./construct.py $(OPTS)
+CODEGEN = time ./construct.py $(OPTS)
 CC = cc
 CFLAGS = -g -std=c99 -pedantic -W -Wall -Werror -fstrict-aliasing
 
 ifdef DEBUG
-  CODEGEN = ipdb construct.py $(OPTS)
+  CODEGEN = time ipdb construct.py $(OPTS)
 endif
 ifdef PROFILE
-  CODEGEN = python -m cProfile -s time construct.py $(OPTS)
+  CODEGEN = time python -m cProfile -s time construct.py $(OPTS)
 endif
 ifdef VIEW
   OPTS := --views $(OPTS)
@@ -18,13 +18,13 @@ endif
 
 all: test
 
-debug: CODEGEN = ipdb construct.py $(OPTS)
+debug: CODEGEN = time ipdb construct.py $(OPTS)
 debug: remake_tests
 
 editor:
 	@$(MAKE) -C Editor
 
-profile: CODEGEN = python -m cProfile -s time construct.py $(OPTS)
+profile: CODEGEN = time python -m cProfile -s time construct.py $(OPTS)
 profile: remake_tests
 
 setup: $(DIRS) ir/Makefile gc/bluefin.so
