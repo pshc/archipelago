@@ -290,39 +290,36 @@ def set_var_ctype(v, ct):
         env(PROPSCOPE).localVars[v] = ct
     add_extrinsic(PendingType, v, ct)
 
-def pat_tuple(ps):
-    ts = match(env(INPAT), "TTuple(ps)")
-    for p, t in ezip(ps, ts):
-        in_env(INPAT, t, lambda: _prop_pat(p))
-
-def pat_var(v):
-    set_var_ctype(v, env(INPAT))
-
-def pat_capture(v, p):
-    pat_var(v)
-    _prop_pat(p)
-
-def pat_ctor(ref, ctor, args):
-    ctorT = instantiate_type(ref, extrinsic(TypeOf, ctor))
-    fieldTs, dt = match(ctorT, ("TFunc(fs, Ret(dt), _)", tuple2))
-    unify_m(dt)
-    for arg, fieldT in ezip(args, fieldTs):
-        in_env(INPAT, fieldT, lambda: _prop_pat(arg))
-
 def prop_pat(t, p):
     # bad type, meh
     in_env(EXPRCTXT, p, lambda: in_env(INPAT, t, lambda: _prop_pat(p)))
 
-def _prop_pat(p):
-    match(p,
-        ("PatInt(_)", lambda: unify_m(CInt())),
-        ("PatStr(_)", lambda: unify_m(CStr())),
-        ("PatWild()", nop),
-        ("PatTuple(ps)", pat_tuple),
-        ("PatVar(v)", pat_var),
-        ("PatCapture(v, p)", pat_capture),
-        ("p==PatCtor(c, args)", pat_ctor))
-    add_extrinsic(PendingType, p, env(INPAT))
+def _prop_pat(pat):
+    m = match(pat)
+    if m("PatInt(_)"):
+        unify_m(CInt())
+    elif m("PatStr(_)"):
+        unify_m(CStr())
+    elif m("PatWild()"):
+        pass
+    elif m("PatTuple(ps)"):
+        ts = match(env(INPAT), "TTuple(ps)")
+        for p, t in ezip(m.ps, ts):
+            in_env(INPAT, t, lambda: _prop_pat(p))
+    elif m("PatVar(v)"):
+        set_var_ctype(m.v, env(INPAT))
+    elif m("PatCapture(v, p)"):
+        pat_var(m.v)
+        _prop_pat(m.p)
+    elif m("PatCtor(ctor, args)"):
+        ctorT = instantiate_type(pat, extrinsic(TypeOf, m.ctor))
+        fieldTs, dt = match(ctorT, ("TFunc(fs, Ret(dt), _)", tuple2))
+        unify_m(dt)
+        for arg, fieldT in ezip(m.args, fieldTs):
+            in_env(INPAT, fieldT, lambda: _prop_pat(arg))
+    else:
+        assert False
+    add_extrinsic(PendingType, pat, env(INPAT))
 
 def prop_bind(b, target):
     m = match(Bindable.asLocalVar(target))

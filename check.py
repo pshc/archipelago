@@ -68,18 +68,6 @@ def typecheck(src, dest):
 def check(dest):
     typecheck(env(CHECK), dest)
 
-def pat_tuple(ps):
-    ts = match(env(CHECK), "TTuple(ps)")
-    for p, t in ezip(ps, ts):
-        in_env(CHECK, t, lambda: _check_pat(p))
-
-def pat_var(v):
-    check(extrinsic(TypeOf, v))
-
-def pat_capture(v, p):
-    pat_var(v)
-    _check_pat(p)
-
 def pat_ctor(pat, ctor, args):
     ctorT = extrinsic(TypeOf, ctor)
     fieldTs, dt = match(ctorT, ("TFunc(fs, Ret(dt), _)", tuple2))
@@ -97,15 +85,27 @@ def pat_ctor(pat, ctor, args):
         for arg, fieldT in ezip(args, fieldTs):
             in_env(CHECK, fieldT, lambda: _check_pat(arg))
 
-def _check_pat(p):
-    match(p,
-        ("PatInt(_)", lambda: check(TInt())),
-        ("PatStr(_)", lambda: check(TStr())),
-        ("PatWild()", nop),
-        ("PatTuple(ps)", pat_tuple),
-        ("PatVar(v)", pat_var),
-        ("PatCapture(v, p)", pat_capture),
-        ("pat==PatCtor(c, args)", pat_ctor))
+def _check_pat(pat):
+    m = match(pat)
+    if m("PatInt(_)"):
+        check(TInt())
+    elif m("PatStr(_)"):
+        check(TStr())
+    elif m("PatWild()"):
+        pass
+    elif m("PatTuple(ps)"):
+        ts = match(env(CHECK), "TTuple(ps)")
+        for p, t in ezip(m.ps, ts):
+            in_env(CHECK, t, lambda: _check_pat(p))
+    elif m("PatVar(v)"):
+        check(extrinsic(TypeOf, m.v))
+    elif m("PatCapture(v, p)"):
+        pat_var(m.v)
+        _check_pat(m.p)
+    elif m("PatCtor(ctor, args)"):
+        pat_ctor(pat, m.ctor, m.args)
+    else:
+        assert False
 
 def check_pat_as(t, p):
     # bad type, meh
