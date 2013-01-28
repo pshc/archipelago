@@ -1150,9 +1150,8 @@ def write_ir(decl_mod, xdecl_mod, defn_mod, filename):
                 write_top_decls_post_impl(decl.root)
         in_env(DECLSONLY, False, go2)
 
-    in_env(IR, file(filename, 'wb'), # really ought to close explicitly
-        lambda: scope_extrinsic(LiteralSize,
-        go))
+    with file(filename, 'wb') as f:
+        in_env(IR, f, lambda: scope_extrinsic(LiteralSize, go))
 
     add_extrinsic(LLFile, decl_mod, filename)
 
