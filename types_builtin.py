@@ -157,7 +157,9 @@ _inject_type_reprs()
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
     m = match(t)
-    if m('TVar(_)'):
+    if m('TPrim(_)'):
+        return t
+    elif m('TVar(_)'):
         return f(t)
     elif m('TData(dt, ts)'):
         return TData(m.dt, [map_type_vars(f, t) for t in m.ts])
@@ -180,13 +182,15 @@ def map_type_vars(f, t):
     elif m('TWeak(t)'):
         return TWeak(map_type_vars(f, m.t))
     else:
-        return t
+        assert False
 
 def visit_type_vars(f, t):
     visit = lambda t: visit_type_vars(f, t)
     visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
     m = match(t)
-    if m('TVar(tv)'):
+    if m('TPrim(_)'):
+        return True
+    elif m('TVar(tv)'):
         return f(m.tv)
     elif m('TData(_, ts) or TCtor(_, ts)'):
         return visit_many(m.ts)
@@ -201,7 +205,7 @@ def visit_type_vars(f, t):
     elif m('TWeak(t)'):
         return visit(m.t)
     else:
-        return True
+        assert False
 
 def occurs(typeVar, t):
     return not visit_type_vars(lambda tv: tv is not typeVar, t)
