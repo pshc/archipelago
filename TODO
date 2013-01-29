@@ -1,8 +1,11 @@
-- annotate lifetime info
-- also infer lifetime info?
-- codegen destructors
-- codegen memory management
-
+Drum
+- proper flow analysis
+- unique types
+- destructor insertion
+GC
+- traverse env roots
+- root registration
+- custom heap
 Prop
 - pure/side-effectful divide
 - figure out extrinsic types
@@ -10,9 +13,9 @@ Prop
 Expand
 - closure to env conversion
 - global symbol clash resolution
+- destructor codegen
 AST
 - block inenv format?
-ui
-- take valueTypes into account for atom indices
 vat
 - deep-replacement transmutation
+  - figure out type repr
