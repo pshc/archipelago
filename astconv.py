@@ -165,20 +165,21 @@ def conv_exprs(elist):
     return map(conv_expr, elist)
 
 def conv_type(t, tvars, dt=None):
-    def unknown():
+    m = match(t)
+    if m("DataType(_, _, _)"):
+        return vanilla_tdata(t)
+    elif m("Builtin(_) or TPrim(_)"):
+        return t
+    elif m("Lit(StrLit(s))"):
+        return parse_new_type(m.s, tvars)
+    elif m("ListLit([t])"):
+        return TArray(conv_type(m.t, tvars, dt))
+    else:
         assert isinstance(getattr(t, 'refAtom', None), basestring
                 ), 'Unknown type: %s %r' % (type(t), t)
         type_nm = t.refAtom
         destroy_forward_ref(t)
         return type_ref(type_nm)
-    return match(t,
-        ("t==DataType(_, _, _)", vanilla_tdata),
-        ("Builtin(_)", lambda: t),
-        ("TPrim(_)", lambda: t),
-        ("Lit(StrLit(s))", lambda s: parse_new_type(s, tvars)),
-        ("ListLit([t])",
-            lambda t: TArray(conv_type(t, tvars, dt))),
-        ("_", unknown))
 
 # EXPRESSIONS
 
