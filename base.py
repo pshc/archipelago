@@ -9,7 +9,7 @@ def ezip(first, second):
 
 SUPERS = {}
 DATATYPES = {}
-CTORS = {}
+CTORS = {} # :: {type: str}
 
 class Structured(object):
     pass
@@ -31,7 +31,7 @@ def _make_ctor(name, members, superclass):
     ctor = type(name, (superclass,), attrs)
     SUPERS[ctor] = superclass
     superclass.ctors.append(ctor)
-    CTORS.setdefault(name, []).append(ctor)
+    CTORS[ctor] = name
     return ctor
 
 def DT(*members, **opts):
@@ -81,7 +81,8 @@ def ADT(*ctors, **opts):
 
             ctor_nm = ctor.__name__
             d = setup_ctor(ctor_nm, members)
-            CTORS['%s.%s' % (tname, ctor_nm)] = [d]
+            key = '%s.%s' % (tname, ctor_nm)
+            CTORS[d] = ctor_nm #key
             ctor_ix += 1
             setattr(shortcut, ctor_nm, d)
 
@@ -318,9 +319,8 @@ def _dt_form(dt, tvs):
     return form
 
 def _restore_forms():
-    for ctors in CTORS.itervalues():
-        assert len(ctors) == 1 # should be no overloads as of yet
-        _dt_form(DATATYPES[ctors[0].__name__], None)
+    for ctorName in CTORS.itervalues():
+        _dt_form(DATATYPES[ctorName], None)
 _restore_forms()
 
 # Type representations
@@ -838,14 +838,10 @@ def annot(t):
 named_match_dispatch = {}
 
 def _match_try_ctor(atom, ast):
-    ctor, args = ast['ctor'], ast['args']
-    if ctor in CTORS:
-        candidates = CTORS[ctor]
-        for dt in candidates:
-            if atom.__class__ is dt:
-                break
-        else:
-            return None
+    reqCtor, args = ast['ctor'], ast['args']
+    dt = atom.__class__
+    foundCtor = CTORS.get(dt)
+    if foundCtor is not None and foundCtor == reqCtor:
         slots = dt.__slots__
         n = len(slots) - 1
         assert len(args) == n, "Ctor %s takes %d args: %s (%d given)" % (
@@ -859,10 +855,12 @@ def _match_try_ctor(atom, ast):
                 return None
             ctor_args += sub_args
         return ctor_args
-    named_matcher = named_match_dispatch.get(ctor)
+
+    named_matcher = named_match_dispatch.get(reqCtor)
     if named_matcher is not None:
         return named_matcher(atom, args)
-    assert False, "Unknown match: %s(%s)" % (ctor, args)
+
+    return None
 
 def match_try(atom, ast):
     t = ast['t']
