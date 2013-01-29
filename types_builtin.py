@@ -156,31 +156,32 @@ _inject_type_reprs()
 
 def map_type_vars(f, t):
     """Applies f to every typevar in the given type."""
-    m = match(t)
-    if m('TPrim(_)'):
+    # critical function
+    cls = t.__class__
+    if cls is TPrim:
         return t
-    elif m('TVar(_)'):
+    elif cls is TVar:
         return f(t)
-    elif m('TData(dt, ts)'):
-        return TData(m.dt, [map_type_vars(f, t) for t in m.ts])
-    elif m('TCtor(ctor, ts)'):
-        return TCtor(m.ctor, [map_type_vars(f, t) for t in m.ts])
-    elif m('TFunc(ps, res, meta)'):
-        ps = [map_type_vars(f, p) for p in m.ps]
-        m2 = match(m.res)
-        if m2('Ret(t)'):
-            m2.ret(Ret(map_type_vars(f, m2.t)))
-        elif m2('Void()'):
-            m2.ret(Void())
-        elif m2('Bottom()'):
-            m2.ret(Bottom())
-        return TFunc(ps, m2.result(), copy_meta(m.meta))
-    elif m('TTuple(ts)'):
-        return TTuple([map_type_vars(f, t) for t in m.ts])
-    elif m('TArray(t, kind)'):
-        return TArray(map_type_vars(f, m.t), m.kind)
-    elif m('TWeak(t)'):
-        return TWeak(map_type_vars(f, m.t))
+    elif cls is TData:
+        return TData(t.data, [map_type_vars(f, a) for a in t.appTypes])
+    elif cls is TCtor:
+        return TCtor(m.ctor, [map_type_vars(f, a) for a in t.appTypes])
+    elif cls is TFunc:
+        ps = [map_type_vars(f, p) for p in t.paramTypes]
+        m = match(t.result)
+        if m('Ret(t)'):
+            m.ret(Ret(map_type_vars(f, m.t)))
+        elif m('Void()'):
+            m.ret(Void())
+        elif m('Bottom()'):
+            m.ret(Bottom())
+        return TFunc(ps, m.result(), copy_meta(t.meta))
+    elif cls is TTuple:
+        return TTuple([map_type_vars(f, tt) for tt in t.tupleTypes])
+    elif cls is TArray:
+        return TArray(map_type_vars(f, t.elemType), t.arrayKind)
+    elif cls is TWeak:
+        return TWeak(map_type_vars(f, t.refType))
     else:
         assert False
 
