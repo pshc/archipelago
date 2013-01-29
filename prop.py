@@ -226,7 +226,7 @@ def try_unite(src, dest):
     fail = lambda m: unification_failure(src, dest, m)
 
     m = match((src, dest))
-    if m('CMeta(Subst(s), CMeta(Subst(d)))'):
+    if m('(CMeta(Subst(s)), CMeta(Subst(d)))'):
         try_unite(m.s, m.d)
 
         # two free vars
