@@ -71,29 +71,24 @@ def clone_structured(src, apps=None):
     return o
 
 def clone_by_type(src, t):
-    m = match(t)
-    if m('TVar(tv)'):
+    cls = t.__class__
+    if cls is TVar:
         assert isinstance(Structured, src), \
                 "Can't clone unstructured %r without type info" % (src,)
         return clone_structured(src)
-    elif m('TPrim(_)'):
+    elif cls in (TPrim, TFunc, TWeak):
         return src
-    elif m('TTuple(tts)'):
+    elif cls is TTuple:
         assert isinstance(src, tuple)
-        return tuple(clone_by_type(v, tt) for v, tt in ezip(src, m.tts))
-    elif m('TFunc(_, _, _)'):
-        return src
-    elif m('TData(data, appTs)'):
-        assert isinstance(src, extrinsic(TrueRepresentation, m.data)), \
-                "Expected %s, got: %r" % (m.data, obj)
-        apps = m.appTs and app_map(m.data, m.appTs)
+        return tuple(clone_by_type(v, tt) for v, tt in ezip(src, t.tupleTypes))
+    elif cls is TData:
+        assert isinstance(src, extrinsic(TrueRepresentation, t.data)), \
+                "Expected %s, got: %r" % (t.data, obj)
+        apps = t.appTypes and app_map(t.data, t.appTypes)
         return clone_structured(src, apps)
-    elif m('TArray(et, _)'):
-        et = m.et
+    elif cls is TArray:
         assert isinstance(src, list)
-        return [clone_by_type(s, et) for s in src]
-    elif m('TWeak(_)'):
-        return src
+        return [clone_by_type(s, t.elemType) for s in src]
     else:
         assert False, "Bad type to clone: %r" % (t,)
 
@@ -112,24 +107,22 @@ def rewrite(obj):
     return rewrite_by_type(obj, t_DT(type(obj)))
 
 def rewrite_by_type(obj, t):
-    m = match(t)
-    if m('TVar(tv)'):
+    cls = t.__class__
+    if cls is TVar:
         assert isinstance(Structured, obj), \
                 "Can't rewrite unstructured %r without type info" % (obj,)
         rewrite_by_type(obj, t_DT(type(obj)))
-    elif m('TPrim(_)'):
+    elif cls in (TPrim, TFunc):
         pass
-    elif m('TTuple(tts)'):
+    elif cls is TTuple:
         assert isinstance(obj, tuple)
-        for v, tt in ezip(obj, m.tts):
+        for v, tt in ezip(obj, t.tupleTypes):
             assert not isinstance(tt, TWeak), "TODO"
             rewrite_by_type(v, tt)
-    elif m('TFunc(_, _, _)'):
-        pass
-    elif m('TData(data, appTs)'):
-        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
-                "Expected %s, found %s %s" % (m.data, type(obj), obj)
-        apps = m.appTs and app_map(m.data, m.appTs)
+    elif cls is TData:
+        assert isinstance(obj, extrinsic(TrueRepresentation, t.data)), \
+                "Expected %s, found %s %s" % (t.data, type(obj), obj)
+        apps = t.appTypes and app_map(t.data, t.appTypes)
         ctor = instance_ctor(obj)
         repls = env(VAT).replacements
         for field in ctor.fields:
@@ -143,8 +136,8 @@ def rewrite_by_type(obj, t):
                     setattr(obj, fnm, repls[val])
             else:
                 rewrite_by_type(val, ft)
-    elif m('TArray(et, _)'):
-        et = m.et
+    elif cls is TArray:
+        et = t.elemType
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
             repls = env(VAT).replacements
@@ -154,7 +147,7 @@ def rewrite_by_type(obj, t):
         else:
             for s in obj:
                 rewrite_by_type(s, et)
-    elif m('TWeak(_)'):
+    elif cls is TWeak:
         assert False, "Shouldn't get here (should be rewritten in other cases)"
     else:
         assert False, "Bad type to rewrite: %r" % (t,)
