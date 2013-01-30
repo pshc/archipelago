@@ -1,9 +1,9 @@
-TARGETS = x86/Editor_visual.ll.o arm/Editor_visual.ll.o
+TARGETS = i386/Editor_visual.ll.o arm/Editor_visual.ll.o
 ABS_TARGETS := $(TARGETS:%=Editor/%)
 
 OBJS = obj/Editor_visual.ll.o obj/bedrock.ll.o
 
-DIRS = arm include obj x86
+DIRS = arm i386 obj
 MAKE_PARENT := $(MAKE) -C .. --no-print-directory
 
 all: gl.py $(DIRS)
@@ -16,7 +16,7 @@ debug: rebuild $(DIRS)
 profile: rebuild $(DIRS)
 	@PROFILE=true $(MAKE_PARENT) $(ABS_TARGETS)
 
-obj/%.o: arm/%.o x86/%.o
+obj/%.o: arm/%.o i386/%.o
 	@lipo -create $^ -output $@
 
 $(DIRS):

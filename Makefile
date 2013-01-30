@@ -41,8 +41,8 @@ bin/%: tests/%.py setup runtime
 $(TEST_TARGETS):
 	@$(MAKE) bin/$@
 
-Editor/x86/Editor_%.ll.o: Editor/%.py setup runtime
-	@$(CODEGEN) --c-header -o Editor/x86/ $<
+Editor/i386/Editor_%.ll.o: Editor/%.py setup runtime
+	@$(CODEGEN) --i386 --c-header -o Editor/i386/ $<
 
 Editor/arm/Editor_%.ll.o: Editor/%.py setup
 	@$(CODEGEN) --arm --c-header -o Editor/arm/ $<

@@ -56,7 +56,7 @@
 		50A1042515B9F15F0075EE0E /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		50A1042C15B9F2050075EE0E /* Viewport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Viewport.h; sourceTree = "<group>"; };
 		50A1042D15B9F2050075EE0E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Viewport.m; sourceTree = "<group>"; };
-		96103DBC16B0937F002A0430 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = x86/Editor_visual.h; sourceTree = SOURCE_ROOT; };
+		96103DBC16B0937F002A0430 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = i386/Editor_visual.h; sourceTree = SOURCE_ROOT; };
 		96103E0916B093D6002A0430 /* z.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../z.c; sourceTree = "<group>"; };
 		96103E0E16B09428002A0430 /* runtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = runtime.c; path = ../gc/runtime.c; sourceTree = "<group>"; };
 		9641AA8B16B4B4E800414ECB /* bedrock.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = bedrock.ll.o; path = obj/bedrock.ll.o; sourceTree = "<group>"; };

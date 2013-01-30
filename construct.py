@@ -358,7 +358,9 @@ def main():
             elif arg == '--test':
                 options.buildTests = True
             elif arg == '--arm':
-                arch = platform.arm_cross_compiler()
+                arch = platform.arm_iOS_target()
+            elif arg == '--i386':
+                arch = platform.i386_iOS_target()
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:
