@@ -206,17 +206,18 @@ class Visitor(object):
         return visit_by_type(obj, t, bool(path))
 
 def visit_by_type(obj, t, customVisitors=True):
-    m = match(t)
-    if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
+    cls = t.__class__
+    if cls in (TVar, TPrim, TFunc, TWeak):
         pass
-    elif m('TTuple(tts)'):
+    elif cls is TTuple:
         assert isinstance(obj, tuple)
-        for v, tt in ezip(obj, m.tts):
+        for v, tt in ezip(obj, t.tupleTypes):
             visit_by_type(v, tt)
-    elif m('TData(data, appTs)'):
-        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
-                "Expected %s, got %s %s" % (m.data, type(obj), obj)
-        apps = m.appTs and app_map(m.data, m.appTs)
+    elif cls is TData:
+        data = t.data
+        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, got %s %s" % (data, type(obj), obj)
+        apps = t.appTypes and app_map(data, t.appTypes)
         visitor = env(VISIT)
 
         ctor = extrinsic(FormSpec, type(obj))
@@ -226,7 +227,7 @@ def visit_by_type(obj, t, customVisitors=True):
         if customVisitors:
             custom = getattr(visitor, extrinsic(Name, ctor), None)
             if custom is None:
-                custom = getattr(visitor, 't_'+extrinsic(Name, m.data), None)
+                custom = getattr(visitor, 't_'+extrinsic(Name, data), None)
             if custom is not None:
                 # Scope field types for recursive visiting
                 old = visitor.obj, visitor.t, visitor.fts
@@ -241,13 +242,11 @@ def visit_by_type(obj, t, customVisitors=True):
             ft = fts[fnm]
             if not isinstance(ft, TWeak):
                 visit_by_type(getattr(obj, fnm), ft)
-    elif m('TArray(et, _)'):
+    elif cls is TArray:
         assert isinstance(obj, list)
-        if not isinstance(m.et, TWeak):
+        if not isinstance(t.elemType, TWeak):
             for o in obj:
-                visit_by_type(o, m.et)
-    elif m('TWeak(_)'):
-        pass
+                visit_by_type(o, t.elemType)
     else:
         assert False, "Bad type to visit: %r" % (t,)
 
@@ -284,16 +283,18 @@ class Mutator(object):
         return mutate_by_type(obj, t, bool(path))
 
 def mutate_by_type(obj, t, customMutators=True):
-    m = match(t)
-    if m('TVar(_) or TPrim(_) or TFunc(_, _, _)'):
+    cls = t.__class__
+    if cls in (TVar, TPrim, TFunc, TWeak):
         return obj
-    elif m('TTuple(tts)'):
+    elif cls is TTuple:
         assert isinstance(obj, tuple)
-        return tuple(rewrite_by_type(v, tt) for v, tt in ezip(obj, m.tts))
-    elif m('TData(data, appTs)'):
-        assert isinstance(obj, extrinsic(TrueRepresentation, m.data)), \
-                "Expected %s, got %r: %r" % (m.data, type(obj), obj)
-        apps = m.appTs and app_map(m.data, m.appTs)
+        return tuple(rewrite_by_type(v, tt)
+                     for v, tt in ezip(obj, t.tupleTypes))
+    elif cls is TData:
+        data = t.data
+        assert isinstance(obj, extrinsic(TrueRepresentation, data)), \
+                "Expected %s, got %r: %r" % (data, type(obj), obj)
+        apps = t.appTypes and app_map(data, t.appTypes)
         mutator = env(MUTATE)
 
         ctor = extrinsic(FormSpec, type(obj))
@@ -303,7 +304,7 @@ def mutate_by_type(obj, t, customMutators=True):
         if customMutators:
             custom = getattr(mutator, extrinsic(Name, ctor), None)
             if custom is None:
-                custom = getattr(mutator, 't_'+extrinsic(Name, m.data), None)
+                custom = getattr(mutator, 't_'+extrinsic(Name, data), None)
             if custom is not None:
                 # Scope field types for recursive mutatino
                 old = mutator.obj, mutator.t, mutator.fts
@@ -320,14 +321,12 @@ def mutate_by_type(obj, t, customMutators=True):
                 val = getattr(obj, fnm)
                 setattr(obj, fnm, mutate_by_type(val, ft))
         return obj
-    elif m('TArray(et, _)'):
-        et = m.et
+    elif cls is TArray:
+        et = t.elemType
         assert isinstance(obj, list)
         if isinstance(et, TWeak):
             return obj
         return [mutate_by_type(o, et) for o in obj]
-    elif m('TWeak(_)'):
-        return obj
     else:
         assert False, "Bad type to mutate: %r" % (t,)
 
