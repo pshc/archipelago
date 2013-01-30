@@ -185,34 +185,55 @@ def map_type_vars(f, t):
     else:
         assert False
 
-def visit_type_vars(f, t):
+def occurs(typeVar, t):
     visit = lambda t: visit_type_vars(f, t)
     visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
-    m = match(t)
-    if m('TPrim(_)'):
-        return True
-    elif m('TVar(tv)'):
-        return f(m.tv)
-    elif m('TData(_, ts) or TCtor(_, ts)'):
-        return visit_many(m.ts)
-    elif m('TFunc(ps, Ret(ret), _)'):
-        return visit_many(m.ps) and visit(m.ret)
-    elif m('TFunc(ps, Void() or Bottom(), _)'):
-        return visit_many(m.ps)
-    elif m('TTuple(ts)'):
-        return visit_many(m.ts)
-    elif m('TArray(t, _)'):
-        return visit(m.t)
-    elif m('TWeak(t)'):
-        return visit(m.t)
+    cls = t.__class__
+    if cls is TPrim:
+        return False
+    elif cls is TVar:
+        return t.typeVar is typeVar
+    elif cls is TData or cls is TCtor:
+        return any(occurs(typeVar, a) for a in t.appTypes)
+    elif cls is TFunc:
+        if any(occurs(typeVar, p) for p in t.paramTypes):
+            return True
+        if t.result.__class__ is Ret and occurs(typeVar, t.result.type):
+            return True
+        return False
+    elif cls is TTuple:
+        return any(occurs(typeVar, tt) for tt in t.tupleTypes)
+    elif cls is TArray:
+        return occurs(typeVar, t.elemType)
+    elif cls is TWeak:
+        return occurs(typeVar, t.refType)
     else:
         assert False
 
-def occurs(typeVar, t):
-    return not visit_type_vars(lambda tv: tv is not typeVar, t)
-
 def subst_affects(mapping, t):
-    return not visit_type_vars(lambda tv: tv not in mapping, t)
+    visit = lambda t: visit_type_vars(f, t)
+    visit_many = lambda ts: all(visit_type_vars(f, t) for t in ts)
+    cls = t.__class__
+    if cls is TPrim:
+        return False
+    elif cls is TVar:
+        return t.typeVar in mapping
+    elif cls is TData or cls is TCtor:
+        return any(subst_affects(mapping, a) for a in t.appTypes)
+    elif cls is TFunc:
+        if any(subst_affects(mapping, p) for p in t.paramTypes):
+            return True
+        if t.result.__class__ is Ret and subst_affects(mapping, t.result.type):
+            return True
+        return False
+    elif cls is TTuple:
+        return any(subst_affects(mapping, tt) for tt in t.tupleTypes)
+    elif cls is TArray:
+        return subst_affects(mapping, t.elemType)
+    elif cls is TWeak:
+        return subst_affects(mapping, t.refType)
+    else:
+        assert False
 
 def app_map(data, appTs):
     apps = {}
