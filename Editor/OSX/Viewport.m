@@ -2,13 +2,6 @@
 
 #include "Editor_visual.h"
 
-@interface Viewport ()
-{
-    void *VISUAL_ENV;
-    float viewX, viewY;
-}
-@end
-
 @implementation Viewport
 
 - (void)prepareOpenGL
@@ -72,6 +65,7 @@
 
 - (void)dealloc {
     cleanup_editor(VISUAL_ENV);
+    [super dealloc];
 }
 
 @end
