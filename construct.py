@@ -2,6 +2,7 @@
 from base import *
 from globs import *
 from bedrock import *
+from maybe import *
 import types_builtin
 import native
 import atom
@@ -117,6 +118,13 @@ def load_module_dep(src, deps, plan):
 
     assert loaded_modules[name] is None
     loaded_modules[name] = decl_mod
+
+    if name == 'maybe':
+        # Stupid hack
+        # expanded forms depend on maybe, but maybe depends on type forms
+        # so just load the xforms now
+        load_forms('xforms', [quilt.BlockUnit])
+
     return decl_mod
 
 def build_mod(decl_mod, defn_mod, plan):

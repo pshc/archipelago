@@ -1,4 +1,5 @@
 from bedrock import *
+from maybe import *
 
 SlimeMold = DT('SlimeMold', ('sliminess', int))
 

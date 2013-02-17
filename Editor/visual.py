@@ -1,5 +1,5 @@
 from Editor.gl import *
-from bedrock import *
+from maybe import *
 
 fragmentShaderSrc = """
 void main () {

@@ -14,9 +14,7 @@
 		50A1041F15B9F1490075EE0E /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 50A1041D15B9F1490075EE0E /* MainMenu.xib */; };
 		50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50A1042515B9F15F0075EE0E /* OpenGL.framework */; };
 		50A1042E15B9F2050075EE0E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 50A1042D15B9F2050075EE0E /* Viewport.m */; };
-		9641AA8D16B4B4E800414ECB /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8B16B4B4E800414ECB /* bedrock.ll.o */; };
 		9641AA8E16B4B4E800414ECB /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */; };
-		9641AA8F16B4B4F200414ECB /* bedrock.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8B16B4B4E800414ECB /* bedrock.ll.o */; };
 		9641AA9016B4B4F300414ECB /* Editor_visual.ll.o in Frameworks */ = {isa = PBXBuildFile; fileRef = 9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */; };
 		9641AA9116B4B50C00414ECB /* runtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0E16B09428002A0430 /* runtime.c */; };
 		9641AA9216B4B50E00414ECB /* z.c in Sources */ = {isa = PBXBuildFile; fileRef = 96103E0916B093D6002A0430 /* z.c */; };
@@ -59,7 +57,6 @@
 		96103DBC16B0937F002A0430 /* Editor_visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Editor_visual.h; path = i386/Editor_visual.h; sourceTree = SOURCE_ROOT; };
 		96103E0916B093D6002A0430 /* z.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = z.c; path = ../z.c; sourceTree = "<group>"; };
 		96103E0E16B09428002A0430 /* runtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = runtime.c; path = ../gc/runtime.c; sourceTree = "<group>"; };
-		9641AA8B16B4B4E800414ECB /* bedrock.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = bedrock.ll.o; path = obj/bedrock.ll.o; sourceTree = "<group>"; };
 		9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.objfile"; name = Editor_visual.ll.o; path = obj/Editor_visual.ll.o; sourceTree = "<group>"; };
 		966D3D0316A9503B00183D97 /* Skylark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Skylark.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		966D3D0516A9503B00183D97 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -93,7 +90,6 @@
 			files = (
 				50A1040915B9F1490075EE0E /* Cocoa.framework in Frameworks */,
 				50A1042615B9F15F0075EE0E /* OpenGL.framework in Frameworks */,
-				9641AA8D16B4B4E800414ECB /* bedrock.ll.o in Frameworks */,
 				9641AA8E16B4B4E800414ECB /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -108,7 +104,6 @@
 				966D3D0A16A9503B00183D97 /* CoreGraphics.framework in Frameworks */,
 				966D3D0C16A9503B00183D97 /* GLKit.framework in Frameworks */,
 				966D3D0E16A9503B00183D97 /* OpenGLES.framework in Frameworks */,
-				9641AA8F16B4B4F200414ECB /* bedrock.ll.o in Frameworks */,
 				9641AA9016B4B4F300414ECB /* Editor_visual.ll.o in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -190,7 +185,6 @@
 		9641AA8916B4B4CB00414ECB /* External */ = {
 			isa = PBXGroup;
 			children = (
-				9641AA8B16B4B4E800414ECB /* bedrock.ll.o */,
 				9641AA8C16B4B4E800414ECB /* Editor_visual.ll.o */,
 				96103E0E16B09428002A0430 /* runtime.c */,
 				96103E0916B093D6002A0430 /* z.c */,

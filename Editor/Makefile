@@ -1,7 +1,7 @@
 TARGETS = i386/Editor_visual.ll.o arm/Editor_visual.ll.o
 ABS_TARGETS := $(TARGETS:%=Editor/%)
 
-OBJS = obj/Editor_visual.ll.o obj/bedrock.ll.o
+OBJS = obj/Editor_visual.ll.o
 
 DIRS = arm i386 obj
 MAKE_PARENT := $(MAKE) -C .. --no-print-directory

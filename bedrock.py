@@ -1,4 +1,5 @@
 from base import DT, ADT, annot, cdecl, hint, match, new_extrinsic
+from maybe import *
 
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
@@ -28,9 +29,6 @@ def fst(t):
 def snd(t):
     return match(t, ('(_, s)', identity))
 
-Maybe, Just, Nothing = ADT('Maybe', 'Just', ('just', 'a'),
-                                    'Nothing',
-                                    value=True)
 @annot('Maybe(a) -> bool noenv')
 def isJust(m):
     return match(m, ('Just(_)', lambda: True), ('_', lambda: False))
