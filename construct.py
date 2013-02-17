@@ -240,17 +240,17 @@ def load_builtins():
 
     native.serialize(mod)
 
-def load_forms():
+SERIALIZED_FORMS = set()
+
+def load_forms(modName, init):
     resolve_forward_type_refs()
 
-    init = [atom.CompilationUnit, atom.Vector]
     pending = set(t_DT(dt).data for dt in init)
-    done = set()
     forms = []
     names = {}
 
     def found_dt(dt, apps):
-        if dt not in done:
+        if dt not in SERIALIZED_FORMS:
             assert isinstance(dt, DataType), '%s is not a DT form' % (dt,)
             pending.add(dt)
         map_(scan_type_deps, apps)
@@ -272,7 +272,7 @@ def load_forms():
 
     while pending:
         dt = pending.pop()
-        done.add(dt)
+        SERIALIZED_FORMS.add(dt)
         if not has_extrinsic(Location, dt):
             for ctor in dt.ctors:
                 for field in ctor.fields:
@@ -283,8 +283,8 @@ def load_forms():
             names[dt] = extrinsic(Name, dt)
 
     mod = Module(t_DT(DtList), DtList(forms))
-    add_extrinsic(Name, mod, 'forms')
-    atom.write_mod_repr('views/forms', mod)
+    add_extrinsic(Name, mod, modName)
+    atom.write_mod_repr('views/%s' % (modName,), mod)
     native.serialize(mod)
 
     names_mod = extrinsic_mod(Name, names, mod)
@@ -299,8 +299,11 @@ def load_runtime_dep(filename, subdeps):
     return dep
 
 def load_files(files):
+    load_forms('forms', [
+        atom.CompilationUnit, atom.Vector,
+        Overlay, BuiltinList, atom.ModuleDecls,
+    ])
     load_builtins()
-    load_forms()
 
     buildTests = env(BUILDOPTS).buildTests
 
