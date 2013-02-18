@@ -175,7 +175,12 @@ def new_extrinsic(label, t, omni=False):
 def extrinsic(ext, obj):
     assert ext.stack, "Not in extrinsic %s" % (ext.label,)
     record = ext.stack[-1]
-    assert obj in record, '%r has no %s' % (obj, ext.label)
+    if obj not in record:
+        try:
+            desc = repr(obj)
+        except:
+            desc = '<%s instance>' % (type(obj),)
+        assert False, '%s has no %s' % (desc, ext.label)
     return record[obj]
 
 def scope_extrinsic(ext, func):
