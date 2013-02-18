@@ -272,6 +272,8 @@ DataType = DT('DataType', ('ctors', [Ctor]),
                           ('tvars', ['TypeVar']),
                           ('opts', DTOpts))
 
+DtList = DT('DtList', ('dts', [DataType]))
+
 del _dt_form
 
 def _ctor_form(ctor):

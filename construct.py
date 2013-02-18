@@ -298,8 +298,6 @@ def load_forms(modName, init):
     names_mod = extrinsic_mod(Name, names, mod)
     native.serialize(names_mod)
 
-DtList = DT('DtList', ('dts', [DataType]))
-
 def load_runtime_dep(filename, subdeps):
     dep = load_module_dep(filename, set(), dep_obj_plan(filename))
     add_extrinsic(llvm.OFile, dep, RUNTIME_MODULE_OBJS[filename])

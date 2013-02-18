@@ -188,15 +188,29 @@ def inspect(module):
             lambda: _inspect_node(module.root, module.rootType))
     return inspect.count
 
+HEADERS = {'form': '\xe5\xa4\xa9\x00', 'normal': '\xe7\xa5\x9e\x00'}
+
 def serialize(module):
     assert not has_extrinsic(ModDigest, module)
     temp = '/tmp/serialize'
     hash = sha256()
-    inspection_count = inspect(module)
-
     f = file(temp, 'wb')
     depmap = {module: 0}
     state = SerialState(f, hash, 0, depmap)
+
+    def write_header():
+        dt = match(module.rootType, 'TData(dt, _)')
+        if dt is t_DT(DtList).data:
+            _write(HEADERS['form'])
+        else:
+            _write(HEADERS['normal'])
+            _serialize_node(module.rootType, t_ADT(Type))
+    in_env(Serialize, state, write_header)
+
+    header_count = state.count
+    inspection_count = inspect(module)
+
+    # body
     in_env(Serialize, state,
             lambda: _serialize_node(module.root, module.rootType))
     f.close()
@@ -213,7 +227,8 @@ def serialize(module):
     add_extrinsic(ModDeps, module, deps)
     add_extrinsic(ModDigest, module, hex)
 
-    assert state.count == inspection_count, "Inconsistent atom count"
+    assert state.count == header_count + inspection_count, \
+            "Inconsistent atom count"
     meta = ModuleMeta(state.count, [extrinsic(ModDigest, d) for d in deps])
     f = file('opt/%s_meta' % (hex,), 'wb')
     in_env(Serialize, SerialState(f, sha256(), 0, None),
