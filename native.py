@@ -204,7 +204,11 @@ def serialize(module):
             _write(HEADERS['form'])
         else:
             _write(HEADERS['normal'])
-            _serialize_node(module.rootType, t_ADT(Type))
+            try:
+                _serialize_node(module.rootType, t_ADT(Type))
+            except AssertionError, e:
+                e.args = (e.message + ' (while serializing rootType)',)
+                raise
     in_env(Serialize, state, write_header)
 
     header_count = state.count
