@@ -154,8 +154,8 @@ def _inspect_node(node, t):
             assert not has_extrinsic(Location, node), \
                     "Multiply used %r" % (node,)
             state = env(Inspection)
-            add_extrinsic(Location, node, Pos(state.module, state.count))
             state.count += 1
+            add_extrinsic(Location, node, Pos(state.module, state.count))
 
         # Inspect fields
         form = dtform.ctors[node._ctor_ix if len(dtform.ctors) > 1 else 0]
@@ -230,6 +230,7 @@ def serialize(module):
     deps = map(fst, deps)
     add_extrinsic(ModDeps, module, deps)
     add_extrinsic(ModDigest, module, hex)
+    add_extrinsic(Location, module, Pos(module, 0))
 
     assert state.count == header_count + inspection_count, \
             "Inconsistent atom count"
