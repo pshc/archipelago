@@ -10,7 +10,7 @@ import vat
 import astconv
 import check
 import quilt
-import platform
+import pltfm
 import expand
 import headers
 import scan
@@ -367,16 +367,16 @@ def main():
             elif arg == '--test':
                 options.buildTests = True
             elif arg == '--arm':
-                arch = platform.arm_iOS_target()
+                arch = pltfm.arm_iOS_target()
             elif arg == '--i386':
-                arch = platform.i386_iOS_target()
+                arch = pltfm.i386_iOS_target()
             else:
                 assert False, "Unknown option: %s" % (arg,)
         else:
             files.append(arg)
 
     if arch is None:
-        arch = platform.host_arch()
+        arch = pltfm.host_arch()
 
     in_env(GENOPTS, genOpts,
             lambda: in_env(BUILDOPTS, options,
