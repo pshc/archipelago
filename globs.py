@@ -3,8 +3,9 @@ import base
 ModIndex = base.new_extrinsic('ModIndex', [int])
 Filename = base.new_extrinsic('Filename', str)
 
-Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
+Module = base.DT('Module', ('rootType', 'Type'), ('root', 'a'))
 
+Pos = base.DT('Pos', ('module', '*Module'), ('index', int))
 Location = base.new_extrinsic('Location', Pos, omni=True)
 
 TypeOf = base.new_extrinsic('TypeOf', base.Type, omni=True)

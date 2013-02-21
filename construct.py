@@ -63,18 +63,19 @@ def load_module_dep(src, deps, plan):
 
     def conv_mod():
         checkpoint()
-        decl_mod, defn_mod_m = capture_extrinsic(Name, names,
+        bundle_mod = capture_extrinsic(Name, names,
             lambda: astconv.convert_file(src, name, deps))
+        decl_mod = bundle_mod.root.decls[0]
         add_extrinsic(Filename, decl_mod, name)
         view = 'views/%s' % (name,)
-        if not isJust(defn_mod_m):
+        if len(bundle_mod.root.units) == 0:
             atom.write_mod_repr(view, decl_mod)
             prop.prop_module_decls(decl_mod.root)
             atom.write_mod_repr(view, decl_mod, [TypeOf])
-            return decl_mod, defn_mod_m
+            return bundle_mod
         profile_separator()
 
-        defn_mod = fromJust(defn_mod_m)
+        defn_mod = bundle_mod.root.units[0]
 
         impv = view
         view += '_decls'
@@ -91,33 +92,42 @@ def load_module_dep(src, deps, plan):
         atom.write_mod_repr(impv, defn_mod, [TypeOf, Instantiation])
         checkpoint()
 
-        return decl_mod, defn_mod_m
-    decl_mod, defn_mod = scope_extrinsic(InstMap,
+        return bundle_mod
+    bundle_mod = scope_extrinsic(InstMap,
             lambda: scope_extrinsic(astconv.AstType,
             lambda: scope_extrinsic(astconv.AstHint, conv_mod)))
+    bundle = bundle_mod.root
 
     checkpoint()
-    native.serialize(decl_mod)
-    native.serialize(extrinsic_mod(Name, names, decl_mod))
-    if isJust(defn_mod):
-        mod = fromJust(defn_mod)
-        native.serialize(mod)
-        native.serialize(extrinsic_mod(Name, names, mod))
+    for decl_mod in bundle.decls:
+        native.serialize(decl_mod)
+        native.serialize(extrinsic_mod(Name, names, decl_mod))
+
+    if len(bundle.units) > 0:
+        for mod in bundle.units:
+            native.serialize(mod)
+            native.serialize(extrinsic_mod(Name, names, mod))
         checkpoint('serialized decls and defns')
 
-        expand.in_intramodule_env(
-            lambda: check.in_check_env(
-            lambda: build_mod(decl_mod, mod, plan)
-        ))
+        native.serialize(bundle_mod)
+
+        def build():
+            # really should link unit to its decl mod
+            for decl_mod, defn_mod in ezip(bundle.decls, bundle.units):
+                build_mod(decl_mod, defn_mod, plan)
+        expand.in_intramodule_env(lambda: check.in_check_env(build))
     else:
+        native.serialize(bundle_mod)
         checkpoint('serialized just decls')
-        expand.expand_decls(decl_mod.root)
+        for decl_mod in bundle.decls:
+            expand.expand_decls(decl_mod.root)
         checkpoint('expanded decls')
         if isJust(plan.writeIR):
-            write_mod_headers(decl_mod, fromJust(plan.writeIR))
+            for decl_mod in bundle.decls:
+                write_mod_headers(decl_mod, fromJust(plan.writeIR))
 
     assert loaded_modules[name] is None
-    loaded_modules[name] = decl_mod
+    loaded_modules[name] = bundle_mod
 
     if name == 'maybe':
         # Stupid hack
@@ -125,7 +135,7 @@ def load_module_dep(src, deps, plan):
         # so just load the xforms now
         load_forms('xforms', [quilt.BlockUnit])
 
-    return decl_mod
+    return bundle_mod
 
 def build_mod(decl_mod, defn_mod, plan):
     name = extrinsic(Filename, decl_mod)
@@ -300,22 +310,24 @@ def load_forms(modName, init):
 
 def load_runtime_dep(filename, subdeps):
     dep = load_module_dep(filename, set(), dep_obj_plan(filename))
-    add_extrinsic(llvm.OFile, dep, RUNTIME_MODULE_OBJS[filename])
-    add_extrinsic(llvm.LinkDeps, dep, frozenset(subdeps))
+    for decls in dep.root.decls:
+        add_extrinsic(llvm.OFile, decls, RUNTIME_MODULE_OBJS[filename])
+        add_extrinsic(llvm.LinkDeps, decls, frozenset(subdeps))
     return dep
 
 def load_files(files):
     load_forms('forms', [
-        atom.CompilationUnit, atom.Vector,
-        Overlay, BuiltinList, atom.ModuleDecls,
+        atom.Bundle, atom.ModuleDecls, atom.CompilationUnit,
+        Overlay, BuiltinList,
+        atom.Vector,
     ])
     load_builtins()
 
     buildTests = env(BUILDOPTS).buildTests
 
     print col('DG', 'Building for ' + env(quilt.ARCH).name)
-    runtime_decl = load_runtime_dep('runtime.py', [])
-    load_runtime_dep('gc/interface.py', [runtime_decl])
+    runtime_mod = load_runtime_dep('runtime.py', [])
+    load_runtime_dep('gc/interface.py', [runtime_mod.root.decls[0]])
 
     for filename in files:
         print col('DG', 'Loading'), filename

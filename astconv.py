@@ -777,13 +777,14 @@ def conv_from(s):
             filename = modname.replace('.', '/') + '.py'
             import_module(load_module(filename, omni.loadedDeps))
 
-def import_module(mod):
+def import_module(bundle_mod):
     global loaded_module_export_names
-    symbols = loaded_module_export_names[mod]
-    imports = env(OMNI).imports
-    for k in symbols:
-        assert k not in imports, "Import clash: %s" % (k,)
-        imports[k] = symbols[k]
+    for mod in bundle_mod.root.decls:
+        symbols = loaded_module_export_names[mod]
+        imports = env(OMNI).imports
+        for k in symbols:
+            assert k not in imports, "Import clash: %s" % (k,)
+            imports[k] = symbols[k]
 
 @stmt(ast.Function)
 @top_level(ast.Function)
@@ -922,12 +923,16 @@ def convert_file(filename, name, deps):
         map_(conv_top_level, tops)
     in_env(OMNI, omni, lambda: in_env(SCOPE, scope, go))
     decl_mod.root = omni.decls
-    defn_mod = Module(t_DT(CompilationUnit), CompilationUnit(omni.funcDefns))
-    if defn_mod.root.funcs:
+
+    bundle = Bundle([decl_mod], [])
+    bundle_mod = Module(t_DT(Bundle), bundle)
+    add_extrinsic(Name, bundle_mod, name + '_bundle')
+
+    if omni.funcDefns:
+        unit = CompilationUnit(omni.funcDefns)
+        defn_mod = Module(t_DT(CompilationUnit), unit)
         add_extrinsic(Name, defn_mod, name + '_impl')
-        defn_mod = Just(defn_mod)
-    else:
-        defn_mod = Nothing()
+        bundle.units.append(defn_mod)
 
     # Resolve imports for missing symbols
     missing = omni.missingRefs
@@ -948,7 +953,7 @@ def convert_file(filename, name, deps):
             assert space == valueNamespace
             RUNTIME[name] = var
 
-    return (decl_mod, defn_mod)
+    return bundle_mod
 
 def escape(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')

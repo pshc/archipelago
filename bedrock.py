@@ -8,7 +8,6 @@ from maybe import *
 Set = DT('Set', ('contents', ['a']))
 Dict = DT('Dict', ('contents', [('k', 'v')]))
 
-Module = DT('Module', ('rootType', 'Type'), ('root', 'a'))
 ModDigest = new_extrinsic('ModDigest', str)
 ModDeps = new_extrinsic('ModDeps', '[*Module]')
 
