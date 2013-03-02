@@ -235,11 +235,11 @@ def serialize(module):
     assert state.count == header_count + inspection_count, \
             "Inconsistent atom count"
     meta = ModuleMeta(state.count, [extrinsic(ModDigest, d) for d in deps])
-    f = file('opt/%s_meta' % (digest,), 'wb')
+    f = file('cache/%s' % (digest,), 'wb')
     in_env(Serialize, SerialState(f, sha256(), 0, None),
             lambda: _serialize_node(meta, t_DT(ModuleMeta)))
     f.close()
-    system('ln -sf -- %s_meta opt/%s_meta' % (digest, name))
+    system('ln -sf -- %s_meta cache/%s' % (digest, name))
 
 DeserialState = DT('DeserialState',
         ('file', file),

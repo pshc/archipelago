@@ -3,9 +3,9 @@
 *.pyo
 *.swp
 /bin
+/cache
 /ir
 /mods
-/opt
 /views
 .DS_Store
 xcuserdata

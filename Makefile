@@ -1,6 +1,6 @@
 TESTS := $(wildcard tests/*.py)
 TEST_TARGETS := $(TESTS:tests/%.py=%)
-DIRS = bin ir mods opt views
+DIRS = bin cache ir mods views
 OPTS = --color
 CODEGEN = time ./construct.py $(OPTS)
 CC = cc
