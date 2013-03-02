@@ -17,6 +17,8 @@ Serialize = new_env('Serialize', SerialState)
 
 SerialContext = new_env('SerialContext', None) # debug info
 
+DIGEST_INDEX = {}
+
 def _write(b):
     state = env(Serialize)
     state.file.write(b)
@@ -176,9 +178,6 @@ def _inspect_node(node, t):
                 _inspect_node(item, et)
 
 
-def _cmp_digest(a, b):
-    return cmp(extrinsic(ModDigest, a), extrinsic(ModDigest, b))
-
 ModInspection = DT('ModInspection', ('atomCount', int),
                                     ('deps', ['*Module']))
 
@@ -219,27 +218,28 @@ def serialize(module):
             lambda: _serialize_node(module.root, module.rootType))
     f.close()
 
-    hex = hash.digest().encode('hex')
+    digest = hash.digest().encode('hex')
     name = extrinsic(Name, module)
-    system('mv -f -- %s mods/%s' % (temp, hex))
-    system('ln -sf -- %s mods/%s' % (hex, name))
+    system('mv -f -- %s mods/%s' % (temp, digest))
+    system('ln -sf -- %s mods/%s' % (digest, name))
+    DIGEST_INDEX[digest] = name
 
     del depmap[module]
     deps = depmap.items()
     deps.sort(lambda a, b: cmp(a[1], b[1]))
     deps = map(fst, deps)
     add_extrinsic(ModDeps, module, deps)
-    add_extrinsic(ModDigest, module, hex)
+    add_extrinsic(ModDigest, module, digest)
     add_extrinsic(Location, module, Pos(module, 0))
 
     assert state.count == header_count + inspection_count, \
             "Inconsistent atom count"
     meta = ModuleMeta(state.count, [extrinsic(ModDigest, d) for d in deps])
-    f = file('opt/%s_meta' % (hex,), 'wb')
+    f = file('opt/%s_meta' % (digest,), 'wb')
     in_env(Serialize, SerialState(f, sha256(), 0, None),
             lambda: _serialize_node(meta, t_DT(ModuleMeta)))
     f.close()
-    system('ln -sf -- %s_meta opt/%s_meta' % (hex, name))
+    system('ln -sf -- %s_meta opt/%s_meta' % (digest, name))
 
 DeserialState = DT('DeserialState',
         ('file', file),
