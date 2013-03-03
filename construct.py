@@ -5,6 +5,7 @@ from bedrock import *
 from maybe import *
 import types_builtin
 import native
+import deserialize
 import atom
 import vat
 import astconv
@@ -311,6 +312,9 @@ def load_forms(modName, init):
 
     names_mod = extrinsic_mod(Name, names, mod)
     native.serialize(names_mod)
+
+    if modName == 'forms':
+        deserialize.save_form_meanings(forms)
 
 def load_runtime_dep(filename, subdeps):
     dep = load_module_dep(filename, set(), dep_obj_plan(filename))
