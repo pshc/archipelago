@@ -143,7 +143,8 @@ TopFunc = DT('TopFunc', ('var', '*GlobalVar'), ('func', 'Func(e)'))
 CompilationUnit = DT('CompilationUnit', ('funcs', ['TopFunc(Expr)']))
 
 Bundle = DT('Bundle', ('decls', ['*Module']),
-                      ('units', ['*Module']))
+                      ('units', ['*Module']),
+                      ('overlays', ['*Module']))
 
 STMTCTXT = new_env('STMTCTXT', '*Stmt')
 EXPRCTXT = new_env('EXPRCTXT', '*Expr')

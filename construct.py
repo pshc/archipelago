@@ -101,12 +101,16 @@ def load_module_dep(src, deps, plan):
     checkpoint()
     for decl_mod in bundle.decls:
         native.serialize(decl_mod)
-        native.serialize(extrinsic_mod(Name, names, decl_mod))
+        names_mod = extrinsic_mod(Name, names, decl_mod)
+        native.serialize(names_mod)
+        bundle.overlays.append(names_mod)
 
     if len(bundle.units) > 0:
         for mod in bundle.units:
             native.serialize(mod)
-            native.serialize(extrinsic_mod(Name, names, mod))
+            names_mod = extrinsic_mod(Name, names, mod)
+            native.serialize(names_mod)
+            bundle.overlays.append(names_mod)
         checkpoint('serialized decls and defns')
 
         native.serialize(bundle_mod)

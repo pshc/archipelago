@@ -924,7 +924,7 @@ def convert_file(filename, name, deps):
     in_env(OMNI, omni, lambda: in_env(SCOPE, scope, go))
     decl_mod.root = omni.decls
 
-    bundle = Bundle([decl_mod], [])
+    bundle = Bundle([decl_mod], [], [])
     bundle_mod = Module(t_DT(Bundle), bundle)
     add_extrinsic(Name, bundle_mod, name + '_bundle')
 
