@@ -206,8 +206,8 @@ def _match_key(atom, args):
 def _match_sym(atom, args):
     assert 2 <= len(args) <= 3
     mod_name = args[0].val
-    assert mod_name in loaded_modules, "%s not loaded" % mod_name
-    mod = loaded_modules[mod_name]
+    assert mod_name in WRITTEN_MODULES, "%s not written yet" % mod_name
+    mod = WRITTEN_MODULES[mod_name]
     if isinstance(atom, Ref):
         r = atom.refAtom
         if isinstance(r, Ref) and r.refAtom is _b_symbol:

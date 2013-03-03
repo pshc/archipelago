@@ -26,7 +26,7 @@ GlobalSymbol = base.new_extrinsic('GlobalSymbol', GlobalInfo)
 LocalSymbol = base.new_extrinsic('LocalSymbol', str)
 FieldSymbol = base.new_extrinsic('FieldSymbol', str)
 
-loaded_modules = {}
+WRITTEN_MODULES = {}
 
 RUNTIME_MODULE_OBJS = {
     'runtime.py': 'ir/z.o',

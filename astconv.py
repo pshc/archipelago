@@ -40,8 +40,8 @@ symbolNamespace = 'symbol'
 
 def sym_call(path, args):
     mod, sym = path.split('.')
-    assert mod in loaded_modules, "%s not loaded!" % (mod,)
-    syms = loaded_module_export_names[loaded_modules[mod]]
+    assert mod in WRITTEN_MODULES, "%s not written yet!" % (mod,)
+    syms = loaded_module_export_names[WRITTEN_MODULES[mod]]
     sym = (sym, valueNamespace)
     assert sym in syms, "%s not found in %s" % (sym, syms.keys())
     return S.VoidStmt(VoidCall(E.Bind(syms[sym]), args))

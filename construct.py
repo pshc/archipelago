@@ -54,12 +54,12 @@ def dep_obj_plan(filename):
 
 def load_module_dep(src, deps, plan):
     name = plan.moduleName
-    if name in loaded_modules:
-        mod = loaded_modules[name]
+    if name in WRITTEN_MODULES:
+        mod = WRITTEN_MODULES[name]
         assert mod is not None, "%s is not ready yet!" % (name,)
         deps.add(mod)
         return mod
-    loaded_modules[name] = None
+    WRITTEN_MODULES[name] = None
     names = {}
 
     def conv_mod():
@@ -131,8 +131,8 @@ def load_module_dep(src, deps, plan):
             for decl_mod in bundle.decls:
                 write_mod_headers(decl_mod, fromJust(plan.writeIR))
 
-    assert loaded_modules[name] is None
-    loaded_modules[name] = bundle_mod
+    assert WRITTEN_MODULES[name] is None
+    WRITTEN_MODULES[name] = bundle_mod
 
     if name == 'maybe':
         # Stupid hack
