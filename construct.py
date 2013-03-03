@@ -26,7 +26,7 @@ BuildOpts = DT('BuildOpts', ('outDir', str),
 
 BUILDOPTS = new_env('BUILDOPTS', BuildOpts)
 
-# TEMP
+# ought to be just a dict
 Entry = base.DT('Entry', ('key', '*a'), ('value', str))
 Overlay = base.DT('Overlay', ('mapping', [Entry]))
 

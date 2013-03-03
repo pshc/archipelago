@@ -4,7 +4,7 @@ from maybe import *
 (List, Cons, Nil) = ADT('List', 'Cons', ('car', 'a'), ('cdr', 'List(a)'),
                                 'Nil')
 
-# TEMP
+# XXX antiquated
 Set = DT('Set', ('contents', ['a']))
 Dict = DT('Dict', ('contents', [('k', 'v')]))
 

@@ -422,7 +422,8 @@ class EnvExtrConverter(vat.Mutator):
         return runtime_call('_hasextrinsic', [extr, node])
 
     def ScopeExtrinsic(self, e):
-        return self.mutate('expr') # TEMP
+        # XXX actually respect extrinsic scoping
+        return self.mutate('expr')
 
     def WriteExtrinsic(self, s):
         f = '_addextrinsic' if s.isNew else '_updateextrinsic'

@@ -66,7 +66,7 @@ def _encode_int(n):
             chr(n>>8 & 0xff) + chr(n & 0xff)
 
 def _encode_float(f):
-    # TEMP
+    # XXX just blat these IEEE-style
     assert f >= 0 and f.is_integer()
     return _encode_int(int(f))
 

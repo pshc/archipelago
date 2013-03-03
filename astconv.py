@@ -291,7 +291,7 @@ def conv_in_env(environ, val, f):
     f = conv_byneed(f)
     return InEnv(environ, val, f)
 
-# TEMP
+# TEMP bypass for easier FFI
 @special_call('create_ctx')
 def conv_create_ctx(environ, val):
     environ = refs_symbol(environ)

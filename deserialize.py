@@ -52,7 +52,6 @@ def read_bool():
     return bool(n)
 
 def read_float():
-    # TEMP
     return read_int()
 
 def read_str():
