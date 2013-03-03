@@ -73,7 +73,10 @@ def results_equal(a, b):
 
 def _get_name(a):
     if not a or not has_extrinsic(Name, a):
-        return '?? %r' % (a,)
+        try:
+            return '<%r?>' % (a,)
+        except:
+            return '<??!>'
     return extrinsic(Name, a)
 
 REPRENV = new_env('REPRENV', set([Type]))
