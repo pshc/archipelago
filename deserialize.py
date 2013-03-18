@@ -57,7 +57,7 @@ def read_float():
 
 def read_str():
     n = read_int()
-    return env(Deserialize).read(n).decode('UTF-8')
+    return env(Deserialize).file.read(n).decode('UTF-8')
 
 def read_node(t, path):
     if isinstance(t, TData):
