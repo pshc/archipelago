@@ -3,6 +3,7 @@ from bedrock import *
 from globs import *
 from hashlib import sha256
 from native import ModuleMeta, HEADERS, DIGEST_INDEX
+from types_builtin import app_map, subst
 import os
 
 LOADED_MODULES = {}
@@ -62,6 +63,8 @@ def read_node(t, path):
     if isinstance(t, TData):
         state = env(Deserialize)
 
+        apps = app_map(t.data, t.appTypes)
+
         ctors = t.data.ctors
         if len(ctors) > 1:
             form = ctors[read_int()]
@@ -79,7 +82,8 @@ def read_node(t, path):
 
         for field in form.fields:
             fnm = extrinsic(Name, field)
-            child = read_node(field.type, (val, fnm))
+            ft = subst(apps, field.type)
+            child = read_node(ft, (val, fnm))
             setattr(val, fnm, child)
 
         return val
