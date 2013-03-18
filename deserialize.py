@@ -112,7 +112,8 @@ def read_node(t, path):
             if index == 0:
                 return depMod
             else:
-                return extrinsic(ModIndex, depMod)[index]
+                dest = extrinsic(ModIndex, depMod)[index-1]
+                return dest
 
     elif isinstance(t, TArray):
         elemT = t.elemType
@@ -190,8 +191,9 @@ def _read_module(filename):
 
     assert state.index == meta.count, "Inconsistent atom count"
 
-    ownMap = [v for k, v in sorted(ownMap.items())]
-    add_extrinsic(ModIndex, module, ownMap)
+    # indices off by 1
+    flatIndex = [ownMap[i+1] for i in xrange(len(ownMap))]
+    add_extrinsic(ModIndex, module, flatIndex)
     return module
 
 def deserialize(digest):
