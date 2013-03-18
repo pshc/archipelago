@@ -199,6 +199,7 @@ def serialize(module):
 
     def write_header():
         dt = match(module.rootType, 'TData(dt, _)')
+        assert type(dt) is DataType, "Bad TData containing %r" % (dt,)
         if dt is t_DT(DtList).data:
             _write(HEADERS['form'])
         else:

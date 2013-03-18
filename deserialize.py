@@ -63,6 +63,7 @@ def read_node(t, path):
     if isinstance(t, TData):
         state = env(Deserialize)
 
+        assert type(t.data) is DataType, "Bad TData containing %r" % (t.data,)
         apps = app_map(t.data, t.appTypes)
 
         ctors = t.data.ctors
@@ -161,7 +162,10 @@ def _read_module(filename):
         if header == HEADERS['form']:
             module.rootType = t_DT(DtList)
         elif header == HEADERS['normal']:
-            module.rootType = read_node(t_ADT(Type), (module, 'rootType'))
+            t = read_node(t_ADT(Type), (module, 'rootType'))
+            assert type(match(t, 'TData(data, _)')) is DataType, \
+                    "Bad TData containing %s: %r" % (type(t.data), t.data,)
+            module.rootType = t
         else:
             assert False, "Bad module header: %s" % (header,)
 
